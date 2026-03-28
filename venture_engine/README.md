@@ -1,4 +1,4 @@
-# Develeap Labs — Venture Intelligence Engine
+# Develeap — Venture Intelligence Engine
 
 An autonomous pipeline that harvests startup signals from the web, scores them across 5 dimensions, simulates thought leader reactions, and surfaces the best venture ideas on an internal HN-style dashboard.
 

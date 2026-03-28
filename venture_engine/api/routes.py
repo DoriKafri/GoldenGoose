@@ -74,7 +74,7 @@ def venture_share_page(venture_id: str, request: Request, db: Session = Depends(
     og_image = f"{base}/venture/{venture_id}/og-image.svg"
     og_url = f"{base}/venture/{venture_id}"
     score_text = f"Score: {int(v.score_total)}/100" if v.score_total else ""
-    description = v.summary or v.problem or "A venture from Develeap Labs"
+    description = v.summary or v.problem or "A venture from Develeap"
     return templates.TemplateResponse("share.html", {
         "request": request,
         "venture": v,
@@ -614,24 +614,24 @@ class SuggestRequest(BaseModel):
 
 SUGGEST_PROMPTS: dict[str, str] = {
     "venture": (
-        "You are a Develeap Labs venture ideation engine. The user has a rough idea for a "
+        "You are a Develeap venture ideation engine. The user has a rough idea for a "
         "B2B SaaS venture targeting engineering teams, DevOps practitioners, platform engineers, "
         "ML engineers, or data engineers. Flesh it out into a complete venture concept. "
         "Give it a catchy, startup-style name. Think like a Y Combinator partner."
     ),
     "stealth": (
-        "You are a Develeap Labs competitive intelligence engine. The user has identified "
+        "You are a Develeap competitive intelligence engine. The user has identified "
         "an early-stage startup or product area that Develeap could clone and beat to market. "
         "Flesh out the clone strategy — what the target does, how Develeap can build it faster "
         "with its existing customer base."
     ),
     "flip": (
-        "You are a Develeap Labs quick-flip strategist. The user has an idea for a product "
+        "You are a Develeap quick-flip strategist. The user has an idea for a product "
         "that can be built quickly and sold/licensed to a market leader. Flesh it out — "
         "who the buyer would be, why they'd acquire rather than build, and the build plan."
     ),
     "customer": (
-        "You are a Develeap Labs acqui-hire scout. The user has identified a potential "
+        "You are a Develeap acqui-hire scout. The user has identified a potential "
         "customer opportunity. Flesh it out — what product/team could be built that a "
         "specific company would want to acquire for talent and technology."
     ),
@@ -699,7 +699,7 @@ def polish_venture(req: PolishRequest):
             model=settings.claude_model,
             max_tokens=2048,
             system=(
-                "You are a Develeap Labs venture analyst. Polish the venture idea below. "
+                "You are a Develeap venture analyst. Polish the venture idea below. "
                 "Improve clarity, strengthen the problem statement, sharpen the solution, "
                 "and identify the ideal buyer. Keep it concise and actionable. "
                 "Respond with valid JSON only: "

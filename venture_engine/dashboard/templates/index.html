@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Develeap Labs · Venture Intelligence Engine</title>
+<title>Develeap · Venture Intelligence Engine</title>
 <link rel="icon" type="image/png" href="https://www.develeap.com/wp-content/uploads/2023/03/cropped-android-chrome-512x512-1-32x32.png" sizes="32x32">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -1048,7 +1048,7 @@ async function triggerHarvest() {
 }
 function sendToDarkFactory(v) {
   const score=v.scores&&v.scores[0];
-  const prompt=`You are Claude Code operating as the Develeap Labs dark factory.\nYour task is to autonomously build the following venture from Definition of Done to shipped code.\n\nVENTURE: ${v.title}\nSUMMARY: ${v.summary||''}\nPROBLEM: ${v.problem||''}\nSOLUTION: ${v.proposed_solution||''}\nDOMAIN: ${v.domain||''}\nTARGET BUYER: ${v.target_buyer||''}\n\nCOMPOSITE SCORE: ${v.score_total!=null?Math.round(v.score_total):'\u2014'}/100\nDARK FACTORY FIT: ${score?score.dark_factory_fit:'\u2014'}/10\n\nYOUR MISSION:\n1. Define the complete technical architecture\n2. Write a detailed Definition of Done with acceptance criteria\n3. Generate a test plan (unit + integration + E2E)\n4. Build the MVP: backend API + basic frontend + deployment config\n5. Run all tests and confirm they pass\n6. Generate a deployment README\n7. Output a summary of what was built and any open questions\n\nBegin.`;
+  const prompt=`You are Claude Code operating as the Develeap dark factory.\nYour task is to autonomously build the following venture from Definition of Done to shipped code.\n\nVENTURE: ${v.title}\nSUMMARY: ${v.summary||''}\nPROBLEM: ${v.problem||''}\nSOLUTION: ${v.proposed_solution||''}\nDOMAIN: ${v.domain||''}\nTARGET BUYER: ${v.target_buyer||''}\n\nCOMPOSITE SCORE: ${v.score_total!=null?Math.round(v.score_total):'\u2014'}/100\nDARK FACTORY FIT: ${score?score.dark_factory_fit:'\u2014'}/10\n\nYOUR MISSION:\n1. Define the complete technical architecture\n2. Write a detailed Definition of Done with acceptance criteria\n3. Generate a test plan (unit + integration + E2E)\n4. Build the MVP: backend API + basic frontend + deployment config\n5. Run all tests and confirm they pass\n6. Generate a deployment README\n7. Output a summary of what was built and any open questions\n\nBegin.`;
   navigator.clipboard.writeText(prompt);
   const toast=document.getElementById('copiedToast');toast.classList.add('show');setTimeout(()=>toast.classList.remove('show'),2000);
 }

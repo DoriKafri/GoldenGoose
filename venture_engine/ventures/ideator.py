@@ -44,7 +44,7 @@ def brainstorm_ventures(db: Session, count: int = 5, category: str = "venture") 
 
     if category == "training":
         system = (
-            "You are a Develeap Labs training course ideation engine. You generate high-potential "
+            "You are a Develeap training course ideation engine. You generate high-potential "
             "professional training course and workshop ideas targeting DevOps practitioners, "
             "platform engineers, ML engineers, SRE teams, and data engineers.\n\n"
             "Develeap is a leading DevOps consulting and training company. Generate training "
@@ -74,7 +74,7 @@ def brainstorm_ventures(db: Session, count: int = 5, category: str = "venture") 
         )
     elif category == "stealth":
         system = (
-            "You are a Develeap Labs competitive intelligence engine. You identify real, "
+            "You are a Develeap competitive intelligence engine. You identify real, "
             "early-stage and stealth startups in the DevOps, platform engineering, MLOps, "
             "DataOps, AI engineering, and SRE space that Develeap could clone and beat "
             "to market with its existing customer base.\n\n"
@@ -107,7 +107,7 @@ def brainstorm_ventures(db: Session, count: int = 5, category: str = "venture") 
         )
     else:
         system = (
-            "You are a Develeap Labs venture ideation engine. You generate high-potential "
+            "You are a Develeap venture ideation engine. You generate high-potential "
             "B2B SaaS venture ideas targeting engineering teams, DevOps practitioners, "
             "platform engineers, ML engineers, and data engineers.\n\n"
             "You think like a Y Combinator partner. You look for:\n"

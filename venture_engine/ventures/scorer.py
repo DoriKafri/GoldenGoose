@@ -10,7 +10,7 @@ from venture_engine.db.models import Venture, VentureScore, TechGap, TLSignal
 
 client = Anthropic(api_key=settings.anthropic_api_key)
 
-SCORING_SYSTEM_PROMPT = """You are the scoring engine for Develeap Labs, an internal venture studio inside a DevOps
+SCORING_SYSTEM_PROMPT = """You are the scoring engine for Develeap, an internal venture studio inside a DevOps
 consulting company. We operate a "dark factory" model: ventures must be buildable and operable by a tiny
 team (1-2 engineers) using heavy automation, AI code generation, and managed services.
 

@@ -13,7 +13,7 @@ from venture_engine.db.session import get_db
 logger.remove()
 logger.add(sys.stderr, level="INFO", format="{time:HH:mm:ss} | {level:<7} | {message}")
 
-app = FastAPI(title="Develeap Labs Venture Intelligence Engine")
+app = FastAPI(title="Develeap Venture Intelligence Engine")
 app.include_router(router)
 
 

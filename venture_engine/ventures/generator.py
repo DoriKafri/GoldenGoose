@@ -101,7 +101,7 @@ def generate_ventures_from_cluster(theme: dict) -> list[dict]:
             domain, inspiration_signals
     """
     system = (
-        "You are a Develeap Labs venture analyst. Your mission is to identify "
+        "You are a Develeap venture analyst. Your mission is to identify "
         "high-potential product ideas targeting engineering and DevOps teams. "
         "Focus on:\n"
         "  - Internal developer tools that could be productised\n"

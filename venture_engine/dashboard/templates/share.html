@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ venture.title }} — Develeap Venture Intelligence</title>
+
+<!-- Open Graph -->
+<meta property="og:type" content="article">
+<meta property="og:title" content="{{ venture.title }}{% if venture.slogan %} — {{ venture.slogan }}{% endif %}">
+<meta property="og:description" content="{{ description }}">
+<meta property="og:image" content="{{ og_image }}">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:url" content="{{ og_url }}">
+<meta property="og:site_name" content="Develeap Venture Intelligence">
+
+<!-- Twitter Card -->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="{{ venture.title }}{% if venture.slogan %} — {{ venture.slogan }}{% endif %}">
+<meta name="twitter:description" content="{{ description }}">
+<meta name="twitter:image" content="{{ og_image }}">
+
+<!-- Slack-specific -->
+<meta name="slack-app-id" content="">
+<meta name="author" content="Develeap Labs">
+
+<style>
+  :root { --accent: #FF9500; --bg: #f8f9fa; --card: #ffffff; --text: #1a1d23; --text2: #666; --radius: 12px; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:system-ui,-apple-system,'Segoe UI',sans-serif; background:var(--bg); color:var(--text); min-height:100vh; display:flex; flex-direction:column; align-items:center; padding:24px 16px; }
+  .share-card { max-width:680px; width:100%; background:var(--card); border-radius:16px; box-shadow:0 2px 20px rgba(0,0,0,0.08); overflow:hidden; }
+  .share-header { background:linear-gradient(135deg, #1a1d23, #2a2d33); padding:32px; color:#fff; }
+  .share-header .category { display:inline-block; font-size:11px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; padding:3px 12px; border-radius:20px; background:rgba(255,149,0,0.2); color:var(--accent); margin-bottom:12px; }
+  .share-header h1 { font-size:28px; font-weight:800; margin-bottom:4px; }
+  .share-header .slogan { font-size:16px; color:#999; font-style:italic; margin-bottom:16px; }
+  .share-header .meta { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .share-header .badge { font-size:11px; font-weight:600; padding:3px 10px; border-radius:20px; }
+  .badge-domain { background:rgba(255,149,0,0.15); color:var(--accent); }
+  .badge-score { background:rgba(61,199,97,0.15); color:#16a34a; }
+  .share-body { padding:24px 32px 32px; }
+  .share-body h3 { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:var(--text2); margin-bottom:6px; }
+  .share-body p { font-size:15px; line-height:1.6; color:var(--text); margin-bottom:20px; }
+  .share-body .section { margin-bottom:20px; }
+  .cta { text-align:center; padding:20px 32px 32px; }
+  .cta a { display:inline-block; padding:12px 32px; background:var(--accent); color:#fff; font-weight:700; font-size:14px; border-radius:10px; text-decoration:none; transition:opacity 0.15s; }
+  .cta a:hover { opacity:0.85; }
+  .branding { text-align:center; padding:20px; color:var(--text2); font-size:12px; }
+  .branding strong { color:var(--text); }
+  @media(max-width:500px) {
+    .share-header { padding:20px; }
+    .share-header h1 { font-size:22px; }
+    .share-body { padding:16px 20px 24px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="share-card">
+  <div class="share-header">
+    <span class="category">{{ {"venture":"Venture","training":"Training","stealth":"Clone","flip":"Quick Flip"}.get(venture.category, "Venture") }}</span>
+    <h1>{{ venture.title }}</h1>
+    {% if venture.slogan %}<div class="slogan">{{ venture.slogan }}</div>{% endif %}
+    <div class="meta">
+      {% if venture.domain %}<span class="badge badge-domain">{{ venture.domain }}</span>{% endif %}
+      {% if venture.score_total %}<span class="badge badge-score">Score: {{ venture.score_total|int }}/100</span>{% endif %}
+      {% if venture.target_acquirer %}<span class="badge" style="background:rgba(7,229,211,0.15);color:#0d9488;">Target: {{ venture.target_acquirer }}</span>{% endif %}
+    </div>
+  </div>
+  <div class="share-body">
+    {% if venture.summary %}
+    <div class="section"><h3>Summary</h3><p>{{ venture.summary }}</p></div>
+    {% endif %}
+    {% if venture.problem %}
+    <div class="section"><h3>Problem</h3><p>{{ venture.problem }}</p></div>
+    {% endif %}
+    {% if venture.proposed_solution %}
+    <div class="section"><h3>Proposed Solution</h3><p>{{ venture.proposed_solution }}</p></div>
+    {% endif %}
+    {% if venture.target_buyer %}
+    <div class="section"><h3>Target Buyer</h3><p>{{ venture.target_buyer }}</p></div>
+    {% endif %}
+  </div>
+  <div class="cta">
+    <a href="{{ base_url }}/#venture-{{ venture.id }}">View on Dashboard &rarr;</a>
+  </div>
+</div>
+
+<div class="branding">
+  <strong>develeap</strong> Venture Intelligence Engine
+</div>
+
+</body>
+</html>

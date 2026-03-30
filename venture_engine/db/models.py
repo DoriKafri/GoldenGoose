@@ -32,6 +32,8 @@ class Venture(Base):
     target_product = Column(Text, nullable=True)   # which product this supplements
     acquisition_price = Column(Text, nullable=True) # estimated acqui-hire price
     clone_time_estimate = Column(Text, nullable=True)  # 80/20 dark factory cloning time
+    achilles_heel = Column(Text, nullable=True)        # Target's key weakness / vulnerability
+    clone_advantage = Column(Text, nullable=True)      # How our clone exploits that weakness
     # Training course fields
     course_length = Column(Text, nullable=True)       # e.g. "3 days", "5 weeks"
     course_admission = Column(Text, nullable=True)    # price per seat

@@ -210,6 +210,16 @@ class Annotation(Base):
     replies = relationship("Annotation", backref="parent_annotation", remote_side=[id])
 
 
+class AppSetting(Base):
+    __tablename__ = "app_settings"
+
+    key = Column(String, primary_key=True)         # e.g. "scoring.monetization_weight"
+    value = Column(Text, nullable=False)            # JSON-encoded value
+    value_type = Column(String, default="string")   # "string", "number", "boolean", "json"
+    category = Column(String, default="general")    # grouping key for UI sections
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class PlatformUser(Base):
     __tablename__ = "platform_users"
 

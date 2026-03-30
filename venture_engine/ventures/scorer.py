@@ -89,8 +89,11 @@ def _compute_tl_score(db: Session, venture: Venture) -> float:
     weighted_sum = 0.0
     total_weight = 0.0
 
+    from venture_engine.settings_service import get_setting
+    real_w = get_setting("scoring.real_signal_weight", db)
+    sim_w = get_setting("scoring.simulated_signal_weight", db)
     for signal in signals:
-        weight = 2.0 if signal.signal_type == "real_reaction" else 1.0
+        weight = real_w if signal.signal_type == "real_reaction" else sim_w
         vote_value = vote_map.get(signal.vote, 0.5)
         weighted_sum += vote_value * weight
         total_weight += weight
@@ -136,13 +139,19 @@ def score_venture(db: Session, venture: Venture) -> VentureScore:
     tech_readiness = float(data["tech_readiness"])
     reasoning = data.get("reasoning", {})
 
-    # --- Composite score (0-100) ---
+    # --- Composite score (0-100) — weights from settings ---
+    from venture_engine.settings_service import get_setting
+    w_mon = get_setting("scoring.monetization_weight", db)
+    w_cash = get_setting("scoring.cashout_ease_weight", db)
+    w_df = get_setting("scoring.dark_factory_fit_weight", db)
+    w_tech = get_setting("scoring.tech_readiness_weight", db)
+    w_tl = get_setting("scoring.tl_score_weight", db)
     composite = (
-        monetization * 0.30
-        + cashout_ease * 0.25
-        + dark_factory_fit * 0.20
-        + tech_readiness * 0.15
-        + tl_score * 0.10
+        monetization * w_mon
+        + cashout_ease * w_cash
+        + dark_factory_fit * w_df
+        + tech_readiness * w_tech
+        + tl_score * w_tl
     ) * 10
 
     logger.info(

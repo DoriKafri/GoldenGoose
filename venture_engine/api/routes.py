@@ -158,120 +158,93 @@ def _svg_escape(text: str) -> str:
     return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
 
 
-# ─── Venture Logos ────────────────────────────────────────────────
+# ── Venture Logo System ───────────────────────────────────────────
+# Develeap DCOB D-mark style: dark background + D shape + colored accent icon.
+#
+# Structure:
+#   - Dark rounded rect background (#1a1d23)
+#   - DCOB "D" mark: right semicircle + bottom-left rect (#2a2f35)
+#   - Unique colored accent shape per venture (top-left quadrant)
 
-# Unique logo designs per venture: icon_svg_path only
-# All logos use Develeap brand: dark bg (#1a1d23) + amber accent (#FFB100)
-VENTURE_LOGOS = {
-    "PipeRiot": "M12 3v18M5 8l7-5 7 5M5 16l7 5 7-5M5 12h14",
-    "CostPilot": "M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5",
-    "GuardRails": "M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z",
-    "OnCallBrain": "M13 2L3 14h9l-1 8 10-12h-9l1-8z",
-    "PromptVault": "M4 4h16v16H4zM8 2v4M16 2v4M8 10h8M8 14h5",
-    "SchemaForge": "M4 7h16M4 12h16M4 17h16M8 7v10M12 7v10M16 7v10",
-    "FeatureMesh": "M12 2l3 7h7l-5.5 4 2 7L12 16l-6.5 4 2-7L2 9h7z",
-    "DriftSentinel": "M2 12h4l3-9 4 18 3-9h4",
-    "IsolateLabs": "M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z",
-    "ValidatorAI": "M9 12l2 2 4-4M22 12A10 10 0 1 1 12 2a10 10 0 0 1 10 10z",
-    "SBOMGuard": "M12 2L4 5v6.09c0 5.05 3.41 9.76 8 10.91 4.59-1.15 8-5.86 8-10.91V5l-8-3zM10 12l2 2 4-4",
-    "InferenceOps": "M12 2a3 3 0 0 0-3 3v4a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3zM19 10v2a7 7 0 0 1-14 0v-2M12 19v3M8 22h8",
-    "CloudSync": "M18 10a6 6 0 0 0-12 0 4 4 0 0 0 0 8h12a4 4 0 0 0 0-8zM10 14l-2 2 2 2M14 14l2 2-2 2",
-    "IncidentMesh": "M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0zM12 9v4M12 17h.01",
-    "AgentGuard": "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1.08-1.51",
-    "VeleroCloud": "M3 15a4 4 0 0 1 4-4h.87A5.5 5.5 0 0 1 19 11a4.5 4.5 0 0 1-.29 8H7M11 21V9M8 12l3-3 3 3",
-    "TrainSense": "M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1zM4 22v-7",
-    "SpecForge": "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zM14 2v6h6M9 13h6M9 17h3",
+_DMARK_BASE = (
+    '<rect width="128" height="128" rx="24" fill="#ffffff"/>'
+    '<path d="M68 22C91 22 108 39 108 62C108 85 91 102 68 102V22Z" fill="#05323C"/>'
+    '<rect x="22" y="68" width="38" height="34" rx="3" fill="#05323C"/>'
+)
+
+# Accent shapes — all 38px wide, left-aligned at x=22, matching the bottom rect width
+# Top area: x=22..60, y=22..60
+VENTURE_ACCENTS = {
+    "CostPilot":        '<circle cx="41" cy="41" r="19" fill="#F5A623"/>',
+    "PipeRiot":         '<polygon points="22,22 22,60 60,41" fill="#4CD964"/>',
+    "GuardRails":       '<rect x="22" y="22" width="38" height="9" rx="4.5" fill="#4A90D9"/><rect x="22" y="36" width="38" height="9" rx="4.5" fill="#4A90D9"/><rect x="22" y="50" width="38" height="9" rx="4.5" fill="#4A90D9"/>',
+    "OnCallBrain":      '<polygon points="41,22 60,60 22,60" fill="#F5A623"/>',
+    "PromptVault":      '<rect x="22" y="22" width="38" height="38" rx="5" fill="#9B59B6"/>',
+    "SchemaForge":      '<polygon points="41,22 60,41 41,60 22,41" fill="#E8553A"/>',
+    "FeatureMesh":      '<circle cx="32" cy="32" r="9" fill="#F5A623"/><circle cx="50" cy="32" r="9" fill="#F5A623"/><circle cx="32" cy="50" r="9" fill="#F5A623"/><circle cx="50" cy="50" r="9" fill="#F5A623"/>',
+    "DriftSentinel":    '<path d="M22,50 L31,26 L41,44 L51,22 L60,38" fill="none" stroke="#E8553A" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>',
+    "IsolateLabs":      '<rect x="22" y="22" width="15" height="38" rx="7.5" fill="#1ABC9C"/><rect x="45" y="22" width="15" height="38" rx="7.5" fill="#1ABC9C" opacity="0.5"/>',
+    "ValidatorAI":      '<path d="M22,41 L36,54 L60,26" fill="none" stroke="#4CD964" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>',
+    "SBOMGuard":        '<rect x="22" y="22" width="38" height="38" rx="6" fill="none" stroke="#E74C3C" stroke-width="4"/><line x1="41" y1="30" x2="41" y2="44" stroke="#E74C3C" stroke-width="4" stroke-linecap="round"/><circle cx="41" cy="50" r="2.5" fill="#E74C3C"/>',
+    "InferenceOps":     '<polygon points="22,22 22,60 52,41" fill="#4A90D9"/><line x1="58" y1="24" x2="58" y2="58" stroke="#4A90D9" stroke-width="4" stroke-linecap="round"/>',
+    "CloudSync":        '<path d="M22,50 A18,18 0 1,1 60,50" fill="#3498DB"/><rect x="22" y="46" width="38" height="14" rx="3" fill="#3498DB"/>',
+    "IncidentMesh":     '<polygon points="41,22 60,60 22,60" fill="#E74C3C"/>',
+    "AgentGuard":       '<circle cx="41" cy="32" r="14" fill="#9B59B6"/><rect x="28" y="48" width="26" height="12" rx="6" fill="#9B59B6"/>',
+    "VeleroCloud":      '<path d="M22,60 Q22,22 41,22 Q60,22 60,60" fill="#4CD964"/>',
+    "TrainSense":       '<rect x="22" y="40" width="10" height="20" rx="2" fill="#F5A623"/><rect x="36" y="30" width="10" height="30" rx="2" fill="#F5A623"/><rect x="50" y="22" width="10" height="38" rx="2" fill="#F5A623"/>',
+    "SpecForge":        '<rect x="22" y="22" width="38" height="38" rx="4" fill="#4A90D9"/><path d="M32,40 L38,46 L52,32" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>',
+    "BinaryLens":       '<circle cx="41" cy="41" r="18" fill="none" stroke="#E8553A" stroke-width="4"/><circle cx="41" cy="41" r="6" fill="#E8553A"/>',
+    "SupplyChainGuard": '<circle cx="30" cy="28" r="8" fill="#4CD964"/><circle cx="52" cy="28" r="8" fill="#4CD964"/><circle cx="41" cy="52" r="8" fill="#4CD964"/><line x1="30" y1="28" x2="52" y2="28" stroke="#4CD964" stroke-width="2.5"/><line x1="30" y1="28" x2="41" y2="52" stroke="#4CD964" stroke-width="2.5"/><line x1="52" y1="28" x2="41" y2="52" stroke="#4CD964" stroke-width="2.5"/>',
+    "PipelineForge":    '<circle cx="28" cy="41" r="8" fill="#F5A623"/><circle cx="44" cy="41" r="8" fill="#F5A623"/><circle cx="60" cy="41" r="8" fill="#F5A623"/>',
+    "DataSentinel ML":  '<rect x="22" y="40" width="10" height="20" rx="2" fill="#3498DB"/><rect x="36" y="28" width="10" height="32" rx="2" fill="#3498DB"/><rect x="50" y="34" width="10" height="26" rx="2" fill="#3498DB"/>',
+    "TrainReady IaC":   '<rect x="22" y="22" width="38" height="38" rx="4" fill="#1ABC9C"/><rect x="28" y="28" width="12" height="12" rx="2" fill="#fff"/><rect x="44" y="28" width="12" height="12" rx="2" fill="#fff"/><rect x="28" y="46" width="28" height="8" rx="2" fill="#fff"/>',
+    "VCluster FinOps":  '<polygon points="41,22 60,60 22,60" fill="none" stroke="#3498DB" stroke-width="4" stroke-linejoin="round"/><line x1="28" y1="48" x2="54" y2="48" stroke="#3498DB" stroke-width="3"/>',
+    "KubeIsolate":      '<rect x="22" y="22" width="15" height="38" rx="4" fill="#1ABC9C"/><rect x="45" y="22" width="15" height="38" rx="4" fill="#1ABC9C" opacity="0.6"/>',
 }
 
-TRAINING_LOGOS = {
-    "AI Agent Engineering": "M12 2a2 2 0 0 1 2 2v2a2 2 0 0 1-4 0V4a2 2 0 0 1 2-2zM6 8h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2zM9 14h.01M15 14h.01",
-    "LLM Fine-Tuning & Evaluation": "M4 4h16v16H4zM4 9h16M9 4v16M14 12l2 2-2 2",
-    "RAG Architecture Masterclass": "M4 19.5A2.5 2.5 0 0 1 6.5 17H20M4 14.5A2.5 2.5 0 0 1 6.5 12H20M4 4l16 0v5H4z",
-    "AI-Powered DevOps Automation": "M12 3v18M5 8l7-5 7 5M5 16l7 5 7-5",
-    "Prompt Engineering for Production": "M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2zM8 10h.01M12 10h.01M16 10h.01",
-    "MLOps with AI-Native Pipelines": "M2 12h4l3-9 4 18 3-9h4",
-    "AI Security & Red Teaming": "M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10zM12 8v4M12 16h.01",
-    "Building AI Data Pipelines": "M3 3v18h18M7 16l4-8 4 4 4-10",
-}
-
-
-# ── DCOB Logo System ──────────────────────────────────────────────
-# Each logo follows the Develeap DCOB "D" mark pattern:
-#   1. White background (rx=24 rounded rect)
-#   2. Large black half-circle on the right (the "D" curve)
-#   3. Small black square/rect at top-left (the "D" stem top)
-#   4. ONE colored accent shape per venture (unique identity)
-#
-# Base D elements (shared):
-#   Half-circle: <path d="M62,14 A50,50 0 0,1 62,114" fill="#1a1d23"/>
-#   Top square:  <rect x="14" y="14" width="30" height="30" rx="4" fill="#1a1d23"/>
-#
-# Accent colors: green=#4CD964, orange=#E8553A, blue=#4A90D9, amber=#F5A623
-
-# ── DCOB D-mark ──────────────────────────────────────────────────
-# Dark background, white D curve, colored accent top, dark square bottom.
-# Tight "iD" letterform matching Develeap brand guide proportions.
-#
-#   Background: white                  128×128, rx=24
-#   D curve:    #1a1d23                x 62→110, y 16→112  (r=48)
-#   Accent:     colored, top-left      x 10→56, y 16→62    (46×46 square)
-#   Gap:        4 px
-#   Square:     #1a1d23, bot-left      x 10→56, y 66→112   (46×46 square)
-#
-# Both left elements are perfect 46×46 squares. Gap to D = 6px.
-
-_D_CURVE  = '<path d="M62,16 A48,48 0 0,1 62,112" fill="#1a1d23"/>'
-_D_SQUARE = '<rect x="10" y="66" width="46" height="46" rx="4" fill="#1a1d23"/>'
-_DCOB_BASE = _D_CURVE + _D_SQUARE
-# Accent box: x 10→56, y 16→62.  Center (33, 39).  Half=23.
-
-VENTURE_GEO = {
-    "PipeRiot":      _DCOB_BASE + '<polygon points="10,16 56,39 10,62" fill="#4CD964"/>',
-    "CostPilot":     _DCOB_BASE + '<circle cx="33" cy="39" r="22" fill="#F5A623"/>',
-    "GuardRails":    _DCOB_BASE + '<polygon points="33,16 56,39 33,62 10,39" fill="#E8553A"/>',
-    "OnCallBrain":   _DCOB_BASE + '<polygon points="10,16 56,16 33,62" fill="#F5A623"/>',
-    "PromptVault":   _DCOB_BASE + '<rect x="10" y="16" width="46" height="12" rx="3" fill="#4A90D9"/><rect x="10" y="33" width="46" height="12" rx="3" fill="#4A90D9"/><rect x="10" y="50" width="46" height="12" rx="3" fill="#4A90D9"/>',
-    "SchemaForge":   _DCOB_BASE + '<rect x="10" y="16" width="46" height="46" rx="4" fill="#4CD964"/>',
-    "FeatureMesh":   _DCOB_BASE + '<path d="M56,16 A23,23 0 0,0 56,62" fill="#F5A623"/>',
-    "DriftSentinel": _DCOB_BASE + '<rect x="10" y="16" width="46" height="30" rx="4" fill="#E8553A"/>',
-    "IsolateLabs":   _DCOB_BASE + '<circle cx="33" cy="39" r="22" fill="#4CD964"/>',
-    "ValidatorAI":   _DCOB_BASE + '<polygon points="33,16 56,39 33,62 10,39" fill="#4A90D9"/>',
-    "SBOMGuard":     _DCOB_BASE + '<polygon points="33,16 56,62 10,62" fill="#E8553A"/>',
-    "InferenceOps":  _DCOB_BASE + '<circle cx="33" cy="39" r="22" fill="#4A90D9"/>',
-    "CloudSync":     _DCOB_BASE + '<polygon points="33,16 56,32 56,62 10,62 10,32" fill="#F5A623"/>',
-    "IncidentMesh":  _DCOB_BASE + '<circle cx="33" cy="39" r="20" fill="#E8553A"/>',
-    "AgentGuard":    _DCOB_BASE + '<polygon points="10,16 56,39 10,62" fill="#4A90D9"/>',
-    "VeleroCloud":   _DCOB_BASE + '<polygon points="33,16 56,32 56,62 10,62 10,32" fill="#4CD964"/>',
-    "TrainSense":    _DCOB_BASE + '<polygon points="33,16 56,39 33,62 10,39" fill="#F5A623"/>',
-    "SpecForge":     _DCOB_BASE + '<rect x="10" y="16" width="46" height="14" rx="3" fill="#4A90D9"/><rect x="10" y="36" width="34" height="14" rx="3" fill="#4A90D9"/>',
-}
-
-TRAINING_GEO = {
-    "AI Agent Engineering":            _DCOB_BASE + '<circle cx="33" cy="39" r="22" fill="#6C5CE7"/>',
-    "LLM Fine-Tuning & Evaluation":    _DCOB_BASE + '<rect x="10" y="16" width="46" height="30" rx="4" fill="#6C5CE7"/>',
-    "RAG Architecture Masterclass":    _DCOB_BASE + '<polygon points="33,16 56,39 33,62 10,39" fill="#6C5CE7"/>',
-    "AI-Powered DevOps Automation":    _DCOB_BASE + '<circle cx="33" cy="39" r="20" fill="#6C5CE7"/>',
-    "Prompt Engineering for Production": _DCOB_BASE + '<polygon points="10,16 56,39 10,62" fill="#6C5CE7"/>',
-    "MLOps with AI-Native Pipelines":  _DCOB_BASE + '<polygon points="33,16 56,32 56,62 10,62 10,32" fill="#6C5CE7"/>',
-    "AI Security & Red Teaming":       _DCOB_BASE + '<polygon points="33,16 56,62 10,62" fill="#6C5CE7"/>',
-    "Building AI Data Pipelines":      _DCOB_BASE + '<rect x="10" y="16" width="46" height="46" rx="4" fill="#6C5CE7"/>',
+# Training accents — all use purple (#6C5CE7), same 38px-wide left-aligned grid
+TRAINING_ACCENTS = {
+    "AI Agent Engineering":              '<circle cx="41" cy="32" r="14" fill="#6C5CE7"/><rect x="28" y="48" width="26" height="12" rx="6" fill="#6C5CE7"/>',
+    "LLM Fine-Tuning & Evaluation":      '<rect x="22" y="22" width="38" height="38" rx="4" fill="#6C5CE7"/><rect x="28" y="30" width="26" height="4" rx="2" fill="#fff"/><rect x="28" y="38" width="20" height="4" rx="2" fill="#fff"/><rect x="28" y="46" width="26" height="4" rx="2" fill="#fff"/>',
+    "RAG Architecture Masterclass":      '<polygon points="41,22 60,41 41,60 22,41" fill="#6C5CE7"/>',
+    "AI-Powered DevOps Automation":      '<circle cx="41" cy="41" r="19" fill="#6C5CE7"/><polygon points="35,30 35,52 52,41" fill="#fff"/>',
+    "Prompt Engineering for Production": '<path d="M26,41 L41,26 L56,41" fill="none" stroke="#6C5CE7" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><line x1="41" y1="41" x2="41" y2="58" stroke="#6C5CE7" stroke-width="4" stroke-linecap="round"/>',
+    "MLOps with AI-Native Pipelines":    '<circle cx="28" cy="41" r="10" fill="#6C5CE7"/><circle cx="54" cy="41" r="10" fill="#6C5CE7"/><line x1="38" y1="41" x2="44" y2="41" stroke="#6C5CE7" stroke-width="3"/><polygon points="46,37 50,41 46,45" fill="#6C5CE7"/>',
+    "AI Security & Red Teaming":         '<polygon points="41,22 60,60 22,60" fill="none" stroke="#6C5CE7" stroke-width="4" stroke-linejoin="round"/><line x1="41" y1="34" x2="41" y2="46" stroke="#6C5CE7" stroke-width="4" stroke-linecap="round"/><circle cx="41" cy="52" r="2.5" fill="#6C5CE7"/>',
+    "Building AI Data Pipelines":        '<rect x="22" y="40" width="10" height="20" rx="2" fill="#6C5CE7"/><rect x="36" y="30" width="10" height="30" rx="2" fill="#6C5CE7"/><rect x="50" y="22" width="10" height="38" rx="2" fill="#6C5CE7"/>',
 }
 
 
 @router.get("/api/venture-logo/{title}.svg")
 def venture_logo(title: str):
-    """Generate a Develeap DCOB-styled geometric SVG logo."""
-    geo = VENTURE_GEO.get(title) or TRAINING_GEO.get(title)
-    if not geo:
-        # Fallback: DCOB D-mark with amber circle accent
-        geo = _DCOB_BASE + '<circle cx="29" cy="34" r="21" fill="#F5A623"/>'
+    """Generate a Develeap DCOB D-mark styled SVG logo with unique accent shape."""
+    accent = VENTURE_ACCENTS.get(title) or TRAINING_ACCENTS.get(title)
+    if not accent:
+        # Deterministic unique accent from title hash
+        h = sum(ord(c) * (i + 1) for i, c in enumerate(title))
+        colors = ["#4CD964", "#E8553A", "#4A90D9", "#F5A623", "#9B59B6",
+                  "#1ABC9C", "#E74C3C", "#3498DB", "#E67E22", "#2ECC71"]
+        color = colors[h % len(colors)]
+        shapes = [
+            f'<circle cx="41" cy="41" r="19" fill="{color}"/>',
+            f'<polygon points="22,22 22,60 60,41" fill="{color}"/>',
+            f'<polygon points="41,22 60,41 41,60 22,41" fill="{color}"/>',
+            f'<polygon points="41,22 60,60 22,60" fill="{color}"/>',
+            f'<rect x="22" y="22" width="38" height="38" rx="6" fill="{color}"/>',
+            f'<circle cx="32" cy="32" r="9" fill="{color}"/><circle cx="50" cy="32" r="9" fill="{color}"/><circle cx="41" cy="52" r="9" fill="{color}"/>',
+            f'<rect x="22" y="22" width="38" height="9" rx="4.5" fill="{color}"/><rect x="22" y="36" width="38" height="9" rx="4.5" fill="{color}"/><rect x="22" y="50" width="38" height="9" rx="4.5" fill="{color}"/>',
+            f'<rect x="22" y="40" width="10" height="20" rx="2" fill="{color}"/><rect x="36" y="28" width="10" height="32" rx="2" fill="{color}"/><rect x="50" y="22" width="10" height="38" rx="2" fill="{color}"/>',
+            f'<circle cx="41" cy="41" r="19" fill="{color}"/><circle cx="41" cy="41" r="10" fill="#ffffff"/>',
+            f'<path d="M22,60 Q22,22 41,22 Q60,22 60,60" fill="{color}"/>',
+        ]
+        accent = shapes[(h // 10) % len(shapes)]
 
     svg = f'''<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
-  <rect width="128" height="128" rx="24" fill="#ffffff"/>
-  {geo}
+  {_DMARK_BASE}
+  {accent}
 </svg>'''
     return Response(content=svg, media_type="image/svg+xml",
-                    headers={"Cache-Control": "public, max-age=0"})
+                    headers={"Cache-Control": "public, max-age=0, must-revalidate"})
 
 
 # ─── Ventures ─────────────────────────────────────────────────────
@@ -984,3 +957,44 @@ def invite_user(req: InviteRequest, db: Session = Depends(get_db_dependency)):
     db.add(user)
     db.flush()
     return {"status": "ok", "email": email, "user_id": user.id}
+
+
+# ─── Settings ─────────────────────────────────────────────────────
+
+@router.get("/api/settings")
+def get_settings(db: Session = Depends(get_db_dependency)):
+    from venture_engine.settings_service import get_all_settings
+    return get_all_settings(db)
+
+
+class SettingsUpdateRequest(BaseModel):
+    settings: dict
+
+
+@router.put("/api/settings")
+def update_settings(req: SettingsUpdateRequest, db: Session = Depends(get_db_dependency)):
+    from venture_engine.settings_service import set_settings
+    saved = set_settings(db, req.settings)
+    return {"status": "ok", "updated": saved}
+
+
+class SettingsResetRequest(BaseModel):
+    keys: list[str] = []
+    category: str = ""
+
+
+@router.post("/api/settings/reset")
+def reset_settings_endpoint(req: SettingsResetRequest, db: Session = Depends(get_db_dependency)):
+    from venture_engine.settings_service import reset_settings, reset_category
+    if req.category:
+        reset = reset_category(db, req.category)
+    else:
+        reset = reset_settings(db, req.keys)
+    return {"status": "ok", "reset": reset}
+
+
+@router.post("/api/settings/restart-scheduler")
+def restart_scheduler():
+    from venture_engine.scheduler import reschedule_jobs
+    reschedule_jobs()
+    return {"status": "ok", "message": "Scheduler jobs rescheduled"}

@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Develeap · Venture Intelligence Engine</title>
-<link rel="icon" type="image/png" href="https://www.develeap.com/wp-content/uploads/2023/03/cropped-android-chrome-512x512-1-32x32.png" sizes="32x32">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 128 128'%3E%3Crect width='128' height='128' rx='24' fill='%23ffffff'/%3E%3Cpath d='M68 22C91 22 108 39 108 62C108 85 91 102 68 102V22Z' fill='%2305323C'/%3E%3Crect x='22' y='68' width='38' height='34' rx='3' fill='%2305323C'/%3E%3Ccircle cx='41' cy='41' r='19' fill='%23FFB100'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -403,6 +403,119 @@ html.dark .toggle-track::after { transform:translateX(16px); }
   .venture-title { font-size:13px !important; }
   .score-badge { width:28px !important; height:28px !important; font-size:11px !important; }
 }
+/* ─── Settings Panel ──────────────────────────────────────────────── */
+.settings-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:500; }
+.settings-overlay.open { display:block; }
+.settings-panel { position:fixed; top:0; right:-560px; bottom:0; width:540px; max-width:100vw; background:var(--card); box-shadow:var(--shadow-lg); z-index:501; display:flex; flex-direction:column; transition:right 0.3s ease; }
+.settings-panel.open { right:0; }
+.settings-header { display:flex; align-items:center; justify-content:space-between; padding:16px 20px; border-bottom:1px solid var(--border); }
+.settings-header h2 { font-size:16px; font-weight:700; color:var(--text); }
+.settings-close { width:32px; height:32px; border:none; background:none; color:var(--text2); font-size:22px; cursor:pointer; border-radius:8px; display:flex; align-items:center; justify-content:center; }
+.settings-close:hover { background:var(--bg2); }
+.settings-body { display:flex; flex:1; overflow:hidden; }
+.settings-nav { width:150px; flex-shrink:0; border-right:1px solid var(--border); overflow-y:auto; padding:8px 0; background:var(--bg2); }
+.settings-nav-btn { display:block; width:100%; text-align:left; padding:9px 16px; font-size:12px; font-weight:500; color:var(--text2); border:none; background:none; cursor:pointer; font-family:inherit; transition:all 0.15s; }
+.settings-nav-btn:hover { background:var(--bg3); color:var(--text); }
+.settings-nav-btn.active { background:var(--accent-light); color:var(--accent-hover); font-weight:600; border-right:2px solid var(--accent); }
+.settings-content { flex:1; overflow-y:auto; padding:20px; }
+.settings-section { display:none; }
+.settings-section.active { display:block; }
+.settings-section h3 { font-size:14px; font-weight:700; color:var(--text); margin-bottom:16px; }
+.setting-group { margin-bottom:16px; padding-bottom:16px; border-bottom:1px solid var(--border); }
+.setting-group:last-child { border-bottom:none; }
+.setting-label { display:block; font-size:12px; font-weight:600; color:var(--text); margin-bottom:2px; }
+.setting-desc { font-size:11px; color:var(--text3); margin-bottom:6px; }
+.setting-row { display:flex; align-items:center; gap:10px; }
+.setting-row input[type="range"] { flex:1; accent-color:var(--accent); }
+.setting-row .range-val { font-size:12px; font-weight:600; color:var(--accent-hover); min-width:36px; text-align:right; }
+.setting-row input[type="number"], .setting-row select { font-family:inherit; font-size:12px; padding:6px 10px; border:1px solid var(--border); border-radius:8px; background:var(--bg); color:var(--text); width:100%; }
+.setting-row input[type="number"] { width:100px; }
+.setting-row select { width:200px; }
+.settings-weight-total { display:flex; align-items:center; gap:8px; padding:8px 12px; background:var(--bg2); border-radius:8px; margin-top:8px; font-size:12px; }
+.settings-weight-total .total-val { font-weight:700; }
+.settings-weight-total .total-val.ok { color:#16a34a; }
+.settings-weight-total .total-val.bad { color:var(--red); }
+.settings-weight-total button { font-size:11px; padding:4px 10px; border:1px solid var(--border); border-radius:6px; background:none; color:var(--text2); cursor:pointer; font-family:inherit; }
+.settings-weight-total button:hover { background:var(--bg3); }
+.settings-footer { display:flex; align-items:center; justify-content:flex-end; gap:8px; padding:12px 20px; border-top:1px solid var(--border); }
+.settings-footer button { font-family:inherit; font-size:13px; font-weight:600; padding:8px 20px; border-radius:8px; cursor:pointer; transition:all 0.15s; }
+.settings-footer .btn-reset { background:none; border:1px solid var(--border); color:var(--text2); }
+.settings-footer .btn-reset:hover { border-color:var(--red); color:var(--red); }
+.settings-footer .btn-save { background:var(--accent); border:none; color:#1a1a1a; }
+.settings-footer .btn-save:hover { background:var(--accent-hover); }
+.settings-footer .save-status { font-size:12px; color:#16a34a; margin-right:8px; opacity:0; transition:opacity 0.3s; }
+.settings-footer .save-status.show { opacity:1; }
+/* Tags input */
+.tags-input-wrap { display:flex; flex-wrap:wrap; gap:4px; padding:6px; border:1px solid var(--border); border-radius:8px; background:var(--bg); min-height:36px; cursor:text; }
+.tags-input-wrap .tag { display:inline-flex; align-items:center; gap:2px; font-size:11px; padding:2px 8px; background:var(--accent-light); color:var(--accent-hover); border-radius:12px; }
+.tags-input-wrap .tag .tag-x { cursor:pointer; font-size:13px; margin-left:2px; opacity:0.6; }
+.tags-input-wrap .tag .tag-x:hover { opacity:1; }
+.tags-input-wrap input { border:none; outline:none; background:none; font-size:12px; color:var(--text); min-width:100px; flex:1; font-family:inherit; }
+/* List input (feeds) */
+.list-input-wrap { display:flex; flex-direction:column; gap:4px; }
+.list-input-row { display:flex; gap:4px; }
+.list-input-row input { flex:1; font-size:11px; padding:5px 8px; border:1px solid var(--border); border-radius:6px; background:var(--bg); color:var(--text); font-family:inherit; }
+.list-input-row button { font-size:14px; width:24px; height:24px; border:none; background:none; color:var(--red); cursor:pointer; }
+.list-add-btn { font-size:11px; padding:4px 10px; border:1px solid var(--border); border-radius:6px; background:none; color:var(--text2); cursor:pointer; font-family:inherit; align-self:flex-start; margin-top:4px; }
+.list-add-btn:hover { background:var(--bg2); }
+/* Sidebar gear button */
+.sidebar-btn.gear { display:flex; align-items:center; justify-content:center; gap:6px; }
+.sidebar-btn.gear svg { width:14px; height:14px; }
+.sidebar-btn.help { display:flex; align-items:center; justify-content:center; gap:6px; }
+.sidebar-btn.help svg { width:14px; height:14px; }
+/* Help panel */
+.help-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:500; }
+.help-overlay.open { display:block; }
+.help-panel { position:fixed; top:0; right:-640px; bottom:0; width:620px; max-width:100vw; background:var(--card); box-shadow:var(--shadow-lg); z-index:501; display:flex; flex-direction:column; transition:right 0.3s ease; }
+.help-panel.open { right:0; }
+.help-header { display:flex; align-items:center; justify-content:space-between; padding:16px 20px; border-bottom:1px solid var(--border); }
+.help-header h2 { font-size:16px; font-weight:700; color:var(--text); }
+.help-close { width:32px; height:32px; border:none; background:none; color:var(--text2); font-size:22px; cursor:pointer; border-radius:8px; display:flex; align-items:center; justify-content:center; }
+.help-close:hover { background:var(--bg2); }
+.help-body { display:flex; flex:1; overflow:hidden; }
+.help-nav { width:160px; flex-shrink:0; border-right:1px solid var(--border); overflow-y:auto; padding:8px 0; background:var(--bg2); }
+.help-nav-btn { display:block; width:100%; text-align:left; padding:9px 16px; font-size:12px; font-weight:500; color:var(--text2); border:none; background:none; cursor:pointer; font-family:inherit; transition:all 0.15s; }
+.help-nav-btn:hover { background:var(--bg3); color:var(--text); }
+.help-nav-btn.active { background:var(--accent-light); color:var(--accent-hover); font-weight:600; border-right:2px solid var(--accent); }
+.help-content { flex:1; overflow-y:auto; padding:24px; }
+.help-section { display:none; }
+.help-section.active { display:block; }
+.help-section h3 { font-size:15px; font-weight:700; color:var(--text); margin-bottom:12px; }
+.help-section h4 { font-size:13px; font-weight:700; color:var(--text); margin:16px 0 8px; }
+.help-section p { font-size:13px; line-height:1.7; color:var(--text2); margin-bottom:10px; }
+.help-section ul { margin:0 0 12px 18px; }
+.help-section li { font-size:13px; line-height:1.7; color:var(--text2); margin-bottom:4px; }
+.help-section li strong { color:var(--text); font-weight:600; }
+.help-dim-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:12px 0; }
+.help-dim-card { padding:12px; border-radius:var(--radius); border:1px solid var(--border); background:var(--bg2); }
+.help-dim-card .dim-name { font-size:12px; font-weight:700; color:var(--accent-hover); margin-bottom:4px; }
+.help-dim-card .dim-desc { font-size:11px; line-height:1.5; color:var(--text2); }
+.help-source-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin:12px 0; }
+.help-source-card { display:flex; align-items:center; gap:8px; padding:10px 12px; border-radius:var(--radius); border:1px solid var(--border); background:var(--bg2); }
+.help-source-icon { font-size:18px; flex-shrink:0; }
+.help-source-info .source-name { font-size:12px; font-weight:600; color:var(--text); }
+.help-source-info .source-desc { font-size:10px; color:var(--text3); margin-top:1px; }
+.help-tab-list { display:flex; flex-direction:column; gap:8px; margin:12px 0; }
+.help-tab-item { padding:12px; border-radius:var(--radius); border:1px solid var(--border); background:var(--bg2); }
+.help-tab-item .tab-name { font-size:13px; font-weight:700; color:var(--accent-hover); margin-bottom:3px; }
+.help-tab-item .tab-desc { font-size:12px; line-height:1.6; color:var(--text2); }
+.help-formula { background:var(--bg2); border:1px solid var(--border); border-radius:var(--radius); padding:12px 16px; font-family:'SF Mono',Monaco,Consolas,monospace; font-size:12px; color:var(--text); margin:10px 0; line-height:1.8; }
+.help-score-range { display:flex; gap:6px; margin:8px 0; flex-wrap:wrap; }
+.help-score-range .range-chip { font-size:11px; font-weight:600; padding:3px 10px; border-radius:var(--radius-pill); }
+.range-high { background:rgba(61,199,97,0.12); color:#16a34a; }
+.range-mid { background:var(--accent-light); color:#b45309; }
+.range-low { background:rgba(156,163,175,0.15); color:var(--gray); }
+@media(max-width:768px) {
+  .settings-panel { width:100vw; }
+  .settings-nav { width:110px; }
+  .settings-nav-btn { padding:8px 10px; font-size:11px; }
+  .settings-content { padding:14px; }
+  .help-panel { width:100vw; }
+  .help-nav { width:110px; }
+  .help-nav-btn { padding:8px 10px; font-size:11px; }
+  .help-content { padding:14px; }
+  .help-dim-grid, .help-source-grid { grid-template-columns:1fr; }
+}
 </style>
 </head>
 <body>
@@ -461,6 +574,8 @@ html.dark .toggle-track::after { transform:translateX(16px); }
 
     <button class="sidebar-btn primary" id="suggestTabBtn" onclick="openSuggestModal()">+ Suggest</button>
     <button class="sidebar-btn outline" onclick="triggerHarvest()" id="harvestBtn">Trigger Harvest</button>
+    <button class="sidebar-btn outline gear" onclick="openSettings()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg> Settings</button>
+    <button class="sidebar-btn outline help" onclick="openHelp()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Help</button>
 
     <div class="sidebar-spacer"></div>
 
@@ -563,6 +678,301 @@ html.dark .toggle-track::after { transform:translateX(16px); }
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeSuggestModal()">Cancel</button>
       <button class="btn-submit" id="suggestBtn" onclick="doSuggest()">Enrich with Claude</button>
+    </div>
+  </div>
+</div>
+
+<!-- Settings Panel -->
+<div class="settings-overlay" id="settingsOverlay" onclick="closeSettings()"></div>
+<div class="settings-panel" id="settingsPanel">
+  <div class="settings-header">
+    <h2>Settings</h2>
+    <button class="settings-close" onclick="closeSettings()">&times;</button>
+  </div>
+  <div class="settings-body">
+    <nav class="settings-nav" id="settingsNav">
+      <button class="settings-nav-btn active" data-section="ai" onclick="switchSettingsSection('ai')">AI / Claude</button>
+      <button class="settings-nav-btn" data-section="scoring" onclick="switchSettingsSection('scoring')">Scoring</button>
+      <button class="settings-nav-btn" data-section="harvester" onclick="switchSettingsSection('harvester')">Harvester</button>
+      <button class="settings-nav-btn" data-section="domains" onclick="switchSettingsSection('domains')">Domains</button>
+      <button class="settings-nav-btn" data-section="notifications" onclick="switchSettingsSection('notifications')">Notifications</button>
+      <button class="settings-nav-btn" data-section="display" onclick="switchSettingsSection('display')">Display</button>
+    </nav>
+    <div class="settings-content" id="settingsContent">
+      <!-- Sections rendered by JS -->
+    </div>
+  </div>
+  <div class="settings-footer">
+    <span class="save-status" id="settingsSaveStatus">Saved!</span>
+    <button class="btn-reset" onclick="resetCurrentSection()">Reset Section</button>
+    <button class="btn-save" onclick="saveSettings()">Save Changes</button>
+  </div>
+</div>
+
+<!-- Help Panel -->
+<div class="help-overlay" id="helpOverlay" onclick="closeHelp()"></div>
+<div class="help-panel" id="helpPanel">
+  <div class="help-header">
+    <h2>Help &amp; Documentation</h2>
+    <button class="help-close" onclick="closeHelp()">&times;</button>
+  </div>
+  <div class="help-body">
+    <nav class="help-nav" id="helpNav">
+      <button class="help-nav-btn active" data-section="overview" onclick="switchHelpSection('overview')">Overview</button>
+      <button class="help-nav-btn" data-section="tabs" onclick="switchHelpSection('tabs')">Tabs</button>
+      <button class="help-nav-btn" data-section="harvesting" onclick="switchHelpSection('harvesting')">Harvesting</button>
+      <button class="help-nav-btn" data-section="scoring" onclick="switchHelpSection('scoring')">Scoring</button>
+      <button class="help-nav-btn" data-section="thought-leaders" onclick="switchHelpSection('thought-leaders')">Thought Leaders</button>
+      <button class="help-nav-btn" data-section="suggest" onclick="switchHelpSection('suggest')">Suggest</button>
+      <button class="help-nav-btn" data-section="settings-help" onclick="switchHelpSection('settings-help')">Settings</button>
+    </nav>
+    <div class="help-content" id="helpContent">
+
+      <!-- Overview -->
+      <div class="help-section active" data-section="overview">
+        <h3>Venture Intelligence Engine</h3>
+        <p>The Venture Intelligence Engine is Develeap's internal platform for discovering, evaluating, and prioritizing new business ventures. It continuously harvests signals from across the tech ecosystem, scores ideas using AI, and simulates thought-leader reactions to surface the most promising opportunities.</p>
+        <h4>How It Works</h4>
+        <ul>
+          <li><strong>Harvest</strong> &mdash; Automated pipelines pull signals from tech blogs, startup trackers, academic papers, and community discussions.</li>
+          <li><strong>Score</strong> &mdash; Each venture is scored by Claude across four dimensions and combined with thought-leader consensus into a composite score (0&ndash;100).</li>
+          <li><strong>Rank &amp; Prioritize</strong> &mdash; Ventures are sorted by score, with voting and annotations from the team layered on top.</li>
+          <li><strong>Act</strong> &mdash; High-scoring ventures move from backlog to active development; tech gaps are tracked until readiness signals appear.</li>
+        </ul>
+        <h4>Key Concepts</h4>
+        <ul>
+          <li><strong>Dark Factory Model</strong> &mdash; Ventures must be buildable and operable by 1&ndash;2 engineers using heavy automation, AI code generation, and managed services.</li>
+          <li><strong>Tech Gaps</strong> &mdash; When a venture scores below 8/10 on tech readiness, the missing technology is tracked as a gap with estimated availability and readiness signals.</li>
+          <li><strong>Thought Leaders</strong> &mdash; A panel of real and simulated industry voices (e.g., Kelsey Hightower, DHH, Paul Graham) that react to each venture, providing a crowd-wisdom signal.</li>
+        </ul>
+      </div>
+
+      <!-- Tabs -->
+      <div class="help-section" data-section="tabs">
+        <h3>Dashboard Tabs</h3>
+        <p>The dashboard organizes ventures into five tabs based on their category and strategy.</p>
+        <div class="help-tab-list">
+          <div class="help-tab-item">
+            <div class="tab-name">Ventures</div>
+            <div class="tab-desc">Original product ideas generated through AI brainstorming and signal harvesting. These are net-new SaaS/tool concepts in the DevOps, MLOps, and cloud-native space. Each is scored on monetization, cashout ease, dark factory fit, and tech readiness.</div>
+          </div>
+          <div class="help-tab-item">
+            <div class="tab-name">Clone</div>
+            <div class="tab-desc">Early-stage startups that can be replicated and outcompeted. The engine identifies stealth or pre-Series-A companies with interesting products, then evaluates whether Develeap could build a superior version faster using the dark factory model. Includes the target company, their funding status, and the clone time estimate.</div>
+          </div>
+          <div class="help-tab-item">
+            <div class="tab-name">Quick Flip</div>
+            <div class="tab-desc">Build-to-sell ventures designed for rapid acquisition. These are small tools or plugins that solve a specific pain point for a larger platform company. Includes potential acquirers, estimated acquisition price range, and margin opportunity analysis showing pricing undercuts.</div>
+          </div>
+          <div class="help-tab-item">
+            <div class="tab-name">Customers</div>
+            <div class="tab-desc">Acqui-hire and consulting upsell opportunities. These represent existing companies that could become customers for Develeap's consulting services or be potential acquisition targets. Tracks company info, potential deal size, and strategic fit.</div>
+          </div>
+          <div class="help-tab-item">
+            <div class="tab-name">Training</div>
+            <div class="tab-desc">Course and workshop ideas for Develeap's training business. Each entry includes target salary range, job demand, course length, pricing, and required skills. Generated from market gaps in DevOps/cloud-native education.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Harvesting -->
+      <div class="help-section" data-section="harvesting">
+        <h3>Harvesting Process</h3>
+        <p>The harvester is an automated pipeline that runs on a configurable schedule (default: every 4 hours) to discover new venture opportunities from multiple sources across the tech ecosystem.</p>
+
+        <h4>Signal Sources</h4>
+        <div class="help-source-grid">
+          <div class="help-source-card">
+            <div class="help-source-icon">&#x1F4F0;</div>
+            <div class="help-source-info">
+              <div class="source-name">Hacker News</div>
+              <div class="source-desc">Top stories and Show HN posts filtered by domain keywords</div>
+            </div>
+          </div>
+          <div class="help-source-card">
+            <div class="help-source-icon">&#x1F680;</div>
+            <div class="help-source-info">
+              <div class="source-name">Product Hunt</div>
+              <div class="source-desc">New product launches in DevOps and cloud-native categories</div>
+            </div>
+          </div>
+          <div class="help-source-card">
+            <div class="help-source-icon">&#x1F4BB;</div>
+            <div class="help-source-info">
+              <div class="source-name">GitHub Trending</div>
+              <div class="source-desc">Trending repositories matching domain keywords</div>
+            </div>
+          </div>
+          <div class="help-source-card">
+            <div class="help-source-icon">&#x1F4DA;</div>
+            <div class="help-source-info">
+              <div class="source-name">ArXiv Papers</div>
+              <div class="source-desc">Academic research in ML/AI operations and infrastructure</div>
+            </div>
+          </div>
+          <div class="help-source-card">
+            <div class="help-source-icon">&#x1F3E2;</div>
+            <div class="help-source-info">
+              <div class="source-name">Company Blogs</div>
+              <div class="source-desc">RSS feeds from Netflix, Spotify, Airbnb, AWS, and more</div>
+            </div>
+          </div>
+          <div class="help-source-card">
+            <div class="help-source-icon">&#x1F4E1;</div>
+            <div class="help-source-info">
+              <div class="source-name">Startup Signals</div>
+              <div class="source-desc">Funding rounds, launches, and pivots from startup trackers</div>
+            </div>
+          </div>
+        </div>
+
+        <h4>Pipeline Steps</h4>
+        <ul>
+          <li><strong>1. Signal Collection</strong> &mdash; The harvester fetches new content from all configured sources, filtering by the domain keywords defined in Settings (e.g., kubernetes, devops, mlops, gitops).</li>
+          <li><strong>2. Deduplication</strong> &mdash; Signals are compared against existing ventures to avoid creating duplicates. Similar ideas are merged or linked.</li>
+          <li><strong>3. Venture Generation</strong> &mdash; Claude analyzes each batch of signals and generates structured venture proposals with title, summary, problem statement, proposed solution, target buyer, and domain classification.</li>
+          <li><strong>4. Categorization</strong> &mdash; Ventures are automatically categorized into the appropriate tab (Venture, Clone, Quick Flip, Customer, or Training) based on their characteristics.</li>
+          <li><strong>5. Scoring</strong> &mdash; Each new venture is immediately scored across all four dimensions (see Scoring section).</li>
+          <li><strong>6. TL Simulation</strong> &mdash; Thought leaders are asked to react to the new ventures, providing upvote/neutral/downvote signals with reasoning.</li>
+        </ul>
+
+        <h4>Scheduled Jobs</h4>
+        <ul>
+          <li><strong>Harvest + Score</strong> &mdash; Runs every N hours (default: 4). Collects signals, generates ventures, and scores them.</li>
+          <li><strong>Tech Gap Check</strong> &mdash; Runs daily at a configured hour (default: 08:00 UTC). Re-evaluates ventures with tech gaps to see if readiness signals have appeared.</li>
+          <li><strong>TL Signal Sync</strong> &mdash; Runs every N hours (default: 12). Refreshes thought-leader reactions and checks for real-world signals.</li>
+          <li><strong>Training Brainstorm</strong> &mdash; Runs weekly on a configured day (default: Sunday). Generates new training course ideas.</li>
+        </ul>
+
+        <h4>Manual Harvest</h4>
+        <p>You can trigger a harvest manually at any time using the "Trigger Harvest" button in the sidebar. This runs the full pipeline immediately regardless of the schedule.</p>
+      </div>
+
+      <!-- Scoring -->
+      <div class="help-section" data-section="scoring">
+        <h3>Scoring Process</h3>
+        <p>Every venture is evaluated by Claude across four core dimensions, then combined with thought-leader consensus into a single composite score on a 0&ndash;100 scale.</p>
+
+        <h4>Scoring Dimensions (0&ndash;10 each)</h4>
+        <div class="help-dim-grid">
+          <div class="help-dim-card">
+            <div class="dim-name">Monetization</div>
+            <div class="dim-desc">Revenue potential, market size, willingness to pay, and pricing power. How big is the addressable market and how strong is the business model?</div>
+          </div>
+          <div class="help-dim-card">
+            <div class="dim-name">Cashout Ease</div>
+            <div class="dim-desc">Speed to first revenue. Low barrier to first sale, short sales cycles, self-serve potential, and land-and-expand opportunity.</div>
+          </div>
+          <div class="help-dim-card">
+            <div class="dim-name">Dark Factory Fit</div>
+            <div class="dim-desc">Can 1&ndash;2 engineers build and run this with AI-assisted development, managed infra, and heavy automation? Penalizes anything requiring large teams or complex ops.</div>
+          </div>
+          <div class="help-dim-card">
+            <div class="dim-name">Tech Readiness</div>
+            <div class="dim-desc">Is the technology to build this available today? Scores 8+ mean fully buildable now. Below 8 triggers a tech gap record tracking what's missing.</div>
+          </div>
+        </div>
+
+        <h4>Thought Leader Score</h4>
+        <p>A fifth dimension derived from simulated (and real) thought-leader reactions. Each leader votes upvote (1.0), neutral (0.5), or downvote (0.0). Real signals are weighted higher than simulated ones (configurable in Settings).</p>
+
+        <h4>Composite Formula</h4>
+        <div class="help-formula">
+          composite = (<br>
+          &nbsp;&nbsp;monetization &times; w<sub>mon</sub><br>
+          &nbsp;&nbsp;+ cashout_ease &times; w<sub>cash</sub><br>
+          &nbsp;&nbsp;+ dark_factory_fit &times; w<sub>df</sub><br>
+          &nbsp;&nbsp;+ tech_readiness &times; w<sub>tech</sub><br>
+          &nbsp;&nbsp;+ tl_score &times; w<sub>tl</sub><br>
+          ) &times; 10
+        </div>
+        <p>Default weights: Monetization 30%, Cashout Ease 25%, Dark Factory Fit 20%, Tech Readiness 15%, TL Score 10%. All weights are adjustable in Settings and must sum to 1.0.</p>
+
+        <h4>Score Ranges</h4>
+        <div class="help-score-range">
+          <span class="range-chip range-high">70+ &mdash; High potential</span>
+          <span class="range-chip range-mid">40&ndash;69 &mdash; Worth watching</span>
+          <span class="range-chip range-low">&lt;40 &mdash; Low priority</span>
+        </div>
+        <p>Most ventures land in the 40&ndash;70 range. Scores above 70 indicate strong opportunities across all dimensions. The scoring model is intentionally conservative &mdash; only truly exceptional ideas get 80+.</p>
+
+        <h4>Tech Gap Tracking</h4>
+        <p>When a venture scores below 8/10 on tech readiness, the system records:</p>
+        <ul>
+          <li><strong>Gap Description</strong> &mdash; What technology is missing or immature</li>
+          <li><strong>Missing Technology</strong> &mdash; The specific capability that's lacking</li>
+          <li><strong>Estimated Availability</strong> &mdash; When it might become available</li>
+          <li><strong>Readiness Signal</strong> &mdash; What event would indicate the gap is closing</li>
+        </ul>
+        <p>Tech gaps are re-checked daily and resolved automatically when readiness signals are detected.</p>
+      </div>
+
+      <!-- Thought Leaders -->
+      <div class="help-section" data-section="thought-leaders">
+        <h3>Thought Leaders</h3>
+        <p>The thought leader system provides a crowd-wisdom layer on top of AI scoring. A curated panel of industry voices evaluates each venture, producing a consensus signal that influences the composite score.</p>
+
+        <h4>How It Works</h4>
+        <ul>
+          <li><strong>Simulated Reactions</strong> &mdash; Claude adopts the persona of each thought leader (based on their known opinions, writing style, and investment thesis) and generates a vote with reasoning.</li>
+          <li><strong>Real Signals</strong> &mdash; When a thought leader actually tweets, blogs, or speaks about a topic related to a venture, that real signal is captured and weighted more heavily (default: 2x vs 1x for simulated).</li>
+          <li><strong>Vote Types</strong> &mdash; Each leader votes upvote, neutral, or downvote with an explanation of why.</li>
+          <li><strong>Social Links</strong> &mdash; Click on any thought leader card to see links to their real social profiles and content.</li>
+        </ul>
+
+        <h4>YC Compatibility</h4>
+        <p>Ventures that receive upvotes from Y Combinator-affiliated thought leaders (Paul Graham, Garry Tan, Michael Seibel, Dalton Caldwell, Jared Friedman) are flagged as "YC Compatible" with a special badge, indicating the idea aligns with YC's investment thesis.</p>
+
+        <h4>Signal Weights</h4>
+        <p>The relative importance of real vs. simulated signals is configurable in Settings under the Scoring section. By default, real reactions carry 2x the weight of simulated ones, reflecting higher confidence in actual market signals.</p>
+      </div>
+
+      <!-- Suggest -->
+      <div class="help-section" data-section="suggest">
+        <h3>Suggest a Venture</h3>
+        <p>Anyone can propose a new venture idea using the "+ Suggest" button in the sidebar. The suggest feature adapts to whichever tab you're currently viewing.</p>
+
+        <h4>Submission Fields</h4>
+        <ul>
+          <li><strong>Title</strong> &mdash; A concise name for the venture or idea.</li>
+          <li><strong>Summary</strong> &mdash; A brief description of what the product/service does.</li>
+          <li><strong>Problem</strong> &mdash; What pain point does this solve?</li>
+          <li><strong>Proposed Solution</strong> &mdash; How would this be built or delivered?</li>
+          <li><strong>Target Buyer</strong> &mdash; Who would pay for this?</li>
+          <li><strong>Domain</strong> &mdash; Which domain category it falls under (DevOps, MLOps, etc.).</li>
+        </ul>
+
+        <h4>What Happens After Submission</h4>
+        <ul>
+          <li>The venture is added to the database with status "backlog".</li>
+          <li>It is immediately scored by Claude across all four dimensions.</li>
+          <li>Thought leader reactions are simulated.</li>
+          <li>The composite score is calculated and the venture appears in its tab.</li>
+        </ul>
+
+        <h4>Voting &amp; Annotations</h4>
+        <p>Team members can upvote or downvote any venture and leave comments. The vote count appears alongside the AI score to provide a human signal. Anonymous identities are assigned automatically so voting stays lightweight and fun.</p>
+      </div>
+
+      <!-- Settings Help -->
+      <div class="help-section" data-section="settings-help">
+        <h3>Settings</h3>
+        <p>The Settings panel (gear icon in sidebar) lets you customize all core parameters of the engine. Changes are persisted to the database and take effect immediately.</p>
+
+        <h4>Setting Categories</h4>
+        <ul>
+          <li><strong>AI / Claude</strong> &mdash; Choose the Claude model, set temperature for scoring vs. ideation, and configure token limits.</li>
+          <li><strong>Scoring</strong> &mdash; Adjust the five dimension weights (must sum to 1.0) and configure real vs. simulated signal multipliers. Use "Normalize" to auto-balance weights.</li>
+          <li><strong>Harvester</strong> &mdash; Set how often the harvest pipeline runs, when daily gap checks happen, TL sync frequency, brainstorm count, and training day.</li>
+          <li><strong>Domains</strong> &mdash; Edit the keyword list used for filtering signals, toggle active domain categories, and manage company blog RSS feeds.</li>
+          <li><strong>Notifications</strong> &mdash; Configure thresholds for high-score alerts, popular vote notifications, and weekly digest preferences.</li>
+          <li><strong>Display</strong> &mdash; Set page size and default sort order for the venture list.</li>
+        </ul>
+
+        <h4>Defaults &amp; Resets</h4>
+        <p>Every setting has a built-in default. The database only stores your overrides. Use "Reset Section" to restore all settings in the current category to their defaults. Settings that differ from defaults are highlighted in the UI.</p>
+      </div>
+
     </div>
   </div>
 </div>
@@ -1103,6 +1513,240 @@ async function submitVenture(){
   const title=document.getElementById('s_title').value.trim();if(!title){alert('Title is required');return;}
   const res=await fetch(`${API}/api/ventures`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,slogan:document.getElementById('s_slogan').value,summary:document.getElementById('s_summary').value,problem:document.getElementById('s_problem').value,proposed_solution:document.getElementById('s_solution').value,target_buyer:document.getElementById('s_buyer').value,domain:document.getElementById('s_domain').value,category:currentTab})});
   if(res.ok){closeSubmitModal();['s_title','s_slogan','s_summary','s_problem','s_solution','s_buyer'].forEach(id=>document.getElementById(id).value='');loadVentures();}}
+
+// ─── Settings Panel ─────────────────────────────────────────
+let _settingsData = null;
+let _currentSettingsSection = 'ai';
+let _settingsDirty = {};
+
+async function openSettings() {
+  document.getElementById('settingsOverlay').classList.add('open');
+  document.getElementById('settingsPanel').classList.add('open');
+  if (!_settingsData) await loadSettingsData();
+  renderSettingsSection(_currentSettingsSection);
+}
+function closeSettings() {
+  document.getElementById('settingsOverlay').classList.remove('open');
+  document.getElementById('settingsPanel').classList.remove('open');
+}
+
+// ── Help Panel ──
+let _currentHelpSection = 'overview';
+function openHelp() {
+  document.getElementById('helpOverlay').classList.add('open');
+  document.getElementById('helpPanel').classList.add('open');
+}
+function closeHelp() {
+  document.getElementById('helpOverlay').classList.remove('open');
+  document.getElementById('helpPanel').classList.remove('open');
+}
+function switchHelpSection(section) {
+  _currentHelpSection = section;
+  document.querySelectorAll('.help-nav-btn').forEach(b => b.classList.toggle('active', b.dataset.section === section));
+  document.querySelectorAll('#helpContent .help-section').forEach(s => s.classList.toggle('active', s.dataset.section === section));
+}
+
+async function loadSettingsData() {
+  try {
+    const res = await fetch(`${API}/api/settings`);
+    _settingsData = await res.json();
+  } catch (e) { console.error('Failed to load settings', e); }
+}
+
+function switchSettingsSection(section) {
+  _currentSettingsSection = section;
+  document.querySelectorAll('.settings-nav-btn').forEach(b => b.classList.toggle('active', b.dataset.section === section));
+  renderSettingsSection(section);
+}
+
+function renderSettingsSection(section) {
+  const container = document.getElementById('settingsContent');
+  if (!_settingsData || !_settingsData[section]) { container.innerHTML = '<p style="color:var(--text3)">No settings in this category.</p>'; return; }
+  const items = _settingsData[section];
+  let html = '';
+
+  // Special: scoring weights need a total bar
+  const isScoring = section === 'scoring';
+  const weightKeys = ['scoring.monetization_weight','scoring.cashout_ease_weight','scoring.dark_factory_fit_weight','scoring.tech_readiness_weight','scoring.tl_score_weight'];
+
+  for (const [key, s] of Object.entries(items)) {
+    const val = _settingsDirty[key] !== undefined ? _settingsDirty[key] : s.value;
+    html += `<div class="setting-group">`;
+    html += `<span class="setting-label">${esc(s.label)}</span>`;
+    html += `<span class="setting-desc">${esc(s.description)}</span>`;
+    html += `<div class="setting-row">`;
+
+    if (s.widget === 'slider') {
+      const min = s.min ?? 0, max = s.max ?? 1, step = s.step ?? 0.01;
+      html += `<input type="range" min="${min}" max="${max}" step="${step}" value="${val}" data-key="${key}" oninput="onSettingChange('${key}', parseFloat(this.value)); this.nextElementSibling.textContent=parseFloat(this.value).toFixed(2)">`;
+      html += `<span class="range-val">${parseFloat(val).toFixed(2)}</span>`;
+    } else if (s.widget === 'number') {
+      const min = s.min ?? '', max = s.max ?? '';
+      html += `<input type="number" min="${min}" max="${max}" value="${val}" data-key="${key}" onchange="onSettingChange('${key}', parseFloat(this.value))">`;
+    } else if (s.widget === 'select') {
+      html += `<select data-key="${key}" onchange="onSettingChange('${key}', this.value)">`;
+      for (const opt of (s.options || [])) {
+        const selected = String(val) === String(opt) ? 'selected' : '';
+        html += `<option value="${opt}" ${selected}>${opt}</option>`;
+      }
+      html += `</select>`;
+    } else if (s.widget === 'tags') {
+      const tags = Array.isArray(val) ? val : [];
+      html += `</div><div class="tags-input-wrap" onclick="this.querySelector('input').focus()" data-key="${key}">`;
+      for (const t of tags) html += `<span class="tag">${esc(t)}<span class="tag-x" onclick="removeTag('${key}',this,'${esc(t)}')">&times;</span></span>`;
+      html += `<input type="text" placeholder="Add keyword..." onkeydown="if(event.key==='Enter'){event.preventDefault();addTag('${key}',this);}">`;
+    } else if (s.widget === 'list') {
+      const items = Array.isArray(val) ? val : [];
+      html += `</div><div class="list-input-wrap" data-key="${key}">`;
+      items.forEach((url, i) => {
+        html += `<div class="list-input-row"><input value="${esc(url)}" onchange="updateListItem('${key}',${i},this.value)"><button onclick="removeListItem('${key}',${i})">&times;</button></div>`;
+      });
+      html += `<button class="list-add-btn" onclick="addListItem('${key}')">+ Add Feed</button>`;
+    } else if (s.widget === 'checkboxes') {
+      const checked = Array.isArray(val) ? val : [];
+      html += `</div><div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;" data-key="${key}">`;
+      for (const opt of (s.options || [])) {
+        const isChecked = checked.includes(opt) ? 'checked' : '';
+        html += `<label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text2);cursor:pointer;"><input type="checkbox" value="${opt}" ${isChecked} onchange="toggleCheckbox('${key}','${opt}',this.checked)">${opt}</label>`;
+      }
+    }
+    html += `</div></div>`;
+  }
+
+  // Scoring weight total bar
+  if (isScoring) {
+    html += `<div class="settings-weight-total" id="weightTotalBar"><span>Total: </span><span class="total-val" id="weightTotalVal">—</span><button onclick="normalizeWeights()">Normalize to 1.0</button></div>`;
+  }
+
+  container.innerHTML = html;
+  if (isScoring) updateWeightTotal();
+}
+
+function onSettingChange(key, value) {
+  _settingsDirty[key] = value;
+  if (key.startsWith('scoring.') && key.endsWith('_weight')) updateWeightTotal();
+}
+
+function updateWeightTotal() {
+  const wKeys = ['scoring.monetization_weight','scoring.cashout_ease_weight','scoring.dark_factory_fit_weight','scoring.tech_readiness_weight','scoring.tl_score_weight'];
+  let total = 0;
+  for (const k of wKeys) {
+    const v = _settingsDirty[k] !== undefined ? _settingsDirty[k] : (_settingsData?.scoring?.[k]?.value ?? 0);
+    total += parseFloat(v);
+  }
+  const el = document.getElementById('weightTotalVal');
+  if (el) {
+    el.textContent = total.toFixed(2);
+    el.className = 'total-val ' + (Math.abs(total - 1.0) < 0.01 ? 'ok' : 'bad');
+  }
+}
+
+function normalizeWeights() {
+  const wKeys = ['scoring.monetization_weight','scoring.cashout_ease_weight','scoring.dark_factory_fit_weight','scoring.tech_readiness_weight','scoring.tl_score_weight'];
+  let total = 0;
+  for (const k of wKeys) {
+    const v = _settingsDirty[k] !== undefined ? _settingsDirty[k] : (_settingsData?.scoring?.[k]?.value ?? 0);
+    total += parseFloat(v);
+  }
+  if (total === 0) return;
+  for (const k of wKeys) {
+    const v = _settingsDirty[k] !== undefined ? _settingsDirty[k] : (_settingsData?.scoring?.[k]?.value ?? 0);
+    _settingsDirty[k] = Math.round((parseFloat(v) / total) * 100) / 100;
+  }
+  renderSettingsSection('scoring');
+}
+
+function removeTag(key, el, tag) {
+  const current = _settingsDirty[key] || _settingsData?.domains?.[key]?.value || [];
+  _settingsDirty[key] = current.filter(t => t !== tag);
+  el.parentElement.remove();
+}
+function addTag(key, input) {
+  const val = input.value.trim();
+  if (!val) return;
+  const current = _settingsDirty[key] || [...(_settingsData?.domains?.[key]?.value || [])];
+  if (!current.includes(val)) { current.push(val); _settingsDirty[key] = current; }
+  const tag = document.createElement('span');
+  tag.className = 'tag';
+  tag.innerHTML = `${esc(val)}<span class="tag-x" onclick="removeTag('${key}',this.parentElement,'${esc(val)}')">&times;</span>`;
+  input.parentElement.insertBefore(tag, input);
+  input.value = '';
+}
+
+function updateListItem(key, idx, val) {
+  const cat = key.split('.')[0];
+  const current = _settingsDirty[key] || [...(_settingsData?.[cat]?.[key]?.value || [])];
+  current[idx] = val;
+  _settingsDirty[key] = current;
+}
+function removeListItem(key, idx) {
+  const cat = key.split('.')[0];
+  const current = _settingsDirty[key] || [...(_settingsData?.[cat]?.[key]?.value || [])];
+  current.splice(idx, 1);
+  _settingsDirty[key] = current;
+  renderSettingsSection(_currentSettingsSection);
+}
+function addListItem(key) {
+  const cat = key.split('.')[0];
+  const current = _settingsDirty[key] || [...(_settingsData?.[cat]?.[key]?.value || [])];
+  current.push('');
+  _settingsDirty[key] = current;
+  renderSettingsSection(_currentSettingsSection);
+}
+
+function toggleCheckbox(key, opt, checked) {
+  const cat = key.split('.')[0];
+  const current = _settingsDirty[key] || [...(_settingsData?.[cat]?.[key]?.value || [])];
+  if (checked && !current.includes(opt)) current.push(opt);
+  if (!checked) { const idx = current.indexOf(opt); if (idx > -1) current.splice(idx, 1); }
+  _settingsDirty[key] = current;
+}
+
+async function saveSettings() {
+  if (Object.keys(_settingsDirty).length === 0) return;
+  try {
+    const res = await fetch(`${API}/api/settings`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ settings: _settingsDirty })
+    });
+    if (!res.ok) throw new Error('Save failed');
+
+    // Check if scheduler settings changed → restart scheduler
+    const schedulerKeys = ['harvester.interval_hours','harvester.gap_check_hour','harvester.tl_sync_interval_hours','harvester.training_day','notifications.digest_day','notifications.digest_hour'];
+    const needsRestart = schedulerKeys.some(k => _settingsDirty[k] !== undefined);
+    if (needsRestart) {
+      await fetch(`${API}/api/settings/restart-scheduler`, { method: 'POST' });
+    }
+
+    _settingsDirty = {};
+    _settingsData = null;
+    await loadSettingsData();
+    renderSettingsSection(_currentSettingsSection);
+
+    const status = document.getElementById('settingsSaveStatus');
+    status.classList.add('show');
+    setTimeout(() => status.classList.remove('show'), 2000);
+  } catch (e) { alert('Failed to save settings: ' + e.message); }
+}
+
+async function resetCurrentSection() {
+  if (!confirm(`Reset all ${_currentSettingsSection} settings to defaults?`)) return;
+  try {
+    await fetch(`${API}/api/settings/reset`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ category: _currentSettingsSection })
+    });
+    // Clear dirty values for this section
+    for (const k of Object.keys(_settingsDirty)) {
+      if (k.startsWith(_currentSettingsSection + '.')) delete _settingsDirty[k];
+    }
+    _settingsData = null;
+    await loadSettingsData();
+    renderSettingsSection(_currentSettingsSection);
+  } catch (e) { alert('Reset failed: ' + e.message); }
+}
 
 // ─── Annotations ────────────────────────────────────────────
 let currentVentureId = null;

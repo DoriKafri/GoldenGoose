@@ -165,3 +165,24 @@ def start_scheduler():
         f"TL sync every {settings.tl_sync_interval_hours}h, "
         f"digest {settings.weekly_digest_day} {settings.weekly_digest_hour}:00"
     )
+
+
+def reschedule_jobs():
+    """Hot-reload scheduler jobs from current settings (DB-backed)."""
+    from venture_engine.settings_service import get_setting
+    from venture_engine.db.session import get_db
+
+    with get_db() as db:
+        harvest_h = get_setting("harvester.interval_hours", db)
+        gap_h = get_setting("harvester.gap_check_hour", db)
+        tl_h = get_setting("harvester.tl_sync_interval_hours", db)
+        train_day = get_setting("harvester.training_day", db)
+        digest_day = get_setting("notifications.digest_day", db)
+        digest_hour = get_setting("notifications.digest_hour", db)
+
+    scheduler.reschedule_job("harvest_and_score", trigger="interval", hours=int(harvest_h))
+    scheduler.reschedule_job("check_tech_gaps", trigger="cron", hour=int(gap_h))
+    scheduler.reschedule_job("sync_tl_signals", trigger="interval", hours=int(tl_h))
+    scheduler.reschedule_job("training_harvest", trigger="cron", day_of_week=str(train_day), hour=10)
+    scheduler.reschedule_job("weekly_digest", trigger="cron", day_of_week=str(digest_day), hour=int(digest_hour))
+    logger.info(f"Scheduler rescheduled: harvest={harvest_h}h, gap={gap_h}:00, tl={tl_h}h, digest={digest_day} {digest_hour}:00")

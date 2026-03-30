@@ -24,6 +24,10 @@ def on_startup():
     logger.info("Seeding thought leaders...")
     with get_db() as db:
         seed_thought_leaders(db)
+    logger.info("Loading settings from DB...")
+    from venture_engine.settings_service import load_cache
+    with get_db() as db:
+        load_cache(db)
     logger.info("Starting scheduler...")
     from venture_engine.scheduler import start_scheduler
     start_scheduler()

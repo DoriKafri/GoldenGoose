@@ -15,7 +15,7 @@ from venture_engine.db.session import get_db_dependency
 from typing import List
 from venture_engine.db.models import (
     Venture, VentureScore, Vote, Comment, ThoughtLeader,
-    TLSignal, HarvestRun, TechGap, Annotation, PlatformUser,
+    TLSignal, HarvestRun, TechGap, Annotation,
 )
 
 router = APIRouter()
@@ -932,47 +932,6 @@ def delete_annotation(
     db.query(Annotation).filter(Annotation.parent_annotation_id == annotation_id).delete()
     db.delete(ann)
     return {"status": "ok"}
-
-
-# ─── Auth / Invitations ─────────────────────────────────────────
-
-class LoginRequest(BaseModel):
-    email: str
-
-
-class InviteRequest(BaseModel):
-    email: str
-    invited_by: str = ""
-
-
-@router.post("/api/auth/login")
-def login(req: LoginRequest, db: Session = Depends(get_db_dependency)):
-    email = req.email.strip().lower()
-    if email.endswith("@develeap.com"):
-        user = db.query(PlatformUser).filter(PlatformUser.email == email).first()
-        if not user:
-            user = PlatformUser(email=email, invited_by="auto-develeap")
-            db.add(user)
-        user.last_login_at = datetime.utcnow()
-        db.flush()
-        return {"status": "ok", "email": email, "user_id": user.id}
-    user = db.query(PlatformUser).filter(PlatformUser.email == email).first()
-    if not user:
-        raise HTTPException(403, "Not invited. Ask a team member for an invite.")
-    user.last_login_at = datetime.utcnow()
-    return {"status": "ok", "email": email, "user_id": user.id}
-
-
-@router.post("/api/auth/invite")
-def invite_user(req: InviteRequest, db: Session = Depends(get_db_dependency)):
-    email = req.email.strip().lower()
-    existing = db.query(PlatformUser).filter(PlatformUser.email == email).first()
-    if existing:
-        return {"status": "already_exists", "email": email}
-    user = PlatformUser(email=email, invited_by=req.invited_by)
-    db.add(user)
-    db.flush()
-    return {"status": "ok", "email": email, "user_id": user.id}
 
 
 # ─── Settings ─────────────────────────────────────────────────────

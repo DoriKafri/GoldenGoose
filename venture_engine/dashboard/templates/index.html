@@ -309,15 +309,6 @@ html.dark .toggle-track::after { transform:translateX(16px); }
 .ann-reply-form input { flex:1; font-family:inherit; font-size:12px; padding:6px 10px; border:1px solid var(--border); border-radius:var(--radius); background:var(--bg2); color:var(--text); }
 .ann-reply-form button { font-family:inherit; font-size:11px; font-weight:600; padding:6px 12px; border:none; border-radius:var(--radius-pill); background:var(--accent); color:#1a1a1a; cursor:pointer; }
 
-/* Login gate */
-.login-overlay { position:fixed; top:0; left:0; right:0; bottom:0; background:var(--bg2); z-index:500; display:flex; align-items:center; justify-content:center; }
-.login-card { background:var(--card); border:1px solid var(--border); border-radius:var(--radius-lg); padding:40px; width:min(400px,90vw); text-align:center; box-shadow:var(--shadow-lg); }
-.login-card h2 { font-size:20px; margin-bottom:6px; color:var(--text); }
-.login-card p { font-size:13px; color:var(--text2); margin-bottom:20px; }
-.login-card input { width:100%; font-family:inherit; font-size:14px; padding:11px 14px; border:1px solid var(--border); border-radius:var(--radius); background:var(--bg2); color:var(--text); margin-bottom:12px; }
-.login-card input:focus { outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-light); }
-.login-card button { width:100%; font-family:inherit; font-size:14px; font-weight:600; padding:11px; border:none; border-radius:var(--radius-pill); background:var(--accent); color:#1a1a1a; cursor:pointer; }
-.login-card .login-err { font-size:12px; color:var(--red); margin-top:8px; display:none; }
 
 /* Responsive */
 @media(max-width:768px) {
@@ -620,21 +611,6 @@ html.dark .toggle-track::after { transform:translateX(16px); }
 <div class="detail-panel" id="detailPanel" style="display:none;">
   <button class="close-btn" onclick="closeDetailPanel()">&times;</button>
   <div id="detailContent"></div>
-</div>
-
-<div class="login-overlay" id="loginOverlay">
-  <div class="login-card">
-    <svg width="40" height="40" viewBox="0 0 36 36" fill="none" style="margin-bottom:16px;">
-      <path d="M18.5 0C26.8 0 33.5 6.7 33.5 15C33.5 23.3 26.8 30 18.5 30V0Z" fill="var(--text)"/>
-      <rect x="0" y="16.5" width="14" height="13.5" rx="1" fill="var(--text)"/>
-      <circle cx="7" cy="7.5" r="7" fill="#FFB100"/>
-    </svg>
-    <h2>Venture Intelligence</h2>
-    <p>Enter your email to continue. All @develeap.com emails are auto-approved.</p>
-    <input id="loginEmail" type="email" placeholder="you@develeap.com" onkeydown="if(event.key==='Enter')doLogin()">
-    <button onclick="doLogin()">Continue</button>
-    <div class="login-err" id="loginErr"></div>
-  </div>
 </div>
 
 <div class="modal-overlay" id="submitOverlay" onclick="if(event.target===this)closeSubmitModal()">
@@ -1082,24 +1058,6 @@ let anonName = localStorage.getItem('ve_anon_name');
 let anonIcon = localStorage.getItem('ve_anon_icon');
 if (!anonName) { const idx=Math.floor(Math.random()*BRAINROT_NAMES.length); anonName=BRAINROT_NAMES[idx][0]; anonIcon=BRAINROT_NAMES[idx][1]; localStorage.setItem('ve_anon_name',anonName); localStorage.setItem('ve_anon_icon',anonIcon); }
 
-// Login gate
-async function doLogin() {
-  const email = document.getElementById('loginEmail').value.trim();
-  if (!email) return;
-  const errEl = document.getElementById('loginErr');
-  errEl.style.display='none';
-  try {
-    const res = await fetch(API+'/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email})});
-    if (!res.ok) { const d=await res.json(); errEl.textContent=d.detail||'Login failed'; errEl.style.display='block'; return; }
-    const data = await res.json();
-    userEmail = data.email;
-    localStorage.setItem('ve_email', userEmail);
-    document.getElementById('loginOverlay').style.display='none';
-    loadVentures(); loadHarvestInfo();
-  } catch(e) { errEl.textContent='Connection error'; errEl.style.display='block'; }
-}
-function logout() { localStorage.removeItem('ve_email'); location.reload(); }
-document.getElementById('loginOverlay').style.display='none';
 
 // Theme
 function toggleTheme() {

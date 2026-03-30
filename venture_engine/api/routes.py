@@ -15,7 +15,7 @@ from venture_engine.db.session import get_db_dependency
 from typing import List
 from venture_engine.db.models import (
     Venture, VentureScore, Vote, Comment, ThoughtLeader,
-    TLSignal, HarvestRun, TechGap, Annotation,
+    TLSignal, HarvestRun, TechGap, Annotation, OfficeHoursReview,
 )
 
 router = APIRouter()
@@ -306,6 +306,16 @@ def list_ventures(
             for sig, name in tl_signals
         ]
 
+        # Office hours summary for list view
+        oh = db.query(OfficeHoursReview).filter(OfficeHoursReview.venture_id == v.id).first()
+        oh_summary = None
+        if oh:
+            oh_summary = {
+                "verdict": oh.verdict,
+                "yc_score": oh.yc_score,
+                "killer_insight": oh.killer_insight,
+            }
+
         results.append({
             "id": v.id,
             "title": v.title,
@@ -322,6 +332,7 @@ def list_ventures(
             "comment_count": comment_count,
             "tl_signals": tl_summary,
             "yc_info": get_yc_info(v.id, db),
+            "office_hours": oh_summary,
             "logo_url": v.logo_url,
             "pitch_url": v.pitch_url,
             "deck_url": v.deck_url,
@@ -405,6 +416,12 @@ def get_venture(venture_id: str, db: Session = Depends(get_db_dependency)):
     upvotes = db.query(Vote).filter(Vote.venture_id == v.id, Vote.vote == "up").count()
     downvotes = db.query(Vote).filter(Vote.venture_id == v.id, Vote.vote == "down").count()
 
+    # Office hours review
+    oh_review = db.query(OfficeHoursReview).filter(
+        OfficeHoursReview.venture_id == v.id
+    ).first()
+    oh_data = _serialize_oh(oh_review) if oh_review else None
+
     return {
         "id": v.id,
         "title": v.title,
@@ -445,6 +462,7 @@ def get_venture(venture_id: str, db: Session = Depends(get_db_dependency)):
         "tl_signals": tl_signals,
         "tech_gaps": gaps,
         "yc_info": get_yc_info(v.id, db),
+        "office_hours": oh_data,
     }
 
 
@@ -739,6 +757,136 @@ def update_status(venture_id: str, req: StatusUpdate, db: Session = Depends(get_
 
     v.status = req.status
     return {"status": "ok"}
+
+
+# ─── Office Hours (gstack) ───────────────────────────────────────
+
+def _serialize_oh(review: OfficeHoursReview) -> dict:
+    """Serialize an OfficeHoursReview to JSON-safe dict."""
+    return {
+        "id": review.id,
+        "venture_id": review.venture_id,
+        "demand_reality": review.demand_reality,
+        "status_quo": review.status_quo,
+        "desperate_specificity": review.desperate_specificity,
+        "narrowest_wedge": review.narrowest_wedge,
+        "observation": review.observation,
+        "future_fit": review.future_fit,
+        "verdict": review.verdict,
+        "verdict_reasoning": review.verdict_reasoning,
+        "yc_score": review.yc_score,
+        "killer_insight": review.killer_insight,
+        "biggest_risk": review.biggest_risk,
+        "recommended_action": review.recommended_action,
+        "ceo_review": review.ceo_review,
+        "reviewed_at": review.reviewed_at.isoformat() if review.reviewed_at else None,
+    }
+
+
+@router.get("/api/ventures/{venture_id}/office-hours")
+def get_office_hours(venture_id: str, db: Session = Depends(get_db_dependency)):
+    """Get existing office hours review for a venture."""
+    review = db.query(OfficeHoursReview).filter(
+        OfficeHoursReview.venture_id == venture_id
+    ).first()
+    if not review:
+        return {"status": "not_found", "review": None}
+    return {"status": "ok", "review": _serialize_oh(review)}
+
+
+@router.post("/api/ventures/{venture_id}/office-hours")
+def run_venture_office_hours(venture_id: str, db: Session = Depends(get_db_dependency)):
+    """Run YC Office Hours on a single venture."""
+    v = db.query(Venture).filter(Venture.id == venture_id).first()
+    if not v:
+        raise HTTPException(404, "Venture not found")
+
+    from venture_engine.ventures.office_hours import run_office_hours
+    try:
+        review = run_office_hours(db, v)
+        db.commit()
+        return {"status": "ok", "review": _serialize_oh(review)}
+    except Exception as exc:
+        logger.error(f"Office hours failed: {exc}")
+        raise HTTPException(500, f"Office hours failed: {str(exc)}")
+
+
+@router.post("/api/ventures/{venture_id}/ceo-review")
+def run_venture_ceo_review(venture_id: str, db: Session = Depends(get_db_dependency)):
+    """Run gstack CEO/Founder product review on a venture."""
+    v = db.query(Venture).filter(Venture.id == venture_id).first()
+    if not v:
+        raise HTTPException(404, "Venture not found")
+
+    from venture_engine.ventures.office_hours import run_ceo_review
+    try:
+        data = run_ceo_review(db, v)
+        db.commit()
+        return {"status": "ok", "ceo_review": data}
+    except Exception as exc:
+        logger.error(f"CEO review failed: {exc}")
+        raise HTTPException(500, f"CEO review failed: {str(exc)}")
+
+
+class BatchOfficeHoursRequest(BaseModel):
+    category: Optional[str] = None
+    force: bool = False
+
+
+@router.post("/api/office-hours/batch")
+def batch_office_hours(req: BatchOfficeHoursRequest, db: Session = Depends(get_db_dependency)):
+    """Run office hours on all ventures (optionally filtered by category)."""
+    from venture_engine.ventures.office_hours import run_office_hours
+
+    q = db.query(Venture)
+    if req.category:
+        q = q.filter(Venture.category == req.category)
+    ventures = q.all()
+
+    results = []
+    for v in ventures:
+        if not req.force:
+            existing = db.query(OfficeHoursReview).filter(
+                OfficeHoursReview.venture_id == v.id
+            ).first()
+            if existing:
+                results.append({"id": v.id, "title": v.title, "status": "skipped"})
+                continue
+
+        try:
+            review = run_office_hours(db, v)
+            results.append({
+                "id": v.id, "title": v.title, "status": "ok",
+                "verdict": review.verdict, "yc_score": review.yc_score,
+            })
+        except Exception as exc:
+            results.append({"id": v.id, "title": v.title, "status": f"error: {exc}"})
+
+    db.commit()
+    done = sum(1 for r in results if r["status"] == "ok")
+    return {"status": "ok", "total": len(ventures), "processed": done, "results": results}
+
+
+@router.post("/api/ventures/{venture_id}/validate")
+def validate_venture(venture_id: str, db: Session = Depends(get_db_dependency)):
+    """Run gstack-style validation scoring on a venture."""
+    v = db.query(Venture).filter(Venture.id == venture_id).first()
+    if not v:
+        raise HTTPException(404, "Venture not found")
+
+    from venture_engine.ventures.office_hours import validate_signal
+    try:
+        result = validate_signal(
+            title=v.title,
+            summary=v.summary or "",
+            problem=v.problem or "",
+            proposed_solution=v.proposed_solution or "",
+            domain=v.domain or "",
+        )
+        return {"status": "ok", "validation": result}
+    except Exception as exc:
+        logger.error(f"Validation failed: {exc}")
+        raise HTTPException(500, f"Validation failed: {str(exc)}")
 
 
 # ─── Leaderboard ──────────────────────────────────────────────────

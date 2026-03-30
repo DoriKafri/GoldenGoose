@@ -62,6 +62,7 @@ class Venture(Base):
     votes = relationship("Vote", back_populates="venture")
     comments = relationship("Comment", back_populates="venture")
     annotations = relationship("Annotation", back_populates="venture")
+    office_hours_reviews = relationship("OfficeHoursReview", back_populates="venture")
 
 
 class VentureScore(Base):
@@ -213,6 +214,33 @@ class Annotation(Base):
 
     venture = relationship("Venture", back_populates="annotations")
     replies = relationship("Annotation", backref="parent_annotation", remote_side=[id])
+
+
+class OfficeHoursReview(Base):
+    __tablename__ = "office_hours_reviews"
+
+    id = Column(String, primary_key=True, default=new_uuid)
+    venture_id = Column(String, ForeignKey("ventures.id"), nullable=False)
+    # 6 forcing questions (each stored as JSON dict with assessment, score, etc.)
+    demand_reality = Column(JSON, nullable=True)
+    status_quo = Column(JSON, nullable=True)
+    desperate_specificity = Column(JSON, nullable=True)
+    narrowest_wedge = Column(JSON, nullable=True)
+    observation = Column(JSON, nullable=True)
+    future_fit = Column(JSON, nullable=True)
+    # Verdict
+    verdict = Column(Text, default="NEEDS_WORK")  # FUND | PROMISING | NEEDS_WORK | PASS
+    verdict_reasoning = Column(Text, nullable=True)
+    yc_score = Column(Float, nullable=True)  # 0-10
+    killer_insight = Column(Text, nullable=True)
+    biggest_risk = Column(Text, nullable=True)
+    recommended_action = Column(Text, nullable=True)
+    # CEO review (gstack /plan-ceo-review style)
+    ceo_review = Column(JSON, nullable=True)
+    # Metadata
+    reviewed_at = Column(DateTime, default=datetime.utcnow)
+
+    venture = relationship("Venture", back_populates="office_hours_reviews")
 
 
 class AppSetting(Base):

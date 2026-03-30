@@ -221,6 +221,35 @@ html.dark .toggle-track::after { transform:translateX(16px); }
 .detail-section h3 { font-size:13px; font-weight:700; color:var(--text); margin-bottom:8px; text-transform:uppercase; letter-spacing:0.5px; }
 .detail-section h3::before { content:''; display:inline-block; width:3px; height:14px; background:var(--accent); border-radius:2px; margin-right:8px; vertical-align:middle; }
 .detail-section p { font-size:13px; line-height:1.7; color:var(--text2); }
+/* Office Hours (gstack) */
+.oh-section { background:linear-gradient(135deg, rgba(255,149,0,0.04), var(--card)) !important; border-left:3px solid #FF9500 !important; }
+.oh-verdict-badge { display:inline-flex; align-items:center; gap:5px; padding:4px 12px; border-radius:var(--radius-pill); font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; }
+.oh-verdict-FUND { background:#16a34a; color:#fff; }
+.oh-verdict-PROMISING { background:#FF9500; color:#fff; }
+.oh-verdict-NEEDS_WORK { background:#EAB308; color:#171717; }
+.oh-verdict-PASS { background:#dc2626; color:#fff; }
+.oh-q-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:12px 0; }
+.oh-q-card { padding:12px; background:var(--bg2); border:1px solid var(--border); border-radius:8px; }
+.oh-q-label { font-size:10px; font-weight:700; color:var(--text3); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px; }
+.oh-q-score { float:right; font-size:12px; font-weight:700; padding:1px 6px; border-radius:var(--radius-pill); }
+.oh-q-score.high { background:rgba(22,163,74,0.15); color:#16a34a; }
+.oh-q-score.mid { background:rgba(234,179,8,0.15); color:#b45309; }
+.oh-q-score.low { background:rgba(220,38,38,0.15); color:#dc2626; }
+.oh-q-text { font-size:12px; color:var(--text2); line-height:1.5; margin-top:4px; }
+.oh-insight-box { padding:12px; background:var(--bg2); border:1px solid var(--border); border-radius:8px; margin:8px 0; }
+.oh-insight-label { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px; }
+.oh-insight-text { font-size:12px; line-height:1.5; color:var(--text); }
+.oh-ceo-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin:10px 0; }
+.oh-ceo-dim { text-align:center; padding:10px; background:var(--bg2); border:1px solid var(--border); border-radius:8px; }
+.oh-ceo-dim-score { font-size:20px; font-weight:800; }
+.oh-ceo-dim-label { font-size:9px; font-weight:700; color:var(--text3); text-transform:uppercase; letter-spacing:0.5px; margin-top:2px; }
+.oh-list-badge { display:inline-flex; align-items:center; gap:3px; font-size:9px; font-weight:700; padding:2px 7px; border-radius:var(--radius-pill); margin-left:4px; }
+.oh-run-btn { background:linear-gradient(135deg,#FF9500,#e08600); color:#fff; border:none; padding:8px 16px; border-radius:var(--radius-pill); cursor:pointer; font-size:12px; font-weight:600; transition:all 0.2s; display:inline-flex; align-items:center; gap:5px; }
+.oh-run-btn:hover { transform:translateY(-1px); box-shadow:0 4px 12px rgba(255,149,0,0.3); }
+.oh-run-btn:disabled { opacity:0.5; cursor:not-allowed; transform:none; }
+@media(max-width:600px) { .oh-q-grid { grid-template-columns:1fr; } .oh-ceo-grid { grid-template-columns:1fr 1fr; } }
+@keyframes spin { from { transform:rotate(0deg); } to { transform:rotate(360deg); } }
+.spin { animation:spin 1s linear infinite; }
 .radar-wrap { display:flex; justify-content:center; margin:16px 0; background:none; }
 .radar-wrap svg { width:100%; max-width:340px; height:auto; background:none !important; }
 .tl-card { display:flex; gap:12px; padding:10px 0; border-bottom:1px solid var(--border); align-items:flex-start; }
@@ -1184,6 +1213,7 @@ function renderList(ventures) {
           <span class="domain-badge domain-${v.domain||''}">${v.domain||'\u2014'}</span>
           <span class="status-badge status-${v.status||''}">${v.status||'\u2014'}</span>
           ${v.yc_info && v.yc_info.compatible ? '<span class="yc-badge" data-yc-reasons="'+btoa(unescape(encodeURIComponent(JSON.stringify(v.yc_info.reasons))))+'"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>YC Compatible</span>' : ''}
+          ${v.office_hours ? '<span class="oh-list-badge oh-verdict-'+v.office_hours.verdict+'" title="'+(v.office_hours.killer_insight||'').substring(0,80)+'">OH: '+v.office_hours.verdict.replace('_',' ')+(v.office_hours.yc_score?' '+v.office_hours.yc_score+'/10':'')+'</span>' : ''}
           ${v.pitch_url ? '<a href="'+esc(v.pitch_url)+'" target="_blank" onclick="event.stopPropagation()" style="font-size:10px;padding:2px 7px;border-radius:var(--radius-pill);background:rgba(0,153,255,0.1);color:#0077cc;font-weight:600;text-decoration:none;">Pitch</a>' : ''}
           ${v.deck_url ? '<a href="'+esc(v.deck_url)+'" target="_blank" onclick="event.stopPropagation()" style="font-size:10px;padding:2px 7px;border-radius:var(--radius-pill);background:rgba(154,72,254,0.1);color:var(--purple2);font-weight:600;text-decoration:none;">Deck</a>' : ''}
           ${v.target_acquirer ? '<span class="acq-badge">\u{1F3AF} '+esc(v.target_acquirer)+'</span>' : ''}
@@ -1389,6 +1419,7 @@ async function openDetail(id, skipHash) {
     ${gapHtml}
     ${radarSvg ? `<div class="detail-section"><h3>Score Breakdown</h3><div class="radar-wrap">${radarSvg}</div></div>` : ''}
     <div class="detail-section"><h3>Scoring Rationale</h3>${reasoningHtml}</div>
+    ${renderOfficeHours(v)}
     <div class="detail-section">
       <h3>Thought Leader Signals (${v.tl_signals.length})</h3>
       ${tlHtml || '<p style="font-size:12px;color:var(--text2);">No TL signals yet.</p>'}
@@ -1406,6 +1437,97 @@ async function openDetail(id, skipHash) {
   `;
   loadAnnotations(v.id);
   setTimeout(bindYcTooltips, 0);
+}
+
+function ohScoreClass(s) { return s >= 7 ? 'high' : s >= 4 ? 'mid' : 'low'; }
+function ohScoreColor(s) { return s >= 7 ? '#16a34a' : s >= 4 ? '#b45309' : '#dc2626'; }
+
+function renderOfficeHours(v) {
+  const oh = v.office_hours;
+  // Always show the section with a run button if no review yet
+  if (!oh) {
+    return `<div class="detail-section oh-section">
+      <h3 style="display:flex;align-items:center;gap:8px;">
+        <span style="font-size:16px;">&#x1F3E2;</span> YC Office Hours
+        <span style="font-size:10px;font-weight:400;color:var(--text3);font-style:italic;">powered by gstack</span>
+      </h3>
+      <p style="font-size:12px;color:var(--text2);margin-bottom:10px;">Run Garry Tan's 6 forcing questions diagnostic on this venture.</p>
+      <button class="oh-run-btn" onclick="runOfficeHours('${v.id}')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5,3 19,12 5,21"/></svg>
+        Run Office Hours
+      </button>
+      <button class="oh-run-btn" style="background:linear-gradient(135deg,#7C3AED,#6C5CE7);margin-left:6px;" onclick="runCeoReview('${v.id}')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+        CEO Review
+      </button>
+    </div>`;
+  }
+
+  // Question cards
+  const questions = [
+    { key: 'demand_reality', label: 'Demand Reality', icon: '&#x1F525;' },
+    { key: 'status_quo', label: 'Status Quo', icon: '&#x1F504;' },
+    { key: 'desperate_specificity', label: 'Desperate Specificity', icon: '&#x1F3AF;' },
+    { key: 'narrowest_wedge', label: 'Narrowest Wedge', icon: '&#x1FA93;' },
+    { key: 'observation', label: 'Observation', icon: '&#x1F440;' },
+    { key: 'future_fit', label: 'Future-Fit', icon: '&#x1F52E;' },
+  ];
+
+  let qCards = '';
+  questions.forEach(q => {
+    const d = oh[q.key];
+    if (!d) return;
+    const score = d.score != null ? d.score : '?';
+    const text = d.assessment || d.mvp_suggestion || '';
+    qCards += `<div class="oh-q-card">
+      <div class="oh-q-label">${q.icon} ${q.label} <span class="oh-q-score ${ohScoreClass(score)}">${score}/10</span></div>
+      <div class="oh-q-text">${esc(typeof text === 'string' ? text.substring(0, 200) : JSON.stringify(text).substring(0, 200))}${text.length > 200 ? '...' : ''}</div>
+    </div>`;
+  });
+
+  // CEO review section
+  let ceoHtml = '';
+  if (oh.ceo_review) {
+    const cr = oh.ceo_review;
+    const dims = ['problem_clarity','user_obsession','market_timing','moat_potential','revenue_path','team_fit'];
+    const dimLabels = ['Problem','User Obsession','Timing','Moat','Revenue','Team Fit'];
+    ceoHtml = `<div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border);">
+      <div class="oh-q-label" style="margin-bottom:8px;">&#x1F451; CEO Review <span class="oh-q-score ${ohScoreClass(cr.overall_score||0)}">${cr.overall_score||'?'}/10</span></div>
+      <div class="oh-ceo-grid">
+        ${dims.map((d,i) => {
+          const dim = cr[d];
+          const s = dim ? dim.score : '?';
+          return '<div class="oh-ceo-dim"><div class="oh-ceo-dim-score" style="color:'+ohScoreColor(s)+'">'+s+'</div><div class="oh-ceo-dim-label">'+dimLabels[i]+'</div></div>';
+        }).join('')}
+      </div>
+      ${cr.ten_star_version ? '<div class="oh-insight-box"><div class="oh-insight-label" style="color:#7C3AED;">&#x2B50; 10-Star Version</div><div class="oh-insight-text">'+esc(cr.ten_star_version)+'</div></div>' : ''}
+      ${cr.pivot_suggestion ? '<div class="oh-insight-box"><div class="oh-insight-label" style="color:#0891B2;">&#x1F500; Pivot Suggestion</div><div class="oh-insight-text">'+esc(cr.pivot_suggestion)+'</div></div>' : ''}
+      ${cr.one_line_verdict ? '<p style="font-size:12px;font-weight:600;color:var(--text);margin-top:8px;">'+esc(cr.one_line_verdict)+'</p>' : ''}
+    </div>`;
+  }
+
+  return `<div class="detail-section oh-section">
+    <h3 style="display:flex;align-items:center;gap:8px;">
+      <span style="font-size:16px;">&#x1F3E2;</span> YC Office Hours
+      <span class="oh-verdict-badge oh-verdict-${oh.verdict}">${oh.verdict.replace('_',' ')}</span>
+      <span class="oh-q-score ${ohScoreClass(oh.yc_score||0)}" style="font-size:14px;">${oh.yc_score||'?'}/10</span>
+      <span style="font-size:10px;font-weight:400;color:var(--text3);font-style:italic;margin-left:auto;">powered by gstack</span>
+    </h3>
+    ${oh.verdict_reasoning ? '<p style="font-size:13px;line-height:1.6;color:var(--text);margin:8px 0;font-weight:500;">'+esc(oh.verdict_reasoning)+'</p>' : ''}
+    <div class="oh-q-grid">${qCards}</div>
+    ${oh.killer_insight ? '<div class="oh-insight-box"><div class="oh-insight-label" style="color:#FF9500;">&#x1F4A1; Killer Insight</div><div class="oh-insight-text">'+esc(oh.killer_insight)+'</div></div>' : ''}
+    ${oh.biggest_risk ? '<div class="oh-insight-box"><div class="oh-insight-label" style="color:#dc2626;">&#x26A0;&#xFE0F; Biggest Risk</div><div class="oh-insight-text">'+esc(oh.biggest_risk)+'</div></div>' : ''}
+    ${oh.recommended_action ? '<div class="oh-insight-box"><div class="oh-insight-label" style="color:#16a34a;">&#x2705; Recommended Action</div><div class="oh-insight-text">'+esc(oh.recommended_action)+'</div></div>' : ''}
+    ${ceoHtml}
+    <div style="margin-top:12px;display:flex;gap:6px;">
+      <button class="oh-run-btn" onclick="runOfficeHours('${v.id}')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 4v6h6M23 20v-6h-6"/><path d="M20.49 9A9 9 0 005.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 013.51 15"/></svg>
+        Re-run Office Hours
+      </button>
+      ${!oh.ceo_review ? '<button class="oh-run-btn" style="background:linear-gradient(135deg,#7C3AED,#6C5CE7);" onclick="runCeoReview(\\'' + v.id + '\\')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>Run CEO Review</button>' : ''}
+    </div>
+    <div style="margin-top:6px;font-size:10px;color:var(--text3);">Reviewed ${oh.reviewed_at ? timeAgo(oh.reviewed_at) : 'recently'}</div>
+  </div>`;
 }
 
 function renderRadar(dims) {
@@ -1465,6 +1587,40 @@ async function addComment(id) {
   const a = getVentureAnon(id);
   await fetch(`${API}/api/ventures/${id}/comment`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({author_email:anonId,author_name:a.icon+' '+a.name,body})});
   openDetail(id);
+}
+async function runOfficeHours(id) {
+  const btns = document.querySelectorAll('.oh-run-btn');
+  btns.forEach(b => { b.disabled = true; b.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spin"><circle cx="12" cy="12" r="10"/><path d="M12 6v6"/></svg> Running Office Hours...'; });
+  try {
+    const res = await fetch(`${API}/api/ventures/${id}/office-hours`, { method: 'POST' });
+    const data = await res.json();
+    if (data.status === 'ok') { openDetail(id); }
+    else { alert('Office hours failed: ' + JSON.stringify(data)); }
+  } catch(e) { alert('Error: ' + e.message); }
+  finally { btns.forEach(b => { b.disabled = false; }); }
+}
+async function runCeoReview(id) {
+  const btns = document.querySelectorAll('.oh-run-btn');
+  btns.forEach(b => { b.disabled = true; });
+  try {
+    const res = await fetch(`${API}/api/ventures/${id}/ceo-review`, { method: 'POST' });
+    const data = await res.json();
+    if (data.status === 'ok') { openDetail(id); }
+    else { alert('CEO review failed: ' + JSON.stringify(data)); }
+  } catch(e) { alert('Error: ' + e.message); }
+  finally { btns.forEach(b => { b.disabled = false; }); }
+}
+async function runBatchOfficeHours(category) {
+  const btn = event.target;
+  btn.disabled = true; btn.textContent = 'Running...';
+  try {
+    const body = category ? { category } : {};
+    const res = await fetch(`${API}/api/office-hours/batch`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    const data = await res.json();
+    alert(`Office Hours: ${data.processed}/${data.total} ventures processed`);
+    loadVentures();
+  } catch(e) { alert('Error: ' + e.message); }
+  finally { btn.disabled = false; btn.textContent = 'Run Office Hours (All)'; }
 }
 async function updateStatus(id,status) {
   await fetch(`${API}/api/ventures/${id}/status`,{method:'PATCH',headers:{'Content-Type':'application/json','X-API-Key':'changeme'},body:JSON.stringify({status})});

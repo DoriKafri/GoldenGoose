@@ -97,7 +97,7 @@ def venture_og_image(venture_id: str, db: Session = Depends(get_db_dependency)):
     slogan = (v.slogan or "")[:60]
     domain = v.domain or ""
     score = int(v.score_total) if v.score_total else "—"
-    category_label = {"venture": "Venture", "training": "Training", "stealth": "Clone", "flip": "Quick Flip", "customer": "Customer"}.get(v.category, "Venture")
+    category_label = {"venture": "Venture", "training": "Training", "stealth": "Clone", "flip": "Quick Flip", "customer": "Customer", "missing_piece": "Missing Piece"}.get(v.category, "Venture")
     summary = (v.summary or "")[:120]
     if len(v.summary or "") > 120:
         summary += "..."
@@ -109,6 +109,7 @@ def venture_og_image(venture_id: str, db: Session = Depends(get_db_dependency)):
         "stealth": ("#0891B2", "#E0F7FA"),
         "flip": ("#059669", "#D1FAE5"),
         "customer": ("#2563EB", "#DBEAFE"),
+        "missing_piece": ("#D97706", "#FEF3C7"),
     }
     accent, bg_light = colors.get(v.category, colors["venture"])
 
@@ -330,6 +331,9 @@ def list_ventures(
             "clone_time_estimate": v.clone_time_estimate,
             "achilles_heel": v.achilles_heel,
             "clone_advantage": v.clone_advantage,
+            "target_isv": v.target_isv,
+            "isv_pain_point": v.isv_pain_point,
+            "integration_approach": v.integration_approach,
             "course_length": v.course_length,
             "course_admission": v.course_admission,
             "job_listings_count": v.job_listings_count,
@@ -611,6 +615,14 @@ SUGGEST_PROMPTS: dict[str, str] = {
         "You are a Develeap acqui-hire scout. The user has identified a potential "
         "customer opportunity. Flesh it out — what product/team could be built that a "
         "specific company would want to acquire for talent and technology."
+    ),
+    "missing_piece": (
+        "You are a Develeap 'missing piece' strategist. The user has identified a pain point "
+        "in a leading ISV tool (e.g., Terraform, Kubernetes, Datadog, Grafana, Jenkins, etc.) "
+        "that users would love to have solved WITHOUT switching to another tool. Think plugins, "
+        "extensions, add-ons, or companion tools that deeply integrate with the ISV's ecosystem. "
+        "Flesh it out — what the pain is, which ISV tool it targets, and how the solution plugs "
+        "in seamlessly. Name it as a clear plugin/extension brand."
     ),
 }
 

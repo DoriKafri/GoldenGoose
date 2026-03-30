@@ -599,6 +599,7 @@ html.dark .toggle-track::after { transform:translateX(16px); }
           <button class="top-tab" data-tab="stealth" onclick="switchTab('stealth')"><span class="tab-label">Clone</span><span class="tab-tagline">Beat early-stage startups</span></button>
           <button class="top-tab" data-tab="flip" onclick="switchTab('flip')"><span class="tab-label">Quick Flip</span><span class="tab-tagline">Build & sell to market leaders</span></button>
           <button class="top-tab" data-tab="customer" onclick="switchTab('customer')"><span class="tab-label">Customers</span><span class="tab-tagline">Acqui-hire opportunities</span></button>
+          <button class="top-tab" data-tab="missing_piece" onclick="switchTab('missing_piece')"><span class="tab-label">Missing Piece</span><span class="tab-tagline">Plug gaps in leading tools</span></button>
           <button class="top-tab" data-tab="training" onclick="switchTab('training')"><span class="tab-label">Training</span><span class="tab-tagline">Courses & workshops</span></button>
         </div>
         <div class="tab-scroll-hint" id="tabScrollHint">
@@ -767,6 +768,10 @@ html.dark .toggle-track::after { transform:translateX(16px); }
           <div class="help-tab-item">
             <div class="tab-name">Customers</div>
             <div class="tab-desc">Acqui-hire and consulting upsell opportunities. These represent existing companies that could become customers for Develeap's consulting services or be potential acquisition targets. Tracks company info, potential deal size, and strategic fit.</div>
+          </div>
+          <div class="help-tab-item">
+            <div class="tab-name">Missing Piece</div>
+            <div class="tab-desc">Plugins, extensions, and companion tools that solve a specific user pain point in leading ISV tools (Terraform, Kubernetes, Datadog, Jenkins, etc.) without requiring users to switch platforms. Each entry identifies the target ISV, the pain point, and the integration approach. These are add-on products that ride the ISV's existing ecosystem and user base.</div>
           </div>
           <div class="help-tab-item">
             <div class="tab-name">Training</div>
@@ -1131,7 +1136,7 @@ function readHash() {
   const parts = hash.split('/');
   const tab = parts[0];
   const ventureId = parts[1];
-  const validTabs = ['venture','stealth','flip','customer','training'];
+  const validTabs = ['venture','stealth','flip','customer','missing_piece','training'];
   if (validTabs.includes(tab)) {
     switchTab(tab, true);
     if (ventureId) setTimeout(() => openDetail(ventureId, true), 300);
@@ -1145,7 +1150,7 @@ window.addEventListener('popstate', () => {
   const parts = hash.split('/');
   const tab = parts[0];
   const ventureId = parts[1];
-  const validTabs = ['venture','stealth','flip','customer','training'];
+  const validTabs = ['venture','stealth','flip','customer','missing_piece','training'];
   if (validTabs.includes(tab) && tab !== currentTab) switchTab(tab, true);
   if (ventureId) openDetail(ventureId, true);
   else closeDetailPanel(true);
@@ -1227,6 +1232,7 @@ function renderList(ventures) {
           ${v.acquisition_price ? '<span class="acq-price">\u{1F4B0} '+esc(v.acquisition_price)+'</span>' : ''}
           ${v.clone_time_estimate ? '<span class="clone-time">\u{26A1} '+esc(v.clone_time_estimate.split(',')[0])+'</span>' : ''}
           ${v.achilles_heel ? '<span style="font-size:10px;padding:2px 8px;border-radius:var(--radius-pill);background:rgba(239,68,68,0.1);color:#dc2626;font-weight:600;">\u{1F3AF} '+esc(v.achilles_heel.substring(0,40))+(v.achilles_heel.length>40?'...':'')+'</span>' : ''}
+          ${v.target_isv ? '<span style="font-size:10px;padding:2px 8px;border-radius:var(--radius-pill);background:rgba(217,119,6,0.1);color:#D97706;font-weight:600;">\u{1F9E9} '+esc(v.target_isv)+'</span>' : ''}
           ${v.expected_salary ? '<span class="course-stat stat-salary">\u{1F4B5} '+esc(v.expected_salary)+'</span>' : ''}
           ${v.job_listings_count ? '<span class="course-stat stat-jobs">\u{1F4CB} '+esc(v.job_listings_count.split(' (')[0])+'</span>' : ''}
           ${v.course_length ? '<span class="course-stat stat-length">\u{23F1} '+esc(v.course_length.split(' (')[0])+'</span>' : ''}
@@ -1366,6 +1372,7 @@ async function openDetail(id, skipHash) {
     ${v.course_length ? '<div class="detail-section"><h3>Course Details</h3><div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;"><div><span style="font-size:11px;color:var(--text3);text-transform:uppercase;font-weight:700;">Duration</span><p style="font-size:14px;color:var(--text);margin-top:2px;">'+esc(v.course_length)+'</p></div><div><span style="font-size:11px;color:var(--text3);text-transform:uppercase;font-weight:700;">Admission</span><p style="font-size:14px;color:var(--text);margin-top:2px;">'+esc(v.course_admission||'')+'</p></div><div><span style="font-size:11px;color:var(--text3);text-transform:uppercase;font-weight:700;">Expected Salary</span><p style="font-size:14px;color:#16a34a;font-weight:600;margin-top:2px;">'+esc(v.expected_salary||'')+'</p></div><div><span style="font-size:11px;color:var(--text3);text-transform:uppercase;font-weight:700;">Job Market</span><p style="font-size:14px;color:#0077cc;font-weight:600;margin-top:2px;">'+esc(v.job_listings_count||'')+'</p></div></div>'+(v.required_skills ? '<div style="margin-top:12px;"><span style="font-size:11px;color:var(--text3);text-transform:uppercase;font-weight:700;">Required Skills</span><div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;">'+parseSkills(v.required_skills)+'</div></div>' : '')+'</div>' : ''}
     ${v.clone_time_estimate ? '<div class="detail-section"><h3>80/20 Dark Factory Clone Estimate</h3><p style="font-size:14px;color:var(--text);"><span style="font-size:18px;">&#9889;</span> '+esc(v.clone_time_estimate)+'</p></div>' : ''}
     ${v.achilles_heel ? '<div class="detail-section" style="border-left:3px solid var(--red);"><h3 style="color:var(--red);">\u{1F3AF} Achilles\u2019 Heel</h3><p style="font-size:13px;line-height:1.7;color:var(--text2);">'+esc(v.achilles_heel)+'</p>'+(v.clone_advantage ? '<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);"><h4 style="font-size:12px;font-weight:700;color:#16a34a;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">\u2694\uFE0F Our Clone Advantage</h4><p style="font-size:13px;line-height:1.7;color:var(--text2);">'+esc(v.clone_advantage)+'</p></div>' : '')+'</div>' : ''}
+    ${v.target_isv ? '<div class="detail-section" style="border-left:3px solid #D97706;"><h3 style="color:#D97706;">\u{1F9E9} The Missing Piece</h3><div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;"><img src="https://www.google.com/s2/favicons?domain='+encodeURIComponent(v.target_isv.toLowerCase().replace(/\\s/g,\"\"))+'.com&sz=128" alt="" style="width:28px;height:28px;border-radius:6px;" onerror="this.style.display=\'none\'"><div><span style="font-size:11px;color:var(--text3);text-transform:uppercase;font-weight:700;">Plugs Into</span><p style="font-size:15px;font-weight:700;color:var(--text);margin-top:1px;">'+esc(v.target_isv)+'</p></div></div>'+(v.isv_pain_point ? '<div style="margin-bottom:10px;"><span style="font-size:11px;color:var(--text3);text-transform:uppercase;font-weight:700;">User Pain Point</span><p style="font-size:13px;line-height:1.7;color:var(--text2);margin-top:4px;">'+esc(v.isv_pain_point)+'</p></div>' : '')+(v.integration_approach ? '<div style="padding-top:10px;border-top:1px solid var(--border);"><span style="font-size:11px;color:var(--text3);text-transform:uppercase;font-weight:700;">Integration Approach</span><p style="font-size:13px;line-height:1.7;color:var(--text2);margin-top:4px;">'+esc(v.integration_approach)+'</p></div>' : '')+'</div>' : ''}
     ${v.target_acquirer && !isCustomer ? '<div class="detail-section"><h3>Acquisition Target</h3><div class="acq-target-row" style="font-size:14px;margin-bottom:8px;"><span class="acq-arrow">\u2192</span> <strong>'+esc(v.target_acquirer)+'</strong></div>'+(v.target_product ? '<p style="font-size:13px;color:var(--text2);margin-bottom:6px;">Supplements: <strong>'+esc(v.target_product)+'</strong></p>' : '')+(v.acquisition_price ? '<p style="font-size:13px;color:var(--text2);">Est. acquisition (team + product, 6mo): <span class="acq-price" style="font-size:12px;">\u{1F4B0} '+esc(v.acquisition_price)+'</span></p>' : '')+'</div>' : ''}
     <div class="detail-section"><h3>Summary</h3><p class="annotatable" data-field="summary" data-raw-text="${esc(v.summary||'')}" data-venture-id="${v.id}">${esc(v.summary||'')}</p></div>
     ${v.problem ? `<div class="detail-section"><h3>Problem</h3><p class="annotatable" data-field="problem" data-raw-text="${esc(v.problem)}" data-venture-id="${v.id}">${esc(v.problem)}</p></div>` : ''}
@@ -1530,7 +1537,7 @@ function openSubmitModal(){document.getElementById('submitOverlay').classList.ad
 function closeSubmitModal(){document.getElementById('submitOverlay').classList.remove('open');}
 
 function openSuggestModal(){
-  const labels = {venture:'Suggest a Venture',stealth:'Suggest a Clone Target',flip:'Suggest a Quick Flip',customer:'Suggest a Customer Opportunity'};
+  const labels = {venture:'Suggest a Venture',stealth:'Suggest a Clone Target',flip:'Suggest a Quick Flip',customer:'Suggest a Customer Opportunity',missing_piece:'Suggest a Missing Piece'};
   document.getElementById('suggestTitle').textContent = labels[currentTab] || 'Suggest a Venture';
   document.getElementById('suggestIdea').value = '';
   document.getElementById('suggestOverlay').classList.add('open');

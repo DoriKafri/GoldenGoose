@@ -34,6 +34,9 @@ class Venture(Base):
     clone_time_estimate = Column(Text, nullable=True)  # 80/20 dark factory cloning time
     achilles_heel = Column(Text, nullable=True)        # Target's key weakness / vulnerability
     clone_advantage = Column(Text, nullable=True)      # How our clone exploits that weakness
+    target_isv = Column(Text, nullable=True)           # ISV tool this plugs into (missing_piece)
+    isv_pain_point = Column(Text, nullable=True)       # Specific user pain in the ISV tool
+    integration_approach = Column(Text, nullable=True)  # How this plugs in (plugin, API, sidecar, etc.)
     # Training course fields
     course_length = Column(Text, nullable=True)       # e.g. "3 days", "5 weeks"
     course_admission = Column(Text, nullable=True)    # price per seat

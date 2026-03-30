@@ -786,45 +786,57 @@ html.dark .toggle-track::after { transform:translateX(16px); }
             <div class="help-source-icon">&#x1F4F0;</div>
             <div class="help-source-info">
               <div class="source-name">Hacker News</div>
-              <div class="source-desc">Top stories and Show HN posts filtered by domain keywords</div>
+              <div class="source-desc">Front page stories via Algolia API, filtered by domain keywords</div>
             </div>
           </div>
           <div class="help-source-card">
             <div class="help-source-icon">&#x1F680;</div>
             <div class="help-source-info">
               <div class="source-name">Product Hunt</div>
-              <div class="source-desc">New product launches in DevOps and cloud-native categories</div>
+              <div class="source-desc">New product launches in developer tools category</div>
             </div>
           </div>
           <div class="help-source-card">
             <div class="help-source-icon">&#x1F4BB;</div>
             <div class="help-source-info">
               <div class="source-name">GitHub Trending</div>
-              <div class="source-desc">Trending repositories matching domain keywords</div>
+              <div class="source-desc">Daily trending repositories matching domain keywords</div>
             </div>
           </div>
           <div class="help-source-card">
             <div class="help-source-icon">&#x1F4DA;</div>
             <div class="help-source-info">
               <div class="source-name">ArXiv Papers</div>
-              <div class="source-desc">Academic research in ML/AI operations and infrastructure</div>
-            </div>
-          </div>
-          <div class="help-source-card">
-            <div class="help-source-icon">&#x1F3E2;</div>
-            <div class="help-source-info">
-              <div class="source-name">Company Blogs</div>
-              <div class="source-desc">RSS feeds from Netflix, Spotify, Airbnb, AWS, and more</div>
+              <div class="source-desc">Distributed systems (cs.DC) &amp; software engineering (cs.SE) papers</div>
             </div>
           </div>
           <div class="help-source-card">
             <div class="help-source-icon">&#x1F4E1;</div>
             <div class="help-source-info">
-              <div class="source-name">Startup Signals</div>
-              <div class="source-desc">Funding rounds, launches, and pivots from startup trackers</div>
+              <div class="source-name">The New Stack</div>
+              <div class="source-desc">Infrastructure and startup news via RSS feed</div>
             </div>
           </div>
         </div>
+
+        <h4>Company Tech Blog Feeds</h4>
+        <ul>
+          <li><strong>Netflix Tech Blog</strong> &mdash; netflixtechblog.com/feed</li>
+          <li><strong>Slack Engineering</strong> &mdash; slack.engineering/feed</li>
+          <li><strong>Spotify Engineering</strong> &mdash; engineering.atspotify.com/feed</li>
+          <li><strong>Cloudflare Blog</strong> &mdash; blog.cloudflare.com/rss</li>
+          <li><strong>AWS DevOps Blog</strong> &mdash; aws.amazon.com/blogs/devops/feed</li>
+          <li><strong>LinkedIn Engineering</strong> &mdash; engineering.linkedin.com/blog/rss</li>
+          <li><strong>Airbnb Engineering</strong> &mdash; medium.com/feed/airbnb-engineering</li>
+          <li><strong>GCP Release Notes</strong> &mdash; cloud.google.com/feeds/gcp-release-notes.xml</li>
+        </ul>
+        <p>Blog feeds are configurable in Settings &rarr; Domains. Only articles from the past 7 days are ingested.</p>
+
+        <h4>Domain Keywords (38)</h4>
+        <p style="font-size:12px;line-height:1.8;color:var(--text2);">
+          kubernetes, devops, devsecops, mlops, dataops, sre, platform engineering, observability, gitops, argo, helm, terraform, pulumi, opentelemetry, chaos engineering, finops, policy-as-code, ai ops, llmops, ai engineering, vector db, feature store, model serving, ray, kubeflow, docker, container, cicd, pipeline, infrastructure as code, cloud native, service mesh, istio, envoy, prometheus, grafana, backstage, internal developer platform
+        </p>
+        <p>Keywords are editable in Settings &rarr; Domains. Signals must match at least one keyword to be ingested.</p>
 
         <h4>Pipeline Steps</h4>
         <ul>
@@ -1091,13 +1103,53 @@ function toggleTheme() {
 }
 if (localStorage.getItem('ve_theme') === 'dark') document.documentElement.classList.add('dark');
 
-function switchTab(tab) {
+function switchTab(tab, skipHash) {
   currentTab = tab;
   currentPage = 0;
   document.querySelectorAll('.top-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
   document.getElementById('suggestTabBtn').style.display = tab === 'training' ? 'none' : '';
+  if (!skipHash) updateHash();
   loadVentures();
 }
+
+// ── URL hash routing ──
+function updateHash() {
+  const hash = currentTab === 'venture' ? '' : '#' + currentTab;
+  history.replaceState(null, '', hash || location.pathname + location.search);
+}
+function pushVentureHash(id) {
+  history.pushState(null, '', '#' + currentTab + '/' + id);
+}
+function clearVentureHash() {
+  updateHash();
+}
+function readHash() {
+  const hash = location.hash.replace('#', '');
+  if (!hash) return;
+  if (hash === 'settings') { openSettings(); return; }
+  if (hash === 'help') { openHelp(); return; }
+  const parts = hash.split('/');
+  const tab = parts[0];
+  const ventureId = parts[1];
+  const validTabs = ['venture','stealth','flip','customer','training'];
+  if (validTabs.includes(tab)) {
+    switchTab(tab, true);
+    if (ventureId) setTimeout(() => openDetail(ventureId, true), 300);
+  }
+}
+window.addEventListener('popstate', () => {
+  const hash = location.hash.replace('#', '');
+  if (!hash) { closeDetailPanel(true); closeSettings(); closeHelp(); switchTab('venture', true); return; }
+  if (hash === 'settings') { closeDetailPanel(true); openSettings(); return; }
+  if (hash === 'help') { closeDetailPanel(true); openHelp(); return; }
+  const parts = hash.split('/');
+  const tab = parts[0];
+  const ventureId = parts[1];
+  const validTabs = ['venture','stealth','flip','customer','training'];
+  if (validTabs.includes(tab) && tab !== currentTab) switchTab(tab, true);
+  if (ventureId) openDetail(ventureId, true);
+  else closeDetailPanel(true);
+});
 
 async function loadVentures() {
   const domain = document.getElementById('filterDomain').value;
@@ -1188,10 +1240,11 @@ function renderList(ventures) {
   setTimeout(bindYcTooltips, 0);
 }
 
-async function openDetail(id) {
+async function openDetail(id, skipHash) {
   document.getElementById('detailOverlay').classList.add('open');
   document.getElementById('detailPanel').style.display = 'block';
   document.getElementById('detailContent').innerHTML = '<div class="loading">Loading...</div>';
+  if (!skipHash) pushVentureHash(id);
   const [vRes, cRes] = await Promise.all([
     fetch(`${API}/api/ventures/${id}`),
     fetch(`${API}/api/ventures/${id}/comments`),
@@ -1431,7 +1484,7 @@ function toggleTLPopup(id) {
   if (!wasOpen) el.classList.add('open');
 }
 function closeDetail(e){if(e.target.id==='detailOverlay')closeDetailPanel();}
-function closeDetailPanel(){document.getElementById('detailOverlay').classList.remove('open');document.getElementById('detailPanel').style.display='none';}
+function closeDetailPanel(skipHash){document.getElementById('detailOverlay').classList.remove('open');document.getElementById('detailPanel').style.display='none';if(!skipHash)clearVentureHash();}
 
 async function vote(id,dir) {
   const a = getVentureAnon(id);
@@ -1522,12 +1575,14 @@ let _settingsDirty = {};
 async function openSettings() {
   document.getElementById('settingsOverlay').classList.add('open');
   document.getElementById('settingsPanel').classList.add('open');
+  history.replaceState(null, '', '#settings');
   if (!_settingsData) await loadSettingsData();
   renderSettingsSection(_currentSettingsSection);
 }
 function closeSettings() {
   document.getElementById('settingsOverlay').classList.remove('open');
   document.getElementById('settingsPanel').classList.remove('open');
+  updateHash();
 }
 
 // ── Help Panel ──
@@ -1535,10 +1590,12 @@ let _currentHelpSection = 'overview';
 function openHelp() {
   document.getElementById('helpOverlay').classList.add('open');
   document.getElementById('helpPanel').classList.add('open');
+  history.replaceState(null, '', '#help');
 }
 function closeHelp() {
   document.getElementById('helpOverlay').classList.remove('open');
   document.getElementById('helpPanel').classList.remove('open');
+  updateHash();
 }
 function switchHelpSection(section) {
   _currentHelpSection = section;
@@ -1974,7 +2031,13 @@ document.getElementById('topTabs')?.addEventListener('scroll', updateTabScrollHi
 window.addEventListener('resize', updateTabScrollHint);
 setTimeout(updateTabScrollHint, 100);
 
-loadVentures(); loadHarvestInfo();
+// Read hash on page load for deep linking
+if (location.hash) {
+  readHash();
+} else {
+  loadVentures();
+}
+loadHarvestInfo();
 </script>
 
 <!-- Mobile drawer -->

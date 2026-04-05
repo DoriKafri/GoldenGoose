@@ -1922,8 +1922,9 @@ function openReader(url, title, newsItemId) {
 
   document.getElementById('readerOverlay').classList.add('open');
   document.body.style.overflow = 'hidden';
-  // Push history state with permanent URL so reader links are shareable
-  history.pushState({reader: true, url: url, title: title, newsItemId: newsItemId}, '', '#news/read/' + encodeURIComponent(url));
+  // Save pre-reader hash so we can restore on close, then set reader URL
+  window._preReaderHash = location.hash;
+  history.pushState({reader: true}, '', '#news/read/' + encodeURIComponent(url));
 }
 
 function closeReader(fromPopstate) {
@@ -1933,8 +1934,10 @@ function closeReader(fromPopstate) {
   _readerUrl = '';
   _readerAnnotations = [];
   _pendingSelection = null;
-  // If closed via X button (not back button), pop the pushed history state
-  if (!fromPopstate) history.back();
+  if (!fromPopstate) {
+    // Closed via X or Escape — replace current history entry to remove reader URL
+    history.replaceState(null, '', window._preReaderHash || '#news');
+  }
 }
 
 async function loadReaderAnnotations() {

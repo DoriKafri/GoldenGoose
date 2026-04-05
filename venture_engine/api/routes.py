@@ -375,6 +375,7 @@ def get_venture(venture_id: str, db: Session = Depends(get_db_dependency)):
             "dark_factory_fit": s.dark_factory_fit,
             "tech_readiness": s.tech_readiness,
             "tl_score": s.tl_score,
+            "oh_score": s.oh_score,
             "reasoning": s.reasoning,
             "scored_by": s.scored_by,
         })

@@ -228,14 +228,35 @@ html.dark .toggle-track::after { transform:translateX(16px); }
 .detail-zone-label::after { content:''; flex:1; height:1px; background:var(--border); }
 /* Action bar at bottom */
 .detail-actions { position:sticky; bottom:0; background:var(--bg2); border-top:1px solid var(--border); padding:12px 0 4px; margin-top:20px; display:flex; flex-wrap:wrap; align-items:center; gap:8px; z-index:10; }
-/* Office Hours (gstack) */
-.oh-section { background:linear-gradient(135deg, rgba(255,149,0,0.03), var(--card)) !important; border-left:3px solid #FF9500 !important; }
-.oh-verdict-badge { display:inline-flex; align-items:center; gap:5px; padding:4px 12px; border-radius:var(--radius-pill); font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; }
+/* Office Hours / Momentum GStack */
+.oh-section { background:var(--card) !important; border:1px solid var(--border) !important; border-left:none !important; }
+.oh-header { display:flex; align-items:center; gap:8px; margin-bottom:14px; }
+.oh-y-logo { width:28px; height:28px; background:#FF6600; border-radius:6px; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:16px; color:#fff; font-family:'Inter',sans-serif; flex-shrink:0; }
+.oh-title { font-size:13px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:var(--text); }
+.oh-verdict-badge { display:inline-flex; align-items:center; gap:5px; padding:3px 10px; border-radius:var(--radius-pill); font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; }
 .oh-verdict-FUND { background:#16a34a; color:#fff; }
 .oh-verdict-PROMISING { background:#FF9500; color:#fff; }
 .oh-verdict-NEEDS_WORK { background:#EAB308; color:#171717; }
 .oh-verdict-PASS { background:#dc2626; color:#fff; }
-.oh-q-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:12px 0; }
+.oh-score-pill { font-size:13px; font-weight:700; color:var(--text); }
+.oh-gstack-label { margin-left:auto; font-size:10px; font-weight:700; color:var(--text3); text-transform:uppercase; letter-spacing:1px; opacity:0.6; }
+.oh-reasoning-box { background:rgba(255,149,0,0.07); border-radius:8px; padding:14px 16px; margin-bottom:14px; }
+.oh-reasoning-box p { font-size:13px; line-height:1.65; color:var(--text2); font-style:italic; margin:0; }
+.oh-insights-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px; }
+.oh-insight-card { padding:14px; background:var(--bg2); border-radius:8px; border-left:4px solid transparent; }
+.oh-insight-card.killer { border-left-color:#16a34a; }
+.oh-insight-card.risk { border-left-color:#dc2626; }
+.oh-insight-card.action { border-left-color:#0891B2; grid-column:1 / -1; }
+.oh-insight-card-label { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:6px; }
+.oh-insight-card-label.killer { color:#16a34a; }
+.oh-insight-card-label.risk { color:#dc2626; }
+.oh-insight-card-label.action { color:#0891B2; }
+.oh-insight-card-text { font-size:12px; line-height:1.6; color:var(--text); }
+.oh-collapse-toggle { display:flex; align-items:center; gap:6px; background:none; border:1px solid var(--border); border-radius:8px; padding:10px 14px; cursor:pointer; font-size:12px; font-weight:600; color:var(--text2); width:100%; margin-bottom:10px; transition:background 0.15s; }
+.oh-collapse-toggle:hover { background:var(--bg2); }
+.oh-collapse-toggle .arrow { font-size:10px; transition:transform 0.2s; }
+.oh-collapse-toggle.open .arrow { transform:rotate(90deg); }
+.oh-q-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:0 0 14px; }
 .oh-q-card { padding:12px; background:var(--bg2); border:1px solid var(--border); border-radius:8px; transition:border-color 0.15s; }
 .oh-q-card:hover { border-color:var(--accent); }
 .oh-q-label { font-size:10px; font-weight:700; color:var(--text3); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px; }
@@ -244,9 +265,6 @@ html.dark .toggle-track::after { transform:translateX(16px); }
 .oh-q-score.mid { background:rgba(234,179,8,0.15); color:#b45309; }
 .oh-q-score.low { background:rgba(220,38,38,0.15); color:#dc2626; }
 .oh-q-text { font-size:12px; color:var(--text2); line-height:1.5; margin-top:4px; }
-.oh-insight-box { padding:12px; background:var(--bg2); border:1px solid var(--border); border-radius:8px; margin:8px 0; }
-.oh-insight-label { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px; }
-.oh-insight-text { font-size:12px; line-height:1.5; color:var(--text); }
 .oh-ceo-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin:10px 0; }
 .oh-ceo-dim { text-align:center; padding:10px; background:var(--bg2); border:1px solid var(--border); border-radius:8px; transition:border-color 0.15s; }
 .oh-ceo-dim:hover { border-color:var(--accent); }
@@ -256,7 +274,7 @@ html.dark .toggle-track::after { transform:translateX(16px); }
 .oh-run-btn { background:linear-gradient(135deg,#FF9500,#e08600); color:#fff; border:none; padding:8px 16px; border-radius:var(--radius-pill); cursor:pointer; font-size:12px; font-weight:600; transition:all 0.2s; display:inline-flex; align-items:center; gap:5px; }
 .oh-run-btn:hover { transform:translateY(-1px); box-shadow:0 4px 12px rgba(255,149,0,0.3); }
 .oh-run-btn:disabled { opacity:0.5; cursor:not-allowed; transform:none; }
-@media(max-width:600px) { .oh-q-grid { grid-template-columns:1fr; } .oh-ceo-grid { grid-template-columns:1fr 1fr; } }
+@media(max-width:600px) { .oh-q-grid { grid-template-columns:1fr; } .oh-ceo-grid { grid-template-columns:1fr 1fr; } .oh-insights-grid { grid-template-columns:1fr; } }
 @keyframes spin { from { transform:rotate(0deg); } to { transform:rotate(360deg); } }
 .spin { animation:spin 1s linear infinite; }
 .radar-wrap { display:flex; justify-content:center; margin:16px 0; background:none; }
@@ -882,7 +900,7 @@ html.dark .toggle-track::after { transform:translateX(16px); }
       <!-- Scoring -->
       <div class="help-section" data-section="scoring">
         <h3>Scoring Process</h3>
-        <p>Every venture is evaluated by Claude across four core dimensions, then combined with thought-leader consensus into a single composite score on a 0&ndash;100 scale.</p>
+        <p>Every venture is evaluated by Claude across four core dimensions, combined with thought-leader consensus and Office Hours investability into a single composite score on a 0&ndash;100 scale.</p>
 
         <h4>Scoring Dimensions (0&ndash;10 each)</h4>
         <div class="help-dim-grid">
@@ -907,6 +925,9 @@ html.dark .toggle-track::after { transform:translateX(16px); }
         <h4>Thought Leader Score</h4>
         <p>A fifth dimension derived from simulated (and real) thought-leader reactions. Each leader votes upvote (1.0), neutral (0.5), or downvote (0.0). Real signals are weighted higher than simulated ones (configurable in Settings).</p>
 
+        <h4>Office Hours Score</h4>
+        <p>A sixth dimension from YC-style Office Hours. The OH score (0&ndash;10) reflects investability based on six forcing questions: Demand Reality, Status Quo, Desperate Specificity, Narrowest Wedge, Observation, and Future-Fit. Ventures that reach FUND verdict (8.0+) score highest. This carries significant weight (default 25%) because it captures founder readiness and market validation that other dimensions miss.</p>
+
         <h4>Composite Formula</h4>
         <div class="help-formula">
           composite = (<br>
@@ -915,9 +936,10 @@ html.dark .toggle-track::after { transform:translateX(16px); }
           &nbsp;&nbsp;+ dark_factory_fit &times; w<sub>df</sub><br>
           &nbsp;&nbsp;+ tech_readiness &times; w<sub>tech</sub><br>
           &nbsp;&nbsp;+ tl_score &times; w<sub>tl</sub><br>
+          &nbsp;&nbsp;+ oh_score &times; w<sub>oh</sub><br>
           ) &times; 10
         </div>
-        <p>Default weights: Monetization 30%, Cashout Ease 25%, Dark Factory Fit 20%, Tech Readiness 15%, TL Score 10%. All weights are adjustable in Settings and must sum to 1.0.</p>
+        <p>Default weights: Office Hours 25%, Monetization 20%, Cashout Ease 15%, Dark Factory Fit 15%, Tech Readiness 15%, TL Score 10%. All weights are adjustable in Settings and must sum to 1.0.</p>
 
         <h4>Score Ranges</h4>
         <div class="help-score-range">
@@ -1262,6 +1284,7 @@ async function openDetail(id, skipHash) {
     {label:'Dark Fac.', val: latestScore.dark_factory_fit},
     {label:'Tech', val: latestScore.tech_readiness},
     {label:'TL', val: latestScore.tl_score},
+    {label:'OH', val: latestScore.oh_score},
   ] : [];
   const radarSvg = dims.length ? renderRadar(dims) : '';
   const gapHtml = v.tech_gaps.filter(g => !g.resolved_at).map(g => `
@@ -1475,10 +1498,11 @@ function renderOfficeHours(v) {
   // Always show the section with a run button if no review yet
   if (!oh) {
     return `<div class="detail-section oh-section">
-      <h3 style="display:flex;align-items:center;gap:8px;">
-        <span style="font-size:16px;">&#x1F3E2;</span> YC Office Hours
-        <span style="font-size:10px;font-weight:400;color:var(--text3);font-style:italic;">powered by gstack</span>
-      </h3>
+      <div class="oh-header">
+        <div class="oh-y-logo">Y</div>
+        <span class="oh-title">YC Office Hours</span>
+        <span class="oh-gstack-label">GSTACK</span>
+      </div>
       <p style="font-size:12px;color:var(--text2);margin-bottom:10px;">Run Garry Tan's 6 forcing questions diagnostic on this venture.</p>
       <button class="oh-run-btn" onclick="runOfficeHours('${v.id}')">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5,3 19,12 5,21"/></svg>
@@ -1528,24 +1552,33 @@ function renderOfficeHours(v) {
           return '<div class="oh-ceo-dim"><div class="oh-ceo-dim-score" style="color:'+ohScoreColor(s)+'">'+s+'</div><div class="oh-ceo-dim-label">'+dimLabels[i]+'</div></div>';
         }).join('')}
       </div>
-      ${cr.ten_star_version ? '<div class="oh-insight-box"><div class="oh-insight-label" style="color:#7C3AED;">&#x2B50; 10-Star Version</div><div class="oh-insight-text">'+esc(cr.ten_star_version)+'</div></div>' : ''}
-      ${cr.pivot_suggestion ? '<div class="oh-insight-box"><div class="oh-insight-label" style="color:#0891B2;">&#x1F500; Pivot Suggestion</div><div class="oh-insight-text">'+esc(cr.pivot_suggestion)+'</div></div>' : ''}
+      ${cr.ten_star_version ? '<div class="oh-insight-card action"><div class="oh-insight-card-label action">&#x2B50; 10-Star Version</div><div class="oh-insight-card-text">'+esc(cr.ten_star_version)+'</div></div>' : ''}
+      ${cr.pivot_suggestion ? '<div class="oh-insight-card action"><div class="oh-insight-card-label action">&#x1F500; Pivot Suggestion</div><div class="oh-insight-card-text">'+esc(cr.pivot_suggestion)+'</div></div>' : ''}
       ${cr.one_line_verdict ? '<p style="font-size:12px;font-weight:600;color:var(--text);margin-top:8px;">'+esc(cr.one_line_verdict)+'</p>' : ''}
     </div>`;
   }
 
+  // Build the unique toggle ID for this venture's questions
+  const qToggleId = 'oh-q-toggle-' + v.id;
+
   return `<div class="detail-section oh-section">
-    <h3 style="display:flex;align-items:center;gap:8px;">
-      <span style="font-size:16px;">&#x1F3E2;</span> YC Office Hours
+    <div class="oh-header">
+      <div class="oh-y-logo">Y</div>
+      <span class="oh-title">YC Office Hours</span>
       <span class="oh-verdict-badge oh-verdict-${oh.verdict}">${oh.verdict.replace('_',' ')}</span>
-      <span class="oh-q-score ${ohScoreClass(oh.yc_score||0)}" style="font-size:14px;">${oh.yc_score||'?'}/10</span>
-      <span style="font-size:10px;font-weight:400;color:var(--text3);font-style:italic;margin-left:auto;">powered by gstack</span>
-    </h3>
-    ${oh.verdict_reasoning ? '<p style="font-size:13px;line-height:1.6;color:var(--text);margin:8px 0;font-weight:500;">'+esc(oh.verdict_reasoning)+'</p>' : ''}
-    <div class="oh-q-grid">${qCards}</div>
-    ${oh.killer_insight ? '<div class="oh-insight-box"><div class="oh-insight-label" style="color:#FF9500;">&#x1F4A1; Killer Insight</div><div class="oh-insight-text">'+esc(oh.killer_insight)+'</div></div>' : ''}
-    ${oh.biggest_risk ? '<div class="oh-insight-box"><div class="oh-insight-label" style="color:#dc2626;">&#x26A0;&#xFE0F; Biggest Risk</div><div class="oh-insight-text">'+esc(oh.biggest_risk)+'</div></div>' : ''}
-    ${oh.recommended_action ? '<div class="oh-insight-box"><div class="oh-insight-label" style="color:#16a34a;">&#x2705; Recommended Action</div><div class="oh-insight-text">'+esc(oh.recommended_action)+'</div></div>' : ''}
+      <span class="oh-score-pill">${oh.yc_score||'?'}/10</span>
+      <span class="oh-gstack-label">GSTACK</span>
+    </div>
+    ${oh.verdict_reasoning ? '<div class="oh-reasoning-box"><p>'+esc(oh.verdict_reasoning)+'</p></div>' : ''}
+    <div class="oh-insights-grid">
+      ${oh.killer_insight ? '<div class="oh-insight-card killer"><div class="oh-insight-card-label killer">&#x1F4A1; Killer Insight</div><div class="oh-insight-card-text">'+esc(oh.killer_insight)+'</div></div>' : ''}
+      ${oh.biggest_risk ? '<div class="oh-insight-card risk"><div class="oh-insight-card-label risk">&#x26A0;&#xFE0F; Biggest Risk</div><div class="oh-insight-card-text">'+esc(oh.biggest_risk)+'</div></div>' : ''}
+      ${oh.recommended_action ? '<div class="oh-insight-card action"><div class="oh-insight-card-label action">&#x2705; Next Step</div><div class="oh-insight-card-text">'+esc(oh.recommended_action)+'</div></div>' : ''}
+    </div>
+    <button class="oh-collapse-toggle" onclick="const grid=document.getElementById('${qToggleId}');grid.style.display=grid.style.display==='none'?'grid':'none';this.classList.toggle('open');">
+      <span class="arrow">&#x25B6;</span> 6 Forcing Questions
+    </button>
+    <div id="${qToggleId}" class="oh-q-grid" style="display:none;">${qCards}</div>
     ${ceoHtml}
     <div style="margin-top:12px;display:flex;gap:6px;">
       <button class="oh-run-btn" onclick="runOfficeHours('${v.id}')">
@@ -1775,7 +1808,7 @@ function renderSettingsSection(section) {
 
   // Special: scoring weights need a total bar
   const isScoring = section === 'scoring';
-  const weightKeys = ['scoring.monetization_weight','scoring.cashout_ease_weight','scoring.dark_factory_fit_weight','scoring.tech_readiness_weight','scoring.tl_score_weight'];
+  const weightKeys = ['scoring.monetization_weight','scoring.cashout_ease_weight','scoring.dark_factory_fit_weight','scoring.tech_readiness_weight','scoring.tl_score_weight','scoring.oh_score_weight'];
 
   for (const [key, s] of Object.entries(items)) {
     const val = _settingsDirty[key] !== undefined ? _settingsDirty[key] : s.value;
@@ -1836,7 +1869,7 @@ function onSettingChange(key, value) {
 }
 
 function updateWeightTotal() {
-  const wKeys = ['scoring.monetization_weight','scoring.cashout_ease_weight','scoring.dark_factory_fit_weight','scoring.tech_readiness_weight','scoring.tl_score_weight'];
+  const wKeys = ['scoring.monetization_weight','scoring.cashout_ease_weight','scoring.dark_factory_fit_weight','scoring.tech_readiness_weight','scoring.tl_score_weight','scoring.oh_score_weight'];
   let total = 0;
   for (const k of wKeys) {
     const v = _settingsDirty[k] !== undefined ? _settingsDirty[k] : (_settingsData?.scoring?.[k]?.value ?? 0);
@@ -1850,7 +1883,7 @@ function updateWeightTotal() {
 }
 
 function normalizeWeights() {
-  const wKeys = ['scoring.monetization_weight','scoring.cashout_ease_weight','scoring.dark_factory_fit_weight','scoring.tech_readiness_weight','scoring.tl_score_weight'];
+  const wKeys = ['scoring.monetization_weight','scoring.cashout_ease_weight','scoring.dark_factory_fit_weight','scoring.tech_readiness_weight','scoring.tl_score_weight','scoring.oh_score_weight'];
   let total = 0;
   for (const k of wKeys) {
     const v = _settingsDirty[k] !== undefined ? _settingsDirty[k] : (_settingsData?.scoring?.[k]?.value ?? 0);

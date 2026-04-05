@@ -63,7 +63,7 @@ SETTING_DEFINITIONS: dict[str, dict] = {
 
     # Scoring weights
     "scoring.monetization_weight": {
-        "default": 0.30,
+        "default": 0.20,
         "type": "number",
         "category": "scoring",
         "label": "Monetization Weight",
@@ -72,7 +72,7 @@ SETTING_DEFINITIONS: dict[str, dict] = {
         "min": 0, "max": 1, "step": 0.05,
     },
     "scoring.cashout_ease_weight": {
-        "default": 0.25,
+        "default": 0.15,
         "type": "number",
         "category": "scoring",
         "label": "Cashout Ease Weight",
@@ -81,7 +81,7 @@ SETTING_DEFINITIONS: dict[str, dict] = {
         "min": 0, "max": 1, "step": 0.05,
     },
     "scoring.dark_factory_fit_weight": {
-        "default": 0.20,
+        "default": 0.15,
         "type": "number",
         "category": "scoring",
         "label": "Dark Factory Fit Weight",
@@ -104,6 +104,15 @@ SETTING_DEFINITIONS: dict[str, dict] = {
         "category": "scoring",
         "label": "TL Score Weight",
         "description": "Weight of thought leader consensus",
+        "widget": "slider",
+        "min": 0, "max": 1, "step": 0.05,
+    },
+    "scoring.oh_score_weight": {
+        "default": 0.25,
+        "type": "number",
+        "category": "scoring",
+        "label": "Office Hours Weight",
+        "description": "Weight of YC Office Hours score — reflects investability and founder readiness",
         "widget": "slider",
         "min": 0, "max": 1, "step": 0.05,
     },

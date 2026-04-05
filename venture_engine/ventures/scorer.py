@@ -6,7 +6,7 @@ from anthropic import Anthropic
 from tenacity import retry, stop_after_attempt, wait_exponential
 from loguru import logger
 from venture_engine.config import settings
-from venture_engine.db.models import Venture, VentureScore, TechGap, TLSignal
+from venture_engine.db.models import Venture, VentureScore, TechGap, TLSignal, OfficeHoursReview
 
 client = Anthropic(api_key=settings.anthropic_api_key)
 
@@ -104,6 +104,23 @@ def _compute_tl_score(db: Session, venture: Venture) -> float:
     return (weighted_sum / total_weight) * 10.0
 
 
+def _compute_oh_score(db: Session, venture: Venture) -> float:
+    """Compute Office Hours score for a venture.
+
+    Uses the yc_score from the latest OfficeHoursReview.
+    Returns 0-10 scale. Default 5.0 if no review exists.
+    """
+    review = (
+        db.query(OfficeHoursReview)
+        .filter(OfficeHoursReview.venture_id == venture.id)
+        .order_by(OfficeHoursReview.reviewed_at.desc())
+        .first()
+    )
+    if not review or review.yc_score is None:
+        return 5.0
+    return min(max(float(review.yc_score), 0.0), 10.0)
+
+
 def score_venture(db: Session, venture: Venture) -> VentureScore:
     """Score a venture across all dimensions and persist the result."""
     logger.info(f"Scoring venture: {venture.title} ({venture.id})")
@@ -111,6 +128,10 @@ def score_venture(db: Session, venture: Venture) -> VentureScore:
     # --- Thought-leader score ---
     tl_score = _compute_tl_score(db, venture)
     logger.debug(f"TL score for '{venture.title}': {tl_score:.1f}")
+
+    # --- Office Hours score ---
+    oh_score = _compute_oh_score(db, venture)
+    logger.debug(f"OH score for '{venture.title}': {oh_score:.1f}")
 
     # --- Claude scoring ---
     user_prompt = (
@@ -146,19 +167,21 @@ def score_venture(db: Session, venture: Venture) -> VentureScore:
     w_df = get_setting("scoring.dark_factory_fit_weight", db)
     w_tech = get_setting("scoring.tech_readiness_weight", db)
     w_tl = get_setting("scoring.tl_score_weight", db)
+    w_oh = get_setting("scoring.oh_score_weight", db)
     composite = (
         monetization * w_mon
         + cashout_ease * w_cash
         + dark_factory_fit * w_df
         + tech_readiness * w_tech
         + tl_score * w_tl
+        + oh_score * w_oh
     ) * 10
 
     logger.info(
         f"Scores for '{venture.title}': "
         f"monetization={monetization}, cashout_ease={cashout_ease}, "
         f"dark_factory_fit={dark_factory_fit}, tech_readiness={tech_readiness}, "
-        f"tl_score={tl_score:.1f}, composite={composite:.1f}"
+        f"tl_score={tl_score:.1f}, oh_score={oh_score:.1f}, composite={composite:.1f}"
     )
 
     # --- Persist VentureScore ---
@@ -169,6 +192,7 @@ def score_venture(db: Session, venture: Venture) -> VentureScore:
         dark_factory_fit=dark_factory_fit,
         tech_readiness=tech_readiness,
         tl_score=tl_score,
+        oh_score=oh_score,
         reasoning=reasoning,
         scored_by="auto",
     )

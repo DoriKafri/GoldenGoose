@@ -76,6 +76,7 @@ class VentureScore(Base):
     dark_factory_fit = Column(Float)
     tech_readiness = Column(Float)
     tl_score = Column(Float)
+    oh_score = Column(Float)  # Office Hours / YC score (0-10)
     reasoning = Column(JSON)
     scored_by = Column(Text, default="auto")
 

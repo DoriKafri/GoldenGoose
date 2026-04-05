@@ -1888,7 +1888,6 @@ async function deleteReply(replyId) {
 // ── Text selection handler from iframe ──
 window.addEventListener('message', function(e) {
   if (!e.data || !e.data.type) return;
-  console.log('[ann] message received:', e.data.type);
 
   if (e.data.type === 'ann-text-selected') {
     _pendingSelection = e.data;

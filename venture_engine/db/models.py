@@ -262,6 +262,24 @@ class AppSetting(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class NewsFeedItem(Base):
+    __tablename__ = "news_feed"
+
+    id = Column(String, primary_key=True, default=new_uuid)
+    title = Column(Text, nullable=False)
+    url = Column(Text, nullable=True)
+    source = Column(Text, nullable=True)        # "hackernews" | "twitter" | "blog" | "arxiv" | "github" | "conference"
+    source_name = Column(Text, nullable=True)    # "Hacker News" | "Simon Willison's Blog" | "KubeCon 2025"
+    author = Column(Text, nullable=True)         # Person or org
+    author_avatar = Column(Text, nullable=True)  # Avatar URL
+    summary = Column(Text, nullable=True)
+    tags = Column(JSON, nullable=True)           # ["AI agents", "security", "DevOps"]
+    signal_strength = Column(Float, nullable=True)  # 0-10 how relevant
+    venture_ids = Column(JSON, nullable=True)    # Venture IDs this inspired
+    published_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 class PlatformUser(Base):
     __tablename__ = "platform_users"
 

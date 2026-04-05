@@ -99,7 +99,7 @@ html.dark .toggle-track::after { transform:translateX(16px); }
 .theme-icons { font-size:14px; }
 
 /* Top Tabs */
-.top-tabs { display:flex; gap:0; margin-bottom:16px; border-bottom:2px solid var(--border); }
+.top-tabs { display:flex; gap:0; margin-bottom:16px; border-bottom:2px solid var(--border); justify-content:center; }
 .top-tab { font-family:inherit; display:flex; flex-direction:column; align-items:center; gap:1px; padding:8px 20px 6px; border:none; border-bottom:2px solid transparent; margin-bottom:-2px; cursor:pointer; background:none; color:var(--text3); transition:all 0.15s; }
 .top-tab .tab-label { font-size:13px; font-weight:600; }
 .top-tab .tab-tagline { font-size:9px; font-weight:400; opacity:0.6; letter-spacing:0.02em; white-space:nowrap; }
@@ -642,6 +642,7 @@ html.dark .toggle-track::after { transform:translateX(16px); }
     <div class="main-inner">
       <div class="top-tabs-wrap">
         <div class="top-tabs" id="topTabs">
+          <button class="top-tab" data-tab="news" onclick="switchTab('news')"><span class="tab-label">News</span><span class="tab-tagline">Signals & breakthroughs</span></button>
           <button class="top-tab active" data-tab="venture" onclick="switchTab('venture')"><span class="tab-label">Ventures</span><span class="tab-tagline">AI-powered product ideas</span></button>
           <button class="top-tab" data-tab="stealth" onclick="switchTab('stealth')"><span class="tab-label">Clone</span><span class="tab-tagline">Beat early-stage startups</span></button>
           <button class="top-tab" data-tab="flip" onclick="switchTab('flip')"><span class="tab-label">Quick Flip</span><span class="tab-tagline">Build & sell to market leaders</span></button>
@@ -786,6 +787,10 @@ html.dark .toggle-track::after { transform:translateX(16px); }
         <h3>Dashboard Tabs</h3>
         <p>The dashboard organizes ventures into five tabs based on their category and strategy.</p>
         <div class="help-tab-list">
+          <div class="help-tab-item">
+            <div class="tab-name">News</div>
+            <div class="tab-desc">A curated feed of signals, breakthroughs, and posts from thought leaders, Hacker News, tech blogs, and conferences that inspired ventures on other tabs. Each news item links to the ventures it spawned. Sources include Show HN posts, TL tweets/blog posts, tech disaster postmortems, and research papers. Signal strength (0-10) indicates relevance to Develeap's domain.</div>
+          </div>
           <div class="help-tab-item">
             <div class="tab-name">Ventures</div>
             <div class="tab-desc">Original product ideas generated through AI brainstorming and signal harvesting. These are net-new SaaS/tool concepts in the DevOps, MLOps, and cloud-native space. Each is scored on monetization, cashout ease, dark factory fit, and tech readiness.</div>
@@ -1143,9 +1148,9 @@ function switchTab(tab, skipHash) {
   currentTab = tab;
   currentPage = 0;
   document.querySelectorAll('.top-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
-  document.getElementById('suggestTabBtn').style.display = tab === 'training' ? 'none' : '';
+  document.getElementById('suggestTabBtn').style.display = (tab === 'training' || tab === 'news') ? 'none' : '';
   if (!skipHash) updateHash();
-  loadVentures();
+  if (tab === 'news') { loadNews(); } else { loadVentures(); }
 }
 
 // ── URL hash routing ──
@@ -1167,7 +1172,7 @@ function readHash() {
   const parts = hash.split('/');
   const tab = parts[0];
   const ventureId = parts[1];
-  const validTabs = ['venture','stealth','flip','customer','missing_piece','training','opportunity'];
+  const validTabs = ['news','venture','stealth','flip','customer','missing_piece','training','opportunity'];
   if (validTabs.includes(tab)) {
     switchTab(tab, true);
     if (ventureId) setTimeout(() => openDetail(ventureId, true), 300);
@@ -1181,7 +1186,7 @@ window.addEventListener('popstate', () => {
   const parts = hash.split('/');
   const tab = parts[0];
   const ventureId = parts[1];
-  const validTabs = ['venture','stealth','flip','customer','missing_piece','training','opportunity'];
+  const validTabs = ['news','venture','stealth','flip','customer','missing_piece','training','opportunity'];
   if (validTabs.includes(tab) && tab !== currentTab) switchTab(tab, true);
   if (ventureId) openDetail(ventureId, true);
   else closeDetailPanel(true);
@@ -1277,6 +1282,52 @@ function renderList(ventures) {
     </div>`;
   }).join('');
   setTimeout(bindYcTooltips, 0);
+}
+
+// ── News Feed ──
+async function loadNews() {
+  const params = new URLSearchParams({limit: PAGE_SIZE, offset: currentPage * PAGE_SIZE});
+  const res = await fetch(`${API}/api/news?${params}`);
+  const data = await res.json();
+  totalVentures = data.total;
+  renderNewsFeed(data.items);
+  updatePagination();
+}
+
+function renderNewsFeed(items) {
+  const el = document.getElementById('ventureList');
+  if (!items.length) { el.innerHTML = '<div class="loading">No news items yet.</div>'; return; }
+  const sourceIcons = {
+    hackernews: '\uD83D\uDCD0', twitter: '\uD83D\uDC26', blog: '\u270D\uFE0F', arxiv: '\uD83D\uDCDA',
+    github: '\uD83D\uDC19', conference: '\uD83C\uDFE4', podcast: '\uD83C\uDFA7', newsletter: '\uD83D\uDCEC',
+    disaster: '\uD83D\uDEA8', research: '\uD83D\uDD2C', announcement: '\uD83D\uDCE2',
+  };
+  el.innerHTML = items.map(item => {
+    const icon = sourceIcons[item.source] || '\uD83D\uDCF0';
+    const tags = (item.tags||[]).map(t => `<span class="domain-badge" style="font-size:9px;padding:1px 6px;">${esc(t)}</span>`).join(' ');
+    const strength = item.signal_strength ? `<span class="score-badge ${item.signal_strength >= 8 ? 'score-high' : item.signal_strength >= 5 ? 'score-mid' : 'score-low'}" style="font-size:11px;min-width:24px;">${item.signal_strength.toFixed(1)}</span>` : '';
+    const ventures = (item.linked_ventures||[]).map(v => {
+      const sc = v.score_total ? Math.round(v.score_total) : '—';
+      return `<a href="#${v.category||'venture'}/${v.id}" onclick="event.stopPropagation();switchTab('${v.category||'venture'}',true);setTimeout(()=>openDetail('${v.id}'),200);" style="display:inline-flex;align-items:center;gap:4px;font-size:10px;padding:2px 8px;border-radius:var(--radius-pill);background:rgba(37,99,235,0.08);color:#2563eb;font-weight:600;text-decoration:none;cursor:pointer;">${v.logo_url ? '<img src="'+esc(v.logo_url)+'" style="width:14px;height:14px;border-radius:3px;" onerror="this.style.display=\'none\'">' : ''}<span>${esc(v.title)}</span><span style="color:var(--text3);">${sc}</span></a>`;
+    }).join(' ');
+    const ago = timeAgo(item.published_at || item.created_at);
+    return `
+    <div class="venture-row" ${item.url ? 'onclick="window.open(\''+esc(item.url)+'\',\'_blank\')"' : ''} style="cursor:${item.url?'pointer':'default'};">
+      ${strength}
+      <div style="font-size:22px;flex-shrink:0;width:36px;text-align:center;">${icon}</div>
+      <div class="venture-info" style="gap:4px;">
+        <div class="venture-title"><strong>${esc(item.title)}</strong></div>
+        <div class="venture-summary" style="font-size:12px;color:var(--text2);">${esc(item.summary||'')}</div>
+        <div class="venture-meta" style="flex-wrap:wrap;gap:4px;">
+          <span style="font-size:10px;padding:2px 8px;border-radius:var(--radius-pill);background:rgba(245,158,11,0.1);color:#d97706;font-weight:600;">${esc(item.source_name||item.source||'Signal')}</span>
+          ${item.author ? '<span style="font-size:10px;color:var(--text2);">by '+esc(item.author)+'</span>' : ''}
+          <span style="font-size:10px;color:var(--text3);">${ago}</span>
+          ${tags}
+        </div>
+        ${ventures ? '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:2px;">Inspired: '+ventures+'</div>' : ''}
+      </div>
+    </div>`;
+  }).join('');
 }
 
 async function openDetail(id, skipHash) {

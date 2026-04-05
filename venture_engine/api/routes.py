@@ -16,6 +16,7 @@ from typing import List
 from venture_engine.db.models import (
     Venture, VentureScore, Vote, Comment, ThoughtLeader,
     TLSignal, HarvestRun, TechGap, Annotation, OfficeHoursReview,
+    NewsFeedItem,
 )
 
 router = APIRouter()
@@ -961,6 +962,58 @@ def leaderboard(db: Session = Depends(get_db_dependency)):
         "status": v.status,
         "score_total": v.score_total,
     } for v in ventures]
+
+
+# ─── News Feed ───────────────────────────────────────────────────
+
+@router.get("/api/news")
+def list_news(
+    source: Optional[str] = None,
+    tag: Optional[str] = None,
+    limit: int = Query(25, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db_dependency),
+):
+    q = db.query(NewsFeedItem).order_by(NewsFeedItem.published_at.desc().nullslast())
+    if source:
+        q = q.filter(NewsFeedItem.source == source)
+    total = q.count()
+    items = q.offset(offset).limit(limit).all()
+
+    results = []
+    for item in items:
+        # Resolve venture links
+        linked_ventures = []
+        if item.venture_ids:
+            vids = item.venture_ids if isinstance(item.venture_ids, list) else []
+            for vid in vids[:5]:
+                v = db.query(Venture).filter(Venture.id == vid).first()
+                if v:
+                    linked_ventures.append({
+                        "id": v.id,
+                        "title": v.title,
+                        "score_total": v.score_total,
+                        "category": v.category,
+                        "logo_url": v.logo_url,
+                    })
+
+        results.append({
+            "id": item.id,
+            "title": item.title,
+            "url": item.url,
+            "source": item.source,
+            "source_name": item.source_name,
+            "author": item.author,
+            "author_avatar": item.author_avatar,
+            "summary": item.summary,
+            "tags": item.tags or [],
+            "signal_strength": item.signal_strength,
+            "linked_ventures": linked_ventures,
+            "published_at": item.published_at.isoformat() if item.published_at else None,
+            "created_at": item.created_at.isoformat() if item.created_at else None,
+        })
+
+    return {"total": total, "items": results}
 
 
 # ─── Thought Leaders ─────────────────────────────────────────────

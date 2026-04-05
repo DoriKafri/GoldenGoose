@@ -648,6 +648,7 @@ html.dark .toggle-track::after { transform:translateX(16px); }
           <button class="top-tab" data-tab="customer" onclick="switchTab('customer')"><span class="tab-label">Customers</span><span class="tab-tagline">Acqui-hire opportunities</span></button>
           <button class="top-tab" data-tab="missing_piece" onclick="switchTab('missing_piece')"><span class="tab-label">Missing Piece</span><span class="tab-tagline">Plug gaps in leading tools</span></button>
           <button class="top-tab" data-tab="training" onclick="switchTab('training')"><span class="tab-label">Training</span><span class="tab-tagline">Courses & workshops</span></button>
+          <button class="top-tab" data-tab="opportunity" onclick="switchTab('opportunity')"><span class="tab-label">Opportunities</span><span class="tab-tagline">TL-grounded breakthroughs</span></button>
         </div>
         <div class="tab-scroll-hint" id="tabScrollHint">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
@@ -808,6 +809,10 @@ html.dark .toggle-track::after { transform:translateX(16px); }
           <div class="help-tab-item">
             <div class="tab-name">Training</div>
             <div class="tab-desc">Course and workshop ideas for Develeap's training business. Each entry includes target salary range, job demand, course length, pricing, and required skills. Generated from market gaps in DevOps/cloud-native education.</div>
+          </div>
+          <div class="help-tab-item">
+            <div class="tab-name">Opportunities</div>
+            <div class="tab-desc">High-conviction venture opportunities grounded in real signals from thought leaders, tech breakthroughs, and preventable disasters. Each opportunity is triangulated from multiple domain experts (Kelsey Hightower, Charity Majors, Martin Casado, Andrej Karpathy, Simon Willison, etc.) with source attribution. Includes tech disaster case studies (SolarWinds, CrowdStrike, Log4Shell) that reveal market gaps. All score 95+ via Ralph loop.</div>
           </div>
         </div>
       </div>
@@ -1162,7 +1167,7 @@ function readHash() {
   const parts = hash.split('/');
   const tab = parts[0];
   const ventureId = parts[1];
-  const validTabs = ['venture','stealth','flip','customer','missing_piece','training'];
+  const validTabs = ['venture','stealth','flip','customer','missing_piece','training','opportunity'];
   if (validTabs.includes(tab)) {
     switchTab(tab, true);
     if (ventureId) setTimeout(() => openDetail(ventureId, true), 300);
@@ -1176,7 +1181,7 @@ window.addEventListener('popstate', () => {
   const parts = hash.split('/');
   const tab = parts[0];
   const ventureId = parts[1];
-  const validTabs = ['venture','stealth','flip','customer','missing_piece','training'];
+  const validTabs = ['venture','stealth','flip','customer','missing_piece','training','opportunity'];
   if (validTabs.includes(tab) && tab !== currentTab) switchTab(tab, true);
   if (ventureId) openDetail(ventureId, true);
   else closeDetailPanel(true);

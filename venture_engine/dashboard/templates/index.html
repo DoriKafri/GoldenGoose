@@ -871,8 +871,7 @@ html.dark .toggle-track::after { transform:translateX(16px); }
       </div>
     </div>
   </div>
-  <!-- Float btn & compose MUST be outside reader-body (outside any ancestor of iframe) to survive HTML parsing -->
-  <div id="annFloatBtn" class="ann-float-btn" onclick="showAnnotationCompose()">+ Annotate</div>
+  <!-- annFloatBtn is created dynamically in JS to avoid iframe fallback parsing -->
   <div class="ann-compose" id="annCompose">
     <div style="font-size:11px;color:var(--text2);margin-bottom:6px;font-style:italic;border-left:3px solid #f59e0b;padding-left:8px;" id="annComposeQuote"></div>
     <textarea id="annComposeBody" placeholder="Write your annotation..."></textarea>
@@ -1594,7 +1593,9 @@ function renderNewsFeed(items) {
     github: '\uD83D\uDC19', conference: '\uD83C\uDFE4', podcast: '\uD83C\uDFA7', newsletter: '\uD83D\uDCEC',
     disaster: '\uD83D\uDEA8', research: '\uD83D\uDD2C', announcement: '\uD83D\uDCE2',
   };
+  function _hostname(url) { try { return new URL(url).hostname; } catch(e) { return url; } }
   el.innerHTML = items.map(item => {
+    try {
     const icon = sourceIcons[item.source] || '\uD83D\uDCF0';
     const tags = (item.tags||[]).map(t => `<span class="domain-badge" style="font-size:9px;padding:1px 6px;">${esc(t)}</span>`).join(' ');
     const strength = item.signal_strength ? `<span class="score-badge ${item.signal_strength >= 8 ? 'score-high' : item.signal_strength >= 5 ? 'score-mid' : 'score-low'}" style="font-size:11px;min-width:24px;">${item.signal_strength.toFixed(1)}</span>` : '';
@@ -1614,7 +1615,7 @@ function renderNewsFeed(items) {
           <span style="font-size:10px;padding:2px 8px;border-radius:var(--radius-pill);background:rgba(245,158,11,0.1);color:#d97706;font-weight:600;">${esc(item.source_name||item.source||'Signal')}</span>
           ${item.author ? '<span style="font-size:10px;color:var(--text2);">by '+esc(item.author)+'</span>' : ''}
           <span style="font-size:10px;color:var(--text3);">${ago}</span>
-          ${item.url ? '<span onclick="event.stopPropagation();" style="display:inline-flex;align-items:center;gap:4px;"><a href="'+esc(item.url)+'" target="_blank" rel="noopener" style="font-size:10px;color:#2563eb;text-decoration:none;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;vertical-align:middle;" title="Open in new tab">'+esc(new URL(item.url).hostname)+' ↗</a></span>' : ''}
+          ${item.url ? '<span onclick="event.stopPropagation();" style="display:inline-flex;align-items:center;gap:4px;"><a href="'+esc(item.url)+'" target="_blank" rel="noopener" style="font-size:10px;color:#2563eb;text-decoration:none;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;vertical-align:middle;" title="Open in new tab">'+esc(_hostname(item.url))+' ↗</a></span>' : ''}
           ${(item.annotation_count||0) > 0 ? '<span style="font-size:10px;padding:2px 8px;border-radius:var(--radius-pill);background:rgba(245,158,11,0.1);color:#d97706;font-weight:600;">💬 '+item.annotation_count+'</span>' : ''}
           ${tags}
         </div>
@@ -1622,6 +1623,7 @@ function renderNewsFeed(items) {
       </div>
       ${isAdmin ? '<button onclick="event.stopPropagation();deleteNewsItem(\''+item.id+'\',this);" style="position:absolute;top:8px;right:8px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);color:#ef4444;border-radius:6px;padding:2px 8px;font-size:10px;cursor:pointer;font-weight:600;z-index:2;" title="Delete news item">Delete</button>' : ''}
     </div>`;
+    } catch(err) { console.error('renderNewsFeed item error:', err, item); return ''; }
   }).join('');
   // Admin: show resolve button if there are HN items
   if (isAdmin && items.some(i => i.url && i.url.includes('news.ycombinator.com/item'))) {
@@ -1714,6 +1716,16 @@ let _readerNewsItemId = null;
 let _readerAnnotations = [];
 let _pendingSelection = null;
 
+// Create annFloatBtn dynamically (HTML parser eats static <div> near iframe)
+(function() {
+  const btn = document.createElement('div');
+  btn.id = 'annFloatBtn';
+  btn.className = 'ann-float-btn';
+  btn.textContent = '+ Annotate';
+  btn.onclick = function() { showAnnotationCompose(); };
+  document.getElementById('readerOverlay').appendChild(btn);
+})();
+
 function openReader(url, title, newsItemId) {
   _readerUrl = url;
   _readerNewsItemId = newsItemId || null;
@@ -1725,8 +1737,10 @@ function openReader(url, title, newsItemId) {
   document.getElementById('readerExtLink').href = url;
   document.getElementById('readerAnnCount').textContent = '...';
   document.getElementById('readerAnnList').innerHTML = '<div style="padding:20px;text-align:center;color:var(--text3);font-size:12px;">Loading...</div>';
-  document.getElementById('annFloatBtn').style.display = 'none';
-  document.getElementById('annCompose').style.display = 'none';
+  const _afb = document.getElementById('annFloatBtn');
+  if (_afb) _afb.style.display = 'none';
+  const _ac = document.getElementById('annCompose');
+  if (_ac) _ac.style.display = 'none';
 
   const iframe = document.getElementById('readerIframe');
   iframe.src = `${API}/api/proxy?url=${encodeURIComponent(url)}`;

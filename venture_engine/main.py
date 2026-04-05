@@ -57,6 +57,58 @@ def _fix_json_columns():
     conn.close()
 
 
+def _resolve_hn_urls():
+    """Auto-resolve any news items with HN discussion/main page URLs to original article URLs."""
+    import httpx
+    from urllib.parse import quote
+    from venture_engine.db.models import NewsFeedItem
+
+    with get_db() as db:
+        items = db.query(NewsFeedItem).filter(
+            NewsFeedItem.url.like("%news.ycombinator.com%")
+        ).all()
+
+        if not items:
+            return
+
+        resolved = 0
+        for item in items:
+            try:
+                if "item?id=" in (item.url or ""):
+                    hn_id = item.url.split("id=")[1].split("&")[0]
+                    resp = httpx.get(
+                        f"https://hacker-news.firebaseio.com/v0/item/{hn_id}.json",
+                        timeout=5.0,
+                    )
+                    resp.raise_for_status()
+                    original_url = resp.json().get("url")
+                    if original_url and original_url != item.url:
+                        item.url = original_url
+                        resolved += 1
+                else:
+                    search_q = (item.title or "").split("(")[0].strip().replace("--", "").strip()[:80]
+                    if not search_q:
+                        continue
+                    resp = httpx.get(
+                        f"https://hn.algolia.com/api/v1/search?query={quote(search_q)}&tags=story&hitsPerPage=3",
+                        timeout=5.0,
+                    )
+                    resp.raise_for_status()
+                    hits = resp.json().get("hits", [])
+                    if hits:
+                        original_url = hits[0].get("url") or f"https://news.ycombinator.com/item?id={hits[0].get('objectID', '')}"
+                        if original_url != item.url:
+                            item.url = original_url
+                            resolved += 1
+            except Exception as e:
+                logger.warning(f"HN URL resolve failed for {item.id}: {e}")
+                continue
+
+        db.commit()
+        if resolved:
+            logger.info(f"Auto-resolved {resolved}/{len(items)} HN news URLs to original articles")
+
+
 @app.on_event("startup")
 def on_startup():
     logger.info("Creating database tables...")
@@ -70,6 +122,8 @@ def on_startup():
     from venture_engine.settings_service import load_cache
     with get_db() as db:
         load_cache(db)
+    logger.info("Resolving HN news URLs...")
+    _resolve_hn_urls()
     logger.info("Starting scheduler...")
     from venture_engine.scheduler import start_scheduler
     start_scheduler()

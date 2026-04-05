@@ -73,4 +73,4 @@ def on_startup():
     logger.info("Starting scheduler...")
     from venture_engine.scheduler import start_scheduler
     start_scheduler()
-    logger.info("Venture Intelligence Engine is running.")
+    logger.info("Venture Intelligence Engine is running. v2.1")

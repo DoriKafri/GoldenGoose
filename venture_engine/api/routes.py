@@ -1228,3 +1228,162 @@ def restart_scheduler():
     from venture_engine.scheduler import reschedule_jobs
     reschedule_jobs()
     return {"status": "ok", "message": "Scheduler jobs rescheduled"}
+
+
+# ─── Ralph Loop ──────────────────────────────────────────────────
+
+class RalphLoopRequest(BaseModel):
+    idea: str
+    category: str = "venture"
+    target_score: float = 95.0
+    max_iterations: int = 10
+
+
+@router.post("/api/ventures/ralph-loop")
+def ralph_loop_endpoint(req: RalphLoopRequest, db: Session = Depends(get_db_dependency)):
+    """Full pipeline: suggest an idea -> create venture -> ralph loop to target score."""
+    from venture_engine.ventures.ralph_loop import suggest_and_ralph
+
+    try:
+        result = suggest_and_ralph(
+            db,
+            idea=req.idea,
+            category=req.category,
+            target_score=req.target_score,
+            max_iterations=req.max_iterations,
+        )
+        return result
+    except Exception as exc:
+        logger.error(f"Ralph loop failed: {exc}")
+        raise HTTPException(500, f"Ralph loop failed: {str(exc)}")
+
+
+# ─── News Post (add URL) ────────────────────────────────────────
+
+class NewsPostRequest(BaseModel):
+    url: str
+    comment: str = ""
+
+
+@router.post("/api/news/post")
+def post_news_url(req: NewsPostRequest, db: Session = Depends(get_db_dependency)):
+    """Add a URL to the news feed, scrape metadata, and trigger venture generation."""
+    import re
+    from urllib.parse import urlparse
+
+    # Validate URL
+    url = req.url.strip()
+    parsed = urlparse(url)
+    if not parsed.scheme or not parsed.netloc or parsed.scheme not in ("http", "https"):
+        raise HTTPException(400, "Invalid URL. Must be a valid http or https URL.")
+    if not re.match(r"^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$", parsed.netloc.split(":")[0]):
+        raise HTTPException(400, "Invalid URL domain.")
+
+    # Check for duplicate URL
+    existing = db.query(NewsFeedItem).filter(NewsFeedItem.url == url).first()
+    if existing:
+        raise HTTPException(409, "This URL has already been posted.")
+
+    # Scrape metadata from URL via Claude
+    try:
+        from venture_engine.ventures.scorer import call_claude, _strip_code_fences
+        import json as _json
+
+        scrape_prompt = (
+            f"Given this URL: {url}\n"
+            f"User comment: {req.comment or 'No comment'}\n\n"
+            "Based on the URL and your knowledge, provide metadata about this article/post. "
+            "If you recognize the URL, use what you know. Otherwise, infer from the URL structure.\n\n"
+            "Respond with valid JSON only:\n"
+            '{"title": "article title", "summary": "1-2 sentence summary", '
+            '"source": "hackernews|twitter|blog|arxiv|github|conference|podcast|newsletter|other", '
+            '"source_name": "e.g. Hacker News, TechCrunch, GitHub", '
+            '"author": "author name or empty", '
+            '"tags": ["tag1", "tag2"], '
+            '"signal_strength": 7.0}'
+        )
+
+        raw = call_claude(
+            "You extract metadata from URLs for a DevOps/AI venture intelligence engine. "
+            "Be concise and accurate. Respond with valid JSON only.",
+            scrape_prompt,
+        )
+        raw = _strip_code_fences(raw)
+        meta = _json.loads(raw)
+    except Exception as exc:
+        logger.error(f"URL metadata extraction failed: {exc}")
+        # Fallback: create with minimal data
+        meta = {
+            "title": parsed.netloc + parsed.path[:50],
+            "summary": req.comment or "User-submitted link",
+            "source": "other",
+            "source_name": parsed.netloc,
+            "author": "",
+            "tags": [],
+            "signal_strength": 5.0,
+        }
+
+    # Create news feed item
+    news_item = NewsFeedItem(
+        title=meta.get("title", url),
+        url=url,
+        source=meta.get("source", "other"),
+        source_name=meta.get("source_name", parsed.netloc),
+        author=meta.get("author") or None,
+        summary=meta.get("summary") or req.comment or None,
+        tags=meta.get("tags") or [],
+        signal_strength=meta.get("signal_strength", 5.0),
+        published_at=datetime.utcnow(),
+    )
+    db.add(news_item)
+    db.flush()
+
+    # Trigger venture generation from this news item in background
+    news_id = news_item.id
+    news_title = news_item.title
+    news_summary = news_item.summary
+
+    result = {
+        "id": news_item.id,
+        "title": news_item.title,
+        "url": news_item.url,
+        "source": news_item.source,
+        "source_name": news_item.source_name,
+        "summary": news_item.summary,
+        "tags": news_item.tags,
+        "signal_strength": news_item.signal_strength,
+        "published_at": news_item.published_at.isoformat() if news_item.published_at else None,
+        "status": "posted",
+    }
+
+    # Generate ventures from this news item (async-style but synchronous for now)
+    try:
+        from venture_engine.ventures.ralph_loop import suggest_and_ralph
+        idea = (
+            f"Based on this news: {news_title}\n"
+            f"Summary: {news_summary}\n"
+            f"URL: {url}\n"
+            f"User note: {req.comment}\n\n"
+            "Generate a venture idea inspired by this article."
+        )
+        ralph_result = suggest_and_ralph(db, idea=idea, category="venture", target_score=95, max_iterations=5)
+
+        # Link the generated venture to this news item
+        news_item_fresh = db.query(NewsFeedItem).filter(NewsFeedItem.id == news_id).first()
+        if news_item_fresh:
+            existing_vids = news_item_fresh.venture_ids or []
+            news_item_fresh.venture_ids = existing_vids + [ralph_result["venture_id"]]
+            db.flush()
+
+        result["venture"] = {
+            "id": ralph_result["venture_id"],
+            "score": ralph_result["score"],
+            "iterations": ralph_result["iterations"],
+            "reached_target": ralph_result["reached_target"],
+        }
+    except Exception as exc:
+        logger.error(f"Venture generation from news post failed: {exc}")
+        result["venture"] = None
+        result["venture_error"] = str(exc)
+
+    return result

@@ -98,20 +98,26 @@ html.dark .toggle-track { background:var(--accent); }
 html.dark .toggle-track::after { transform:translateX(16px); }
 .theme-icons { font-size:14px; }
 
-/* Top Tabs */
-.top-tabs-wrap { position:relative; display:flex; align-items:stretch; }
-.tab-arrow { display:flex; align-items:center; justify-content:center; width:32px; flex-shrink:0; border:none; background:var(--bg); color:var(--text3); cursor:pointer; transition:all 0.15s; z-index:3; border-bottom:2px solid var(--border); }
-.tab-arrow:hover { color:var(--text); background:var(--bg2); }
-.tab-arrow.hidden { opacity:0; pointer-events:none; }
-.tab-arrow svg { width:18px; height:18px; }
-.top-tabs { display:flex; gap:0; margin-bottom:0; border-bottom:2px solid var(--border); overflow-x:auto; scroll-behavior:smooth; scrollbar-width:none; -webkit-overflow-scrolling:touch; flex:1; }
+/* Top Tabs — elegant scrollable bar */
+.top-tabs-wrap { position:relative; display:flex; align-items:stretch; margin-bottom:20px; }
+.tab-arrow { display:flex; align-items:center; justify-content:center; width:36px; flex-shrink:0; border:none; background:var(--bg); color:var(--text3); cursor:pointer; transition:all 0.2s; z-index:3; border-bottom:2px solid var(--border); }
+.tab-arrow:hover { color:var(--accent); }
+.tab-arrow.hidden { opacity:0; pointer-events:none; width:0; min-width:0; overflow:hidden; }
+.tab-arrow svg { width:16px; height:16px; }
+/* Gradient fade edges */
+.top-tabs-wrap::before, .top-tabs-wrap::after { content:''; position:absolute; top:0; bottom:2px; width:24px; z-index:2; pointer-events:none; transition:opacity 0.2s; }
+.top-tabs-wrap::before { left:36px; background:linear-gradient(to right, var(--bg), transparent); }
+.top-tabs-wrap::after { right:36px; background:linear-gradient(to left, var(--bg), transparent); }
+.top-tabs-wrap.at-start::before { opacity:0; }
+.top-tabs-wrap.at-end::after { opacity:0; }
+.top-tabs { display:flex; gap:4px; padding:0 8px; margin-bottom:0; border-bottom:2px solid var(--border); overflow-x:auto; scroll-behavior:smooth; scrollbar-width:none; -webkit-overflow-scrolling:touch; flex:1; }
 .top-tabs::-webkit-scrollbar { display:none; }
-.top-tab { font-family:inherit; display:flex; flex-direction:column; align-items:center; gap:1px; padding:8px 18px 6px; border:none; border-bottom:2px solid transparent; margin-bottom:-2px; cursor:pointer; background:none; color:var(--text3); transition:all 0.15s; flex-shrink:0; white-space:nowrap; }
-.top-tab .tab-label { font-size:13px; font-weight:600; }
-.top-tab .tab-tagline { font-size:9px; font-weight:400; opacity:0.6; letter-spacing:0.02em; white-space:nowrap; }
-.top-tab.active { color:var(--accent); border-bottom-color:var(--accent); }
-.top-tab.active .tab-tagline { opacity:0.8; }
-.top-tab:hover:not(.active) { color:var(--text); }
+.top-tab { font-family:inherit; display:flex; flex-direction:column; align-items:center; gap:2px; padding:10px 20px 8px; border:none; border-bottom:3px solid transparent; margin-bottom:-2px; cursor:pointer; background:none; color:var(--text3); transition:all 0.2s; flex-shrink:0; white-space:nowrap; border-radius:8px 8px 0 0; position:relative; }
+.top-tab .tab-label { font-size:13px; font-weight:700; letter-spacing:0.01em; }
+.top-tab .tab-tagline { font-size:9px; font-weight:400; opacity:0; letter-spacing:0.02em; white-space:nowrap; max-height:0; transition:all 0.2s; }
+.top-tab.active .tab-tagline, .top-tab:hover .tab-tagline { opacity:0.7; max-height:20px; }
+.top-tab.active { color:var(--accent); border-bottom-color:var(--accent); background:rgba(232,160,46,0.06); }
+.top-tab:hover:not(.active) { color:var(--text); background:var(--bg2); }
 .mobile-menu-btn { display:none; }
 .mobile-drawer, .mobile-drawer-overlay { display:none; }
 
@@ -405,13 +411,16 @@ html.dark .toggle-track::after { transform:translateX(16px); }
   .mobile-drawer .drawer-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
   .mobile-drawer .drawer-close { width:28px; height:28px; border:none; background:none; color:var(--sidebar-text); font-size:20px; cursor:pointer; }
   .main { margin-left:0; max-width:100%; padding:10px; }
-  /* Tabs: horizontal scroll on mobile with arrows */
-  .top-tabs-wrap { display:flex; align-items:stretch; }
+  /* Tabs: mobile */
+  .top-tabs-wrap { margin-bottom:12px; }
   .tab-arrow { width:28px; min-width:28px; }
-  .tab-arrow svg { width:16px; height:16px; }
-  .top-tab { padding:6px 12px 5px; }
+  .tab-arrow svg { width:14px; height:14px; }
+  .top-tabs-wrap::before { left:28px; width:16px; }
+  .top-tabs-wrap::after { right:28px; width:16px; }
+  .top-tabs { gap:2px; padding:0 4px; }
+  .top-tab { padding:8px 14px 6px; border-radius:6px 6px 0 0; }
   .top-tab .tab-label { font-size:12px; }
-  .top-tab .tab-tagline { font-size:8px; opacity:0.7; }
+  .top-tab .tab-tagline { font-size:8px; }
   /* Share buttons mobile */
   .share-bar { flex-wrap:wrap; }
   .share-btn { padding:4px 10px; font-size:10px; }
@@ -642,7 +651,7 @@ html.dark .toggle-track::after { transform:translateX(16px); }
 
   <main class="main">
     <div class="main-inner">
-      <div class="top-tabs-wrap" style="margin-bottom:16px;">
+      <div class="top-tabs-wrap">
         <button class="tab-arrow" id="tabArrowLeft" onclick="scrollTabs(-1)" aria-label="Scroll tabs left">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
         </button>
@@ -1158,9 +1167,13 @@ function updateTabArrows() {
   const tabs = document.getElementById('topTabs');
   const left = document.getElementById('tabArrowLeft');
   const right = document.getElementById('tabArrowRight');
+  const wrap = tabs?.closest('.top-tabs-wrap');
   if (!tabs || !left || !right) return;
-  left.classList.toggle('hidden', tabs.scrollLeft <= 2);
-  right.classList.toggle('hidden', tabs.scrollLeft + tabs.clientWidth >= tabs.scrollWidth - 2);
+  const atStart = tabs.scrollLeft <= 2;
+  const atEnd = tabs.scrollLeft + tabs.clientWidth >= tabs.scrollWidth - 2;
+  left.classList.toggle('hidden', atStart);
+  right.classList.toggle('hidden', atEnd);
+  if (wrap) { wrap.classList.toggle('at-start', atStart); wrap.classList.toggle('at-end', atEnd); }
 }
 (function() {
   const tabs = document.getElementById('topTabs');

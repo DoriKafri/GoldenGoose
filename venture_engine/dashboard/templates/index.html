@@ -63,7 +63,8 @@ html.dark {
   --logo-filter: drop-shadow(0 0 0 transparent);
 }
 * { margin:0; padding:0; box-sizing:border-box; }
-body { font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; background:var(--bg2); color:var(--text); min-height:100vh; -webkit-font-smoothing:antialiased; }
+body { font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; background:var(--bg2); color:var(--text); min-height:100vh; -webkit-font-smoothing:antialiased; overflow-x:hidden; }
+html { overflow-x:hidden; }
 a { color:var(--accent-hover); text-decoration:none; font-weight:500; }
 a:hover { color:var(--accent); }
 
@@ -410,9 +411,10 @@ html.dark .toggle-track::after { transform:translateX(16px); }
   .mobile-drawer-overlay.open { display:block; }
   .mobile-drawer .drawer-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
   .mobile-drawer .drawer-close { width:28px; height:28px; border:none; background:none; color:var(--sidebar-text); font-size:20px; cursor:pointer; }
-  .main { margin-left:0; max-width:100%; padding:10px; }
+  .main { margin-left:0; max-width:100vw; padding:8px; overflow-x:hidden; box-sizing:border-box; }
+  .main-inner { max-width:100%; overflow-x:hidden; }
   /* Tabs: mobile */
-  .top-tabs-wrap { margin-bottom:12px; }
+  .top-tabs-wrap { margin-bottom:10px; }
   .tab-arrow { width:28px; min-width:28px; }
   .tab-arrow svg { width:14px; height:14px; }
   .top-tabs-wrap::before { left:28px; width:16px; }
@@ -425,33 +427,56 @@ html.dark .toggle-track::after { transform:translateX(16px); }
   .share-bar { flex-wrap:wrap; }
   .share-btn { padding:4px 10px; font-size:10px; }
   .share-label { display:none !important; }
-  /* Venture rows */
-  .venture-row { padding:10px; gap:8px; }
-  .venture-title { font-size:14px !important; }
-  .venture-slogan { font-size:11px; }
-  .venture-summary { font-size:12px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
-  .venture-meta { gap:4px !important; }
+  /* Venture rows — stacked layout on mobile */
+  .venture-row { padding:10px; gap:8px; flex-wrap:wrap; }
+  .venture-info { min-width:0; width:100%; overflow:hidden; }
+  .venture-title { font-size:14px !important; overflow:hidden; text-overflow:ellipsis; }
+  .venture-slogan { font-size:11px; display:inline; }
+  .venture-summary { font-size:12px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; word-break:break-word; }
+  .venture-meta { gap:4px !important; flex-wrap:wrap; }
   .venture-meta span, .venture-meta a { font-size:9px !important; padding:1px 5px !important; }
-  .score-badge { width:32px !important; height:32px !important; font-size:12px !important; }
+  .score-badge { width:32px !important; height:32px !important; font-size:12px !important; min-width:32px !important; padding:2px !important; }
+  .vote-col { min-width:30px !important; }
   .vote-btn { font-size:10px !important; padding:2px 4px !important; }
+  .vote-count { font-size:12px !important; }
   /* Detail panel: full screen on mobile */
-  .detail-panel { width:100vw !important; padding:14px; }
-  .detail-panel h2 { font-size:16px; }
-  .detail-section { padding:10px !important; }
+  .detail-panel { width:100vw !important; max-width:100vw !important; padding:12px; box-sizing:border-box; }
+  .detail-panel h2 { font-size:16px; word-break:break-word; }
+  .detail-section { padding:10px !important; overflow-x:hidden; }
+  .detail-section pre { white-space:pre-wrap; word-break:break-word; overflow-x:auto; }
+  /* Radar chart responsive */
+  .radar-wrap { overflow:hidden; }
+  .radar-wrap svg { max-width:100% !important; }
   /* Modal */
-  .modal { width:100vw; max-height:100vh; border-radius:16px 16px 0 0; }
+  .modal { width:100vw; max-width:100vw; max-height:100vh; border-radius:16px 16px 0 0; box-sizing:border-box; }
   .modal-actions { flex-wrap:wrap; }
   .modal-actions button { flex:1; min-width:80px; font-size:12px; }
   /* Popovers & tooltips */
   .ann-popover { position:fixed !important; bottom:0 !important; left:0 !important; right:0 !important; top:auto !important; max-width:100% !important; border-radius:16px 16px 0 0; max-height:60vh; overflow-y:auto; }
   .tl-social-popup { position:fixed; bottom:0; left:0; right:0; top:auto; border-radius:16px 16px 0 0; min-width:100%; padding:16px; }
   #anonIdentity { display:none !important; }
+  /* OH panels mobile */
+  .oh-header { flex-wrap:wrap; gap:8px; }
+  .oh-q-grid { grid-template-columns:1fr !important; }
+  .oh-insights-grid { grid-template-columns:1fr !important; }
+  .oh-ceo-grid { grid-template-columns:1fr !important; }
+  .oh-collapse-toggle { font-size:11px; padding:8px 10px; }
   /* Course stats & badges compact */
   .course-stats { gap:3px !important; }
   .course-stat { font-size:9px !important; padding:1px 5px !important; }
   .acq-badge, .acq-price, .clone-time { font-size:9px !important; padding:1px 5px !important; }
+  /* Tables */
+  .margin-table { font-size:11px; }
+  .margin-table td, .margin-table th { padding:4px 6px; }
+  /* Settings panel mobile */
+  .settings-panel { width:100vw !important; max-width:100vw; }
+  .settings-nav { width:100px; min-width:100px; }
+  .settings-content { padding:12px; }
   /* Footer */
   .harvest-footer { font-size:10px; padding:6px 10px; }
+  /* Pagination */
+  .pagination { gap:8px; }
+  .pagination button { font-size:12px; padding:6px 14px; }
 }
 /* Small mobile (iPhone SE etc.) */
 @media(max-width:380px) {
@@ -657,13 +682,12 @@ html.dark .toggle-track::after { transform:translateX(16px); }
         </button>
         <div class="top-tabs" id="topTabs">
           <button class="top-tab" data-tab="news" onclick="switchTab('news')"><span class="tab-label">News</span><span class="tab-tagline">Signals & breakthroughs</span></button>
-          <button class="top-tab active" data-tab="venture" onclick="switchTab('venture')"><span class="tab-label">Ventures</span><span class="tab-tagline">AI-powered product ideas</span></button>
+          <button class="top-tab active" data-tab="venture" onclick="switchTab('venture')"><span class="tab-label">Ideas</span><span class="tab-tagline">AI-powered ventures & opportunities</span></button>
           <button class="top-tab" data-tab="stealth" onclick="switchTab('stealth')"><span class="tab-label">Clone</span><span class="tab-tagline">Beat early-stage startups</span></button>
           <button class="top-tab" data-tab="flip" onclick="switchTab('flip')"><span class="tab-label">Quick Flip</span><span class="tab-tagline">Build & sell to market leaders</span></button>
           <button class="top-tab" data-tab="customer" onclick="switchTab('customer')"><span class="tab-label">Customers</span><span class="tab-tagline">Acqui-hire opportunities</span></button>
           <button class="top-tab" data-tab="missing_piece" onclick="switchTab('missing_piece')"><span class="tab-label">Missing Piece</span><span class="tab-tagline">Plug gaps in leading tools</span></button>
           <button class="top-tab" data-tab="training" onclick="switchTab('training')"><span class="tab-label">Training</span><span class="tab-tagline">Courses & workshops</span></button>
-          <button class="top-tab" data-tab="opportunity" onclick="switchTab('opportunity')"><span class="tab-label">Opportunities</span><span class="tab-tagline">TL-grounded breakthroughs</span></button>
         </div>
         <button class="tab-arrow" id="tabArrowRight" onclick="scrollTabs(1)" aria-label="Scroll tabs right">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
@@ -806,8 +830,8 @@ html.dark .toggle-track::after { transform:translateX(16px); }
             <div class="tab-desc">A curated feed of signals, breakthroughs, and posts from thought leaders, Hacker News, tech blogs, and conferences that inspired ventures on other tabs. Each news item links to the ventures it spawned. Sources include Show HN posts, TL tweets/blog posts, tech disaster postmortems, and research papers. Signal strength (0-10) indicates relevance to Develeap's domain.</div>
           </div>
           <div class="help-tab-item">
-            <div class="tab-name">Ventures</div>
-            <div class="tab-desc">Original product ideas generated through AI brainstorming and signal harvesting. These are net-new SaaS/tool concepts in the DevOps, MLOps, and cloud-native space. Each is scored on monetization, cashout ease, dark factory fit, and tech readiness.</div>
+            <div class="tab-name">Ideas</div>
+            <div class="tab-desc">All venture ideas including AI-generated product concepts and TL-grounded opportunities. Includes net-new SaaS/tool concepts in DevOps, MLOps, cloud-native, and AI engineering, plus high-conviction opportunities triangulated from thought leaders and tech disaster signals. Each is scored across 8 dimensions.</div>
           </div>
           <div class="help-tab-item">
             <div class="tab-name">Clone</div>
@@ -828,10 +852,6 @@ html.dark .toggle-track::after { transform:translateX(16px); }
           <div class="help-tab-item">
             <div class="tab-name">Training</div>
             <div class="tab-desc">Course and workshop ideas for Develeap's training business. Each entry includes target salary range, job demand, course length, pricing, and required skills. Generated from market gaps in DevOps/cloud-native education.</div>
-          </div>
-          <div class="help-tab-item">
-            <div class="tab-name">Opportunities</div>
-            <div class="tab-desc">High-conviction venture opportunities grounded in real signals from thought leaders, tech breakthroughs, and preventable disasters. Each opportunity is triangulated from multiple domain experts (Kelsey Hightower, Charity Majors, Martin Casado, Andrej Karpathy, Simon Willison, etc.) with source attribution. Includes tech disaster case studies (SolarWinds, CrowdStrike, Log4Shell) that reveal market gaps. All score 95+ via Ralph loop.</div>
           </div>
         </div>
       </div>
@@ -1216,7 +1236,7 @@ function readHash() {
   const parts = hash.split('/');
   const tab = parts[0];
   const ventureId = parts[1];
-  const validTabs = ['news','venture','stealth','flip','customer','missing_piece','training','opportunity'];
+  const validTabs = ['news','venture','stealth','flip','customer','missing_piece','training'];
   if (validTabs.includes(tab)) {
     switchTab(tab, true);
     if (ventureId) setTimeout(() => openDetail(ventureId, true), 300);
@@ -1230,7 +1250,7 @@ window.addEventListener('popstate', () => {
   const parts = hash.split('/');
   const tab = parts[0];
   const ventureId = parts[1];
-  const validTabs = ['news','venture','stealth','flip','customer','missing_piece','training','opportunity'];
+  const validTabs = ['news','venture','stealth','flip','customer','missing_piece','training'];
   if (validTabs.includes(tab) && tab !== currentTab) switchTab(tab, true);
   if (ventureId) openDetail(ventureId, true);
   else closeDetailPanel(true);

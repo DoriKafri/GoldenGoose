@@ -111,7 +111,7 @@ def venture_og_image(venture_id: str, db: Session = Depends(get_db_dependency)):
     slogan = (v.slogan or "")[:60]
     domain = v.domain or ""
     score = int(v.score_total) if v.score_total else "—"
-    category_label = {"venture": "Venture", "training": "Training", "stealth": "Clone", "flip": "Quick Flip", "customer": "Customer", "missing_piece": "Missing Piece", "opportunity": "Opportunity"}.get(v.category, "Venture")
+    category_label = {"venture": "Idea", "training": "Training", "stealth": "Clone", "flip": "Quick Flip", "customer": "Customer", "missing_piece": "Missing Piece"}.get(v.category, "Idea")
     summary = (v.summary or "")[:120]
     if len(v.summary or "") > 120:
         summary += "..."

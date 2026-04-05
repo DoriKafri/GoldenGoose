@@ -1934,6 +1934,11 @@ function closeReader(fromPopstate) {
   _readerUrl = '';
   _readerAnnotations = [];
   _pendingSelection = null;
+  // Hide annotation UI elements that float on document.body
+  var _btn = document.getElementById('annFloatBtn');
+  if (_btn) _btn.style.display = 'none';
+  var _comp = document.getElementById('annCompose');
+  if (_comp) _comp.style.display = 'none';
   if (!fromPopstate) {
     // Closed via X or Escape — replace current history entry to remove reader URL
     history.replaceState(null, '', window._preReaderHash || '#news');

@@ -1603,7 +1603,7 @@ function renderNewsFeed(items) {
     }).join(' ');
     const ago = timeAgo(item.published_at || item.created_at);
     return `
-    <div class="venture-row" style="cursor:${item.url?'pointer':'default'}; position:relative;" ${item.url ? 'onclick="openReader(\''+esc(item.url).replace(/'/g,"\\'")+'\',\''+esc(item.title).replace(/'/g,"\\'")+'\',\''+item.id+'\')"' : ''}>
+    <div class="venture-row news-reader-card" style="cursor:${item.url?'pointer':'default'}; position:relative;" data-url="${esc(item.url||'')}" data-title="${esc(item.title||'')}" data-news-id="${item.id}">
       ${strength}
       <div style="font-size:22px;flex-shrink:0;width:36px;text-align:center;">${icon}</div>
       <div class="venture-info" style="gap:4px;">
@@ -1626,6 +1626,16 @@ function renderNewsFeed(items) {
   if (isAdmin && items.some(i => i.url && i.url.includes('news.ycombinator.com/item'))) {
     el.insertAdjacentHTML('beforebegin', '<div id="hnResolveBar" style="margin-bottom:8px;text-align:right;"><button onclick="resolveAllHnUrls()" style="padding:4px 14px;border-radius:var(--radius-pill);background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);color:#d97706;font-size:11px;font-weight:600;cursor:pointer;">Resolve HN URLs to Original Articles</button></div>');
   }
+  // Bind click handler via event delegation (avoids quote-escaping issues in onclick)
+  el.querySelectorAll('.news-reader-card').forEach(card => {
+    card.addEventListener('click', function(e) {
+      // Don't trigger if clicking a link, button, or input inside the card
+      if (e.target.closest('a, button, input')) return;
+      const url = this.dataset.url;
+      if (!url) return;
+      openReader(url, this.dataset.title || '', this.dataset.newsId || '');
+    });
+  });
 }
 
 // ── Post News URL ──

@@ -2025,14 +2025,16 @@ function _directHighlight(doc, annotations) {
           if (inRange) textNodes.push(w2.currentNode);
           if (w2.currentNode === endNode) break;
         }
-        // Wrap each text node (or portion) in a mark
+        // Wrap each text node (or portion) in a mark — iterate REVERSE
+        // so DOM mutations don't invalidate later node references
         var hlStyle = 'background:rgba(255,213,79,0.4);border-bottom:2px solid #f59e0b;cursor:pointer;border-radius:2px;padding:0 1px;';
         var annId = a.id;
         var annBody = (a.body || '').slice(0, 80);
-        textNodes.forEach(function(tn) {
+        for (var ti = textNodes.length - 1; ti >= 0; ti--) {
+          var tn = textNodes[ti];
           var s = (tn === startNode) ? startOff : 0;
           var e = (tn === endNode) ? endOff : tn.textContent.length;
-          if (s >= e) return;
+          if (s >= e) continue;
           var r = doc.createRange();
           r.setStart(tn, s);
           r.setEnd(tn, e);
@@ -2048,7 +2050,7 @@ function _directHighlight(doc, annotations) {
             if (card) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
           });
           r.surroundContents(mark);
-        });
+        }
       }
     } catch(ex) { /* anchoring failed */ }
   });

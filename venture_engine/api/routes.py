@@ -20,6 +20,19 @@ from venture_engine.db.models import (
 
 router = APIRouter()
 
+
+def _safe_json_or_str(val):
+    """Parse JSON if possible, otherwise return as string."""
+    if val is None:
+        return None
+    if isinstance(val, (list, dict)):
+        return val
+    try:
+        return json.loads(val)
+    except (json.JSONDecodeError, TypeError):
+        return val
+
+
 # Y Combinator thought leader names — used to determine YC compatibility
 YC_THOUGHT_LEADERS = {"Paul Graham", "Garry Tan", "Michael Seibel", "Dalton Caldwell", "Jared Friedman"}
 
@@ -97,7 +110,7 @@ def venture_og_image(venture_id: str, db: Session = Depends(get_db_dependency)):
     slogan = (v.slogan or "")[:60]
     domain = v.domain or ""
     score = int(v.score_total) if v.score_total else "—"
-    category_label = {"venture": "Venture", "training": "Training", "stealth": "Clone", "flip": "Quick Flip", "customer": "Customer", "missing_piece": "Missing Piece"}.get(v.category, "Venture")
+    category_label = {"venture": "Venture", "training": "Training", "stealth": "Clone", "flip": "Quick Flip", "customer": "Customer", "missing_piece": "Missing Piece", "opportunity": "Opportunity"}.get(v.category, "Venture")
     summary = (v.summary or "")[:120]
     if len(v.summary or "") > 120:
         summary += "..."
@@ -350,10 +363,10 @@ def list_ventures(
             "job_listings_count": v.job_listings_count,
             "required_skills": v.required_skills,
             "expected_salary": v.expected_salary,
-            "competitor_pricing": v.competitor_pricing if isinstance(v.competitor_pricing, list) else (json.loads(v.competitor_pricing) if v.competitor_pricing else None),
+            "competitor_pricing": _safe_json_or_str(v.competitor_pricing),
             "our_price": v.our_price,
             "margin_analysis": v.margin_analysis,
-            "potential_acquirers": v.potential_acquirers if isinstance(v.potential_acquirers, list) else (json.loads(v.potential_acquirers) if v.potential_acquirers else None),
+            "potential_acquirers": _safe_json_or_str(v.potential_acquirers),
         })
 
     return {"total": total, "ventures": results}
@@ -451,10 +464,10 @@ def get_venture(venture_id: str, db: Session = Depends(get_db_dependency)):
         "job_listings_count": v.job_listings_count,
         "required_skills": v.required_skills,
         "expected_salary": v.expected_salary,
-        "competitor_pricing": v.competitor_pricing if isinstance(v.competitor_pricing, list) else (json.loads(v.competitor_pricing) if v.competitor_pricing else None),
+        "competitor_pricing": _safe_json_or_str(v.competitor_pricing),
         "our_price": v.our_price,
         "margin_analysis": v.margin_analysis,
-        "potential_acquirers": v.potential_acquirers if isinstance(v.potential_acquirers, list) else (json.loads(v.potential_acquirers) if v.potential_acquirers else None),
+        "potential_acquirers": _safe_json_or_str(v.potential_acquirers),
         "status": v.status,
         "score_total": v.score_total,
         "created_at": v.created_at.isoformat() if v.created_at else None,

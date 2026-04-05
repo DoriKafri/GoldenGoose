@@ -99,8 +99,14 @@ html.dark .toggle-track::after { transform:translateX(16px); }
 .theme-icons { font-size:14px; }
 
 /* Top Tabs */
-.top-tabs { display:flex; gap:0; margin-bottom:16px; border-bottom:2px solid var(--border); justify-content:center; }
-.top-tab { font-family:inherit; display:flex; flex-direction:column; align-items:center; gap:1px; padding:8px 20px 6px; border:none; border-bottom:2px solid transparent; margin-bottom:-2px; cursor:pointer; background:none; color:var(--text3); transition:all 0.15s; }
+.top-tabs-wrap { position:relative; display:flex; align-items:stretch; }
+.tab-arrow { display:flex; align-items:center; justify-content:center; width:32px; flex-shrink:0; border:none; background:var(--bg); color:var(--text3); cursor:pointer; transition:all 0.15s; z-index:3; border-bottom:2px solid var(--border); }
+.tab-arrow:hover { color:var(--text); background:var(--bg2); }
+.tab-arrow.hidden { opacity:0; pointer-events:none; }
+.tab-arrow svg { width:18px; height:18px; }
+.top-tabs { display:flex; gap:0; margin-bottom:0; border-bottom:2px solid var(--border); overflow-x:auto; scroll-behavior:smooth; scrollbar-width:none; -webkit-overflow-scrolling:touch; flex:1; }
+.top-tabs::-webkit-scrollbar { display:none; }
+.top-tab { font-family:inherit; display:flex; flex-direction:column; align-items:center; gap:1px; padding:8px 18px 6px; border:none; border-bottom:2px solid transparent; margin-bottom:-2px; cursor:pointer; background:none; color:var(--text3); transition:all 0.15s; flex-shrink:0; white-space:nowrap; }
 .top-tab .tab-label { font-size:13px; font-weight:600; }
 .top-tab .tab-tagline { font-size:9px; font-weight:400; opacity:0.6; letter-spacing:0.02em; white-space:nowrap; }
 .top-tab.active { color:var(--accent); border-bottom-color:var(--accent); }
@@ -399,17 +405,13 @@ html.dark .toggle-track::after { transform:translateX(16px); }
   .mobile-drawer .drawer-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
   .mobile-drawer .drawer-close { width:28px; height:28px; border:none; background:none; color:var(--sidebar-text); font-size:20px; cursor:pointer; }
   .main { margin-left:0; max-width:100%; padding:10px; }
-  /* Tabs: horizontal scroll on mobile with scroll hint */
-  .top-tabs-wrap { position:relative; }
-  .top-tabs { overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none; flex-wrap:nowrap; gap:0; margin-bottom:10px; }
-  .top-tabs::-webkit-scrollbar { display:none; }
-  .tab-scroll-hint { display:flex !important; position:absolute; right:0; top:0; bottom:2px; width:36px; align-items:center; justify-content:flex-end; padding-right:4px; background:linear-gradient(to right, transparent, var(--bg) 70%); pointer-events:none; z-index:2; transition:opacity 0.2s; }
-  .tab-scroll-hint svg { width:16px; height:16px; color:var(--text3); animation:scrollPulse 1.5s ease-in-out infinite; }
-  @keyframes scrollPulse { 0%,100% { transform:translateX(0); opacity:0.5; } 50% { transform:translateX(3px); opacity:1; } }
-  .tab-scroll-hint.hidden { opacity:0; }
-  .top-tab { padding:6px 14px 5px; flex-shrink:0; min-width:auto; }
+  /* Tabs: horizontal scroll on mobile with arrows */
+  .top-tabs-wrap { display:flex; align-items:stretch; }
+  .tab-arrow { width:28px; min-width:28px; }
+  .tab-arrow svg { width:16px; height:16px; }
+  .top-tab { padding:6px 12px 5px; }
   .top-tab .tab-label { font-size:12px; }
-  .top-tab .tab-tagline { font-size:9px; opacity:0.7; }
+  .top-tab .tab-tagline { font-size:8px; opacity:0.7; }
   /* Share buttons mobile */
   .share-bar { flex-wrap:wrap; }
   .share-btn { padding:4px 10px; font-size:10px; }
@@ -640,7 +642,10 @@ html.dark .toggle-track::after { transform:translateX(16px); }
 
   <main class="main">
     <div class="main-inner">
-      <div class="top-tabs-wrap">
+      <div class="top-tabs-wrap" style="margin-bottom:16px;">
+        <button class="tab-arrow" id="tabArrowLeft" onclick="scrollTabs(-1)" aria-label="Scroll tabs left">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
         <div class="top-tabs" id="topTabs">
           <button class="top-tab" data-tab="news" onclick="switchTab('news')"><span class="tab-label">News</span><span class="tab-tagline">Signals & breakthroughs</span></button>
           <button class="top-tab active" data-tab="venture" onclick="switchTab('venture')"><span class="tab-label">Ventures</span><span class="tab-tagline">AI-powered product ideas</span></button>
@@ -651,9 +656,9 @@ html.dark .toggle-track::after { transform:translateX(16px); }
           <button class="top-tab" data-tab="training" onclick="switchTab('training')"><span class="tab-label">Training</span><span class="tab-tagline">Courses & workshops</span></button>
           <button class="top-tab" data-tab="opportunity" onclick="switchTab('opportunity')"><span class="tab-label">Opportunities</span><span class="tab-tagline">TL-grounded breakthroughs</span></button>
         </div>
-        <div class="tab-scroll-hint" id="tabScrollHint">
+        <button class="tab-arrow" id="tabArrowRight" onclick="scrollTabs(1)" aria-label="Scroll tabs right">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-        </div>
+        </button>
       </div>
       <div id="ventureList"><div class="loading">Loading ventures...</div></div>
       <div class="pagination">
@@ -1144,11 +1149,37 @@ function toggleTheme() {
 }
 if (localStorage.getItem('ve_theme') === 'dark') document.documentElement.classList.add('dark');
 
+// ── Tab scrolling with arrows ──
+function scrollTabs(dir) {
+  const tabs = document.getElementById('topTabs');
+  tabs.scrollBy({ left: dir * 200, behavior: 'smooth' });
+}
+function updateTabArrows() {
+  const tabs = document.getElementById('topTabs');
+  const left = document.getElementById('tabArrowLeft');
+  const right = document.getElementById('tabArrowRight');
+  if (!tabs || !left || !right) return;
+  left.classList.toggle('hidden', tabs.scrollLeft <= 2);
+  right.classList.toggle('hidden', tabs.scrollLeft + tabs.clientWidth >= tabs.scrollWidth - 2);
+}
+(function() {
+  const tabs = document.getElementById('topTabs');
+  if (tabs) {
+    tabs.addEventListener('scroll', updateTabArrows);
+    window.addEventListener('resize', updateTabArrows);
+    setTimeout(updateTabArrows, 100);
+  }
+})();
+
 function switchTab(tab, skipHash) {
   currentTab = tab;
   currentPage = 0;
-  document.querySelectorAll('.top-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  document.querySelectorAll('.top-tab').forEach(b => {
+    b.classList.toggle('active', b.dataset.tab === tab);
+    if (b.dataset.tab === tab) b.scrollIntoView({ behavior:'smooth', block:'nearest', inline:'center' });
+  });
   document.getElementById('suggestTabBtn').style.display = (tab === 'training' || tab === 'news') ? 'none' : '';
+  setTimeout(updateTabArrows, 300);
   if (!skipHash) updateHash();
   if (tab === 'news') { loadNews(); } else { loadVentures(); }
 }

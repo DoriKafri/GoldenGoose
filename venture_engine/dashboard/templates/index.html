@@ -1757,6 +1757,18 @@ function openReader(url, title, newsItemId) {
   iframe.onload = function() {
     // After iframe loads, fetch annotations and highlight them
     loadReaderAnnotations();
+    // Attach parent-side mouseup listener on iframe document as reliable fallback
+    // (some browsers block in-iframe event listeners in sandboxed frames)
+    try {
+      const idoc = iframe.contentDocument || iframe.contentWindow.document;
+      idoc.addEventListener('mouseup', function() {
+        setTimeout(function() { _parentCheckIframeSelection(); }, 150);
+      }, true);
+      idoc.addEventListener('selectionchange', function() {
+        clearTimeout(window._parentSelTimer);
+        window._parentSelTimer = setTimeout(function() { _parentCheckIframeSelection(); }, 250);
+      }, true);
+    } catch(e) { /* cross-origin fallback: rely on postMessage from injected script */ }
   };
 
   document.getElementById('readerOverlay').classList.add('open');
@@ -1897,7 +1909,39 @@ async function deleteReply(replyId) {
   } catch(e) { alert('Failed to delete: ' + e.message); }
 }
 
-// ── Text selection handler from iframe ──
+// ── Parent-side iframe selection check (reliable fallback) ──
+function _parentCheckIframeSelection() {
+  try {
+    const iframe = document.getElementById('readerIframe');
+    if (!iframe || !document.getElementById('readerOverlay').classList.contains('open')) return;
+    const idoc = iframe.contentDocument || iframe.contentWindow.document;
+    const sel = idoc.getSelection();
+    if (!sel || sel.isCollapsed || !sel.toString().trim()) return;
+    const text = sel.toString().trim();
+    if (text.length < 2 || text.length > 5000) return;
+    if (sel.rangeCount === 0) return;
+    const range = sel.getRangeAt(0);
+    const full = idoc.body.innerText || idoc.body.textContent || '';
+    const idx = full.indexOf(text);
+    const prefix = idx > 0 ? full.slice(Math.max(0, idx - 60), idx) : '';
+    const suffix = full.slice(idx + text.length, idx + text.length + 60);
+    let tni = 0, si = 0;
+    while (si >= 0 && si < idx) { si = full.indexOf(text, si); if (si >= 0 && si < idx) { tni++; si++; } else break; }
+    const rect = range.getBoundingClientRect();
+    const iframeRect = iframe.getBoundingClientRect();
+    _pendingSelection = {
+      selectedText: text, prefix: prefix, suffix: suffix,
+      textNodeIndex: tni,
+      rect: { top: rect.top, left: rect.left, bottom: rect.bottom, right: rect.right, width: rect.width }
+    };
+    const btn = _getOrCreateAnnBtn();
+    btn.style.display = 'block';
+    btn.style.left = (iframeRect.left + rect.left + rect.width / 2 - 40) + 'px';
+    btn.style.top = (iframeRect.top + rect.top - 36) + 'px';
+  } catch(e) { /* cross-origin: not accessible */ }
+}
+
+// ── Text selection handler from iframe (postMessage) ──
 window.addEventListener('message', function(e) {
   if (!e.data || !e.data.type) return;
 

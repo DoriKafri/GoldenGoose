@@ -1468,7 +1468,7 @@ function readHash() {
 window.addEventListener('popstate', (e) => {
   // If reader overlay is open, close it and stop (back = close reader)
   if (document.getElementById('readerOverlay').classList.contains('open')) {
-    closeReader();
+    closeReader(true);
     return;
   }
   const hash = location.hash.replace('#', '');
@@ -1910,13 +1910,15 @@ function openReader(url, title, newsItemId) {
   history.pushState({reader: true}, '', location.href);
 }
 
-function closeReader() {
+function closeReader(fromPopstate) {
   document.getElementById('readerOverlay').classList.remove('open');
   document.getElementById('readerIframe').src = 'about:blank';
   document.body.style.overflow = '';
   _readerUrl = '';
   _readerAnnotations = [];
   _pendingSelection = null;
+  // If closed via X button (not back button), pop the pushed history state
+  if (!fromPopstate) history.back();
 }
 
 async function loadReaderAnnotations() {

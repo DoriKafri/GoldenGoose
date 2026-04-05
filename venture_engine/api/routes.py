@@ -997,10 +997,30 @@ def list_news(
                         "logo_url": v.logo_url,
                     })
 
-        # Annotation count for this URL
+        # Annotations for this URL
         ann_count = 0
+        annotations_preview = []
         if item.url:
-            ann_count = db.query(PageAnnotation).filter(PageAnnotation.url == item.url).count()
+            anns = db.query(PageAnnotation).filter(PageAnnotation.url == item.url).order_by(PageAnnotation.created_at.desc()).all()
+            ann_count = len(anns)
+            for a in anns:
+                reply_count = len(a.replies) if a.replies else 0
+                annotations_preview.append({
+                    "id": a.id,
+                    "selected_text": (a.selected_text or "")[:120],
+                    "body": a.body,
+                    "author_name": a.author_name,
+                    "author_id": a.author_id,
+                    "created_at": a.created_at.isoformat() if a.created_at else None,
+                    "reply_count": reply_count,
+                    "replies": [{
+                        "id": r.id,
+                        "body": r.body,
+                        "author_name": r.author_name,
+                        "author_id": r.author_id,
+                        "created_at": r.created_at.isoformat() if r.created_at else None,
+                    } for r in (a.replies or [])],
+                })
 
         results.append({
             "id": item.id,
@@ -1015,6 +1035,7 @@ def list_news(
             "signal_strength": item.signal_strength,
             "linked_ventures": linked_ventures,
             "annotation_count": ann_count,
+            "annotations": annotations_preview,
             "published_at": item.published_at.isoformat() if item.published_at else None,
             "created_at": item.created_at.isoformat() if item.created_at else None,
         })

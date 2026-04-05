@@ -1609,6 +1609,53 @@ function renderNewsFeed(items) {
       return `<a href="#${v.category||'venture'}/${v.id}" onclick="event.stopPropagation();switchTab('${v.category||'venture'}',true);setTimeout(()=>openDetail('${v.id}'),200);" style="display:inline-flex;align-items:center;gap:4px;font-size:10px;padding:2px 8px;border-radius:var(--radius-pill);background:rgba(37,99,235,0.08);color:#2563eb;font-weight:600;text-decoration:none;cursor:pointer;">${v.logo_url ? '<img src="'+esc(v.logo_url)+'" style="width:14px;height:14px;border-radius:3px;" onerror="this.style.display=\'none\'">' : ''}<span>${esc(v.title)}</span><span style="color:var(--text3);">${sc}</span></a>`;
     }).join(' ');
     const ago = timeAgo(item.published_at || item.created_at);
+    const anns = item.annotations || [];
+    const annCount = item.annotation_count || 0;
+    // Build annotations section
+    let annSection = '';
+    if (annCount > 0 || item.url) {
+      const annItems = anns.map(a => {
+        const replies = (a.replies||[]).map(r => `
+          <div style="margin-left:20px;padding:6px 0;border-top:1px solid var(--border);">
+            <div style="font-size:12px;color:var(--text1);">${esc(r.body)}</div>
+            <div style="font-size:10px;color:var(--text3);margin-top:2px;">${esc(r.author_name||'Anon')} · ${timeAgo(r.created_at)}</div>
+          </div>
+        `).join('');
+        return `
+        <div class="news-ann-item" style="padding:8px 0;border-bottom:1px solid var(--border);">
+          ${a.selected_text ? '<div style="font-size:11px;color:var(--text3);font-style:italic;border-left:3px solid #f59e0b;padding-left:8px;margin-bottom:4px;">&ldquo;'+esc(a.selected_text.slice(0,100))+(a.selected_text.length>100?'...':'')+'&rdquo;</div>' : ''}
+          <div style="font-size:12px;color:var(--text1);">${esc(a.body)}</div>
+          <div style="font-size:10px;color:var(--text3);margin-top:3px;display:flex;align-items:center;gap:8px;">
+            <span>${esc(a.author_name||'Anon')} · ${timeAgo(a.created_at)}</span>
+            ${a.reply_count ? '<span style="color:#2563eb;">'+a.reply_count+' repl'+(a.reply_count===1?'y':'ies')+'</span>' : ''}
+            <button onclick="event.stopPropagation();toggleNewsReplyForm('${a.id}',this)" style="background:none;border:none;color:#2563eb;font-size:10px;cursor:pointer;padding:0;font-weight:600;">Reply</button>
+            ${a.author_id === anonId ? '<button onclick="event.stopPropagation();deleteNewsAnnotation(\''+a.id+'\',this)" style="background:none;border:none;color:#ef4444;font-size:10px;cursor:pointer;padding:0;">Delete</button>' : ''}
+          </div>
+          ${replies}
+          <div class="news-reply-form" data-ann-id="${a.id}" style="display:none;margin-top:6px;margin-left:20px;">
+            <div style="display:flex;gap:6px;align-items:center;">
+              <input type="text" placeholder="Reply..." style="flex:1;padding:4px 8px;border:1px solid var(--border);border-radius:6px;font-size:11px;">
+              <button onclick="event.stopPropagation();submitNewsReply('${a.id}','${esc(item.url)}',this)" style="padding:4px 10px;border-radius:6px;background:#f59e0b;color:#fff;border:none;font-size:10px;font-weight:600;cursor:pointer;">Post</button>
+            </div>
+          </div>
+        </div>`;
+      }).join('');
+      annSection = `
+      <div class="news-ann-section" onclick="event.stopPropagation();" style="margin-top:6px;border-top:1px solid var(--border);padding-top:6px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          ${annCount > 0 ? '<button onclick="event.stopPropagation();toggleNewsAnnotations(this)" class="news-ann-toggle" style="background:none;border:none;color:#d97706;font-size:11px;cursor:pointer;padding:0;font-weight:600;display:flex;align-items:center;gap:4px;"><span class="news-ann-arrow" style="transition:transform .2s;">&#9654;</span> '+annCount+' comment'+(annCount!==1?'s':'')+'</button>' : ''}
+          <button onclick="event.stopPropagation();toggleNewsCommentForm(this)" style="background:none;border:none;color:#2563eb;font-size:11px;cursor:pointer;padding:0;font-weight:600;">+ Add comment</button>
+        </div>
+        <div class="news-ann-list" style="display:none;">${annItems}</div>
+        <div class="news-comment-form" style="display:none;margin-top:8px;">
+          <textarea placeholder="Write a comment about this article..." style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;resize:vertical;min-height:50px;box-sizing:border-box;"></textarea>
+          <div style="display:flex;justify-content:flex-end;gap:6px;margin-top:4px;">
+            <button onclick="event.stopPropagation();this.closest('.news-comment-form').style.display='none';" style="padding:4px 12px;border-radius:6px;background:var(--bg2);border:1px solid var(--border);font-size:11px;cursor:pointer;">Cancel</button>
+            <button onclick="event.stopPropagation();submitNewsComment('${item.id}','${esc(item.url)}',this)" style="padding:4px 12px;border-radius:6px;background:#f59e0b;color:#fff;border:none;font-size:11px;font-weight:600;cursor:pointer;">Post</button>
+          </div>
+        </div>
+      </div>`;
+    }
     return `
     <div class="venture-row news-reader-card" style="cursor:${item.url?'pointer':'default'}; position:relative;" data-url="${esc(item.url||'')}" data-title="${esc(item.title||'')}" data-news-id="${item.id}">
       ${strength}
@@ -1621,10 +1668,10 @@ function renderNewsFeed(items) {
           ${item.author ? '<span style="font-size:10px;color:var(--text2);">by '+esc(item.author)+'</span>' : ''}
           <span style="font-size:10px;color:var(--text3);">${ago}</span>
           ${item.url ? '<span onclick="event.stopPropagation();" style="display:inline-flex;align-items:center;gap:4px;"><a href="'+esc(item.url)+'" target="_blank" rel="noopener" style="font-size:10px;color:#2563eb;text-decoration:none;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;vertical-align:middle;" title="Open in new tab">'+esc(_hostname(item.url))+' ↗</a></span>' : ''}
-          ${(item.annotation_count||0) > 0 ? '<span style="font-size:10px;padding:2px 8px;border-radius:var(--radius-pill);background:rgba(245,158,11,0.1);color:#d97706;font-weight:600;">💬 '+item.annotation_count+'</span>' : ''}
           ${tags}
         </div>
         ${ventures ? '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:2px;">Inspired: '+ventures+'</div>' : ''}
+        ${annSection}
       </div>
       ${isAdmin ? '<button onclick="event.stopPropagation();deleteNewsItem(\''+item.id+'\',this);" style="position:absolute;top:8px;right:8px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);color:#ef4444;border-radius:6px;padding:2px 8px;font-size:10px;cursor:pointer;font-weight:600;z-index:2;" title="Delete news item">Delete</button>' : ''}
     </div>`;
@@ -1644,6 +1691,92 @@ function renderNewsFeed(items) {
       openReader(url, this.dataset.title || '', this.dataset.newsId || '');
     });
   });
+}
+
+// ── News Annotations (list view) ──
+function toggleNewsAnnotations(btn) {
+  const section = btn.closest('.news-ann-section');
+  const list = section.querySelector('.news-ann-list');
+  const arrow = btn.querySelector('.news-ann-arrow');
+  if (list.style.display === 'none') {
+    list.style.display = 'block';
+    arrow.style.transform = 'rotate(90deg)';
+  } else {
+    list.style.display = 'none';
+    arrow.style.transform = '';
+  }
+}
+
+function toggleNewsCommentForm(btn) {
+  const section = btn.closest('.news-ann-section');
+  const form = section.querySelector('.news-comment-form');
+  form.style.display = form.style.display === 'none' ? 'block' : 'none';
+  if (form.style.display === 'block') form.querySelector('textarea').focus();
+}
+
+function toggleNewsReplyForm(annId, btn) {
+  const form = btn.closest('.news-ann-item').querySelector('.news-reply-form');
+  form.style.display = form.style.display === 'none' ? 'block' : 'none';
+  if (form.style.display === 'block') form.querySelector('input').focus();
+}
+
+async function submitNewsComment(newsItemId, url, btn) {
+  const form = btn.closest('.news-comment-form');
+  const textarea = form.querySelector('textarea');
+  const body = textarea.value.trim();
+  if (!body) return;
+  btn.disabled = true;
+  try {
+    const res = await fetch(`${API}/api/page-annotations`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        url: url,
+        news_item_id: newsItemId,
+        selected_text: '',
+        body: body,
+        author_id: anonId,
+        author_name: anonName,
+      }),
+    });
+    if (!res.ok) throw new Error('Server error');
+    textarea.value = '';
+    form.style.display = 'none';
+    loadNews(); // refresh to show new comment
+  } catch(e) { alert('Failed to post: ' + e.message); }
+  btn.disabled = false;
+}
+
+async function submitNewsReply(annId, url, btn) {
+  const form = btn.closest('.news-reply-form');
+  const input = form.querySelector('input');
+  const body = input.value.trim();
+  if (!body) return;
+  btn.disabled = true;
+  try {
+    const res = await fetch(`${API}/api/page-annotations/${annId}/replies`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        body: body,
+        author_id: anonId,
+        author_name: anonName,
+      }),
+    });
+    if (!res.ok) throw new Error('Server error');
+    input.value = '';
+    form.style.display = 'none';
+    loadNews();
+  } catch(e) { alert('Failed to reply: ' + e.message); }
+  btn.disabled = false;
+}
+
+async function deleteNewsAnnotation(annId, btn) {
+  if (!confirm('Delete this comment?')) return;
+  try {
+    await fetch(`${API}/api/page-annotations/${annId}?author_id=${encodeURIComponent(anonId)}`, { method: 'DELETE' });
+    loadNews();
+  } catch(e) { alert('Failed to delete: ' + e.message); }
 }
 
 // ── Post News URL ──

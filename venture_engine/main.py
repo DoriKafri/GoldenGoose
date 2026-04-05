@@ -57,6 +57,56 @@ def _fix_json_columns():
     conn.close()
 
 
+def _algolia_find_url(search_q: str):
+    """Search HN Algolia for the original article URL matching a title."""
+    import httpx
+    from urllib.parse import quote
+
+    # Try exact phrase search, progressively trimming trailing words
+    # "Components of a Coding Agent deep dive" -> try full, then without "dive", etc.
+    words = search_q.split()
+    for end in range(len(words), max(len(words) - 3, 2), -1):
+        phrase = " ".join(words[:end])
+        try:
+            resp = httpx.get(
+                f'https://hn.algolia.com/api/v1/search?query={quote(chr(34) + phrase + chr(34))}&tags=story&hitsPerPage=5',
+                timeout=5.0,
+            )
+            resp.raise_for_status()
+            for hit in resp.json().get("hits", []):
+                hit_url = hit.get("url")
+                if hit_url and "news.ycombinator.com" not in hit_url:
+                    return hit_url
+        except Exception:
+            pass
+
+    # Fallback: keyword search with word-overlap scoring
+    try:
+        resp = httpx.get(
+            f"https://hn.algolia.com/api/v1/search?query={quote(search_q)}&tags=story&hitsPerPage=10",
+            timeout=5.0,
+        )
+        resp.raise_for_status()
+        hits = resp.json().get("hits", [])
+        search_words = set(search_q.lower().split()) - {"a", "an", "the", "of", "in", "on", "for", "and", "or", "to", "is"}
+        best_url, best_score = None, 0
+        for hit in hits:
+            hit_url = hit.get("url")
+            if not hit_url or "news.ycombinator.com" in hit_url:
+                continue
+            hit_words = set((hit.get("title") or "").lower().split())
+            overlap = len(search_words & hit_words)
+            if overlap > best_score:
+                best_score = overlap
+                best_url = hit_url
+        if best_url and best_score >= 2:
+            return best_url
+    except Exception:
+        pass
+
+    return None
+
+
 def _resolve_hn_urls():
     """Auto-resolve any news items with HN discussion/main page URLs to original article URLs."""
     import httpx
@@ -74,6 +124,9 @@ def _resolve_hn_urls():
         resolved = 0
         for item in items:
             try:
+                original_url = None
+
+                # Strategy 1: if URL has item?id=, try Firebase API
                 if "item?id=" in (item.url or ""):
                     hn_id = item.url.split("id=")[1].split("&")[0]
                     resp = httpx.get(
@@ -82,24 +135,21 @@ def _resolve_hn_urls():
                     )
                     resp.raise_for_status()
                     original_url = resp.json().get("url")
-                    if original_url and original_url != item.url:
-                        item.url = original_url
-                        resolved += 1
-                else:
-                    search_q = (item.title or "").split("(")[0].strip().replace("--", "").strip()[:80]
-                    if not search_q:
-                        continue
-                    resp = httpx.get(
-                        f"https://hn.algolia.com/api/v1/search?query={quote(search_q)}&tags=story&hitsPerPage=3",
-                        timeout=5.0,
-                    )
-                    resp.raise_for_status()
-                    hits = resp.json().get("hits", [])
-                    if hits:
-                        original_url = hits[0].get("url") or f"https://news.ycombinator.com/item?id={hits[0].get('objectID', '')}"
-                        if original_url != item.url:
-                            item.url = original_url
-                            resolved += 1
+
+                # Strategy 2: Algolia title search (fallback for self-posts,
+                # main-page URLs, or when Firebase returns no external URL)
+                if not original_url or original_url == item.url:
+                    import re as _re
+                    # Clean title: strip "(N pts, M comments)" suffix, "--", extra whitespace
+                    search_q = _re.sub(r"\(\d+\s*pts?,.*$", "", item.title or "").strip()
+                    search_q = search_q.replace("--", " ").strip()
+                    search_q = _re.sub(r"\s+", " ", search_q)[:80]
+                    if search_q:
+                        original_url = _algolia_find_url(search_q)
+
+                if original_url and original_url != item.url:
+                    item.url = original_url
+                    resolved += 1
             except Exception as e:
                 logger.warning(f"HN URL resolve failed for {item.id}: {e}")
                 continue

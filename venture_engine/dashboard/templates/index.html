@@ -519,10 +519,10 @@ html.dark .toggle-track::after { transform:translateX(16px); }
 .reader-reply-input input { flex:1; padding:4px 10px; border-radius:var(--radius-pill); border:1px solid var(--border); font-size:11px; background:var(--bg); color:var(--text); }
 .reader-reply-input button { padding:4px 12px; border-radius:var(--radius-pill); border:none; background:var(--accent); color:white; font-size:11px; font-weight:600; cursor:pointer; }
 /* Annotation float button (appears on text select in iframe) */
-.ann-float-btn { position:absolute; z-index:10; padding:5px 14px; border-radius:var(--radius-pill); background:linear-gradient(135deg,#f59e0b,#d97706); color:#fff; font-size:11px; font-weight:700; border:none; cursor:pointer; box-shadow:0 2px 8px rgba(0,0,0,0.2); display:none; transition:transform 0.1s; }
+.ann-float-btn { position:fixed; z-index:610; padding:5px 14px; border-radius:var(--radius-pill); background:linear-gradient(135deg,#f59e0b,#d97706); color:#fff; font-size:11px; font-weight:700; border:none; cursor:pointer; box-shadow:0 2px 8px rgba(0,0,0,0.2); display:none; transition:transform 0.1s; }
 .ann-float-btn:hover { transform:scale(1.05); }
 /* Annotation compose popover */
-.ann-compose { position:absolute; z-index:11; width:280px; background:var(--card); border:1px solid var(--border); border-radius:12px; box-shadow:var(--shadow-lg); padding:12px; display:none; }
+.ann-compose { position:fixed; z-index:611; width:280px; background:var(--card); border:1px solid var(--border); border-radius:12px; box-shadow:var(--shadow-lg); padding:12px; display:none; }
 .ann-compose textarea { width:100%; border:1px solid var(--border); border-radius:8px; padding:8px; font-size:12px; font-family:inherit; resize:vertical; min-height:60px; background:var(--bg); color:var(--text); }
 .ann-compose-actions { display:flex; justify-content:flex-end; gap:6px; margin-top:8px; }
 .ann-compose-actions button { padding:4px 14px; border-radius:var(--radius-pill); font-size:11px; font-weight:600; cursor:pointer; border:none; font-family:inherit; }
@@ -860,15 +860,6 @@ html.dark .toggle-track::after { transform:translateX(16px); }
   <div class="reader-body">
     <div class="reader-content" id="readerContent">
       <iframe id="readerIframe" sandbox="allow-same-origin allow-scripts"></iframe>
-      <button class="ann-float-btn" id="annFloatBtn" onclick="showAnnotationCompose()">+ Annotate</button>
-      <div class="ann-compose" id="annCompose">
-        <div style="font-size:11px;color:var(--text2);margin-bottom:6px;font-style:italic;border-left:3px solid #f59e0b;padding-left:8px;" id="annComposeQuote"></div>
-        <textarea id="annComposeBody" placeholder="Write your annotation..."></textarea>
-        <div class="ann-compose-actions">
-          <button class="ann-compose-cancel" onclick="hideAnnotationCompose()">Cancel</button>
-          <button class="ann-compose-submit" onclick="submitAnnotation()">Post</button>
-        </div>
-      </div>
     </div>
     <div class="reader-sidebar">
       <div class="reader-sidebar-header">
@@ -878,6 +869,16 @@ html.dark .toggle-track::after { transform:translateX(16px); }
       <div class="reader-sidebar-list" id="readerAnnList">
         <div style="padding:20px;text-align:center;color:var(--text3);font-size:12px;">No annotations yet. Select text on the page to add one.</div>
       </div>
+    </div>
+  </div>
+  <!-- Float btn & compose MUST be outside reader-body (outside any ancestor of iframe) to survive HTML parsing -->
+  <div id="annFloatBtn" class="ann-float-btn" onclick="showAnnotationCompose()">+ Annotate</div>
+  <div class="ann-compose" id="annCompose">
+    <div style="font-size:11px;color:var(--text2);margin-bottom:6px;font-style:italic;border-left:3px solid #f59e0b;padding-left:8px;" id="annComposeQuote"></div>
+    <textarea id="annComposeBody" placeholder="Write your annotation..."></textarea>
+    <div class="ann-compose-actions">
+      <button class="ann-compose-cancel" onclick="hideAnnotationCompose()">Cancel</button>
+      <button class="ann-compose-submit" onclick="submitAnnotation()">Post</button>
     </div>
   </div>
 </div>
@@ -1916,7 +1917,7 @@ async function submitAnnotation() {
   if (!body) { alert('Please write a comment.'); return; }
 
   try {
-    await fetch(`${API}/api/page-annotations`, {
+    const res = await fetch(`${API}/api/page-annotations`, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({
@@ -1931,8 +1932,9 @@ async function submitAnnotation() {
         author_name: anonName,
       }),
     });
+    if (!res.ok) throw new Error('Server error');
     hideAnnotationCompose();
-    loadReaderAnnotations();
+    await loadReaderAnnotations();
   } catch(e) { alert('Failed to save: ' + e.message); }
 }
 

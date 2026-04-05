@@ -1078,33 +1078,32 @@ def resolve_all_hn_urls(db: Session = Depends(get_db_dependency)):
     resolved_count = 0
     for item in items:
         try:
+            original_url = None
+
+            # Strategy 1: if URL has item?id=, try Firebase API
             if "item?id=" in item.url:
-                # Direct HN item — resolve via Firebase API
                 hn_id = item.url.split("id=")[1].split("&")[0]
                 resp = httpx.get(
                     f"https://hacker-news.firebaseio.com/v0/item/{hn_id}.json",
                     timeout=5.0,
                 )
                 resp.raise_for_status()
-                hn_data = resp.json()
-                original_url = hn_data.get("url")
-                if original_url and original_url != item.url:
-                    item.url = original_url
-                    resolved_count += 1
-            else:
-                # Generic HN URL (main page, /launches, etc) — search Algolia
-                search_q = item.title.split("(")[0].strip().replace("--", "").strip()[:80]
-                resp = httpx.get(
-                    f"https://hn.algolia.com/api/v1/search?query={quote(search_q)}&tags=story&hitsPerPage=3",
-                    timeout=5.0,
-                )
-                resp.raise_for_status()
-                hits = resp.json().get("hits", [])
-                if hits:
-                    original_url = hits[0].get("url") or f"https://news.ycombinator.com/item?id={hits[0].get('objectID', '')}"
-                    if original_url != item.url:
-                        item.url = original_url
-                        resolved_count += 1
+                original_url = resp.json().get("url")
+
+            # Strategy 2: Algolia title search (fallback for self-posts,
+            # main-page URLs, or when Firebase returns no external URL)
+            if not original_url or original_url == item.url:
+                import re as _re
+                from venture_engine.main import _algolia_find_url
+                search_q = _re.sub(r"\(\d+\s*pts?,.*$", "", item.title or "").strip()
+                search_q = search_q.replace("--", " ").strip()
+                search_q = _re.sub(r"\s+", " ", search_q)[:80]
+                if search_q:
+                    original_url = _algolia_find_url(search_q)
+
+            if original_url and original_url != item.url:
+                item.url = original_url
+                resolved_count += 1
         except Exception as e:
             logger.warning(f"Failed to resolve HN URL for {item.id}: {e}")
             continue

@@ -63,7 +63,7 @@ SETTING_DEFINITIONS: dict[str, dict] = {
 
     # Scoring weights
     "scoring.monetization_weight": {
-        "default": 0.20,
+        "default": 0.15,
         "type": "number",
         "category": "scoring",
         "label": "Monetization Weight",
@@ -90,7 +90,7 @@ SETTING_DEFINITIONS: dict[str, dict] = {
         "min": 0, "max": 1, "step": 0.05,
     },
     "scoring.tech_readiness_weight": {
-        "default": 0.15,
+        "default": 0.10,
         "type": "number",
         "category": "scoring",
         "label": "Tech Readiness Weight",
@@ -108,11 +108,29 @@ SETTING_DEFINITIONS: dict[str, dict] = {
         "min": 0, "max": 1, "step": 0.05,
     },
     "scoring.oh_score_weight": {
-        "default": 0.25,
+        "default": 0.15,
         "type": "number",
         "category": "scoring",
         "label": "Office Hours Weight",
         "description": "Weight of YC Office Hours score — reflects investability and founder readiness",
+        "widget": "slider",
+        "min": 0, "max": 1, "step": 0.05,
+    },
+    "scoring.eng_score_weight": {
+        "default": 0.10,
+        "type": "number",
+        "category": "scoring",
+        "label": "Eng Review Weight",
+        "description": "Weight of engineering feasibility review — architecture, build cost, tech debt risk",
+        "widget": "slider",
+        "min": 0, "max": 1, "step": 0.05,
+    },
+    "scoring.design_score_weight": {
+        "default": 0.05,
+        "type": "number",
+        "category": "scoring",
+        "label": "Design Review Weight",
+        "description": "Weight of UX/design review — user flow clarity, self-serve potential, competitive design",
         "widget": "slider",
         "min": 0, "max": 1, "step": 0.05,
     },

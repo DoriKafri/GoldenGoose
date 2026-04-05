@@ -93,6 +93,76 @@ Respond with valid JSON only:
   "one_line_verdict": "..."
 }"""
 
+ENG_REVIEW_SYSTEM = """You are a senior engineering manager running a technical feasibility review,
+inspired by gstack's /plan-eng-review. You've shipped products at scale and you know the difference
+between a weekend hack and a production-grade system.
+
+Evaluate this venture idea on 6 engineering dimensions:
+
+1. ARCHITECTURE COMPLEXITY: How complex is the system architecture? Simple CRUD app = 9/10. Distributed real-time system with ML = 4/10. Rate how buildable this is.
+2. BUILD COST: Total engineering effort to reach MVP. Include infra, integrations, testing. Think in engineer-weeks, not months.
+3. TECH DEBT RISK: How likely is this to accumulate crippling tech debt in the first 12 months? High abstraction layers and moving-fast pressure = higher risk.
+4. INTEGRATION BURDEN: How many external systems, APIs, data sources must this connect to? Each integration is a maintenance tax.
+5. SCALABILITY READINESS: Can the initial architecture handle 100x growth without a rewrite? Or is it a throwaway prototype that needs rebuilding at scale?
+6. AI LEVERAGE: How much of the development and operation can be AI-assisted? Code generation, automated testing, AI ops — more = better dark factory fit.
+
+Also provide:
+- VERDICT: "SHIP_IT" (technically clean, go build), "REFACTOR_FIRST" (fixable architecture issues), "PROTOTYPE_ONLY" (too risky for production), "NO_BUILD" (fundamentally infeasible)
+- BUILD_ESTIMATE: Realistic estimate in engineer-weeks for MVP
+- TECH_STACK_RECOMMENDATION: Recommended stack for dark factory model
+- BIGGEST_TECHNICAL_RISK: The one thing most likely to blow up
+- OVERALL_SCORE: 0-10 (10 = trivially buildable with AI, 3 = massive engineering challenge)
+
+Respond with valid JSON only, no markdown fences:
+{
+  "architecture_complexity": {"score": 0-10, "assessment": "..."},
+  "build_cost": {"score": 0-10, "assessment": "...", "engineer_weeks": 0},
+  "tech_debt_risk": {"score": 0-10, "assessment": "..."},
+  "integration_burden": {"score": 0-10, "assessment": "...", "integrations": ["..."]},
+  "scalability_readiness": {"score": 0-10, "assessment": "..."},
+  "ai_leverage": {"score": 0-10, "assessment": "...", "ai_opportunities": ["..."]},
+  "verdict": "SHIP_IT|REFACTOR_FIRST|PROTOTYPE_ONLY|NO_BUILD",
+  "build_estimate": "X engineer-weeks",
+  "tech_stack_recommendation": "...",
+  "biggest_technical_risk": "...",
+  "overall_score": 0-10
+}"""
+
+DESIGN_REVIEW_SYSTEM = """You are a senior product designer running a UX feasibility and design review,
+inspired by gstack's /plan-design-review. You think in user flows, not features. You've seen
+products with great tech die because nobody could figure out the UI.
+
+Evaluate this venture idea on 6 design dimensions:
+
+1. USER FLOW CLARITY: Can you sketch the core user flow in 3 steps? If it takes more than 5 clicks to get value, it's too complex.
+2. FIRST-RUN EXPERIENCE: What happens in the first 60 seconds? Time-to-value is everything. Can a user get value without reading docs?
+3. COMPETITIVE DESIGN: How does this compare to existing tools' UX? Is there a clear design advantage or is it just "another dashboard"?
+4. SELF-SERVE POTENTIAL: Can users onboard without human help? Can they configure, troubleshoot, and expand usage independently?
+5. VISUAL DIFFERENTIATION: Would a user remember this product after seeing it once? Distinctive visual identity vs. generic SaaS template.
+6. ACCESSIBILITY & REACH: Can this work across devices, roles, and skill levels? Limited audience = limited growth.
+
+Also provide:
+- VERDICT: "SHIP_READY" (UX is clean, go build), "NEEDS_POLISH" (minor UX issues), "REDESIGN" (fundamental UX problems), "UX_BLOCKER" (UX issues would kill adoption)
+- CORE_USER_FLOW: Describe the ideal 3-step user flow
+- UX_KILLER_FEATURE: The one UX element that would make users love this
+- BIGGEST_UX_RISK: The one thing most likely to cause user churn
+- OVERALL_SCORE: 0-10 (10 = intuitive, delightful UX, 3 = confusing mess)
+
+Respond with valid JSON only, no markdown fences:
+{
+  "user_flow_clarity": {"score": 0-10, "assessment": "...", "steps": ["..."]},
+  "first_run_experience": {"score": 0-10, "assessment": "...", "time_to_value": "..."},
+  "competitive_design": {"score": 0-10, "assessment": "...", "design_advantage": "..."},
+  "self_serve_potential": {"score": 0-10, "assessment": "..."},
+  "visual_differentiation": {"score": 0-10, "assessment": "..."},
+  "accessibility_reach": {"score": 0-10, "assessment": "..."},
+  "verdict": "SHIP_READY|NEEDS_POLISH|REDESIGN|UX_BLOCKER",
+  "core_user_flow": ["step1", "step2", "step3"],
+  "ux_killer_feature": "...",
+  "biggest_ux_risk": "...",
+  "overall_score": 0-10
+}"""
+
 VALIDATION_SYSTEM = """You are a venture validation engine combining gstack's office-hours rigor with
 startup scoring. Given a raw signal or venture idea, assess its viability quickly.
 
@@ -307,6 +377,96 @@ def run_ceo_review(db: Session, venture: Venture) -> dict:
             verdict="NEEDS_WORK",
             yc_score=float(data.get("overall_score", 5)),
             ceo_review=data,
+        )
+        db.add(review)
+
+    db.flush()
+    return data
+
+
+# ─── Eng Review ────────────────────────────────────────────────
+
+def run_eng_review(db: Session, venture: Venture) -> dict:
+    """Run gstack-style Eng Manager review on a venture."""
+    logger.info(f"Running eng review for: {venture.title}")
+
+    user_prompt = (
+        f"Run engineering feasibility review on this venture:\n\n"
+        f"{_venture_prompt(venture)}"
+    )
+
+    raw = _call_claude(ENG_REVIEW_SYSTEM, user_prompt)
+    raw = _strip_code_fences(raw)
+
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        logger.error(f"Failed to parse eng review for '{venture.title}': {exc}")
+        raise
+
+    # Store eng review in the office hours record
+    review = db.query(OfficeHoursReview).filter(
+        OfficeHoursReview.venture_id == venture.id
+    ).first()
+
+    eng_score = float(data.get("overall_score", 5))
+
+    if review:
+        review.eng_review = data
+        review.eng_score = eng_score
+        review.reviewed_at = datetime.utcnow()
+    else:
+        review = OfficeHoursReview(
+            venture_id=venture.id,
+            verdict="NEEDS_WORK",
+            yc_score=5.0,
+            eng_review=data,
+            eng_score=eng_score,
+        )
+        db.add(review)
+
+    db.flush()
+    return data
+
+
+# ─── Design Review ─────────────────────────────────────────────
+
+def run_design_review(db: Session, venture: Venture) -> dict:
+    """Run gstack-style Design/UX review on a venture."""
+    logger.info(f"Running design review for: {venture.title}")
+
+    user_prompt = (
+        f"Run UX/design feasibility review on this venture:\n\n"
+        f"{_venture_prompt(venture)}"
+    )
+
+    raw = _call_claude(DESIGN_REVIEW_SYSTEM, user_prompt)
+    raw = _strip_code_fences(raw)
+
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        logger.error(f"Failed to parse design review for '{venture.title}': {exc}")
+        raise
+
+    # Store design review in the office hours record
+    review = db.query(OfficeHoursReview).filter(
+        OfficeHoursReview.venture_id == venture.id
+    ).first()
+
+    design_score = float(data.get("overall_score", 5))
+
+    if review:
+        review.design_review = data
+        review.design_score = design_score
+        review.reviewed_at = datetime.utcnow()
+    else:
+        review = OfficeHoursReview(
+            venture_id=venture.id,
+            verdict="NEEDS_WORK",
+            yc_score=5.0,
+            design_review=data,
+            design_score=design_score,
         )
         db.add(review)
 

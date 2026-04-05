@@ -376,6 +376,8 @@ def get_venture(venture_id: str, db: Session = Depends(get_db_dependency)):
             "tech_readiness": s.tech_readiness,
             "tl_score": s.tl_score,
             "oh_score": s.oh_score,
+            "eng_score": s.eng_score,
+            "design_score": s.design_score,
             "reasoning": s.reasoning,
             "scored_by": s.scored_by,
         })
@@ -780,6 +782,10 @@ def _serialize_oh(review: OfficeHoursReview) -> dict:
         "biggest_risk": review.biggest_risk,
         "recommended_action": review.recommended_action,
         "ceo_review": review.ceo_review,
+        "eng_review": review.eng_review,
+        "eng_score": review.eng_score,
+        "design_review": review.design_review,
+        "design_score": review.design_score,
         "reviewed_at": review.reviewed_at.isoformat() if review.reviewed_at else None,
     }
 
@@ -827,6 +833,40 @@ def run_venture_ceo_review(venture_id: str, db: Session = Depends(get_db_depende
     except Exception as exc:
         logger.error(f"CEO review failed: {exc}")
         raise HTTPException(500, f"CEO review failed: {str(exc)}")
+
+
+@router.post("/api/ventures/{venture_id}/eng-review")
+def run_venture_eng_review(venture_id: str, db: Session = Depends(get_db_dependency)):
+    """Run gstack Eng Manager review on a venture."""
+    v = db.query(Venture).filter(Venture.id == venture_id).first()
+    if not v:
+        raise HTTPException(404, "Venture not found")
+
+    from venture_engine.ventures.office_hours import run_eng_review
+    try:
+        data = run_eng_review(db, v)
+        db.commit()
+        return {"status": "ok", "eng_review": data}
+    except Exception as exc:
+        logger.error(f"Eng review failed: {exc}")
+        raise HTTPException(500, f"Eng review failed: {str(exc)}")
+
+
+@router.post("/api/ventures/{venture_id}/design-review")
+def run_venture_design_review(venture_id: str, db: Session = Depends(get_db_dependency)):
+    """Run gstack Design/UX review on a venture."""
+    v = db.query(Venture).filter(Venture.id == venture_id).first()
+    if not v:
+        raise HTTPException(404, "Venture not found")
+
+    from venture_engine.ventures.office_hours import run_design_review
+    try:
+        data = run_design_review(db, v)
+        db.commit()
+        return {"status": "ok", "design_review": data}
+    except Exception as exc:
+        logger.error(f"Design review failed: {exc}")
+        raise HTTPException(500, f"Design review failed: {str(exc)}")
 
 
 class BatchOfficeHoursRequest(BaseModel):

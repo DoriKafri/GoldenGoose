@@ -77,6 +77,8 @@ class VentureScore(Base):
     tech_readiness = Column(Float)
     tl_score = Column(Float)
     oh_score = Column(Float)  # Office Hours / YC score (0-10)
+    eng_score = Column(Float)  # Eng Review score (0-10)
+    design_score = Column(Float)  # Design Review score (0-10)
     reasoning = Column(JSON)
     scored_by = Column(Text, default="auto")
 
@@ -238,6 +240,12 @@ class OfficeHoursReview(Base):
     recommended_action = Column(Text, nullable=True)
     # CEO review (gstack /plan-ceo-review style)
     ceo_review = Column(JSON, nullable=True)
+    # Eng review (gstack /plan-eng-review style)
+    eng_review = Column(JSON, nullable=True)
+    eng_score = Column(Float, nullable=True)  # 0-10
+    # Design review (gstack /plan-design-review style)
+    design_review = Column(JSON, nullable=True)
+    design_score = Column(Float, nullable=True)  # 0-10
     # Metadata
     reviewed_at = Column(DateTime, default=datetime.utcnow)
 

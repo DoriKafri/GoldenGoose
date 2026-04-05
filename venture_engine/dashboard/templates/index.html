@@ -926,7 +926,13 @@ html.dark .toggle-track::after { transform:translateX(16px); }
         <p>A fifth dimension derived from simulated (and real) thought-leader reactions. Each leader votes upvote (1.0), neutral (0.5), or downvote (0.0). Real signals are weighted higher than simulated ones (configurable in Settings).</p>
 
         <h4>Office Hours Score</h4>
-        <p>A sixth dimension from YC-style Office Hours. The OH score (0&ndash;10) reflects investability based on six forcing questions: Demand Reality, Status Quo, Desperate Specificity, Narrowest Wedge, Observation, and Future-Fit. Ventures that reach FUND verdict (8.0+) score highest. This carries significant weight (default 25%) because it captures founder readiness and market validation that other dimensions miss.</p>
+        <p>The OH score (0&ndash;10) reflects investability based on six YC forcing questions: Demand Reality, Status Quo, Desperate Specificity, Narrowest Wedge, Observation, and Future-Fit. Ventures that reach FUND verdict (8.0+) score highest.</p>
+
+        <h4>Eng Review Score</h4>
+        <p>Engineering feasibility review (0&ndash;10) evaluates architecture complexity, build cost (engineer-weeks), tech debt risk, integration burden, scalability readiness, and AI leverage potential. Verdicts: SHIP_IT, REFACTOR_FIRST, PROTOTYPE_ONLY, or NO_BUILD. Answers the critical question: "Can we actually build and operate this with a tiny team?"</p>
+
+        <h4>Design Review Score</h4>
+        <p>UX/design review (0&ndash;10) evaluates user flow clarity, first-run experience (time-to-value), competitive design advantage, self-serve potential, visual differentiation, and accessibility. Verdicts: SHIP_READY, NEEDS_POLISH, REDESIGN, or UX_BLOCKER. Answers: "Will users actually adopt and love this?"</p>
 
         <h4>Composite Formula</h4>
         <div class="help-formula">
@@ -937,9 +943,11 @@ html.dark .toggle-track::after { transform:translateX(16px); }
           &nbsp;&nbsp;+ tech_readiness &times; w<sub>tech</sub><br>
           &nbsp;&nbsp;+ tl_score &times; w<sub>tl</sub><br>
           &nbsp;&nbsp;+ oh_score &times; w<sub>oh</sub><br>
+          &nbsp;&nbsp;+ eng_score &times; w<sub>eng</sub><br>
+          &nbsp;&nbsp;+ design_score &times; w<sub>des</sub><br>
           ) &times; 10
         </div>
-        <p>Default weights: Office Hours 25%, Monetization 20%, Cashout Ease 15%, Dark Factory Fit 15%, Tech Readiness 15%, TL Score 10%. All weights are adjustable in Settings and must sum to 1.0.</p>
+        <p>Default weights: Monetization 15%, Cashout Ease 15%, Dark Factory Fit 15%, Office Hours 15%, Tech Readiness 10%, TL Score 10%, Eng Review 10%, Design Review 10%. All weights are adjustable in Settings and must sum to 1.0.</p>
 
         <h4>Score Ranges</h4>
         <div class="help-score-range">
@@ -1285,6 +1293,8 @@ async function openDetail(id, skipHash) {
     {label:'Tech', val: latestScore.tech_readiness},
     {label:'TL', val: latestScore.tl_score},
     {label:'OH', val: latestScore.oh_score},
+    {label:'Eng', val: latestScore.eng_score},
+    {label:'Design', val: latestScore.design_score},
   ] : [];
   const radarSvg = dims.length ? renderRadar(dims) : '';
   const gapHtml = v.tech_gaps.filter(g => !g.resolved_at).map(g => `
@@ -1558,6 +1568,50 @@ function renderOfficeHours(v) {
     </div>`;
   }
 
+  // Eng review section
+  let engHtml = '';
+  if (oh.eng_review) {
+    const er = oh.eng_review;
+    const dims = ['architecture_complexity','build_cost','tech_debt_risk','integration_burden','scalability_readiness','ai_leverage'];
+    const dimLabels = ['Architecture','Build Cost','Tech Debt','Integrations','Scale','AI Leverage'];
+    const verdictColors = {SHIP_IT:'#059669',REFACTOR_FIRST:'#D97706',PROTOTYPE_ONLY:'#DC2626',NO_BUILD:'#991B1B'};
+    engHtml = `<div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border);">
+      <div class="oh-q-label" style="margin-bottom:8px;">&#x1F527; Eng Review <span class="oh-q-score ${ohScoreClass(er.overall_score||0)}">${er.overall_score||'?'}/10</span> <span style="font-size:10px;padding:2px 6px;border-radius:8px;background:${verdictColors[er.verdict]||'#888'}22;color:${verdictColors[er.verdict]||'#888'};font-weight:700;">${(er.verdict||'').replace(/_/g,' ')}</span></div>
+      <div class="oh-ceo-grid">
+        ${dims.map((d,i) => {
+          const dim = er[d];
+          const s = dim ? dim.score : '?';
+          return '<div class="oh-ceo-dim"><div class="oh-ceo-dim-score" style="color:'+ohScoreColor(s)+'">'+s+'</div><div class="oh-ceo-dim-label">'+dimLabels[i]+'</div></div>';
+        }).join('')}
+      </div>
+      ${er.build_estimate ? '<div class="oh-insight-card action"><div class="oh-insight-card-label action">&#x1F3D7; Build Estimate</div><div class="oh-insight-card-text">'+esc(er.build_estimate)+'</div></div>' : ''}
+      ${er.tech_stack_recommendation ? '<div class="oh-insight-card action"><div class="oh-insight-card-label action">&#x1F4E6; Tech Stack</div><div class="oh-insight-card-text">'+esc(er.tech_stack_recommendation)+'</div></div>' : ''}
+      ${er.biggest_technical_risk ? '<div class="oh-insight-card risk"><div class="oh-insight-card-label risk">&#x26A0;&#xFE0F; Technical Risk</div><div class="oh-insight-card-text">'+esc(er.biggest_technical_risk)+'</div></div>' : ''}
+    </div>`;
+  }
+
+  // Design review section
+  let designHtml = '';
+  if (oh.design_review) {
+    const dr = oh.design_review;
+    const dims = ['user_flow_clarity','first_run_experience','competitive_design','self_serve_potential','visual_differentiation','accessibility_reach'];
+    const dimLabels = ['Flow','First Run','Competitive','Self-Serve','Visual','Reach'];
+    const verdictColors = {SHIP_READY:'#059669',NEEDS_POLISH:'#D97706',REDESIGN:'#DC2626',UX_BLOCKER:'#991B1B'};
+    designHtml = `<div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border);">
+      <div class="oh-q-label" style="margin-bottom:8px;">&#x1F3A8; Design Review <span class="oh-q-score ${ohScoreClass(dr.overall_score||0)}">${dr.overall_score||'?'}/10</span> <span style="font-size:10px;padding:2px 6px;border-radius:8px;background:${verdictColors[dr.verdict]||'#888'}22;color:${verdictColors[dr.verdict]||'#888'};font-weight:700;">${(dr.verdict||'').replace(/_/g,' ')}</span></div>
+      <div class="oh-ceo-grid">
+        ${dims.map((d,i) => {
+          const dim = dr[d];
+          const s = dim ? dim.score : '?';
+          return '<div class="oh-ceo-dim"><div class="oh-ceo-dim-score" style="color:'+ohScoreColor(s)+'">'+s+'</div><div class="oh-ceo-dim-label">'+dimLabels[i]+'</div></div>';
+        }).join('')}
+      </div>
+      ${dr.core_user_flow && dr.core_user_flow.length ? '<div class="oh-insight-card action"><div class="oh-insight-card-label action">&#x1F6A6; Core Flow</div><div class="oh-insight-card-text">'+dr.core_user_flow.map((s,i) => (i+1)+'. '+esc(s)).join('<br>')+'</div></div>' : ''}
+      ${dr.ux_killer_feature ? '<div class="oh-insight-card killer"><div class="oh-insight-card-label killer">&#x2728; UX Killer Feature</div><div class="oh-insight-card-text">'+esc(dr.ux_killer_feature)+'</div></div>' : ''}
+      ${dr.biggest_ux_risk ? '<div class="oh-insight-card risk"><div class="oh-insight-card-label risk">&#x26A0;&#xFE0F; UX Risk</div><div class="oh-insight-card-text">'+esc(dr.biggest_ux_risk)+'</div></div>' : ''}
+    </div>`;
+  }
+
   // Build the unique toggle ID for this venture's questions
   const qToggleId = 'oh-q-toggle-' + v.id;
 
@@ -1580,12 +1634,16 @@ function renderOfficeHours(v) {
     </button>
     <div id="${qToggleId}" class="oh-q-grid" style="display:none;">${qCards}</div>
     ${ceoHtml}
+    ${engHtml}
+    ${designHtml}
     <div style="margin-top:12px;display:flex;gap:6px;">
       <button class="oh-run-btn" onclick="runOfficeHours('${v.id}')">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 4v6h6M23 20v-6h-6"/><path d="M20.49 9A9 9 0 005.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 013.51 15"/></svg>
         Re-run Office Hours
       </button>
       ${!oh.ceo_review ? `<button class="oh-run-btn" style="background:linear-gradient(135deg,#7C3AED,#6C5CE7);" onclick="runCeoReview('${v.id}')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>Run CEO Review</button>` : ''}
+      ${!oh.eng_review ? `<button class="oh-run-btn" style="background:linear-gradient(135deg,#059669,#10B981);" onclick="runEngReview('${v.id}')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>Run Eng Review</button>` : ''}
+      ${!oh.design_review ? `<button class="oh-run-btn" style="background:linear-gradient(135deg,#D97706,#F59E0B);" onclick="runDesignReview('${v.id}')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>Run Design Review</button>` : ''}
     </div>
     <div style="margin-top:6px;font-size:10px;color:var(--text3);">Reviewed ${oh.reviewed_at ? timeAgo(oh.reviewed_at) : 'recently'}</div>
   </div>`;
@@ -1668,6 +1726,28 @@ async function runCeoReview(id) {
     const data = await res.json();
     if (data.status === 'ok') { openDetail(id); }
     else { alert('CEO review failed: ' + JSON.stringify(data)); }
+  } catch(e) { alert('Error: ' + e.message); }
+  finally { btns.forEach(b => { b.disabled = false; }); }
+}
+async function runEngReview(id) {
+  const btns = document.querySelectorAll('.oh-run-btn');
+  btns.forEach(b => { b.disabled = true; });
+  try {
+    const res = await fetch(`${API}/api/ventures/${id}/eng-review`, { method: 'POST' });
+    const data = await res.json();
+    if (data.status === 'ok') { openDetail(id); }
+    else { alert('Eng review failed: ' + JSON.stringify(data)); }
+  } catch(e) { alert('Error: ' + e.message); }
+  finally { btns.forEach(b => { b.disabled = false; }); }
+}
+async function runDesignReview(id) {
+  const btns = document.querySelectorAll('.oh-run-btn');
+  btns.forEach(b => { b.disabled = true; });
+  try {
+    const res = await fetch(`${API}/api/ventures/${id}/design-review`, { method: 'POST' });
+    const data = await res.json();
+    if (data.status === 'ok') { openDetail(id); }
+    else { alert('Design review failed: ' + JSON.stringify(data)); }
   } catch(e) { alert('Error: ' + e.message); }
   finally { btns.forEach(b => { b.disabled = false; }); }
 }
@@ -1808,7 +1888,7 @@ function renderSettingsSection(section) {
 
   // Special: scoring weights need a total bar
   const isScoring = section === 'scoring';
-  const weightKeys = ['scoring.monetization_weight','scoring.cashout_ease_weight','scoring.dark_factory_fit_weight','scoring.tech_readiness_weight','scoring.tl_score_weight','scoring.oh_score_weight'];
+  const weightKeys = ['scoring.monetization_weight','scoring.cashout_ease_weight','scoring.dark_factory_fit_weight','scoring.tech_readiness_weight','scoring.tl_score_weight','scoring.oh_score_weight','scoring.eng_score_weight','scoring.design_score_weight'];
 
   for (const [key, s] of Object.entries(items)) {
     const val = _settingsDirty[key] !== undefined ? _settingsDirty[key] : s.value;
@@ -1869,7 +1949,7 @@ function onSettingChange(key, value) {
 }
 
 function updateWeightTotal() {
-  const wKeys = ['scoring.monetization_weight','scoring.cashout_ease_weight','scoring.dark_factory_fit_weight','scoring.tech_readiness_weight','scoring.tl_score_weight','scoring.oh_score_weight'];
+  const wKeys = ['scoring.monetization_weight','scoring.cashout_ease_weight','scoring.dark_factory_fit_weight','scoring.tech_readiness_weight','scoring.tl_score_weight','scoring.oh_score_weight','scoring.eng_score_weight','scoring.design_score_weight'];
   let total = 0;
   for (const k of wKeys) {
     const v = _settingsDirty[k] !== undefined ? _settingsDirty[k] : (_settingsData?.scoring?.[k]?.value ?? 0);
@@ -1883,7 +1963,7 @@ function updateWeightTotal() {
 }
 
 function normalizeWeights() {
-  const wKeys = ['scoring.monetization_weight','scoring.cashout_ease_weight','scoring.dark_factory_fit_weight','scoring.tech_readiness_weight','scoring.tl_score_weight','scoring.oh_score_weight'];
+  const wKeys = ['scoring.monetization_weight','scoring.cashout_ease_weight','scoring.dark_factory_fit_weight','scoring.tech_readiness_weight','scoring.tl_score_weight','scoring.oh_score_weight','scoring.eng_score_weight','scoring.design_score_weight'];
   let total = 0;
   for (const k of wKeys) {
     const v = _settingsDirty[k] !== undefined ? _settingsDirty[k] : (_settingsData?.scoring?.[k]?.value ?? 0);

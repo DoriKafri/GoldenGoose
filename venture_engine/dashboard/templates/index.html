@@ -1935,6 +1935,15 @@ async function loadReaderAnnotations() {
 
 function highlightAnnotationsInIframe() {
   const iframe = document.getElementById('readerIframe');
+  // Try direct DOM highlighting first (same-origin), fall back to postMessage
+  try {
+    const idoc = iframe.contentDocument || iframe.contentWindow.document;
+    if (idoc && idoc.body) {
+      _directHighlight(idoc, _readerAnnotations);
+      return;
+    }
+  } catch(e) { /* cross-origin */ }
+  // Fallback: postMessage to injected script
   try {
     iframe.contentWindow.postMessage({
       type: 'ann-highlight',
@@ -1947,7 +1956,60 @@ function highlightAnnotationsInIframe() {
         body: a.body,
       }))
     }, '*');
-  } catch(e) { /* cross-origin fallback */ }
+  } catch(e) {}
+}
+
+function _directHighlight(doc, annotations) {
+  const full = doc.body.innerText || doc.body.textContent || '';
+  annotations.forEach(function(a) {
+    try {
+      if (!a.selected_text) return;
+      var searchStr = a.selected_text;
+      var idx = -1, count = 0, startSearch = 0;
+      while (true) {
+        var found = full.indexOf(searchStr, startSearch);
+        if (found < 0) break;
+        if (count === (a.text_node_index || 0)) { idx = found; break; }
+        count++; startSearch = found + 1;
+      }
+      if (idx < 0 && a.prefix_context) {
+        var ctxSearch = a.prefix_context + searchStr;
+        var ci = full.indexOf(ctxSearch);
+        if (ci >= 0) idx = ci + a.prefix_context.length;
+      }
+      if (idx < 0) return;
+      var walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT, null, false);
+      var charCount = 0, startNode = null, startOff = 0, endNode = null, endOff = 0;
+      while (walker.nextNode()) {
+        var node = walker.currentNode;
+        var len = node.textContent.length;
+        if (!startNode && charCount + len > idx) {
+          startNode = node; startOff = idx - charCount;
+        }
+        if (startNode && charCount + len >= idx + searchStr.length) {
+          endNode = node; endOff = idx + searchStr.length - charCount; break;
+        }
+        charCount += len;
+      }
+      if (startNode && endNode) {
+        var r = doc.createRange();
+        r.setStart(startNode, startOff);
+        r.setEnd(endNode, endOff);
+        var mark = doc.createElement('mark');
+        mark.className = 'page-ann-hl';
+        mark.dataset.annId = a.id;
+        mark.style.cssText = 'background:rgba(255,213,79,0.4);border-bottom:2px solid #f59e0b;cursor:pointer;border-radius:2px;padding:0 1px;';
+        mark.title = (a.body || '').slice(0, 80);
+        mark.addEventListener('click', function(ev) {
+          ev.stopPropagation();
+          scrollToAnnotation(a.id);
+          var card = document.querySelector('.reader-ann-card[data-ann-id="' + a.id + '"]');
+          if (card) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        });
+        r.surroundContents(mark);
+      }
+    } catch(ex) { /* anchoring failed */ }
+  });
 }
 
 function renderReaderAnnotations() {

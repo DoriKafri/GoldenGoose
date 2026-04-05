@@ -1117,31 +1117,40 @@ def resolve_all_hn_urls(db: Session = Depends(get_db_dependency)):
 ANNOTATION_IFRAME_SCRIPT = """
 <script>
 (function(){
+  window.__ann_loaded = true;
+
   // ── Text selection → notify parent ──
   function _notifySelection(){
-    var sel = window.getSelection();
-    if (!sel || sel.isCollapsed || !sel.toString().trim()) return;
-    var text = sel.toString().trim();
-    if (text.length < 2 || text.length > 5000) return;
-    try { var range = sel.getRangeAt(0); } catch(e){ return; }
-    var full = document.body.innerText;
-    var idx = full.indexOf(text);
-    var prefix = idx > 0 ? full.slice(Math.max(0, idx - 60), idx) : '';
-    var suffix = full.slice(idx + text.length, idx + text.length + 60);
-    var tni = 0, si = 0;
-    while (si >= 0 && si < idx) { si = full.indexOf(text, si); if (si >= 0 && si < idx) { tni++; si++; } else break; }
-    var rect = range.getBoundingClientRect();
-    window.parent.postMessage({type:'ann-text-selected', selectedText:text, prefix:prefix, suffix:suffix,
-      textNodeIndex:tni, rect:{top:rect.top,left:rect.left,bottom:rect.bottom,right:rect.right,width:rect.width}}, '*');
+    try {
+      var sel = document.getSelection ? document.getSelection() : window.getSelection();
+      if (!sel || sel.isCollapsed) return;
+      var text = sel.toString();
+      if (!text || !text.trim()) return;
+      text = text.trim();
+      if (text.length < 2 || text.length > 5000) return;
+      if (sel.rangeCount === 0) return;
+      var range = sel.getRangeAt(0);
+      var full = document.body.innerText || document.body.textContent || '';
+      var idx = full.indexOf(text);
+      var prefix = idx > 0 ? full.slice(Math.max(0, idx - 60), idx) : '';
+      var suffix = full.slice(idx + text.length, idx + text.length + 60);
+      var tni = 0, si = 0;
+      while (si >= 0 && si < idx) { si = full.indexOf(text, si); if (si >= 0 && si < idx) { tni++; si++; } else break; }
+      var rect = range.getBoundingClientRect();
+      window.parent.postMessage({type:'ann-text-selected', selectedText:text, prefix:prefix, suffix:suffix,
+        textNodeIndex:tni, rect:{top:rect.top,left:rect.left,bottom:rect.bottom,right:rect.right,width:rect.width}}, '*');
+    } catch(e) {}
   }
+  window._notifySelection = _notifySelection;
+
   // mouseup with delay (selection may not be ready immediately in sandboxed iframes)
-  document.addEventListener('mouseup', function(){ setTimeout(_notifySelection, 50); });
+  document.addEventListener('mouseup', function(){ setTimeout(_notifySelection, 150); }, true);
   // selectionchange as backup (fires when selection is finalized)
   var _selTimer = null;
   document.addEventListener('selectionchange', function(){
     clearTimeout(_selTimer);
-    _selTimer = setTimeout(_notifySelection, 200);
-  });
+    _selTimer = setTimeout(_notifySelection, 250);
+  }, true);
 
   // ── Highlight existing annotations ──
   window.addEventListener('message', function(e){
@@ -1281,13 +1290,17 @@ def proxy_page(url: str = Query(...)):
         style_tag.string = "::selection { background: rgba(37,99,235,0.25) !important; } .page-ann-hl:hover { background: rgba(245,158,11,0.6) !important; }"
         soup.head.append(style_tag)
 
-    # Inject annotation script at end of body
-    if soup.body:
-        from bs4 import BeautifulSoup as BS
-        script_soup = BS(ANNOTATION_IFRAME_SCRIPT, "html.parser")
-        soup.body.append(script_soup)
-
     html = str(soup)
+
+    # Inject annotation script at end of body via string insertion
+    # (avoids BeautifulSoup html.parser mangling script content)
+    if '</body>' in html:
+        html = html.replace('</body>', ANNOTATION_IFRAME_SCRIPT + '\n</body>', 1)
+    elif '</BODY>' in html:
+        html = html.replace('</BODY>', ANNOTATION_IFRAME_SCRIPT + '\n</BODY>', 1)
+    else:
+        # No closing body tag — append at end
+        html += ANNOTATION_IFRAME_SCRIPT
     return HTMLResponse(
         content=html,
         headers={

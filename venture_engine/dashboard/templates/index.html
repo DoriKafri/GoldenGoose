@@ -1465,7 +1465,12 @@ function readHash() {
     if (ventureId) setTimeout(() => openDetail(ventureId, true), 300);
   }
 }
-window.addEventListener('popstate', () => {
+window.addEventListener('popstate', (e) => {
+  // If reader overlay is open, close it and stop (back = close reader)
+  if (document.getElementById('readerOverlay').classList.contains('open')) {
+    closeReader();
+    return;
+  }
   const hash = location.hash.replace('#', '');
   if (!hash) { closeDetailPanel(true); closeSettings(); closeHelp(); switchTab('venture', true); return; }
   if (hash === 'settings') { closeDetailPanel(true); openSettings(); return; }
@@ -1716,15 +1721,20 @@ let _readerNewsItemId = null;
 let _readerAnnotations = [];
 let _pendingSelection = null;
 
-// Create annFloatBtn dynamically (HTML parser eats static <div> near iframe)
-(function() {
-  const btn = document.createElement('div');
-  btn.id = 'annFloatBtn';
-  btn.className = 'ann-float-btn';
-  btn.textContent = '+ Annotate';
-  btn.onclick = function() { showAnnotationCompose(); };
-  document.getElementById('readerOverlay').appendChild(btn);
-})();
+// Create annFloatBtn lazily on first use — appended to document.body
+// (appending to readerOverlay causes HTML parser to consume it near the iframe)
+function _getOrCreateAnnBtn() {
+  let btn = document.getElementById('annFloatBtn');
+  if (!btn) {
+    btn = document.createElement('div');
+    btn.id = 'annFloatBtn';
+    btn.className = 'ann-float-btn';
+    btn.textContent = '+ Annotate';
+    btn.addEventListener('click', function() { showAnnotationCompose(); });
+    document.body.appendChild(btn);
+  }
+  return btn;
+}
 
 function openReader(url, title, newsItemId) {
   _readerUrl = url;
@@ -1737,8 +1747,8 @@ function openReader(url, title, newsItemId) {
   document.getElementById('readerExtLink').href = url;
   document.getElementById('readerAnnCount').textContent = '...';
   document.getElementById('readerAnnList').innerHTML = '<div style="padding:20px;text-align:center;color:var(--text3);font-size:12px;">Loading...</div>';
-  const _afb = document.getElementById('annFloatBtn');
-  if (_afb) _afb.style.display = 'none';
+  const _afb = _getOrCreateAnnBtn();
+  _afb.style.display = 'none';
   const _ac = document.getElementById('annCompose');
   if (_ac) _ac.style.display = 'none';
 
@@ -1895,7 +1905,7 @@ window.addEventListener('message', function(e) {
     _pendingSelection = e.data;
     const iframe = document.getElementById('readerIframe');
     const iframeRect = iframe.getBoundingClientRect();
-    const btn = document.getElementById('annFloatBtn');
+    const btn = _getOrCreateAnnBtn();
     btn.style.display = 'block';
     btn.style.left = (iframeRect.left + e.data.rect.left + e.data.rect.width / 2 - 40) + 'px';
     btn.style.top = (iframeRect.top + e.data.rect.top - 36) + 'px';
@@ -1910,7 +1920,7 @@ window.addEventListener('message', function(e) {
 
 function showAnnotationCompose() {
   if (!_pendingSelection) return;
-  const btn = document.getElementById('annFloatBtn');
+  const btn = _getOrCreateAnnBtn();
   const compose = document.getElementById('annCompose');
   compose.style.display = 'block';
   compose.style.left = btn.style.left;
@@ -1923,7 +1933,7 @@ function showAnnotationCompose() {
 
 function hideAnnotationCompose() {
   document.getElementById('annCompose').style.display = 'none';
-  document.getElementById('annFloatBtn').style.display = 'none';
+  _getOrCreateAnnBtn().style.display = 'none';
   _pendingSelection = null;
 }
 
@@ -1956,20 +1966,13 @@ async function submitAnnotation() {
 
 // Hide float btn when clicking elsewhere
 document.addEventListener('mousedown', function(e) {
-  const btn = document.getElementById('annFloatBtn');
+  const btn = document.getElementById('annFloatBtn'); // don't create lazily here
   const compose = document.getElementById('annCompose');
   if (btn && !btn.contains(e.target) && compose && !compose.contains(e.target)) {
     btn.style.display = 'none';
     if (compose.style.display !== 'none' && !compose.contains(e.target)) {
       // Don't hide compose if clicking inside it
     }
-  }
-});
-
-// Close reader on browser back button
-window.addEventListener('popstate', function(e) {
-  if (document.getElementById('readerOverlay').classList.contains('open')) {
-    closeReader();
   }
 });
 

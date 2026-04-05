@@ -1016,6 +1016,80 @@ def list_news(
     return {"total": total, "items": results}
 
 
+@router.delete("/api/news/{news_id}")
+def delete_news_item(news_id: str, db: Session = Depends(get_db_dependency)):
+    """Delete a news feed item by ID (admin action)."""
+    item = db.query(NewsFeedItem).filter(NewsFeedItem.id == news_id).first()
+    if not item:
+        raise HTTPException(404, "News item not found.")
+    db.delete(item)
+    db.commit()
+    return {"ok": True, "deleted_id": news_id}
+
+
+@router.post("/api/news/{news_id}/resolve-url")
+def resolve_news_url(news_id: str, db: Session = Depends(get_db_dependency)):
+    """For HN items, resolve the original article URL via HN API."""
+    import httpx
+
+    item = db.query(NewsFeedItem).filter(NewsFeedItem.id == news_id).first()
+    if not item:
+        raise HTTPException(404, "News item not found.")
+    if not item.url or "news.ycombinator.com/item?id=" not in item.url:
+        return {"url": item.url, "resolved": False}
+
+    # Extract HN item ID
+    try:
+        hn_id = item.url.split("id=")[1].split("&")[0]
+    except (IndexError, AttributeError):
+        return {"url": item.url, "resolved": False}
+
+    try:
+        resp = httpx.get(f"https://hacker-news.firebaseio.com/v0/item/{hn_id}.json", timeout=5.0)
+        resp.raise_for_status()
+        hn_data = resp.json()
+        original_url = hn_data.get("url")
+        if original_url:
+            item.url = original_url
+            db.commit()
+            return {"url": original_url, "resolved": True}
+    except Exception as e:
+        logger.warning(f"Failed to resolve HN URL for item {news_id}: {e}")
+
+    return {"url": item.url, "resolved": False}
+
+
+@router.post("/api/news/resolve-all-hn")
+def resolve_all_hn_urls(db: Session = Depends(get_db_dependency)):
+    """Batch-resolve all HN discussion URLs to original article URLs."""
+    import httpx
+
+    items = db.query(NewsFeedItem).filter(
+        NewsFeedItem.url.like("%news.ycombinator.com/item?id=%")
+    ).all()
+
+    resolved_count = 0
+    for item in items:
+        try:
+            hn_id = item.url.split("id=")[1].split("&")[0]
+            resp = httpx.get(
+                f"https://hacker-news.firebaseio.com/v0/item/{hn_id}.json",
+                timeout=5.0,
+            )
+            resp.raise_for_status()
+            hn_data = resp.json()
+            original_url = hn_data.get("url")
+            if original_url and original_url != item.url:
+                item.url = original_url
+                resolved_count += 1
+        except Exception as e:
+            logger.warning(f"Failed to resolve HN URL for {item.id}: {e}")
+            continue
+
+    db.commit()
+    return {"total_hn_items": len(items), "resolved": resolved_count}
+
+
 # ─── Thought Leaders ─────────────────────────────────────────────
 
 @router.get("/api/thought-leaders")

@@ -486,6 +486,52 @@ html.dark .toggle-track::after { transform:translateX(16px); }
   .venture-title { font-size:13px !important; }
   .score-badge { width:28px !important; height:28px !important; font-size:11px !important; }
 }
+/* ─── Reader / Annotation Overlay ────────────────────────────────── */
+.reader-overlay { display:none; position:fixed; inset:0; z-index:600; background:var(--bg); flex-direction:column; }
+.reader-overlay.open { display:flex; }
+.reader-topbar { display:flex; align-items:center; gap:12px; padding:10px 16px; border-bottom:1px solid var(--border); background:var(--card); flex-shrink:0; min-height:48px; }
+.reader-topbar-title { flex:1; font-size:13px; font-weight:600; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.reader-topbar-url { font-size:11px; color:var(--text3); max-width:300px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.reader-topbar-close { width:32px; height:32px; border:none; background:none; color:var(--text2); font-size:20px; cursor:pointer; border-radius:8px; display:flex; align-items:center; justify-content:center; }
+.reader-topbar-close:hover { background:var(--bg2); color:var(--text); }
+.reader-body { display:flex; flex:1; overflow:hidden; }
+.reader-content { flex:1; position:relative; overflow:hidden; background:#fff; }
+.reader-content iframe { width:100%; height:100%; border:none; }
+.reader-sidebar { width:340px; flex-shrink:0; border-left:1px solid var(--border); background:var(--card); display:flex; flex-direction:column; overflow:hidden; }
+.reader-sidebar-header { padding:12px 16px; border-bottom:1px solid var(--border); font-size:13px; font-weight:700; color:var(--text); display:flex; align-items:center; justify-content:space-between; }
+.reader-sidebar-list { flex:1; overflow-y:auto; padding:8px; }
+.reader-ann-card { background:var(--bg); border:1px solid var(--border); border-radius:10px; padding:12px; margin-bottom:8px; cursor:pointer; transition:border-color 0.15s; }
+.reader-ann-card:hover { border-color:var(--accent); }
+.reader-ann-card.active { border-color:#f59e0b; box-shadow:0 0 0 2px rgba(245,158,11,0.2); }
+.reader-ann-quote { font-size:11px; color:var(--text2); font-style:italic; border-left:3px solid #f59e0b; padding-left:8px; margin-bottom:6px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+.reader-ann-body { font-size:13px; color:var(--text); line-height:1.5; margin-bottom:6px; }
+.reader-ann-meta { font-size:10px; color:var(--text3); display:flex; align-items:center; gap:6px; }
+.reader-ann-meta img { width:16px; height:16px; border-radius:4px; }
+.reader-ann-actions { display:flex; gap:8px; margin-top:6px; }
+.reader-ann-actions button { font-size:10px; padding:2px 8px; border-radius:var(--radius-pill); border:1px solid var(--border); background:var(--bg); color:var(--text2); cursor:pointer; font-family:inherit; }
+.reader-ann-actions button:hover { background:var(--bg2); color:var(--text); }
+.reader-replies { margin-top:8px; padding-left:12px; border-left:2px solid var(--border); }
+.reader-reply { margin-bottom:6px; }
+.reader-reply-body { font-size:12px; color:var(--text); line-height:1.4; }
+.reader-reply-meta { font-size:10px; color:var(--text3); display:flex; align-items:center; gap:4px; margin-top:2px; }
+.reader-reply-meta img { width:14px; height:14px; border-radius:3px; }
+.reader-reply-input { display:flex; gap:6px; margin-top:6px; }
+.reader-reply-input input { flex:1; padding:4px 10px; border-radius:var(--radius-pill); border:1px solid var(--border); font-size:11px; background:var(--bg); color:var(--text); }
+.reader-reply-input button { padding:4px 12px; border-radius:var(--radius-pill); border:none; background:var(--accent); color:white; font-size:11px; font-weight:600; cursor:pointer; }
+/* Annotation float button (appears on text select in iframe) */
+.ann-float-btn { position:absolute; z-index:10; padding:5px 14px; border-radius:var(--radius-pill); background:linear-gradient(135deg,#f59e0b,#d97706); color:#fff; font-size:11px; font-weight:700; border:none; cursor:pointer; box-shadow:0 2px 8px rgba(0,0,0,0.2); display:none; transition:transform 0.1s; }
+.ann-float-btn:hover { transform:scale(1.05); }
+/* Annotation compose popover */
+.ann-compose { position:absolute; z-index:11; width:280px; background:var(--card); border:1px solid var(--border); border-radius:12px; box-shadow:var(--shadow-lg); padding:12px; display:none; }
+.ann-compose textarea { width:100%; border:1px solid var(--border); border-radius:8px; padding:8px; font-size:12px; font-family:inherit; resize:vertical; min-height:60px; background:var(--bg); color:var(--text); }
+.ann-compose-actions { display:flex; justify-content:flex-end; gap:6px; margin-top:8px; }
+.ann-compose-actions button { padding:4px 14px; border-radius:var(--radius-pill); font-size:11px; font-weight:600; cursor:pointer; border:none; font-family:inherit; }
+.ann-compose-cancel { background:var(--bg2); color:var(--text2); }
+.ann-compose-submit { background:linear-gradient(135deg,#f59e0b,#d97706); color:#fff; }
+@media(max-width:768px) {
+  .reader-body { flex-direction:column; }
+  .reader-sidebar { width:100%; height:45%; border-left:none; border-top:1px solid var(--border); }
+}
 /* ─── Settings Panel ──────────────────────────────────────────────── */
 .settings-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:500; }
 .settings-overlay.open { display:block; }
@@ -797,6 +843,42 @@ html.dark .toggle-track::after { transform:translateX(16px); }
     <span class="save-status" id="settingsSaveStatus">Saved!</span>
     <button class="btn-reset" onclick="resetCurrentSection()">Reset Section</button>
     <button class="btn-save" onclick="saveSettings()">Save Changes</button>
+  </div>
+</div>
+
+<!-- Reader / Annotation Overlay -->
+<div class="reader-overlay" id="readerOverlay">
+  <div class="reader-topbar">
+    <button class="reader-topbar-close" onclick="closeReader()" title="Close">&times;</button>
+    <div style="flex:1;overflow:hidden;">
+      <div class="reader-topbar-title" id="readerTitle">Loading...</div>
+      <div class="reader-topbar-url" id="readerUrl"></div>
+    </div>
+    <span style="font-size:11px;color:var(--text3);padding:4px 10px;border-radius:var(--radius-pill);background:var(--bg2);white-space:nowrap;" id="readerAnnCount">0 annotations</span>
+    <a id="readerExtLink" href="#" target="_blank" rel="noopener" style="font-size:11px;color:#2563eb;text-decoration:none;white-space:nowrap;padding:4px 10px;border-radius:var(--radius-pill);border:1px solid rgba(37,99,235,0.2);">Open original</a>
+  </div>
+  <div class="reader-body">
+    <div class="reader-content" id="readerContent">
+      <iframe id="readerIframe" sandbox="allow-same-origin allow-scripts"></iframe>
+      <button class="ann-float-btn" id="annFloatBtn" onclick="showAnnotationCompose()">+ Annotate</button>
+      <div class="ann-compose" id="annCompose">
+        <div style="font-size:11px;color:var(--text2);margin-bottom:6px;font-style:italic;border-left:3px solid #f59e0b;padding-left:8px;" id="annComposeQuote"></div>
+        <textarea id="annComposeBody" placeholder="Write your annotation..."></textarea>
+        <div class="ann-compose-actions">
+          <button class="ann-compose-cancel" onclick="hideAnnotationCompose()">Cancel</button>
+          <button class="ann-compose-submit" onclick="submitAnnotation()">Post</button>
+        </div>
+      </div>
+    </div>
+    <div class="reader-sidebar">
+      <div class="reader-sidebar-header">
+        <span>Annotations</span>
+        <span style="font-size:10px;color:var(--text3);">Select text to annotate</span>
+      </div>
+      <div class="reader-sidebar-list" id="readerAnnList">
+        <div style="padding:20px;text-align:center;color:var(--text3);font-size:12px;">No annotations yet. Select text on the page to add one.</div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -1532,6 +1614,7 @@ function renderNewsFeed(items) {
           ${item.author ? '<span style="font-size:10px;color:var(--text2);">by '+esc(item.author)+'</span>' : ''}
           <span style="font-size:10px;color:var(--text3);">${ago}</span>
           ${item.url ? '<a href="'+esc(item.url)+'" target="_blank" rel="noopener" onclick="event.stopPropagation();" style="font-size:10px;color:#2563eb;text-decoration:none;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;vertical-align:middle;" title="'+esc(item.url)+'">'+esc(new URL(item.url).hostname)+'</a>' : ''}
+          ${item.url ? '<button onclick="event.stopPropagation();openReader(\''+esc(item.url).replace(/'/g,"\\'")+'\',\''+esc(item.title).replace(/'/g,"\\'")+'\',\''+item.id+'\');" style="font-size:10px;padding:2px 8px;border-radius:var(--radius-pill);background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);color:#d97706;font-weight:600;cursor:pointer;white-space:nowrap;">Read &amp; Annotate</button>' : ''}
           ${tags}
         </div>
         ${ventures ? '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:2px;">Inspired: '+ventures+'</div>' : ''}
@@ -1612,6 +1695,256 @@ async function postNewsUrl() {
 document.addEventListener('DOMContentLoaded', () => {
   const inp = document.getElementById('newsUrlInput');
   if (inp) inp.addEventListener('keydown', e => { if (e.key === 'Enter') postNewsUrl(); });
+});
+
+// ─── Reader / Annotation Overlay ─────────────────────────────────
+let _readerUrl = '';
+let _readerNewsItemId = null;
+let _readerAnnotations = [];
+let _pendingSelection = null;
+
+function openReader(url, title, newsItemId) {
+  _readerUrl = url;
+  _readerNewsItemId = newsItemId || null;
+  _readerAnnotations = [];
+  _pendingSelection = null;
+
+  document.getElementById('readerTitle').textContent = title || 'Loading...';
+  document.getElementById('readerUrl').textContent = url;
+  document.getElementById('readerExtLink').href = url;
+  document.getElementById('readerAnnCount').textContent = '...';
+  document.getElementById('readerAnnList').innerHTML = '<div style="padding:20px;text-align:center;color:var(--text3);font-size:12px;">Loading...</div>';
+  document.getElementById('annFloatBtn').style.display = 'none';
+  document.getElementById('annCompose').style.display = 'none';
+
+  const iframe = document.getElementById('readerIframe');
+  iframe.src = `${API}/api/proxy?url=${encodeURIComponent(url)}`;
+  iframe.onload = function() {
+    // After iframe loads, fetch annotations and highlight them
+    loadReaderAnnotations();
+  };
+
+  document.getElementById('readerOverlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeReader() {
+  document.getElementById('readerOverlay').classList.remove('open');
+  document.getElementById('readerIframe').src = 'about:blank';
+  document.body.style.overflow = '';
+  _readerUrl = '';
+  _readerAnnotations = [];
+  _pendingSelection = null;
+}
+
+async function loadReaderAnnotations() {
+  try {
+    const res = await fetch(`${API}/api/page-annotations?url=${encodeURIComponent(_readerUrl)}`);
+    const data = await res.json();
+    _readerAnnotations = data.annotations || [];
+  } catch(e) {
+    _readerAnnotations = [];
+  }
+  renderReaderAnnotations();
+  highlightAnnotationsInIframe();
+}
+
+function highlightAnnotationsInIframe() {
+  const iframe = document.getElementById('readerIframe');
+  try {
+    iframe.contentWindow.postMessage({
+      type: 'ann-highlight',
+      annotations: _readerAnnotations.map(a => ({
+        id: a.id,
+        selected_text: a.selected_text,
+        prefix_context: a.prefix_context,
+        suffix_context: a.suffix_context,
+        text_node_index: a.text_node_index,
+        body: a.body,
+      }))
+    }, '*');
+  } catch(e) { /* cross-origin fallback */ }
+}
+
+function renderReaderAnnotations() {
+  const el = document.getElementById('readerAnnList');
+  document.getElementById('readerAnnCount').textContent = _readerAnnotations.length + ' annotation' + (_readerAnnotations.length !== 1 ? 's' : '');
+
+  if (!_readerAnnotations.length) {
+    el.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text3);font-size:12px;">No annotations yet. Select text on the page to add one.</div>';
+    return;
+  }
+
+  el.innerHTML = _readerAnnotations.map(ann => {
+    const avatar = `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(ann.author_name||ann.author_id)}&backgroundColor=b6e3f4`;
+    const replies = (ann.replies||[]).map(r => {
+      const rAvatar = `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(r.author_name||r.author_id)}&backgroundColor=b6e3f4`;
+      return `<div class="reader-reply">
+        <div class="reader-reply-body">${esc(r.body)}</div>
+        <div class="reader-reply-meta">
+          <img src="${rAvatar}" alt="">
+          <span>${esc(r.author_name||'Anon')}</span>
+          <span>${timeAgo(r.created_at)}</span>
+          ${r.author_id === anonId ? '<button onclick="event.stopPropagation();deleteReply(\''+r.id+'\')" style="font-size:9px;color:#ef4444;background:none;border:none;cursor:pointer;">delete</button>' : ''}
+        </div>
+      </div>`;
+    }).join('');
+
+    return `<div class="reader-ann-card" data-ann-id="${ann.id}" onclick="scrollToAnnotation('${ann.id}')">
+      <div class="reader-ann-quote">"${esc(ann.selected_text.slice(0, 120))}${ann.selected_text.length > 120 ? '...' : ''}"</div>
+      <div class="reader-ann-body">${esc(ann.body)}</div>
+      <div class="reader-ann-meta">
+        <img src="${avatar}" alt="">
+        <span style="font-weight:600;">${esc(ann.author_name||'Anon')}</span>
+        <span>${timeAgo(ann.created_at)}</span>
+      </div>
+      <div class="reader-ann-actions">
+        <button onclick="event.stopPropagation();toggleReplyForm('${ann.id}')">Reply</button>
+        ${ann.author_id === anonId ? '<button onclick="event.stopPropagation();deleteAnnotation(\''+ann.id+'\')" style="color:#ef4444;">Delete</button>' : ''}
+      </div>
+      ${replies ? '<div class="reader-replies">' + replies + '</div>' : ''}
+      <div class="reader-reply-input" id="replyForm_${ann.id}" style="display:none;">
+        <input type="text" placeholder="Write a reply..." id="replyInput_${ann.id}" onkeydown="if(event.key==='Enter')submitReply('${ann.id}')">
+        <button onclick="submitReply('${ann.id}')">Reply</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function scrollToAnnotation(annId) {
+  // Highlight card in sidebar
+  document.querySelectorAll('.reader-ann-card').forEach(c => c.classList.toggle('active', c.dataset.annId === annId));
+  // Scroll iframe to annotation
+  const iframe = document.getElementById('readerIframe');
+  try {
+    iframe.contentWindow.postMessage({ type: 'ann-scroll-to', annId: annId }, '*');
+  } catch(e) {}
+}
+
+function toggleReplyForm(annId) {
+  const form = document.getElementById('replyForm_' + annId);
+  form.style.display = form.style.display === 'none' ? 'flex' : 'none';
+  if (form.style.display === 'flex') {
+    document.getElementById('replyInput_' + annId).focus();
+  }
+}
+
+async function submitReply(annId) {
+  const input = document.getElementById('replyInput_' + annId);
+  const body = input.value.trim();
+  if (!body) return;
+  try {
+    await fetch(`${API}/api/page-annotations/${annId}/replies`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ body, author_id: anonId, author_name: anonName }),
+    });
+    input.value = '';
+    loadReaderAnnotations();
+  } catch(e) { alert('Failed to reply: ' + e.message); }
+}
+
+async function deleteAnnotation(annId) {
+  if (!confirm('Delete this annotation?')) return;
+  try {
+    await fetch(`${API}/api/page-annotations/${annId}?author_id=${encodeURIComponent(anonId)}`, { method: 'DELETE' });
+    loadReaderAnnotations();
+  } catch(e) { alert('Failed to delete: ' + e.message); }
+}
+
+async function deleteReply(replyId) {
+  if (!confirm('Delete this reply?')) return;
+  try {
+    await fetch(`${API}/api/page-annotations/replies/${replyId}?author_id=${encodeURIComponent(anonId)}`, { method: 'DELETE' });
+    loadReaderAnnotations();
+  } catch(e) { alert('Failed to delete: ' + e.message); }
+}
+
+// ── Text selection handler from iframe ──
+window.addEventListener('message', function(e) {
+  if (!e.data || !e.data.type) return;
+
+  if (e.data.type === 'ann-text-selected') {
+    _pendingSelection = e.data;
+    const iframe = document.getElementById('readerIframe');
+    const iframeRect = iframe.getBoundingClientRect();
+    const btn = document.getElementById('annFloatBtn');
+    btn.style.display = 'block';
+    btn.style.left = (iframeRect.left + e.data.rect.left + e.data.rect.width / 2 - 40) + 'px';
+    btn.style.top = (iframeRect.top + e.data.rect.top - 36) + 'px';
+  }
+
+  if (e.data.type === 'ann-clicked') {
+    scrollToAnnotation(e.data.annId);
+    const card = document.querySelector(`.reader-ann-card[data-ann-id="${e.data.annId}"]`);
+    if (card) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+});
+
+function showAnnotationCompose() {
+  if (!_pendingSelection) return;
+  const btn = document.getElementById('annFloatBtn');
+  const compose = document.getElementById('annCompose');
+  compose.style.display = 'block';
+  compose.style.left = btn.style.left;
+  compose.style.top = (parseInt(btn.style.top) + 32) + 'px';
+  document.getElementById('annComposeQuote').textContent = '"' + _pendingSelection.selectedText.slice(0, 100) + (_pendingSelection.selectedText.length > 100 ? '...' : '') + '"';
+  document.getElementById('annComposeBody').value = '';
+  document.getElementById('annComposeBody').focus();
+  btn.style.display = 'none';
+}
+
+function hideAnnotationCompose() {
+  document.getElementById('annCompose').style.display = 'none';
+  document.getElementById('annFloatBtn').style.display = 'none';
+  _pendingSelection = null;
+}
+
+async function submitAnnotation() {
+  if (!_pendingSelection) return;
+  const body = document.getElementById('annComposeBody').value.trim();
+  if (!body) { alert('Please write a comment.'); return; }
+
+  try {
+    await fetch(`${API}/api/page-annotations`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        url: _readerUrl,
+        news_item_id: _readerNewsItemId,
+        selected_text: _pendingSelection.selectedText,
+        prefix_context: _pendingSelection.prefix,
+        suffix_context: _pendingSelection.suffix,
+        text_node_index: _pendingSelection.textNodeIndex,
+        body: body,
+        author_id: anonId,
+        author_name: anonName,
+      }),
+    });
+    hideAnnotationCompose();
+    loadReaderAnnotations();
+  } catch(e) { alert('Failed to save: ' + e.message); }
+}
+
+// Hide float btn when clicking elsewhere
+document.addEventListener('mousedown', function(e) {
+  const btn = document.getElementById('annFloatBtn');
+  const compose = document.getElementById('annCompose');
+  if (btn && !btn.contains(e.target) && compose && !compose.contains(e.target)) {
+    btn.style.display = 'none';
+    if (compose.style.display !== 'none' && !compose.contains(e.target)) {
+      // Don't hide compose if clicking inside it
+    }
+  }
+});
+
+// Close reader on Escape
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape' && document.getElementById('readerOverlay').classList.contains('open')) {
+    const compose = document.getElementById('annCompose');
+    if (compose.style.display !== 'none') { hideAnnotationCompose(); }
+    else { closeReader(); }
+  }
 });
 
 async function openDetail(id, skipHash) {

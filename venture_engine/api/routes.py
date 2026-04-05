@@ -16,7 +16,7 @@ from typing import List
 from venture_engine.db.models import (
     Venture, VentureScore, Vote, Comment, ThoughtLeader,
     TLSignal, HarvestRun, TechGap, Annotation, OfficeHoursReview,
-    NewsFeedItem,
+    NewsFeedItem, PageAnnotation, PageAnnotationReply,
 )
 
 router = APIRouter()
@@ -1105,6 +1105,295 @@ def resolve_all_hn_urls(db: Session = Depends(get_db_dependency)):
 
     db.commit()
     return {"total_hn_items": len(items), "resolved": resolved_count}
+
+
+# ─── Page Proxy & Annotations ────────────────────────────────────
+
+ANNOTATION_IFRAME_SCRIPT = """
+<script>
+(function(){
+  // ── Text selection → notify parent ──
+  document.addEventListener('mouseup', function(e){
+    var sel = window.getSelection();
+    if (!sel || sel.isCollapsed || !sel.toString().trim()) return;
+    var text = sel.toString().trim();
+    if (text.length < 2 || text.length > 5000) return;
+    var range = sel.getRangeAt(0);
+    var full = document.body.innerText;
+    var idx = full.indexOf(text);
+    var prefix = idx > 0 ? full.slice(Math.max(0, idx - 60), idx) : '';
+    var suffix = full.slice(idx + text.length, idx + text.length + 60);
+    var tni = 0, si = 0;
+    while (si >= 0 && si < idx) { si = full.indexOf(text, si); if (si >= 0 && si < idx) { tni++; si++; } else break; }
+    var rect = range.getBoundingClientRect();
+    window.parent.postMessage({type:'ann-text-selected', selectedText:text, prefix:prefix, suffix:suffix,
+      textNodeIndex:tni, rect:{top:rect.top,left:rect.left,bottom:rect.bottom,right:rect.right,width:rect.width}}, '*');
+  });
+
+  // ── Highlight existing annotations ──
+  window.addEventListener('message', function(e){
+    if (e.data && e.data.type === 'ann-highlight') {
+      var anns = e.data.annotations || [];
+      var full = document.body.innerText;
+      anns.forEach(function(a){
+        try {
+          var searchStr = a.selected_text;
+          var idx = -1, count = 0;
+          var startSearch = 0;
+          while (true) {
+            var found = full.indexOf(searchStr, startSearch);
+            if (found < 0) break;
+            if (count === (a.text_node_index||0)) { idx = found; break; }
+            count++; startSearch = found + 1;
+          }
+          if (idx < 0 && a.prefix_context) {
+            var ctxSearch = a.prefix_context + searchStr;
+            var ci = full.indexOf(ctxSearch);
+            if (ci >= 0) idx = ci + a.prefix_context.length;
+          }
+          if (idx < 0) return;
+          // Walk text nodes to find and wrap the range
+          var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false);
+          var charCount = 0, startNode = null, startOff = 0, endNode = null, endOff = 0;
+          while (walker.nextNode()) {
+            var node = walker.currentNode;
+            var len = node.textContent.length;
+            if (!startNode && charCount + len > idx) {
+              startNode = node; startOff = idx - charCount;
+            }
+            if (startNode && charCount + len >= idx + searchStr.length) {
+              endNode = node; endOff = idx + searchStr.length - charCount; break;
+            }
+            charCount += len;
+          }
+          if (startNode && endNode) {
+            var r = document.createRange();
+            r.setStart(startNode, startOff);
+            r.setEnd(endNode, endOff);
+            var mark = document.createElement('mark');
+            mark.className = 'page-ann-hl';
+            mark.dataset.annId = a.id;
+            mark.style.cssText = 'background:rgba(255,213,79,0.4);border-bottom:2px solid #f59e0b;cursor:pointer;border-radius:2px;padding:0 1px;';
+            mark.title = a.body.slice(0,80);
+            mark.addEventListener('click', function(ev){
+              ev.stopPropagation();
+              window.parent.postMessage({type:'ann-clicked', annId:a.id}, '*');
+            });
+            r.surroundContents(mark);
+          }
+        } catch(ex) { /* anchoring failed for this annotation */ }
+      });
+    }
+    if (e.data && e.data.type === 'ann-scroll-to') {
+      var el = document.querySelector('mark[data-ann-id="'+e.data.annId+'"]');
+      if (el) { el.scrollIntoView({behavior:'smooth',block:'center'}); el.style.background='rgba(245,158,11,0.7)';
+        setTimeout(function(){el.style.background='rgba(255,213,79,0.4)';},1500); }
+    }
+  });
+})();
+</script>
+"""
+
+
+@router.get("/api/proxy")
+def proxy_page(url: str = Query(...)):
+    """Fetch external page, sanitize it, inject annotation script, return as HTML."""
+    import httpx
+    from bs4 import BeautifulSoup
+    from urllib.parse import urljoin, urlparse
+    from starlette.responses import HTMLResponse
+
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        raise HTTPException(400, "Only http/https URLs are supported.")
+    hostname = parsed.hostname or ""
+    if hostname in ("localhost", "127.0.0.1", "0.0.0.0") or hostname.startswith("192.168.") or hostname.startswith("10."):
+        raise HTTPException(400, "Private URLs are not allowed.")
+
+    try:
+        resp = httpx.get(url, timeout=15.0, follow_redirects=True, headers={
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        })
+        resp.raise_for_status()
+    except Exception as e:
+        raise HTTPException(502, f"Could not fetch URL: {str(e)[:200]}")
+
+    content_type = resp.headers.get("content-type", "")
+    if "text/html" not in content_type and "application/xhtml" not in content_type:
+        raise HTTPException(400, f"URL returned non-HTML content: {content_type}")
+
+    soup = BeautifulSoup(resp.text, "html.parser")
+
+    # Remove scripts and dangerous elements
+    for tag in soup.find_all(["script", "iframe", "object", "embed", "applet"]):
+        tag.decompose()
+    # Remove on* event attributes
+    for tag in soup.find_all(True):
+        attrs_to_remove = [a for a in tag.attrs if a.lower().startswith("on")]
+        for a in attrs_to_remove:
+            del tag[a]
+
+    # Rewrite relative URLs to absolute
+    base_url = str(resp.url)  # final URL after redirects
+    for tag in soup.find_all(True):
+        for attr in ["src", "href", "action", "poster", "data"]:
+            val = tag.get(attr)
+            if val and not val.startswith(("http://", "https://", "data:", "mailto:", "#", "javascript:")):
+                tag[attr] = urljoin(base_url, val)
+        # Handle srcset
+        srcset = tag.get("srcset")
+        if srcset:
+            parts = []
+            for part in srcset.split(","):
+                part = part.strip()
+                if part:
+                    tokens = part.split()
+                    if tokens and not tokens[0].startswith(("http://", "https://", "data:")):
+                        tokens[0] = urljoin(base_url, tokens[0])
+                    parts.append(" ".join(tokens))
+            tag["srcset"] = ", ".join(parts)
+
+    # Neuter forms
+    for form in soup.find_all("form"):
+        form["action"] = ""
+        form["onsubmit"] = "return false;"
+
+    # Add base tag
+    if soup.head:
+        base_tag = soup.new_tag("base", href=base_url)
+        soup.head.insert(0, base_tag)
+        # Add annotation highlight style
+        style_tag = soup.new_tag("style")
+        style_tag.string = "::selection { background: rgba(37,99,235,0.25) !important; } .page-ann-hl:hover { background: rgba(245,158,11,0.6) !important; }"
+        soup.head.append(style_tag)
+
+    # Inject annotation script at end of body
+    if soup.body:
+        from bs4 import BeautifulSoup as BS
+        script_soup = BS(ANNOTATION_IFRAME_SCRIPT, "html.parser")
+        soup.body.append(script_soup)
+
+    html = str(soup)
+    return HTMLResponse(
+        content=html,
+        headers={
+            "Content-Security-Policy": "script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline' *; img-src * data:; font-src * data:; media-src *;",
+            "X-Frame-Options": "SAMEORIGIN",
+        },
+    )
+
+
+class PageAnnotationRequest(BaseModel):
+    url: str
+    news_item_id: Optional[str] = None
+    selected_text: str
+    prefix_context: Optional[str] = None
+    suffix_context: Optional[str] = None
+    text_node_index: int = 0
+    body: str
+    author_id: str
+    author_name: str = ""
+
+
+class PageAnnotationReplyRequest(BaseModel):
+    body: str
+    author_id: str
+    author_name: str = ""
+
+
+def _serialize_annotation(ann: PageAnnotation) -> dict:
+    return {
+        "id": ann.id,
+        "url": ann.url,
+        "news_item_id": ann.news_item_id,
+        "selected_text": ann.selected_text,
+        "prefix_context": ann.prefix_context,
+        "suffix_context": ann.suffix_context,
+        "text_node_index": ann.text_node_index,
+        "body": ann.body,
+        "author_id": ann.author_id,
+        "author_name": ann.author_name,
+        "created_at": ann.created_at.isoformat() if ann.created_at else None,
+        "replies": [{
+            "id": r.id,
+            "body": r.body,
+            "author_id": r.author_id,
+            "author_name": r.author_name,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+        } for r in (ann.replies or [])],
+    }
+
+
+@router.get("/api/page-annotations")
+def list_page_annotations(url: str = Query(...), db: Session = Depends(get_db_dependency)):
+    """Get all annotations for a given URL."""
+    anns = db.query(PageAnnotation).filter(PageAnnotation.url == url).order_by(PageAnnotation.created_at).all()
+    return {"annotations": [_serialize_annotation(a) for a in anns]}
+
+
+@router.post("/api/page-annotations")
+def create_page_annotation(req: PageAnnotationRequest, db: Session = Depends(get_db_dependency)):
+    """Create a new page annotation."""
+    ann = PageAnnotation(
+        url=req.url,
+        news_item_id=req.news_item_id,
+        selected_text=req.selected_text,
+        prefix_context=req.prefix_context,
+        suffix_context=req.suffix_context,
+        text_node_index=req.text_node_index,
+        body=req.body,
+        author_id=req.author_id,
+        author_name=req.author_name,
+    )
+    db.add(ann)
+    db.commit()
+    db.refresh(ann)
+    return _serialize_annotation(ann)
+
+
+@router.delete("/api/page-annotations/{ann_id}")
+def delete_page_annotation(ann_id: str, author_id: str = Query(...), db: Session = Depends(get_db_dependency)):
+    """Delete a page annotation (only by its author)."""
+    ann = db.query(PageAnnotation).filter(PageAnnotation.id == ann_id).first()
+    if not ann:
+        raise HTTPException(404, "Annotation not found.")
+    if ann.author_id != author_id:
+        raise HTTPException(403, "You can only delete your own annotations.")
+    db.delete(ann)
+    db.commit()
+    return {"ok": True}
+
+
+@router.post("/api/page-annotations/{ann_id}/replies")
+def create_annotation_reply(ann_id: str, req: PageAnnotationReplyRequest, db: Session = Depends(get_db_dependency)):
+    """Add a threaded reply to an annotation."""
+    ann = db.query(PageAnnotation).filter(PageAnnotation.id == ann_id).first()
+    if not ann:
+        raise HTTPException(404, "Annotation not found.")
+    reply = PageAnnotationReply(
+        annotation_id=ann_id,
+        body=req.body,
+        author_id=req.author_id,
+        author_name=req.author_name,
+    )
+    db.add(reply)
+    db.commit()
+    db.refresh(ann)
+    return _serialize_annotation(ann)
+
+
+@router.delete("/api/page-annotations/replies/{reply_id}")
+def delete_annotation_reply(reply_id: str, author_id: str = Query(...), db: Session = Depends(get_db_dependency)):
+    """Delete a reply (only by its author)."""
+    reply = db.query(PageAnnotationReply).filter(PageAnnotationReply.id == reply_id).first()
+    if not reply:
+        raise HTTPException(404, "Reply not found.")
+    if reply.author_id != author_id:
+        raise HTTPException(403, "You can only delete your own replies.")
+    db.delete(reply)
+    db.commit()
+    return {"ok": True}
 
 
 # ─── Thought Leaders ─────────────────────────────────────────────

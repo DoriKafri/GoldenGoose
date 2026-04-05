@@ -280,6 +280,41 @@ class NewsFeedItem(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class PageAnnotation(Base):
+    __tablename__ = "page_annotations"
+
+    id = Column(String, primary_key=True, default=new_uuid)
+    url = Column(Text, nullable=False, index=True)
+    news_item_id = Column(String, ForeignKey("news_feed.id"), nullable=True)
+
+    # Text-based anchor (survives page re-fetches better than XPath)
+    selected_text = Column(Text, nullable=False)
+    prefix_context = Column(Text, nullable=True)     # ~40 chars before selection
+    suffix_context = Column(Text, nullable=True)     # ~40 chars after selection
+    text_node_index = Column(Integer, default=0)     # Nth occurrence for disambiguation
+
+    body = Column(Text, nullable=False)
+    author_id = Column(Text, nullable=False)
+    author_name = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    replies = relationship("PageAnnotationReply", back_populates="annotation",
+                          order_by="PageAnnotationReply.created_at", cascade="all, delete-orphan")
+
+
+class PageAnnotationReply(Base):
+    __tablename__ = "page_annotation_replies"
+
+    id = Column(String, primary_key=True, default=new_uuid)
+    annotation_id = Column(String, ForeignKey("page_annotations.id"), nullable=False)
+    body = Column(Text, nullable=False)
+    author_id = Column(Text, nullable=False)
+    author_name = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    annotation = relationship("PageAnnotation", back_populates="replies")
+
+
 class PlatformUser(Base):
     __tablename__ = "platform_users"
 

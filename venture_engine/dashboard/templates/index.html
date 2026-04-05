@@ -1751,6 +1751,8 @@ function openReader(url, title, newsItemId) {
 
   document.getElementById('readerOverlay').classList.add('open');
   document.body.style.overflow = 'hidden';
+  // Push history state so browser back button closes the reader
+  history.pushState({reader: true}, '', location.href);
 }
 
 function closeReader() {
@@ -1961,6 +1963,13 @@ document.addEventListener('mousedown', function(e) {
     if (compose.style.display !== 'none' && !compose.contains(e.target)) {
       // Don't hide compose if clicking inside it
     }
+  }
+});
+
+// Close reader on browser back button
+window.addEventListener('popstate', function(e) {
+  if (document.getElementById('readerOverlay').classList.contains('open')) {
+    closeReader();
   }
 });
 

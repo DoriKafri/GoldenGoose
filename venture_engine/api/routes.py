@@ -1118,24 +1118,29 @@ ANNOTATION_IFRAME_SCRIPT = """
 <script>
 (function(){
   // ── Text selection → notify parent ──
-  document.addEventListener('mouseup', function(e){
-    // Delay slightly — in sandboxed iframes, selection may not be ready on mouseup
-    setTimeout(function(){
-      var sel = window.getSelection();
-      if (!sel || sel.isCollapsed || !sel.toString().trim()) return;
-      var text = sel.toString().trim();
-      if (text.length < 2 || text.length > 5000) return;
-      var range = sel.getRangeAt(0);
-      var full = document.body.innerText;
-      var idx = full.indexOf(text);
-      var prefix = idx > 0 ? full.slice(Math.max(0, idx - 60), idx) : '';
-      var suffix = full.slice(idx + text.length, idx + text.length + 60);
-      var tni = 0, si = 0;
-      while (si >= 0 && si < idx) { si = full.indexOf(text, si); if (si >= 0 && si < idx) { tni++; si++; } else break; }
-      var rect = range.getBoundingClientRect();
-      window.parent.postMessage({type:'ann-text-selected', selectedText:text, prefix:prefix, suffix:suffix,
-        textNodeIndex:tni, rect:{top:rect.top,left:rect.left,bottom:rect.bottom,right:rect.right,width:rect.width}}, '*');
-    }, 10);
+  function _notifySelection(){
+    var sel = window.getSelection();
+    if (!sel || sel.isCollapsed || !sel.toString().trim()) return;
+    var text = sel.toString().trim();
+    if (text.length < 2 || text.length > 5000) return;
+    try { var range = sel.getRangeAt(0); } catch(e){ return; }
+    var full = document.body.innerText;
+    var idx = full.indexOf(text);
+    var prefix = idx > 0 ? full.slice(Math.max(0, idx - 60), idx) : '';
+    var suffix = full.slice(idx + text.length, idx + text.length + 60);
+    var tni = 0, si = 0;
+    while (si >= 0 && si < idx) { si = full.indexOf(text, si); if (si >= 0 && si < idx) { tni++; si++; } else break; }
+    var rect = range.getBoundingClientRect();
+    window.parent.postMessage({type:'ann-text-selected', selectedText:text, prefix:prefix, suffix:suffix,
+      textNodeIndex:tni, rect:{top:rect.top,left:rect.left,bottom:rect.bottom,right:rect.right,width:rect.width}}, '*');
+  }
+  // mouseup with delay (selection may not be ready immediately in sandboxed iframes)
+  document.addEventListener('mouseup', function(){ setTimeout(_notifySelection, 50); });
+  // selectionchange as backup (fires when selection is finalized)
+  var _selTimer = null;
+  document.addEventListener('selectionchange', function(){
+    clearTimeout(_selTimer);
+    _selTimer = setTimeout(_notifySelection, 200);
   });
 
   // ── Highlight existing annotations ──

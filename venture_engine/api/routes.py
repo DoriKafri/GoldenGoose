@@ -997,6 +997,11 @@ def list_news(
                         "logo_url": v.logo_url,
                     })
 
+        # Annotation count for this URL
+        ann_count = 0
+        if item.url:
+            ann_count = db.query(PageAnnotation).filter(PageAnnotation.url == item.url).count()
+
         results.append({
             "id": item.id,
             "title": item.title,
@@ -1009,6 +1014,7 @@ def list_news(
             "tags": item.tags or [],
             "signal_strength": item.signal_strength,
             "linked_ventures": linked_ventures,
+            "annotation_count": ann_count,
             "published_at": item.published_at.isoformat() if item.published_at else None,
             "created_at": item.created_at.isoformat() if item.created_at else None,
         })

@@ -1603,18 +1603,18 @@ function renderNewsFeed(items) {
     }).join(' ');
     const ago = timeAgo(item.published_at || item.created_at);
     return `
-    <div class="venture-row" style="cursor:${item.url?'pointer':'default'}; position:relative;">
+    <div class="venture-row" style="cursor:${item.url?'pointer':'default'}; position:relative;" ${item.url ? 'onclick="openReader(\''+esc(item.url).replace(/'/g,"\\'")+'\',\''+esc(item.title).replace(/'/g,"\\'")+'\',\''+item.id+'\')"' : ''}>
       ${strength}
       <div style="font-size:22px;flex-shrink:0;width:36px;text-align:center;">${icon}</div>
       <div class="venture-info" style="gap:4px;">
-        <div class="venture-title"><strong><a href="${esc(item.url||'#')}" target="_blank" rel="noopener" onclick="event.stopPropagation();" style="color:inherit;text-decoration:none;">${esc(item.title)}</a></strong></div>
+        <div class="venture-title"><strong>${esc(item.title)}</strong></div>
         <div class="venture-summary" style="font-size:12px;color:var(--text2);">${esc(item.summary||'')}</div>
         <div class="venture-meta" style="flex-wrap:wrap;gap:4px;">
           <span style="font-size:10px;padding:2px 8px;border-radius:var(--radius-pill);background:rgba(245,158,11,0.1);color:#d97706;font-weight:600;">${esc(item.source_name||item.source||'Signal')}</span>
           ${item.author ? '<span style="font-size:10px;color:var(--text2);">by '+esc(item.author)+'</span>' : ''}
           <span style="font-size:10px;color:var(--text3);">${ago}</span>
-          ${item.url ? '<a href="'+esc(item.url)+'" target="_blank" rel="noopener" onclick="event.stopPropagation();" style="font-size:10px;color:#2563eb;text-decoration:none;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;vertical-align:middle;" title="'+esc(item.url)+'">'+esc(new URL(item.url).hostname)+'</a>' : ''}
-          ${item.url ? '<button onclick="event.stopPropagation();openReader(\''+esc(item.url).replace(/'/g,"\\'")+'\',\''+esc(item.title).replace(/'/g,"\\'")+'\',\''+item.id+'\');" style="font-size:10px;padding:2px 8px;border-radius:var(--radius-pill);background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);color:#d97706;font-weight:600;cursor:pointer;white-space:nowrap;">Read &amp; Annotate</button>' : ''}
+          ${item.url ? '<span onclick="event.stopPropagation();" style="display:inline-flex;align-items:center;gap:4px;"><a href="'+esc(item.url)+'" target="_blank" rel="noopener" style="font-size:10px;color:#2563eb;text-decoration:none;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;vertical-align:middle;" title="Open in new tab">'+esc(new URL(item.url).hostname)+' ↗</a></span>' : ''}
+          ${(item.annotation_count||0) > 0 ? '<span style="font-size:10px;padding:2px 8px;border-radius:var(--radius-pill);background:rgba(245,158,11,0.1);color:#d97706;font-weight:600;">💬 '+item.annotation_count+'</span>' : ''}
           ${tags}
         </div>
         ${ventures ? '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:2px;">Inspired: '+ventures+'</div>' : ''}

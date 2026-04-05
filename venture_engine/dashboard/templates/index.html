@@ -1458,6 +1458,13 @@ function readHash() {
   if (hash === 'help') { openHelp(); return; }
   const parts = hash.split('/');
   const tab = parts[0];
+  // Handle reader permalink: #news/read/<encoded-url>
+  if (tab === 'news' && parts[1] === 'read' && parts.length >= 3) {
+    const articleUrl = decodeURIComponent(parts.slice(2).join('/'));
+    switchTab('news', true);
+    setTimeout(() => openReader(articleUrl, '', ''), 500);
+    return;
+  }
   const ventureId = parts[1];
   const validTabs = ['news','venture','stealth','flip','customer','missing_piece','training'];
   if (validTabs.includes(tab)) {
@@ -1477,6 +1484,15 @@ window.addEventListener('popstate', (e) => {
   if (hash === 'help') { closeDetailPanel(true); openHelp(); return; }
   const parts = hash.split('/');
   const tab = parts[0];
+  // Handle reader permalink: #news/read/<encoded-url>
+  if (tab === 'news' && parts[1] === 'read' && parts.length >= 3) {
+    const articleUrl = decodeURIComponent(parts.slice(2).join('/'));
+    if (!document.getElementById('readerOverlay').classList.contains('open')) {
+      switchTab('news', true);
+      setTimeout(() => openReader(articleUrl, '', ''), 300);
+    }
+    return;
+  }
   const ventureId = parts[1];
   const validTabs = ['news','venture','stealth','flip','customer','missing_piece','training'];
   if (validTabs.includes(tab) && tab !== currentTab) switchTab(tab, true);
@@ -1906,8 +1922,8 @@ function openReader(url, title, newsItemId) {
 
   document.getElementById('readerOverlay').classList.add('open');
   document.body.style.overflow = 'hidden';
-  // Push history state so browser back button closes the reader
-  history.pushState({reader: true}, '', location.href);
+  // Push history state with permanent URL so reader links are shareable
+  history.pushState({reader: true, url: url, title: title, newsItemId: newsItemId}, '', '#news/read/' + encodeURIComponent(url));
 }
 
 function closeReader(fromPopstate) {
@@ -1992,21 +2008,39 @@ function _directHighlight(doc, annotations) {
         charCount += len;
       }
       if (startNode && endNode) {
-        var r = doc.createRange();
-        r.setStart(startNode, startOff);
-        r.setEnd(endNode, endOff);
-        var mark = doc.createElement('mark');
-        mark.className = 'page-ann-hl';
-        mark.dataset.annId = a.id;
-        mark.style.cssText = 'background:rgba(255,213,79,0.4);border-bottom:2px solid #f59e0b;cursor:pointer;border-radius:2px;padding:0 1px;';
-        mark.title = (a.body || '').slice(0, 80);
-        mark.addEventListener('click', function(ev) {
-          ev.stopPropagation();
-          scrollToAnnotation(a.id);
-          var card = document.querySelector('.reader-ann-card[data-ann-id="' + a.id + '"]');
-          if (card) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        // Collect all text nodes in the range
+        var textNodes = [];
+        var w2 = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT, null, false);
+        var inRange = false;
+        while (w2.nextNode()) {
+          if (w2.currentNode === startNode) inRange = true;
+          if (inRange) textNodes.push(w2.currentNode);
+          if (w2.currentNode === endNode) break;
+        }
+        // Wrap each text node (or portion) in a mark
+        var hlStyle = 'background:rgba(255,213,79,0.4);border-bottom:2px solid #f59e0b;cursor:pointer;border-radius:2px;padding:0 1px;';
+        var annId = a.id;
+        var annBody = (a.body || '').slice(0, 80);
+        textNodes.forEach(function(tn) {
+          var s = (tn === startNode) ? startOff : 0;
+          var e = (tn === endNode) ? endOff : tn.textContent.length;
+          if (s >= e) return;
+          var r = doc.createRange();
+          r.setStart(tn, s);
+          r.setEnd(tn, e);
+          var mark = doc.createElement('mark');
+          mark.className = 'page-ann-hl';
+          mark.dataset.annId = annId;
+          mark.style.cssText = hlStyle;
+          mark.title = annBody;
+          mark.addEventListener('click', function(ev) {
+            ev.stopPropagation();
+            scrollToAnnotation(annId);
+            var card = document.querySelector('.reader-ann-card[data-ann-id="' + annId + '"]');
+            if (card) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          });
+          r.surroundContents(mark);
         });
-        r.surroundContents(mark);
       }
     } catch(ex) { /* anchoring failed */ }
   });

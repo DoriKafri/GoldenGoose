@@ -130,4 +130,75 @@ def run_all_sources(db: Session) -> HarvestRun:
     run.completed_at = datetime.utcnow()
     logger.info(f"Stored {new_count} new raw signals, {news_count} new news items")
 
+    # Flush to persist news items before venture generation
+    db.flush()
+
+    # Auto-generate ventures from high-signal news items
+    _auto_generate_ventures(db)
+
     return run
+
+
+def _auto_generate_ventures(db: Session, max_items: int = 10):
+    """Pick top unprocessed news items and generate venture ideas from them."""
+    from sqlalchemy import and_
+
+    # Find news items that don't have ventures yet (venture_ids is NULL),
+    # ordered by signal strength. Items with venture_ids=[] were already
+    # processed but failed, so skip them too.
+    unprocessed = (
+        db.query(NewsFeedItem)
+        .filter(
+            and_(
+                NewsFeedItem.venture_ids.is_(None),
+                NewsFeedItem.signal_strength >= 5.0,
+            )
+        )
+        .order_by(NewsFeedItem.signal_strength.desc())
+        .limit(max_items)
+        .all()
+    )
+
+    if not unprocessed:
+        logger.info("No unprocessed news items for venture generation")
+        return
+
+    logger.info(f"Auto-generating ventures for {len(unprocessed)} news items")
+
+    for item in unprocessed:
+        try:
+            from venture_engine.ventures.ralph_loop import suggest_and_ralph
+
+            idea = (
+                f"Based on this news signal:\n"
+                f"Title: {item.title}\n"
+                f"Source: {item.source_name}\n"
+                f"Summary: {item.summary or 'No summary'}\n"
+                f"URL: {item.url or 'No URL'}\n\n"
+                f"Identify the key problem or opportunity in this signal and "
+                f"generate a venture idea that addresses it."
+            )
+
+            result = suggest_and_ralph(
+                db,
+                idea=idea,
+                category="venture",
+                target_score=95,
+                max_iterations=5,
+            )
+
+            # Link venture to the news item
+            item.venture_ids = (item.venture_ids or []) + [result["venture_id"]]
+            db.flush()
+
+            logger.info(
+                f"Generated venture {result['venture_id']} "
+                f"(score: {result['score']:.0f}) from news: {item.title[:60]}"
+            )
+
+        except Exception as exc:
+            logger.error(f"Venture generation failed for news '{item.title[:60]}': {exc}")
+            # Mark as processed (empty list) so we don't retry forever
+            item.venture_ids = []
+            db.flush()
+            continue

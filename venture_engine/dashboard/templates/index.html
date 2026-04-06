@@ -796,8 +796,8 @@ html.dark .toggle-track::after { transform:translateX(16px); }
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
         </button>
         <div class="top-tabs" id="topTabs">
-          <button class="top-tab" data-tab="news" onclick="switchTab('news')"><span class="tab-label">News</span><span class="tab-tagline">Signals & breakthroughs</span></button>
-          <button class="top-tab active" data-tab="venture" onclick="switchTab('venture')"><span class="tab-label">Ideas</span><span class="tab-tagline">AI-powered ventures & opportunities</span></button>
+          <button class="top-tab active" data-tab="news" onclick="switchTab('news')"><span class="tab-label">News</span><span class="tab-tagline">Signals & breakthroughs</span></button>
+          <button class="top-tab" data-tab="venture" onclick="switchTab('venture')"><span class="tab-label">Ideas</span><span class="tab-tagline">AI-powered ventures & opportunities</span></button>
           <button class="top-tab" data-tab="stealth" onclick="switchTab('stealth')"><span class="tab-label">Clone</span><span class="tab-tagline">Beat early-stage startups</span></button>
           <button class="top-tab" data-tab="flip" onclick="switchTab('flip')"><span class="tab-label">Quick Flip</span><span class="tab-tagline">Build & sell to market leaders</span></button>
           <button class="top-tab" data-tab="customer" onclick="switchTab('customer')"><span class="tab-label">Customers</span><span class="tab-tagline">Acqui-hire opportunities</span></button>
@@ -1425,7 +1425,7 @@ const API = location.origin.replace('://thevisionbakery.com', '://www.thevisionb
 let currentPage = 0;
 const PAGE_SIZE = 25;
 let totalVentures = 0;
-let currentTab = 'venture';
+let currentTab = 'news';
 // Brain-rot anonymous identities
 const BRAINROT_NAMES = [
   ["Sigma Capybara","\u{1F9AB}"],["Rizzy Axolotl","\u{1F98E}"],["Skibidi Penguin","\u{1F427}"],["Ohio Raccoon","\u{1F99D}"],["Bussin Narwhal","\u{1F9A1}"],
@@ -1632,7 +1632,7 @@ window.addEventListener('popstate', (e) => {
     return;
   }
   const hash = location.hash.replace('#', '');
-  if (!hash) { closeDetailPanel(true); closeSettings(); closeHelp(); switchTab('venture', true); return; }
+  if (!hash) { closeDetailPanel(true); closeSettings(); closeHelp(); switchTab('news', true); return; }
   if (hash === 'settings') { closeDetailPanel(true); openSettings(); return; }
   if (hash === 'help') { closeDetailPanel(true); openHelp(); return; }
   const parts = hash.split('/');
@@ -3795,7 +3795,7 @@ setTimeout(updateTabScrollHint, 100);
 if (location.hash) {
   readHash();
 } else {
-  loadVentures();
+  switchTab('news', true);
 }
 loadHarvestInfo();
 </script>

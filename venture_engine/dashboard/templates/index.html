@@ -1984,7 +1984,13 @@ function highlightAnnotationsInIframe() {
 }
 
 function _directHighlight(doc, annotations) {
-  const full = doc.body.innerText || doc.body.textContent || '';
+  // Build full text from actual text nodes (not innerText which adds newlines)
+  // so character offsets match exactly when walking nodes later
+  var allTextNodes = [];
+  var tw = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT, null, false);
+  while (tw.nextNode()) allTextNodes.push(tw.currentNode);
+  var full = allTextNodes.map(function(n) { return n.textContent; }).join('');
+
   annotations.forEach(function(a) {
     try {
       if (!a.selected_text) return;
@@ -2002,10 +2008,9 @@ function _directHighlight(doc, annotations) {
         if (ci >= 0) idx = ci + a.prefix_context.length;
       }
       if (idx < 0) return;
-      var walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT, null, false);
       var charCount = 0, startNode = null, startOff = 0, endNode = null, endOff = 0;
-      while (walker.nextNode()) {
-        var node = walker.currentNode;
+      for (var ni = 0; ni < allTextNodes.length; ni++) {
+        var node = allTextNodes[ni];
         var len = node.textContent.length;
         if (!startNode && charCount + len > idx) {
           startNode = node; startOff = idx - charCount;
@@ -2162,7 +2167,9 @@ function _parentCheckIframeSelection() {
     if (text.length < 2 || text.length > 5000) return;
     if (sel.rangeCount === 0) return;
     const range = sel.getRangeAt(0);
-    const full = idoc.body.innerText || idoc.body.textContent || '';
+    const _tn2=[]; const _tw2=idoc.createTreeWalker(idoc.body,NodeFilter.SHOW_TEXT,null,false);
+    while(_tw2.nextNode())_tn2.push(_tw2.currentNode);
+    const full=_tn2.map(n=>n.textContent).join('');
     const idx = full.indexOf(text);
     const prefix = idx > 0 ? full.slice(Math.max(0, idx - 60), idx) : '';
     const suffix = full.slice(idx + text.length, idx + text.length + 60);

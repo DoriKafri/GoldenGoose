@@ -1151,7 +1151,9 @@ ANNOTATION_IFRAME_SCRIPT = """
       if (text.length < 2 || text.length > 5000) return;
       if (sel.rangeCount === 0) return;
       var range = sel.getRangeAt(0);
-      var full = document.body.innerText || document.body.textContent || '';
+      var _tn=[],_tw=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT,null,false);
+      while(_tw.nextNode())_tn.push(_tw.currentNode);
+      var full=_tn.map(function(n){return n.textContent;}).join('');
       var idx = full.indexOf(text);
       var prefix = idx > 0 ? full.slice(Math.max(0, idx - 60), idx) : '';
       var suffix = full.slice(idx + text.length, idx + text.length + 60);

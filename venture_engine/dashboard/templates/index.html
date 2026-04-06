@@ -607,7 +607,7 @@ html.dark .toggle-track::after { transform:translateX(16px); }
 .ann-float-btn { position:fixed; z-index:610; padding:5px 14px; border-radius:var(--radius-pill); background:linear-gradient(135deg,#f59e0b,#d97706); color:#fff; font-size:11px; font-weight:700; border:none; cursor:pointer; box-shadow:0 2px 8px rgba(0,0,0,0.2); display:none; transition:transform 0.1s; }
 .ann-float-btn:hover { transform:scale(1.05); }
 /* Annotation compose popover */
-.ann-compose { position:fixed; z-index:611; width:280px; background:var(--card); border:1px solid var(--border); border-radius:12px; box-shadow:var(--shadow-lg); padding:12px; display:none; }
+.ann-compose { position:fixed; z-index:611; width:300px; background:var(--card); border:1px solid var(--border); border-radius:12px; box-shadow:var(--shadow-lg); padding:12px; display:none; }
 .ann-compose textarea { width:100%; border:1px solid var(--border); border-radius:8px; padding:8px; font-size:12px; font-family:inherit; resize:vertical; min-height:60px; background:var(--bg); color:var(--text); }
 .ann-compose-actions { display:flex; justify-content:flex-end; gap:6px; margin-top:8px; }
 .ann-compose-actions button { padding:4px 14px; border-radius:var(--radius-pill); font-size:11px; font-weight:600; cursor:pointer; border:none; font-family:inherit; }
@@ -633,6 +633,16 @@ html.dark .toggle-track::after { transform:translateX(16px); }
 .ann-timestamp { display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:var(--radius-pill); background:rgba(245,158,11,0.12); color:#d97706; font-size:11px; font-weight:700; cursor:pointer; border:1px solid rgba(245,158,11,0.25); margin-bottom:6px; font-variant-numeric:tabular-nums; transition:background 0.15s; }
 .ann-timestamp:hover { background:rgba(245,158,11,0.25); }
 .ann-timestamp svg { flex-shrink:0; }
+/* Video frame thumbnail in annotation cards */
+.ann-video-thumb { position:relative; border-radius:8px; overflow:hidden; cursor:pointer; margin-bottom:8px; }
+.ann-video-thumb img { width:100%; height:auto; display:block; aspect-ratio:16/9; object-fit:cover; }
+.ann-video-thumb-overlay { position:absolute; inset:0; background:linear-gradient(transparent 40%, rgba(0,0,0,0.7)); display:flex; align-items:flex-end; justify-content:space-between; padding:8px 10px; }
+.ann-video-thumb-play { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:40px; height:40px; background:rgba(0,0,0,0.5); border-radius:50%; display:flex; align-items:center; justify-content:center; transition:background 0.15s; }
+.ann-video-thumb:hover .ann-video-thumb-play { background:rgba(255,0,0,0.85); }
+.ann-video-thumb-time { background:rgba(0,0,0,0.75); color:#fff; padding:2px 8px; border-radius:4px; font-size:12px; font-weight:700; font-variant-numeric:tabular-nums; letter-spacing:0.3px; }
+.ann-video-thumb-sm { max-width:220px; }
+.ann-video-thumb-sm .ann-video-thumb-play { width:30px; height:30px; }
+.ann-video-thumb-sm .ann-video-thumb-play svg { width:14px !important; height:14px !important; }
 .ann-compose-cancel { background:var(--bg2); color:var(--text2); }
 .ann-compose-submit { background:linear-gradient(135deg,#f59e0b,#d97706); color:#fff; }
 @media(max-width:768px) {
@@ -2513,7 +2523,20 @@ function _ytMarkTimestamp() {
     compose.style.top = (rect.top - 180) + 'px';
   }
   compose.style.display = 'block';
-  document.getElementById('annComposeQuote').innerHTML = '<span class="ann-timestamp" style="cursor:default;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px;"><polygon points="5 3 19 12 5 21 5 3"/></svg> ' + timeStr + '</span>';
+  // Show video thumbnail with timestamp in compose form
+  const _cvid = _youtubeId(_readerUrl);
+  if (_cvid) {
+    document.getElementById('annComposeQuote').innerHTML = `
+      <div class="ann-video-thumb ann-video-thumb-sm" style="cursor:default;">
+        <img src="https://img.youtube.com/vi/${_cvid}/hqdefault.jpg" alt="">
+        <div class="ann-video-thumb-overlay">
+          <div class="ann-video-thumb-play"><svg viewBox="0 0 24 24" fill="#fff" style="width:16px;height:16px;"><polygon points="6 3 20 12 6 21"/></svg></div>
+          <span class="ann-video-thumb-time">${timeStr}</span>
+        </div>
+      </div>`;
+  } else {
+    document.getElementById('annComposeQuote').innerHTML = '<span class="ann-timestamp" style="cursor:default;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px;"><polygon points="5 3 19 12 5 21 5 3"/></svg> ' + timeStr + '</span>';
+  }
   document.getElementById('annComposeBody').value = '';
   document.getElementById('annComposeBody').placeholder = 'What happens at this moment?';
   document.getElementById('annComposeBody').focus();
@@ -2857,14 +2880,26 @@ function renderReaderAnnotations() {
       </div>`;
     }).join('');
 
-    // Timestamp badge for video annotations
+    // Timestamp badge + video frame thumbnail for video annotations
     const isVideoAnn = ann.timestamp_seconds != null;
-    const tsBadge = isVideoAnn
-      ? `<div class="ann-timestamp" onclick="event.stopPropagation();_ytSeekTo(${ann.timestamp_seconds})">
+    const _vid = _isYouTube ? _youtubeId(_readerUrl) : null;
+    let tsBadge;
+    if (isVideoAnn && _vid) {
+      tsBadge = `<div class="ann-video-thumb" onclick="event.stopPropagation();_ytSeekTo(${ann.timestamp_seconds})">
+        <img src="https://img.youtube.com/vi/${_vid}/hqdefault.jpg" alt="" loading="lazy">
+        <div class="ann-video-thumb-overlay">
+          <div class="ann-video-thumb-play"><svg viewBox="0 0 24 24" fill="#fff" style="width:20px;height:20px;filter:drop-shadow(0 1px 3px rgba(0,0,0,0.5));"><polygon points="6 3 20 12 6 21"/></svg></div>
+          <span class="ann-video-thumb-time">${_fmtTime(ann.timestamp_seconds)}</span>
+        </div>
+      </div>`;
+    } else if (isVideoAnn) {
+      tsBadge = `<div class="ann-timestamp" onclick="event.stopPropagation();_ytSeekTo(${ann.timestamp_seconds})">
            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:12px;height:12px;"><polygon points="5 3 19 12 5 21 5 3"/></svg>
            ${_fmtTime(ann.timestamp_seconds)}
-         </div>`
-      : `<div class="reader-ann-quote">"${esc(ann.selected_text.slice(0, 300))}${ann.selected_text.length > 300 ? '...' : ''}"</div>`;
+         </div>`;
+    } else {
+      tsBadge = `<div class="reader-ann-quote">"${esc(ann.selected_text.slice(0, 300))}${ann.selected_text.length > 300 ? '...' : ''}"</div>`;
+    }
 
     const cardClick = isVideoAnn
       ? `onclick="event.stopPropagation();_ytSeekTo(${ann.timestamp_seconds})"`

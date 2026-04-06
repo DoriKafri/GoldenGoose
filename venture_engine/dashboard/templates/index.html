@@ -2009,6 +2009,41 @@ function highlightAnnotationsInIframe() {
 }
 
 function _directHighlight(doc, annotations) {
+  // Inject CSS for hover highlighting — uses a body-level data attribute
+  // so ALL marks for the same annotation highlight together, avoiding the
+  // flicker caused by mouseenter/mouseleave between adjacent marks
+  if (!doc.getElementById('ann-hover-style')) {
+    var style = doc.createElement('style');
+    style.id = 'ann-hover-style';
+    style.textContent = 'mark.page-ann-hl { transition: background 0.15s; }' +
+      'body[data-ann-hover] mark.page-ann-hl { }' +  // base rule
+      'mark.page-ann-hl.ann-hover { background: rgba(255,193,7,0.6) !important; }';
+    doc.head.appendChild(style);
+
+    // Single delegated listener on body for all marks
+    doc.body.addEventListener('mouseenter', function(ev) {
+      var mark = ev.target.closest('mark.page-ann-hl');
+      if (!mark) return;
+      var id = mark.dataset.annId;
+      doc.querySelectorAll('mark.page-ann-hl[data-ann-id="' + id + '"]').forEach(function(m) { m.classList.add('ann-hover'); });
+      // Also highlight sidebar card in parent
+      try { window.parent._highlightMarksCard && window.parent._highlightMarksCard(id, true); } catch(e) {}
+    }, true);
+    doc.body.addEventListener('mouseleave', function(ev) {
+      var mark = ev.target.closest('mark.page-ann-hl');
+      if (!mark) return;
+      var id = mark.dataset.annId;
+      // Debounce: only remove hover if mouse didn't enter another mark of same annotation
+      setTimeout(function() {
+        var stillHovered = doc.querySelector('mark.page-ann-hl[data-ann-id="' + id + '"]:hover');
+        if (!stillHovered) {
+          doc.querySelectorAll('mark.page-ann-hl[data-ann-id="' + id + '"]').forEach(function(m) { m.classList.remove('ann-hover'); });
+          try { window.parent._highlightMarksCard && window.parent._highlightMarksCard(id, false); } catch(e) {}
+        }
+      }, 50);
+    }, true);
+  }
+
   // Build full text from actual text nodes (not innerText which adds newlines)
   // so character offsets match exactly when walking nodes later
   var allTextNodes = [];
@@ -2057,8 +2092,7 @@ function _directHighlight(doc, annotations) {
         }
         // Wrap each text node (or portion) in a mark — iterate REVERSE
         // so DOM mutations don't invalidate later node references
-        var hlStyle = 'background:rgba(255,213,79,0.4);border-bottom:2px solid #f59e0b;cursor:pointer;border-radius:2px;padding:0 1px;transition:background .15s;';
-        var hlHoverStyle = 'background:rgba(255,193,7,0.6);';
+        var hlStyle = 'background:rgba(255,213,79,0.4);border-bottom:2px solid #f59e0b;cursor:pointer;border-radius:2px;padding:0 1px;';
         var annId = a.id;
         var annBody = (a.body || '').slice(0, 80);
         for (var ti = textNodes.length - 1; ti >= 0; ti--) {
@@ -2080,19 +2114,6 @@ function _directHighlight(doc, annotations) {
             var card = document.querySelector('.reader-ann-card[data-ann-id="' + annId + '"]');
             if (card) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
           });
-          // Highlight ALL marks for this annotation on hover
-          (function(id) {
-            mark.addEventListener('mouseenter', function() {
-              doc.querySelectorAll('mark.page-ann-hl[data-ann-id="' + id + '"]').forEach(function(m) {
-                m.style.background = 'rgba(255,193,7,0.6)';
-              });
-            });
-            mark.addEventListener('mouseleave', function() {
-              doc.querySelectorAll('mark.page-ann-hl[data-ann-id="' + id + '"]').forEach(function(m) {
-                m.style.background = 'rgba(255,213,79,0.4)';
-              });
-            });
-          })(annId);
           r.surroundContents(mark);
         }
       }
@@ -2100,15 +2121,21 @@ function _directHighlight(doc, annotations) {
   });
 }
 
-// Highlight/unhighlight all marks in iframe for a given annotation (used on hover)
+// Highlight/unhighlight all marks in iframe for a given annotation (used by sidebar card hover)
 function _highlightMarks(annId, hover) {
   try {
     var iframe = document.getElementById('readerIframe');
     var idoc = iframe.contentDocument || iframe.contentWindow.document;
     idoc.querySelectorAll('mark.page-ann-hl[data-ann-id="' + annId + '"]').forEach(function(m) {
-      m.style.background = hover ? 'rgba(255,193,7,0.6)' : 'rgba(255,213,79,0.4)';
+      if (hover) m.classList.add('ann-hover');
+      else m.classList.remove('ann-hover');
     });
   } catch(e) {}
+}
+// Called from iframe to highlight sidebar card
+function _highlightMarksCard(annId, hover) {
+  var card = document.querySelector('.reader-ann-card[data-ann-id="' + annId + '"]');
+  if (card) card.style.background = hover ? 'rgba(255,213,79,0.15)' : '';
 }
 
 function renderReaderAnnotations() {

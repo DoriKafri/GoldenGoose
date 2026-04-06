@@ -520,6 +520,9 @@ html.dark .toggle-track::after { transform:translateX(16px); }
 .emoji-picker-popup { position:absolute; z-index:700; background:var(--bg); border:1px solid var(--border); border-radius:10px; padding:8px; box-shadow:0 4px 16px rgba(0,0,0,0.15); display:none; }
 .emoji-picker-popup span { display:inline-block; font-size:20px; padding:4px; cursor:pointer; border-radius:6px; transition:background .1s; }
 .emoji-picker-popup span:hover { background:var(--bg2); }
+.share-popup-menu { position:fixed; z-index:700; background:var(--bg); border:1px solid var(--border); border-radius:10px; padding:10px; box-shadow:0 4px 20px rgba(0,0,0,0.15); min-width:180px; }
+.share-popup-menu button { display:flex; align-items:center; gap:8px; width:100%; padding:8px 10px; border:none; background:none; color:var(--text); font-size:13px; cursor:pointer; border-radius:6px; font-family:inherit; text-align:left; }
+.share-popup-menu button:hover { background:var(--bg2); }
 .reader-replies { margin-top:8px; padding-left:12px; border-left:2px solid var(--border); }
 .reader-reply { margin-bottom:6px; }
 .reader-reply-body { font-size:12px; color:var(--text); line-height:1.4; }
@@ -872,6 +875,7 @@ if (location.hash && location.hash.startsWith('#news/read/')) {
       <div class="reader-topbar-url" id="readerUrl"></div>
     </div>
     <span style="font-size:11px;color:var(--text3);padding:4px 10px;border-radius:var(--radius-pill);background:var(--bg2);white-space:nowrap;" id="readerAnnCount">0 annotations</span>
+    <button id="readerShareBtn" onclick="shareArticle()" style="font-size:11px;color:#2563eb;white-space:nowrap;padding:4px 10px;border-radius:var(--radius-pill);border:1px solid rgba(37,99,235,0.2);background:var(--bg);cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:4px;" title="Share article">&#x1F517; Share</button>
     <a id="readerExtLink" href="#" target="_blank" rel="noopener" style="font-size:11px;color:#2563eb;text-decoration:none;white-space:nowrap;padding:4px 10px;border-radius:var(--radius-pill);border:1px solid rgba(37,99,235,0.2);">Open original</a>
   </div>
   <div class="reader-body">
@@ -1480,6 +1484,9 @@ function readHash() {
     const articleUrl = decodeURIComponent(parts.slice(2).join('/'));
     currentTab = 'news';
     document.querySelectorAll('.top-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === 'news'));
+    // Push a #news state first so back button has somewhere to go
+    window._preReaderHash = '#news';
+    history.replaceState(null, '', '#news');
     openReader(articleUrl, '', '');
     return;
   }
@@ -1714,6 +1721,7 @@ function renderNewsFeed(items) {
           <span style="font-size:10px;color:var(--text3);">${ago}</span>
           ${item.url ? '<span onclick="event.stopPropagation();" style="display:inline-flex;align-items:center;gap:4px;"><a href="'+esc(item.url)+'" target="_blank" rel="noopener" style="font-size:10px;color:#2563eb;text-decoration:none;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;vertical-align:middle;" title="Open in new tab">'+esc(_hostname(item.url))+' ↗</a></span>' : ''}
           ${tags}
+          ${item.url ? '<button onclick="event.stopPropagation();shareNewsItem(\''+esc(item.title.replace(/'/g,"\\'"))+'\',\''+esc(item.url.replace(/'/g,"\\'"))+'\')" style="font-size:10px;padding:2px 8px;border-radius:var(--radius-pill);border:1px solid var(--border);background:var(--bg);color:var(--text2);cursor:pointer;font-family:inherit;" title="Share">&#x1F517; Share</button>' : ''}
         </div>
         ${ventures ? '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:2px;">Inspired: '+ventures+'</div>' : ''}
         ${annSection}
@@ -1968,6 +1976,95 @@ function openReader(url, title, newsItemId) {
     window._preReaderHash = location.hash || '#news';
     history.pushState({reader: true}, '', readerHash);
   }
+}
+
+async function shareArticle() {
+  const title = document.getElementById('readerTitle').textContent || 'Article';
+  const articleUrl = _readerUrl;
+  // Share the permalink URL so recipients get the reader overlay with annotations
+  const shareUrl = location.origin + '/#news/read/' + encodeURIComponent(articleUrl);
+  const shareData = { title: title, text: title, url: shareUrl };
+
+  // Try native Web Share API first (mobile, some desktop)
+  if (navigator.share) {
+    try { await navigator.share(shareData); return; } catch(e) { /* user cancelled or not supported */ }
+  }
+
+  // Fallback: show share menu
+  showShareMenu(title, shareUrl, articleUrl);
+}
+
+function showShareMenu(title, shareUrl, articleUrl) {
+  // Remove existing menu
+  document.querySelectorAll('.share-popup-menu').forEach(p => p.remove());
+  const encodedUrl = encodeURIComponent(shareUrl);
+  const encodedTitle = encodeURIComponent(title);
+  const encodedOriginal = encodeURIComponent(articleUrl);
+  const menu = document.createElement('div');
+  menu.className = 'share-popup-menu';
+  menu.innerHTML = `
+    <div style="font-size:11px;font-weight:700;color:var(--text3);margin-bottom:6px;">Share to</div>
+    <button onclick="window.open('https://wa.me/?text=${encodedTitle}%20${encodedUrl}','_blank');this.closest('.share-popup-menu').remove();">
+      <span style="font-size:16px;">&#x1F4AC;</span> WhatsApp
+    </button>
+    <button onclick="window.open('https://t.me/share/url?url=${encodedUrl}&text=${encodedTitle}','_blank');this.closest('.share-popup-menu').remove();">
+      <span style="font-size:16px;">&#x2708;&#xFE0F;</span> Telegram
+    </button>
+    <button onclick="window.open('https://twitter.com/intent/tweet?text=${encodedTitle}&url=${encodedOriginal}','_blank');this.closest('.share-popup-menu').remove();">
+      <span style="font-size:16px;">&#x1D54F;</span> X / Twitter
+    </button>
+    <button onclick="window.open('https://www.linkedin.com/sharing/share-offsite/?url=${encodedOriginal}','_blank');this.closest('.share-popup-menu').remove();">
+      <span style="font-size:16px;">&#x1F4BC;</span> LinkedIn
+    </button>
+    <button onclick="window.open('mailto:?subject=${encodedTitle}&body=${encodedTitle}%0A%0A${encodedUrl}');this.closest('.share-popup-menu').remove();">
+      <span style="font-size:16px;">&#x2709;&#xFE0F;</span> Email
+    </button>
+    <button onclick="copyShareLink('${shareUrl.replace(/'/g,"\\'")}');this.closest('.share-popup-menu').remove();">
+      <span style="font-size:16px;">&#x1F4CB;</span> Copy link
+    </button>
+  `;
+  const btn = document.getElementById('readerShareBtn');
+  const rect = btn.getBoundingClientRect();
+  menu.style.top = (rect.bottom + 4) + 'px';
+  menu.style.right = (window.innerWidth - rect.right) + 'px';
+  document.body.appendChild(menu);
+  setTimeout(() => {
+    document.addEventListener('click', function closeMenu(e) {
+      if (!menu.contains(e.target) && e.target !== btn) {
+        menu.remove();
+        document.removeEventListener('click', closeMenu);
+      }
+    });
+  }, 10);
+}
+
+function copyShareLink(url) {
+  navigator.clipboard.writeText(url).then(() => {
+    const btn = document.getElementById('readerShareBtn');
+    if (btn) {
+      const orig = btn.innerHTML;
+      btn.innerHTML = '&#x2705; Copied!';
+      setTimeout(() => { btn.innerHTML = orig; }, 2000);
+    }
+  }).catch(() => {
+    prompt('Copy this link:', url);
+  });
+}
+
+async function shareNewsItem(title, articleUrl) {
+  const shareUrl = location.origin + '/#news/read/' + encodeURIComponent(articleUrl);
+  if (navigator.share) {
+    try { await navigator.share({ title, text: title, url: shareUrl }); return; } catch(e) {}
+  }
+  // Fallback: copy link
+  navigator.clipboard.writeText(shareUrl).then(() => {
+    // Show a brief toast
+    const toast = document.createElement('div');
+    toast.textContent = 'Link copied!';
+    toast.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:8px 20px;border-radius:20px;font-size:13px;z-index:9999;';
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 2000);
+  }).catch(() => { prompt('Copy this link:', shareUrl); });
 }
 
 function closeReader(fromPopstate) {

@@ -2530,15 +2530,16 @@ function _ytMarkTimestamp() {
     compose.style.top = (rect.top - 180) + 'px';
   }
   compose.style.display = 'block';
-  // Show video thumbnail with timestamp in compose form
+  // Show video frame at the current timestamp in compose form
   let _cvid = _youtubeId(_readerUrl);
   if (!_cvid && _ytPlayer && _ytPlayerReady) {
     try { _cvid = _youtubeId(_ytPlayer.getVideoUrl()); } catch(e) {}
   }
   if (_cvid) {
+    const frameUrl = `${API}/api/youtube-frame?video_id=${_cvid}&t=${seconds}`;
     document.getElementById('annComposeQuote').innerHTML = `
       <div class="ann-video-thumb ann-video-thumb-sm" style="cursor:default;">
-        <img src="https://img.youtube.com/vi/${_cvid}/hqdefault.jpg" alt="">
+        <img src="${frameUrl}" alt="" onerror="this.src='https://img.youtube.com/vi/${_cvid}/hqdefault.jpg'">
         <div class="ann-video-thumb-overlay">
           <div class="ann-video-thumb-play"><svg viewBox="0 0 24 24" fill="#fff" style="width:16px;height:16px;"><polygon points="6 3 20 12 6 21"/></svg></div>
           <span class="ann-video-thumb-time">${timeStr}</span>
@@ -2899,8 +2900,9 @@ function renderReaderAnnotations() {
     }
     let tsBadge;
     if (isVideoAnn && _vid) {
+      const frameUrl = `${API}/api/youtube-frame?video_id=${_vid}&t=${ann.timestamp_seconds}`;
       tsBadge = `<div class="ann-video-thumb" onclick="event.stopPropagation();_ytSeekTo(${ann.timestamp_seconds})">
-        <img src="https://img.youtube.com/vi/${_vid}/hqdefault.jpg" alt="" loading="lazy">
+        <img src="${frameUrl}" alt="" loading="lazy">
         <div class="ann-video-thumb-overlay">
           <div class="ann-video-thumb-play"><svg viewBox="0 0 24 24" fill="#fff" style="width:20px;height:20px;filter:drop-shadow(0 1px 3px rgba(0,0,0,0.5));"><polygon points="6 3 20 12 6 21"/></svg></div>
           <span class="ann-video-thumb-time">${_fmtTime(ann.timestamp_seconds)}</span>

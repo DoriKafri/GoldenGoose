@@ -1258,6 +1258,121 @@ ANNOTATION_IFRAME_SCRIPT = """
 """
 
 
+# ─── YouTube Frame Extraction ────────────────────────────────────
+# Cache storyboard data per video to avoid re-fetching
+_yt_storyboard_cache: dict = {}  # video_id -> {formats, fetched_at}
+
+@router.get("/api/youtube-frame")
+def youtube_frame(video_id: str = Query(..., min_length=11, max_length=11), t: int = Query(0, ge=0)):
+    """Return a JPEG image of the YouTube video frame closest to timestamp t seconds."""
+    import io
+    import time
+    import httpx
+    from PIL import Image
+
+    cache_key = video_id
+
+    # Check cache (valid for 1 hour)
+    cached = _yt_storyboard_cache.get(cache_key)
+    if cached and time.time() - cached["fetched_at"] < 3600:
+        sb_formats = cached["formats"]
+    else:
+        try:
+            import yt_dlp
+            ydl_opts = {"quiet": True, "no_warnings": True, "skip_download": True}
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=False)
+
+            # Collect all storyboard formats from the formats list
+            sb_formats = [
+                fmt for fmt in info.get("formats", [])
+                if fmt.get("format_note") == "storyboard"
+            ]
+
+            if not sb_formats:
+                raise ValueError("No storyboard formats found")
+
+            _yt_storyboard_cache[cache_key] = {"formats": sb_formats, "fetched_at": time.time()}
+
+        except Exception as exc:
+            logger.warning(f"YouTube storyboard extraction failed for {video_id}: {exc}")
+            return Response(
+                status_code=302,
+                headers={"Location": f"https://img.youtube.com/vi/{video_id}/hqdefault.jpg"},
+            )
+
+    # Pick the highest-resolution storyboard (last in list = sb0 = highest res)
+    sb = max(sb_formats, key=lambda f: (f.get("width", 0) * f.get("height", 0)))
+
+    try:
+        cols = sb.get("columns", 5)
+        rows = sb.get("rows", 5)
+        fw = sb.get("width", 320)
+        fh = sb.get("height", 180)
+        fragments = sb.get("fragments", [])
+
+        if not fragments:
+            raise ValueError("No storyboard fragments")
+
+        # Each fragment covers a time range — find the right one
+        frames_per_sheet = cols * rows
+        elapsed = 0.0
+        sheet_url = None
+        cell_index = 0
+
+        for i, frag in enumerate(fragments):
+            frag_dur = frag.get("duration", 0)
+            if elapsed + frag_dur > t or i == len(fragments) - 1:
+                time_into_frag = max(0, t - elapsed)
+                if frag_dur > 0:
+                    frac = time_into_frag / frag_dur
+                    cell_index = min(int(frac * frames_per_sheet), frames_per_sheet - 1)
+                sheet_url = frag.get("url")
+                break
+            elapsed += frag_dur
+
+        if not sheet_url:
+            raise ValueError("Could not determine sheet URL")
+
+        # Download the sprite sheet
+        resp = httpx.get(sheet_url, timeout=10.0, follow_redirects=True, headers={
+            "User-Agent": "Mozilla/5.0",
+        })
+        resp.raise_for_status()
+
+        # Crop the right cell from the sprite sheet
+        sheet = Image.open(io.BytesIO(resp.content))
+        col_idx = cell_index % cols
+        row_idx = cell_index // cols
+        x = col_idx * fw
+        y = row_idx * fh
+        frame = sheet.crop((x, y, x + fw, y + fh))
+
+        # Upscale to 640x360 for better quality
+        frame = frame.resize((640, 360), Image.LANCZOS)
+
+        # Return as JPEG
+        buf = io.BytesIO()
+        frame.save(buf, format="JPEG", quality=90)
+        buf.seek(0)
+
+        return Response(
+            content=buf.getvalue(),
+            media_type="image/jpeg",
+            headers={
+                "Cache-Control": "public, max-age=86400",
+                "Content-Disposition": f"inline; filename=frame_{video_id}_{t}.jpg",
+            },
+        )
+
+    except Exception as exc:
+        logger.warning(f"Storyboard crop failed for {video_id}@{t}s: {exc}")
+        return Response(
+            status_code=302,
+            headers={"Location": f"https://img.youtube.com/vi/{video_id}/hqdefault.jpg"},
+        )
+
+
 @router.get("/api/url-preview")
 def url_preview(url: str = Query(...)):
     """Fetch URL metadata (title, description, image) for link preview cards."""

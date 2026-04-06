@@ -1839,14 +1839,7 @@ function renderNewsFeed(items) {
     youtube: '\u{1F3AC}', video: '\u{1F3AC}', startup_signal: '\u{1F680}', producthunt: '\u{1F431}',
   };
   function _hostname(url) { try { return new URL(url).hostname; } catch(e) { return url; } }
-  function _youtubeId(url) {
-    try {
-      const u = new URL(url);
-      if (u.hostname.includes('youtube.com')) return u.searchParams.get('v');
-      if (u.hostname === 'youtu.be') return u.pathname.slice(1);
-    } catch(e) {}
-    return null;
-  }
+  // _youtubeId is defined globally above
   el.innerHTML = items.map(item => {
     try {
     const icon = sourceIcons[item.source] || '\uD83D\uDCF0';
@@ -2310,12 +2303,26 @@ document.addEventListener('keydown', (e) => {
 // ─── Reader / Annotation Overlay ─────────────────────────────────
 // Global YouTube ID extractor (also used inside renderNewsFeed)
 function _youtubeId(url) {
+  if (!url) return null;
   try {
     const u = new URL(url);
-    if (u.hostname.includes('youtube.com')) return u.searchParams.get('v');
-    if (u.hostname === 'youtu.be') return u.pathname.slice(1);
+    const h = u.hostname.replace('www.', '');
+    if (h.includes('youtube.com')) {
+      // youtube.com/watch?v=ID or youtube.com/embed/ID or youtube.com/v/ID
+      const v = u.searchParams.get('v');
+      if (v) return v;
+      const m = u.pathname.match(/\/(?:embed|v)\/([a-zA-Z0-9_-]{11})/);
+      if (m) return m[1];
+    }
+    if (h === 'youtu.be') {
+      const id = u.pathname.slice(1).split('/')[0];
+      if (id && id.length >= 11) return id.slice(0, 11);
+      return id || null;
+    }
   } catch(e) {}
-  return null;
+  // Fallback regex for edge cases
+  const m = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?.*v=|embed\/|v\/))([a-zA-Z0-9_-]{11})/);
+  return m ? m[1] : null;
 }
 
 let _readerUrl = '';
@@ -2524,7 +2531,10 @@ function _ytMarkTimestamp() {
   }
   compose.style.display = 'block';
   // Show video thumbnail with timestamp in compose form
-  const _cvid = _youtubeId(_readerUrl);
+  let _cvid = _youtubeId(_readerUrl);
+  if (!_cvid && _ytPlayer && _ytPlayerReady) {
+    try { _cvid = _youtubeId(_ytPlayer.getVideoUrl()); } catch(e) {}
+  }
   if (_cvid) {
     document.getElementById('annComposeQuote').innerHTML = `
       <div class="ann-video-thumb ann-video-thumb-sm" style="cursor:default;">
@@ -2882,7 +2892,11 @@ function renderReaderAnnotations() {
 
     // Timestamp badge + video frame thumbnail for video annotations
     const isVideoAnn = ann.timestamp_seconds != null;
-    const _vid = _isYouTube ? _youtubeId(_readerUrl) : null;
+    let _vid = _isYouTube ? _youtubeId(_readerUrl) : null;
+    // Fallback: get video ID from the player's video URL
+    if (!_vid && _isYouTube && _ytPlayer && _ytPlayerReady) {
+      try { _vid = _youtubeId(_ytPlayer.getVideoUrl()); } catch(e) {}
+    }
     let tsBadge;
     if (isVideoAnn && _vid) {
       tsBadge = `<div class="ann-video-thumb" onclick="event.stopPropagation();_ytSeekTo(${ann.timestamp_seconds})">

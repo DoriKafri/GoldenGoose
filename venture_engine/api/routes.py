@@ -16,7 +16,7 @@ from typing import List
 from venture_engine.db.models import (
     Venture, VentureScore, Vote, Comment, ThoughtLeader,
     TLSignal, HarvestRun, TechGap, Annotation, OfficeHoursReview,
-    NewsFeedItem, PageAnnotation, PageAnnotationReply,
+    NewsFeedItem, PageAnnotation, PageAnnotationReply, AnnotationReaction,
 )
 
 router = APIRouter()
@@ -1005,6 +1005,13 @@ def list_news(
             ann_count = len(anns)
             for a in anns:
                 reply_count = len(a.replies) if a.replies else 0
+                # Group reactions by emoji
+                rxn_groups = {}
+                for rx in (a.reactions or []):
+                    if rx.emoji not in rxn_groups:
+                        rxn_groups[rx.emoji] = {"emoji": rx.emoji, "count": 0, "users": []}
+                    rxn_groups[rx.emoji]["count"] += 1
+                    rxn_groups[rx.emoji]["users"].append({"author_id": rx.author_id, "author_name": rx.author_name})
                 annotations_preview.append({
                     "id": a.id,
                     "selected_text": a.selected_text or "",
@@ -1013,6 +1020,7 @@ def list_news(
                     "author_id": a.author_id,
                     "created_at": a.created_at.isoformat() if a.created_at else None,
                     "reply_count": reply_count,
+                    "reactions": list(rxn_groups.values()),
                     "replies": [{
                         "id": r.id,
                         "body": r.body,
@@ -1352,6 +1360,13 @@ class PageAnnotationReplyRequest(BaseModel):
 
 
 def _serialize_annotation(ann: PageAnnotation) -> dict:
+    # Group reactions by emoji
+    reaction_groups = {}
+    for rx in (ann.reactions or []):
+        if rx.emoji not in reaction_groups:
+            reaction_groups[rx.emoji] = {"emoji": rx.emoji, "count": 0, "users": []}
+        reaction_groups[rx.emoji]["count"] += 1
+        reaction_groups[rx.emoji]["users"].append({"author_id": rx.author_id, "author_name": rx.author_name})
     return {
         "id": ann.id,
         "url": ann.url,
@@ -1364,6 +1379,7 @@ def _serialize_annotation(ann: PageAnnotation) -> dict:
         "author_id": ann.author_id,
         "author_name": ann.author_name,
         "created_at": ann.created_at.isoformat() if ann.created_at else None,
+        "reactions": list(reaction_groups.values()),
         "replies": [{
             "id": r.id,
             "body": r.body,
@@ -1443,6 +1459,41 @@ def delete_annotation_reply(reply_id: str, author_id: str = Query(...), db: Sess
     db.delete(reply)
     db.commit()
     return {"ok": True}
+
+
+class ReactionRequest(BaseModel):
+    emoji: str
+    author_id: str
+    author_name: str = ""
+
+
+@router.post("/api/page-annotations/{ann_id}/reactions")
+def toggle_reaction(ann_id: str, req: ReactionRequest, db: Session = Depends(get_db_dependency)):
+    """Toggle an emoji reaction on an annotation (add if not present, remove if already reacted)."""
+    ann = db.query(PageAnnotation).filter(PageAnnotation.id == ann_id).first()
+    if not ann:
+        raise HTTPException(404, "Annotation not found.")
+    existing = db.query(AnnotationReaction).filter(
+        AnnotationReaction.annotation_id == ann_id,
+        AnnotationReaction.author_id == req.author_id,
+        AnnotationReaction.emoji == req.emoji,
+    ).first()
+    if existing:
+        db.delete(existing)
+        db.commit()
+        db.refresh(ann)
+        return {"action": "removed", "annotation": _serialize_annotation(ann)}
+    else:
+        reaction = AnnotationReaction(
+            annotation_id=ann_id,
+            emoji=req.emoji,
+            author_id=req.author_id,
+            author_name=req.author_name,
+        )
+        db.add(reaction)
+        db.commit()
+        db.refresh(ann)
+        return {"action": "added", "annotation": _serialize_annotation(ann)}
 
 
 # ─── Thought Leaders ─────────────────────────────────────────────

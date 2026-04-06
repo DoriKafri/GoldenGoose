@@ -510,6 +510,16 @@ html.dark .toggle-track::after { transform:translateX(16px); }
 .reader-ann-actions { display:flex; gap:8px; margin-top:6px; }
 .reader-ann-actions button { font-size:10px; padding:2px 8px; border-radius:var(--radius-pill); border:1px solid var(--border); background:var(--bg); color:var(--text2); cursor:pointer; font-family:inherit; }
 .reader-ann-actions button:hover { background:var(--bg2); color:var(--text); }
+.ann-reactions { display:flex; flex-wrap:wrap; gap:4px; margin-top:6px; }
+.ann-reaction-btn { display:inline-flex; align-items:center; gap:3px; padding:2px 8px; border-radius:var(--radius-pill); border:1px solid var(--border); background:var(--bg); font-size:12px; cursor:pointer; transition:all .15s; font-family:inherit; }
+.ann-reaction-btn:hover { background:var(--bg2); border-color:var(--accent); }
+.ann-reaction-btn.mine { background:rgba(245,158,11,0.12); border-color:#f59e0b; }
+.ann-reaction-btn .rxn-count { font-size:10px; color:var(--text3); font-weight:600; }
+.ann-reaction-add { display:inline-flex; align-items:center; padding:2px 6px; border-radius:var(--radius-pill); border:1px dashed var(--border); background:none; font-size:14px; cursor:pointer; color:var(--text3); transition:all .15s; }
+.ann-reaction-add:hover { border-color:var(--accent); color:var(--text); background:var(--bg2); }
+.emoji-picker-popup { position:absolute; z-index:700; background:var(--bg); border:1px solid var(--border); border-radius:10px; padding:8px; box-shadow:0 4px 16px rgba(0,0,0,0.15); display:none; }
+.emoji-picker-popup span { display:inline-block; font-size:20px; padding:4px; cursor:pointer; border-radius:6px; transition:background .1s; }
+.emoji-picker-popup span:hover { background:var(--bg2); }
 .reader-replies { margin-top:8px; padding-left:12px; border-left:2px solid var(--border); }
 .reader-reply { margin-bottom:6px; }
 .reader-reply-body { font-size:12px; color:var(--text); line-height:1.4; }
@@ -1659,6 +1669,13 @@ function renderNewsFeed(items) {
             <button onclick="event.stopPropagation();toggleNewsReplyForm('${a.id}',this)" style="background:none;border:none;color:#2563eb;font-size:10px;cursor:pointer;padding:0;font-weight:600;">Reply</button>
             ${a.author_id === anonId ? '<button onclick="event.stopPropagation();deleteNewsAnnotation(\''+a.id+'\',this)" style="background:none;border:none;color:#ef4444;font-size:10px;cursor:pointer;padding:0;">Delete</button>' : ''}
           </div>
+          <div class="ann-reactions" onclick="event.stopPropagation()" style="margin-top:4px;">
+            ${(a.reactions||[]).map(rx => {
+              const isMine = rx.users.some(u => u.author_id === anonId);
+              return '<button class="ann-reaction-btn '+(isMine?'mine':'')+'" onclick="event.stopPropagation();toggleReaction(\''+a.id+'\',\''+rx.emoji+'\',true)" title="'+rx.users.map(u=>u.author_name||'Anon').join(', ')+'">'+rx.emoji+' <span class="rxn-count">'+rx.count+'</span></button>';
+            }).join('')}
+            <button class="ann-reaction-add" onclick="event.stopPropagation();showEmojiPicker(this,'${a.id}',true)" title="Add reaction">+</button>
+          </div>
           ${replies}
           <div class="news-reply-form" data-ann-id="${a.id}" style="display:none;margin-top:6px;margin-left:20px;">
             <div style="display:flex;gap:6px;align-items:center;">
@@ -2178,6 +2195,13 @@ function renderReaderAnnotations() {
         <span style="font-weight:600;">${esc(ann.author_name||'Anon')}</span>
         <span>${timeAgo(ann.created_at)}</span>
       </div>
+      <div class="ann-reactions" onclick="event.stopPropagation()">
+        ${(ann.reactions||[]).map(rx => {
+          const isMine = rx.users.some(u => u.author_id === anonId);
+          return '<button class="ann-reaction-btn '+(isMine?'mine':'')+'" onclick="event.stopPropagation();toggleReaction(\''+ann.id+'\',\''+rx.emoji+'\')" title="'+rx.users.map(u=>u.author_name||'Anon').join(', ')+'">'+rx.emoji+' <span class="rxn-count">'+rx.count+'</span></button>';
+        }).join('')}
+        <button class="ann-reaction-add" onclick="event.stopPropagation();showEmojiPicker(this,'${ann.id}')" title="Add reaction">+</button>
+      </div>
       <div class="reader-ann-actions">
         <button onclick="event.stopPropagation();toggleReplyForm('${ann.id}')">Reply</button>
         ${ann.author_id === anonId ? '<button onclick="event.stopPropagation();deleteAnnotation(\''+ann.id+'\')" style="color:#ef4444;">Delete</button>' : ''}
@@ -2238,6 +2262,58 @@ async function deleteReply(replyId) {
     await fetch(`${API}/api/page-annotations/replies/${replyId}?author_id=${encodeURIComponent(anonId)}`, { method: 'DELETE' });
     loadReaderAnnotations();
   } catch(e) { alert('Failed to delete: ' + e.message); }
+}
+
+// ── Emoji Reactions ──
+const QUICK_EMOJIS = ['\u{1F44D}', '\u{2764}\u{FE0F}', '\u{1F602}', '\u{1F4AF}', '\u{1F914}', '\u{1F440}', '\u{1F389}', '\u{1F525}', '\u{1F64F}', '\u{2705}'];
+
+function showEmojiPicker(btn, annId, isNewsList) {
+  // Remove any existing picker
+  document.querySelectorAll('.emoji-picker-popup').forEach(p => p.remove());
+  const picker = document.createElement('div');
+  picker.className = 'emoji-picker-popup';
+  picker.style.display = 'block';
+  picker.innerHTML = QUICK_EMOJIS.map(e =>
+    `<span onclick="event.stopPropagation();pickEmoji('${annId}','${e}',${!!isNewsList})">${e}</span>`
+  ).join('');
+  btn.style.position = 'relative';
+  btn.parentElement.style.position = 'relative';
+  btn.parentElement.appendChild(picker);
+  // Position near the + button
+  const rect = btn.getBoundingClientRect();
+  const parentRect = btn.parentElement.getBoundingClientRect();
+  picker.style.left = (rect.left - parentRect.left) + 'px';
+  picker.style.top = (rect.bottom - parentRect.top + 4) + 'px';
+  // Close picker on outside click
+  setTimeout(() => {
+    document.addEventListener('click', function closePicker(e) {
+      if (!picker.contains(e.target) && e.target !== btn) {
+        picker.remove();
+        document.removeEventListener('click', closePicker);
+      }
+    });
+  }, 10);
+}
+
+function pickEmoji(annId, emoji, isNewsList) {
+  document.querySelectorAll('.emoji-picker-popup').forEach(p => p.remove());
+  toggleReaction(annId, emoji, isNewsList);
+}
+
+async function toggleReaction(annId, emoji, isNewsList) {
+  try {
+    const res = await fetch(`${API}/api/page-annotations/${annId}/reactions`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ emoji, author_id: anonId, author_name: anonName }),
+    });
+    if (!res.ok) throw new Error('Server error');
+    if (isNewsList) {
+      loadNews();
+    } else {
+      await loadReaderAnnotations();
+    }
+  } catch(e) { console.error('Reaction failed:', e); }
 }
 
 // ── Parent-side iframe selection check (reliable fallback) ──

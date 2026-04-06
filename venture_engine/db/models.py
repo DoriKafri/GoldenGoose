@@ -315,6 +315,22 @@ class PageAnnotationReply(Base):
     annotation = relationship("PageAnnotation", back_populates="replies")
 
 
+class AnnotationReaction(Base):
+    __tablename__ = "annotation_reactions"
+    __table_args__ = (
+        UniqueConstraint("annotation_id", "author_id", "emoji", name="uq_reaction_per_user"),
+    )
+
+    id = Column(String, primary_key=True, default=new_uuid)
+    annotation_id = Column(String, ForeignKey("page_annotations.id", ondelete="CASCADE"), nullable=False)
+    emoji = Column(String(8), nullable=False)
+    author_id = Column(Text, nullable=False)
+    author_name = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    annotation = relationship("PageAnnotation", backref="reactions")
+
+
 class PlatformUser(Base):
     __tablename__ = "platform_users"
 

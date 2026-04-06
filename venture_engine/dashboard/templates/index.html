@@ -1643,7 +1643,7 @@ function renderNewsFeed(items) {
         `).join('');
         return `
         <div class="news-ann-item" style="padding:8px 0;border-bottom:1px solid var(--border);">
-          ${a.selected_text ? '<div style="font-size:11px;color:var(--text3);font-style:italic;border-left:3px solid #f59e0b;padding-left:8px;margin-bottom:4px;">&ldquo;'+esc(a.selected_text.slice(0,100))+(a.selected_text.length>100?'...':'')+'&rdquo;</div>' : ''}
+          ${a.selected_text ? '<div style="font-size:11px;color:var(--text3);font-style:italic;border-left:3px solid #f59e0b;padding-left:8px;margin-bottom:4px;">&ldquo;'+esc(a.selected_text.slice(0,300))+(a.selected_text.length>300?'...':'')+'&rdquo;</div>' : ''}
           <div style="font-size:12px;color:var(--text1);">${esc(a.body)}</div>
           <div style="font-size:10px;color:var(--text3);margin-top:3px;display:flex;align-items:center;gap:8px;">
             <span>${esc(a.author_name||'Anon')} · ${timeAgo(a.created_at)}</span>
@@ -2111,7 +2111,7 @@ function renderReaderAnnotations() {
     }).join('');
 
     return `<div class="reader-ann-card" data-ann-id="${ann.id}" onclick="scrollToAnnotation('${ann.id}')">
-      <div class="reader-ann-quote">"${esc(ann.selected_text.slice(0, 120))}${ann.selected_text.length > 120 ? '...' : ''}"</div>
+      <div class="reader-ann-quote">"${esc(ann.selected_text.slice(0, 300))}${ann.selected_text.length > 300 ? '...' : ''}"</div>
       <div class="reader-ann-body">${esc(ann.body)}</div>
       <div class="reader-ann-meta">
         <img src="${avatar}" alt="">
@@ -2242,7 +2242,7 @@ function showAnnotationCompose() {
   compose.style.display = 'block';
   compose.style.left = btn.style.left;
   compose.style.top = (parseInt(btn.style.top) + 32) + 'px';
-  document.getElementById('annComposeQuote').textContent = '"' + _pendingSelection.selectedText.slice(0, 100) + (_pendingSelection.selectedText.length > 100 ? '...' : '') + '"';
+  document.getElementById('annComposeQuote').textContent = '"' + _pendingSelection.selectedText.slice(0, 300) + (_pendingSelection.selectedText.length > 300 ? '...' : '') + '"';
   document.getElementById('annComposeBody').value = '';
   document.getElementById('annComposeBody').focus();
   btn.style.display = 'none';

@@ -1007,7 +1007,7 @@ def list_news(
                 reply_count = len(a.replies) if a.replies else 0
                 annotations_preview.append({
                     "id": a.id,
-                    "selected_text": (a.selected_text or "")[:120],
+                    "selected_text": a.selected_text or "",
                     "body": a.body,
                     "author_name": a.author_name,
                     "author_id": a.author_id,

@@ -1902,7 +1902,7 @@ function openReader(url, title, newsItemId) {
   if (_ac) _ac.style.display = 'none';
 
   const iframe = document.getElementById('readerIframe');
-  iframe.src = `${API}/api/proxy?url=${encodeURIComponent(url)}`;
+  const proxyUrl = `${API}/api/proxy?url=${encodeURIComponent(url)}`;
   iframe.onload = function() {
     // After iframe loads, fetch annotations and highlight them
     loadReaderAnnotations();
@@ -1919,6 +1919,14 @@ function openReader(url, title, newsItemId) {
       }, true);
     } catch(e) { /* cross-origin fallback: rely on postMessage from injected script */ }
   };
+  // Use location.replace() to avoid the iframe creating a history entry.
+  // Without this, the browser back button navigates the iframe (to about:blank)
+  // instead of popping the parent window's history to close the reader.
+  try {
+    iframe.contentWindow.location.replace(proxyUrl);
+  } catch(e) {
+    iframe.src = proxyUrl;
+  }
 
   document.getElementById('readerOverlay').classList.add('open');
   document.body.style.overflow = 'hidden';

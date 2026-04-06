@@ -1361,11 +1361,14 @@ def youtube_frame(
     video_id: str = Query(..., min_length=11, max_length=11),
     t: int = Query(0, ge=0),
     _v: str = Query("", description="Cache-buster"),
+    debug: str = Query("", description="Set to 1 for error details"),
 ):
     """Return a JPEG of the YouTube video frame closest to timestamp t seconds."""
     import time as _time
+    import traceback
 
     cache_key = video_id
+    last_error = None
 
     # Try cached storyboard data first, then fresh fetch on failure.
     # YouTube storyboard URLs contain signatures that expire, so
@@ -1393,8 +1396,8 @@ def youtube_frame(
             )
 
         except Exception as exc:
+            last_error = traceback.format_exc()
             if attempt == 0 and use_cached:
-                # Cached URLs probably expired — invalidate and retry
                 logger.info(
                     f"Storyboard attempt failed for {video_id}@{t}s "
                     f"(cached data age={_time.time() - cached['fetched_at']:.0f}s), "
@@ -1405,6 +1408,14 @@ def youtube_frame(
             else:
                 logger.warning(f"Storyboard extraction failed for {video_id}@{t}s: {exc}")
                 break
+
+    # Debug mode: return error details instead of silent redirect
+    if debug == "1" and last_error:
+        return Response(
+            content=last_error,
+            media_type="text/plain",
+            status_code=500,
+        )
 
     # Final fallback: redirect to default YouTube thumbnail
     return Response(

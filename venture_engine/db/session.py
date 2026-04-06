@@ -3,9 +3,15 @@ from sqlalchemy.orm import sessionmaker, Session
 from contextlib import contextmanager
 from venture_engine.config import settings
 
+db_url = settings.database_url
+# Railway PostgreSQL uses postgres:// but SQLAlchemy requires postgresql://
+if db_url.startswith("postgres://"):
+    db_url = db_url.replace("postgres://", "postgresql://", 1)
+
 engine = create_engine(
-    settings.database_url,
-    connect_args={"check_same_thread": False} if "sqlite" in settings.database_url else {},
+    db_url,
+    connect_args={"check_same_thread": False} if "sqlite" in db_url else {},
+    pool_pre_ping=True if "postgresql" in db_url else False,
     echo=False,
 )
 

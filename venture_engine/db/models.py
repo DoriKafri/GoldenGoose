@@ -293,6 +293,9 @@ class PageAnnotation(Base):
     suffix_context = Column(Text, nullable=True)     # ~40 chars after selection
     text_node_index = Column(Integer, default=0)     # Nth occurrence for disambiguation
 
+    # Video timestamp anchor (for YouTube / video annotations)
+    timestamp_seconds = Column(Integer, nullable=True)  # Seconds into the video
+
     body = Column(Text, nullable=False)
     author_id = Column(Text, nullable=False)
     author_name = Column(Text, nullable=True)

@@ -17,6 +17,20 @@ app = FastAPI(title="Develeap Venture Intelligence Engine")
 app.include_router(router)
 
 
+def _add_missing_columns():
+    """Add any new columns to existing tables (safe migration)."""
+    from sqlalchemy import text, inspect
+    with get_db() as db:
+        insp = inspect(engine)
+        # Add timestamp_seconds to page_annotations if missing
+        if insp.has_table("page_annotations"):
+            cols = [c["name"] for c in insp.get_columns("page_annotations")]
+            if "timestamp_seconds" not in cols:
+                logger.info("Adding timestamp_seconds column to page_annotations...")
+                db.execute(text("ALTER TABLE page_annotations ADD COLUMN timestamp_seconds INTEGER"))
+                db.commit()
+
+
 def _fix_json_columns():
     """Auto-fix any plain text stuck in JSON columns (self-healing migration)."""
     import json as _json
@@ -208,6 +222,8 @@ def _resolve_hn_urls():
 def on_startup():
     logger.info("Creating database tables...")
     Base.metadata.create_all(bind=engine)
+    # Add new columns if missing (safe for existing DBs)
+    _add_missing_columns()
     logger.info("Running JSON column self-heal...")
     _fix_json_columns()
     logger.info("Seeding thought leaders...")

@@ -594,6 +594,28 @@ html.dark .toggle-track::after { transform:translateX(16px); }
 .ann-compose textarea { width:100%; border:1px solid var(--border); border-radius:8px; padding:8px; font-size:12px; font-family:inherit; resize:vertical; min-height:60px; background:var(--bg); color:var(--text); }
 .ann-compose-actions { display:flex; justify-content:flex-end; gap:6px; margin-top:8px; }
 .ann-compose-actions button { padding:4px 14px; border-radius:var(--radius-pill); font-size:11px; font-weight:600; cursor:pointer; border:none; font-family:inherit; }
+/* ─── YouTube Video Player in Reader ─────────────────────────────── */
+.yt-player-wrap { width:100%; height:100%; display:flex; flex-direction:column; background:#000; }
+.yt-player-container { flex:1; position:relative; }
+.yt-player-container iframe { position:absolute; inset:0; width:100%; height:100%; border:none; }
+.yt-controls { display:flex; align-items:center; gap:10px; padding:10px 16px; background:var(--card); border-top:1px solid var(--border); flex-shrink:0; }
+.yt-time-display { font-size:13px; font-weight:600; color:var(--text); font-variant-numeric:tabular-nums; min-width:46px; text-align:center; }
+.yt-mark-btn { display:flex; align-items:center; gap:6px; padding:8px 16px; border-radius:var(--radius-pill); background:linear-gradient(135deg,#f59e0b,#d97706); color:#fff; border:none; font-size:12px; font-weight:700; cursor:pointer; font-family:inherit; transition:transform 0.1s, box-shadow 0.15s; box-shadow:0 2px 8px rgba(217,119,6,0.3); }
+.yt-mark-btn:hover { transform:scale(1.03); box-shadow:0 4px 14px rgba(217,119,6,0.4); }
+.yt-mark-btn:active { transform:scale(0.97); }
+.yt-mark-btn svg { flex-shrink:0; }
+.yt-hint { font-size:11px; color:var(--text3); flex:1; text-align:right; }
+.yt-timeline { flex:1; position:relative; height:6px; background:var(--bg2); border-radius:3px; cursor:pointer; overflow:visible; }
+.yt-timeline-fill { height:100%; background:var(--accent); border-radius:3px; pointer-events:none; transition:width 0.3s; }
+.yt-timeline-markers { position:absolute; inset:0; pointer-events:none; }
+.yt-timeline-marker { position:absolute; top:-4px; width:14px; height:14px; border-radius:50%; background:#f59e0b; border:2px solid #fff; box-shadow:0 1px 4px rgba(0,0,0,0.3); transform:translateX(-50%); cursor:pointer; pointer-events:all; transition:transform 0.15s; }
+.yt-timeline-marker:hover { transform:translateX(-50%) scale(1.3); }
+.yt-timeline-marker-tooltip { position:absolute; bottom:20px; left:50%; transform:translateX(-50%); background:var(--teal); color:#fff; padding:3px 8px; border-radius:6px; font-size:10px; font-weight:600; white-space:nowrap; opacity:0; transition:opacity 0.15s; pointer-events:none; }
+.yt-timeline-marker:hover .yt-timeline-marker-tooltip { opacity:1; }
+/* Timestamp badge in annotation cards */
+.ann-timestamp { display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:var(--radius-pill); background:rgba(245,158,11,0.12); color:#d97706; font-size:11px; font-weight:700; cursor:pointer; border:1px solid rgba(245,158,11,0.25); margin-bottom:6px; font-variant-numeric:tabular-nums; transition:background 0.15s; }
+.ann-timestamp:hover { background:rgba(245,158,11,0.25); }
+.ann-timestamp svg { flex-shrink:0; }
 .ann-compose-cancel { background:var(--bg2); color:var(--text2); }
 .ann-compose-submit { background:linear-gradient(135deg,#f59e0b,#d97706); color:#fff; }
 @media(max-width:768px) {
@@ -2137,6 +2159,16 @@ document.addEventListener('keydown', (e) => {
 });
 
 // ─── Reader / Annotation Overlay ─────────────────────────────────
+// Global YouTube ID extractor (also used inside renderNewsFeed)
+function _youtubeId(url) {
+  try {
+    const u = new URL(url);
+    if (u.hostname.includes('youtube.com')) return u.searchParams.get('v');
+    if (u.hostname === 'youtu.be') return u.pathname.slice(1);
+  } catch(e) {}
+  return null;
+}
+
 let _readerUrl = '';
 let _readerNewsItemId = null;
 let _readerAnnotations = [];
@@ -2157,6 +2189,18 @@ function _getOrCreateAnnBtn() {
   return btn;
 }
 
+let _ytPlayer = null;
+let _ytPlayerReady = false;
+let _ytTimeInterval = null;
+let _isYouTube = false;
+
+function _fmtTime(sec) {
+  sec = Math.floor(sec || 0);
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return m + ':' + (s < 10 ? '0' : '') + s;
+}
+
 function openReader(url, title, newsItemId) {
   _readerUrl = url;
   _readerNewsItemId = newsItemId || null;
@@ -2173,44 +2217,181 @@ function openReader(url, title, newsItemId) {
   const _ac = document.getElementById('annCompose');
   if (_ac) _ac.style.display = 'none';
 
+  const contentEl = document.getElementById('readerContent');
   const iframe = document.getElementById('readerIframe');
-  const proxyUrl = `${API}/api/proxy?url=${encodeURIComponent(url)}`;
-  iframe.onload = function() {
-    // After iframe loads, fetch annotations and highlight them
+  const ytVideoId = _youtubeId(url);
+  _isYouTube = !!ytVideoId;
+
+  if (_isYouTube) {
+    // ── YouTube video mode ──
+    iframe.style.display = 'none';
+    // Remove old YT wrapper if any
+    const oldWrap = contentEl.querySelector('.yt-player-wrap');
+    if (oldWrap) oldWrap.remove();
+
+    const wrap = document.createElement('div');
+    wrap.className = 'yt-player-wrap';
+    wrap.innerHTML = `
+      <div class="yt-player-container"><div id="ytPlayerDiv"></div></div>
+      <div class="yt-controls">
+        <span class="yt-time-display" id="ytTimeDisplay">0:00</span>
+        <div class="yt-timeline" id="ytTimeline" onclick="_ytSeekClick(event)">
+          <div class="yt-timeline-fill" id="ytTimelineFill" style="width:0%"></div>
+          <div class="yt-timeline-markers" id="ytTimelineMarkers"></div>
+        </div>
+        <button class="yt-mark-btn" onclick="_ytMarkTimestamp()" title="Add comment at current timestamp">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:14px;height:14px;"><path d="M12 8v8M8 12h8"/></svg>
+          Comment
+        </button>
+      </div>
+    `;
+    contentEl.appendChild(wrap);
+
+    // Update sidebar hint for video
+    const sidebarHint = document.querySelector('.reader-sidebar-header span:last-child');
+    if (sidebarHint) sidebarHint.textContent = 'Click "Comment" to annotate';
+
+    // Load YouTube IFrame API if not already loaded
+    _ytPlayerReady = false;
+    if (window.YT && window.YT.Player) {
+      _createYTPlayer(ytVideoId);
+    } else {
+      window.onYouTubeIframeAPIReady = function() { _createYTPlayer(ytVideoId); };
+      if (!document.getElementById('ytApiScript')) {
+        const s = document.createElement('script');
+        s.id = 'ytApiScript';
+        s.src = 'https://www.youtube.com/iframe_api';
+        document.head.appendChild(s);
+      }
+    }
+
+    // Load annotations immediately (no iframe load event to wait for)
     loadReaderAnnotations();
-    // Attach parent-side mouseup listener on iframe document as reliable fallback
-    // (some browsers block in-iframe event listeners in sandboxed frames)
+  } else {
+    // ── Article/web mode (original behavior) ──
+    iframe.style.display = '';
+    const oldWrap = contentEl.querySelector('.yt-player-wrap');
+    if (oldWrap) oldWrap.remove();
+    if (_ytTimeInterval) { clearInterval(_ytTimeInterval); _ytTimeInterval = null; }
+
+    // Restore sidebar hint for text
+    const sidebarHint = document.querySelector('.reader-sidebar-header span:last-child');
+    if (sidebarHint) sidebarHint.textContent = 'Select text to annotate';
+
+    const proxyUrl = `${API}/api/proxy?url=${encodeURIComponent(url)}`;
+    iframe.onload = function() {
+      loadReaderAnnotations();
+      try {
+        const idoc = iframe.contentDocument || iframe.contentWindow.document;
+        idoc.addEventListener('mouseup', function() {
+          setTimeout(function() { _parentCheckIframeSelection(); }, 150);
+        }, true);
+        idoc.addEventListener('selectionchange', function() {
+          clearTimeout(window._parentSelTimer);
+          window._parentSelTimer = setTimeout(function() { _parentCheckIframeSelection(); }, 250);
+        }, true);
+      } catch(e) {}
+    };
     try {
-      const idoc = iframe.contentDocument || iframe.contentWindow.document;
-      idoc.addEventListener('mouseup', function() {
-        setTimeout(function() { _parentCheckIframeSelection(); }, 150);
-      }, true);
-      idoc.addEventListener('selectionchange', function() {
-        clearTimeout(window._parentSelTimer);
-        window._parentSelTimer = setTimeout(function() { _parentCheckIframeSelection(); }, 250);
-      }, true);
-    } catch(e) { /* cross-origin fallback: rely on postMessage from injected script */ }
-  };
-  // Use location.replace() to avoid the iframe creating a history entry.
-  // Without this, the browser back button navigates the iframe (to about:blank)
-  // instead of popping the parent window's history to close the reader.
-  try {
-    iframe.contentWindow.location.replace(proxyUrl);
-  } catch(e) {
-    iframe.src = proxyUrl;
+      iframe.contentWindow.location.replace(proxyUrl);
+    } catch(e) {
+      iframe.src = proxyUrl;
+    }
   }
 
   document.getElementById('readerOverlay').classList.add('open');
   document.body.style.overflow = 'hidden';
-  // Set reader URL — only pushState if we're not already on a reader URL
   var readerHash = '#news/read/' + encodeURIComponent(url);
   if (location.hash.startsWith('#news/read/')) {
-    // Already on a reader URL (e.g., opened via permalink) — replace, don't push
     history.replaceState({reader: true}, '', readerHash);
   } else {
     window._preReaderHash = location.hash || '#news';
     history.pushState({reader: true}, '', readerHash);
   }
+}
+
+function _createYTPlayer(videoId) {
+  if (_ytPlayer) { try { _ytPlayer.destroy(); } catch(e){} }
+  _ytPlayer = new YT.Player('ytPlayerDiv', {
+    videoId: videoId,
+    playerVars: { autoplay: 0, modestbranding: 1, rel: 0 },
+    events: {
+      onReady: function() {
+        _ytPlayerReady = true;
+        // Start time update interval
+        if (_ytTimeInterval) clearInterval(_ytTimeInterval);
+        _ytTimeInterval = setInterval(_ytUpdateTime, 500);
+      }
+    }
+  });
+}
+
+function _ytUpdateTime() {
+  if (!_ytPlayer || !_ytPlayerReady) return;
+  try {
+    const cur = _ytPlayer.getCurrentTime() || 0;
+    const dur = _ytPlayer.getDuration() || 1;
+    document.getElementById('ytTimeDisplay').textContent = _fmtTime(cur);
+    document.getElementById('ytTimelineFill').style.width = (cur / dur * 100) + '%';
+  } catch(e) {}
+}
+
+function _ytSeekClick(e) {
+  if (!_ytPlayer || !_ytPlayerReady) return;
+  const bar = document.getElementById('ytTimeline');
+  const rect = bar.getBoundingClientRect();
+  const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+  const dur = _ytPlayer.getDuration() || 0;
+  _ytPlayer.seekTo(pct * dur, true);
+}
+
+function _ytSeekTo(seconds) {
+  if (!_ytPlayer || !_ytPlayerReady) return;
+  _ytPlayer.seekTo(seconds, true);
+  _ytPlayer.playVideo();
+}
+
+function _ytMarkTimestamp() {
+  if (!_ytPlayer || !_ytPlayerReady) return;
+  // Pause the video
+  _ytPlayer.pauseVideo();
+  const seconds = Math.floor(_ytPlayer.getCurrentTime() || 0);
+  const timeStr = _fmtTime(seconds);
+  // Set up pending selection as a timestamp annotation
+  _pendingSelection = {
+    selectedText: `[${timeStr}]`,
+    prefix: '',
+    suffix: '',
+    textNodeIndex: 0,
+    timestampSeconds: seconds,
+  };
+  // Show compose form anchored below the controls
+  const compose = document.getElementById('annCompose');
+  const controls = document.querySelector('.yt-controls');
+  if (controls) {
+    const rect = controls.getBoundingClientRect();
+    compose.style.left = (rect.left + rect.width / 2 - 140) + 'px';
+    compose.style.top = (rect.top - 180) + 'px';
+  }
+  compose.style.display = 'block';
+  document.getElementById('annComposeQuote').innerHTML = '<span class="ann-timestamp" style="cursor:default;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px;"><polygon points="5 3 19 12 5 21 5 3"/></svg> ' + timeStr + '</span>';
+  document.getElementById('annComposeBody').value = '';
+  document.getElementById('annComposeBody').placeholder = 'What happens at this moment?';
+  document.getElementById('annComposeBody').focus();
+  _getOrCreateAnnBtn().style.display = 'none';
+}
+
+function _renderYtTimelineMarkers() {
+  const markersEl = document.getElementById('ytTimelineMarkers');
+  if (!markersEl || !_ytPlayer || !_ytPlayerReady) return;
+  const dur = _ytPlayer.getDuration() || 1;
+  const tsAnns = _readerAnnotations.filter(a => a.timestamp_seconds != null);
+  markersEl.innerHTML = tsAnns.map(a => {
+    const pct = (a.timestamp_seconds / dur * 100).toFixed(2);
+    return `<div class="yt-timeline-marker" style="left:${pct}%;" onclick="event.stopPropagation();_ytSeekTo(${a.timestamp_seconds});scrollToAnnotation('${a.id}')" onmouseenter="_highlightMarksCard('${a.id}',true)" onmouseleave="_highlightMarksCard('${a.id}',false)">
+      <div class="yt-timeline-marker-tooltip">${_fmtTime(a.timestamp_seconds)} — ${(a.body||'').slice(0,30)}${(a.body||'').length>30?'...':''}</div>
+    </div>`;
+  }).join('');
 }
 
 async function shareArticle() {
@@ -2305,10 +2486,18 @@ async function shareNewsItem(title, articleUrl) {
 function closeReader(fromPopstate) {
   document.getElementById('readerOverlay').classList.remove('open');
   document.getElementById('readerIframe').src = 'about:blank';
+  document.getElementById('readerIframe').style.display = '';
   document.body.style.overflow = '';
   _readerUrl = '';
   _readerAnnotations = [];
   _pendingSelection = null;
+  // Clean up YouTube player
+  if (_ytTimeInterval) { clearInterval(_ytTimeInterval); _ytTimeInterval = null; }
+  if (_ytPlayer) { try { _ytPlayer.destroy(); } catch(e){} _ytPlayer = null; }
+  _ytPlayerReady = false;
+  _isYouTube = false;
+  const oldWrap = document.getElementById('readerContent')?.querySelector('.yt-player-wrap');
+  if (oldWrap) oldWrap.remove();
   // Hide annotation UI elements that float on document.body
   var _btn = document.getElementById('annFloatBtn');
   if (_btn) _btn.style.display = 'none';
@@ -2500,11 +2689,21 @@ function renderReaderAnnotations() {
   document.getElementById('readerAnnCount').textContent = _readerAnnotations.length + ' annotation' + (_readerAnnotations.length !== 1 ? 's' : '');
 
   if (!_readerAnnotations.length) {
-    el.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text3);font-size:12px;">No annotations yet. Select text on the page to add one.</div>';
+    const hint = _isYouTube
+      ? 'No comments yet. Click "Comment" to add one at the current timestamp.'
+      : 'No annotations yet. Select text on the page to add one.';
+    el.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text3);font-size:12px;">' + hint + '</div>';
+    if (_isYouTube) _renderYtTimelineMarkers();
     return;
   }
 
-  el.innerHTML = _readerAnnotations.map(ann => {
+  // Sort: video annotations by timestamp, text annotations by creation time
+  const sorted = [..._readerAnnotations];
+  if (_isYouTube) {
+    sorted.sort((a, b) => (a.timestamp_seconds ?? 9999999) - (b.timestamp_seconds ?? 9999999));
+  }
+
+  el.innerHTML = sorted.map(ann => {
     const avatar = `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(ann.author_name||ann.author_id)}&backgroundColor=b6e3f4`;
     const replies = (ann.replies||[]).map(r => {
       const rAvatar = `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(r.author_name||r.author_id)}&backgroundColor=b6e3f4`;
@@ -2519,8 +2718,21 @@ function renderReaderAnnotations() {
       </div>`;
     }).join('');
 
-    return `<div class="reader-ann-card" data-ann-id="${ann.id}" onclick="scrollToAnnotation('${ann.id}')" onmouseenter="_highlightMarks('${ann.id}',true)" onmouseleave="_highlightMarks('${ann.id}',false)">
-      <div class="reader-ann-quote">"${esc(ann.selected_text.slice(0, 300))}${ann.selected_text.length > 300 ? '...' : ''}"</div>
+    // Timestamp badge for video annotations
+    const isVideoAnn = ann.timestamp_seconds != null;
+    const tsBadge = isVideoAnn
+      ? `<div class="ann-timestamp" onclick="event.stopPropagation();_ytSeekTo(${ann.timestamp_seconds})">
+           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:12px;height:12px;"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+           ${_fmtTime(ann.timestamp_seconds)}
+         </div>`
+      : `<div class="reader-ann-quote">"${esc(ann.selected_text.slice(0, 300))}${ann.selected_text.length > 300 ? '...' : ''}"</div>`;
+
+    const cardClick = isVideoAnn
+      ? `onclick="event.stopPropagation();_ytSeekTo(${ann.timestamp_seconds})"`
+      : `onclick="scrollToAnnotation('${ann.id}')" onmouseenter="_highlightMarks('${ann.id}',true)" onmouseleave="_highlightMarks('${ann.id}',false)"`;
+
+    return `<div class="reader-ann-card" data-ann-id="${ann.id}" ${cardClick}>
+      ${tsBadge}
       <div class="reader-ann-body">${esc(ann.body)}</div>
       <div class="reader-ann-meta">
         <img src="${avatar}" alt="">
@@ -2545,6 +2757,9 @@ function renderReaderAnnotations() {
       </div>
     </div>`;
   }).join('');
+
+  // Render timeline markers for YouTube
+  if (_isYouTube) _renderYtTimelineMarkers();
 }
 
 function scrollToAnnotation(annId) {
@@ -2727,24 +2942,32 @@ async function submitAnnotation() {
   const body = document.getElementById('annComposeBody').value.trim();
   if (!body) { alert('Please write a comment.'); return; }
 
+  const payload = {
+    url: _readerUrl,
+    news_item_id: _readerNewsItemId,
+    selected_text: _pendingSelection.selectedText,
+    prefix_context: _pendingSelection.prefix,
+    suffix_context: _pendingSelection.suffix,
+    text_node_index: _pendingSelection.textNodeIndex,
+    body: body,
+    author_id: anonId,
+    author_name: anonName,
+  };
+  // Include timestamp for video annotations
+  if (_pendingSelection.timestampSeconds != null) {
+    payload.timestamp_seconds = _pendingSelection.timestampSeconds;
+  }
+
   try {
     const res = await fetch(`${API}/api/page-annotations`, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({
-        url: _readerUrl,
-        news_item_id: _readerNewsItemId,
-        selected_text: _pendingSelection.selectedText,
-        prefix_context: _pendingSelection.prefix,
-        suffix_context: _pendingSelection.suffix,
-        text_node_index: _pendingSelection.textNodeIndex,
-        body: body,
-        author_id: anonId,
-        author_name: anonName,
-      }),
+      body: JSON.stringify(payload),
     });
     if (!res.ok) throw new Error('Server error');
     hideAnnotationCompose();
+    // Reset compose placeholder back to default
+    document.getElementById('annComposeBody').placeholder = 'Write your annotation...';
     await loadReaderAnnotations();
   } catch(e) { alert('Failed to save: ' + e.message); }
 }

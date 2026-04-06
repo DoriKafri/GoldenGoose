@@ -1357,6 +1357,7 @@ class PageAnnotationRequest(BaseModel):
     prefix_context: Optional[str] = None
     suffix_context: Optional[str] = None
     text_node_index: int = 0
+    timestamp_seconds: Optional[int] = None   # For video annotations
     body: str
     author_id: str
     author_name: str = ""
@@ -1384,6 +1385,7 @@ def _serialize_annotation(ann: PageAnnotation) -> dict:
         "prefix_context": ann.prefix_context,
         "suffix_context": ann.suffix_context,
         "text_node_index": ann.text_node_index,
+        "timestamp_seconds": ann.timestamp_seconds,
         "body": ann.body,
         "author_id": ann.author_id,
         "author_name": ann.author_name,
@@ -1416,6 +1418,7 @@ def create_page_annotation(req: PageAnnotationRequest, db: Session = Depends(get
         prefix_context=req.prefix_context,
         suffix_context=req.suffix_context,
         text_node_index=req.text_node_index,
+        timestamp_seconds=req.timestamp_seconds,
         body=req.body,
         author_id=req.author_id,
         author_name=req.author_name,

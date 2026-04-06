@@ -847,6 +847,13 @@ html.dark .toggle-track::after { transform:translateX(16px); }
 </div>
 
 <!-- Reader / Annotation Overlay -->
+<script>
+// Show reader overlay IMMEDIATELY if URL is a reader permalink — prevents news list flash
+if (location.hash && location.hash.startsWith('#news/read/')) {
+  document.write('<style>#readerOverlay{display:flex!important}#ventureList,.main-content .loading{visibility:hidden}</style>');
+  document.body && (document.body.style.overflow = 'hidden');
+}
+</script>
 <div class="reader-overlay" id="readerOverlay">
   <div class="reader-topbar">
     <button class="reader-topbar-close" onclick="closeReader()" title="Close">&times;</button>
@@ -3377,11 +3384,6 @@ window.addEventListener('resize', updateTabScrollHint);
 setTimeout(updateTabScrollHint, 100);
 
 // Read hash on page load for deep linking
-// If it's a reader permalink, show the overlay shell immediately to prevent flash
-if (location.hash && location.hash.startsWith('#news/read/')) {
-  document.getElementById('readerOverlay').classList.add('open');
-  document.body.style.overflow = 'hidden';
-}
 if (location.hash) {
   readHash();
 } else {

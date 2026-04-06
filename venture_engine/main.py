@@ -106,6 +106,52 @@ def _algolia_find_url(search_q: str):
     return None
 
 
+def _backfill_news_from_signals():
+    """Create NewsFeedItem entries for any RawSignals that don't have one yet."""
+    from venture_engine.db.models import RawSignal, NewsFeedItem
+
+    SOURCE_NAMES = {
+        "hackernews": "Hacker News",
+        "producthunt": "Product Hunt",
+        "github": "GitHub Trending",
+        "github_trending": "GitHub Trending",
+        "arxiv": "arXiv",
+        "blog": "Tech Blog",
+        "startup_signal": "Startup Signal",
+    }
+
+    with get_db() as db:
+        # Get all URLs already in news_feed
+        existing_urls = {r[0] for r in db.query(NewsFeedItem.url).all() if r[0]}
+
+        # Find raw signals with URLs not yet in news_feed
+        signals = db.query(RawSignal).filter(
+            RawSignal.url.isnot(None),
+            RawSignal.url != "",
+        ).order_by(RawSignal.created_at.desc()).all()
+
+        count = 0
+        for s in signals:
+            if s.url in existing_urls:
+                continue
+            strength = s.signal_strength or 0.5
+            news_item = NewsFeedItem(
+                title=s.title or "Untitled",
+                url=s.url,
+                source=s.source or "unknown",
+                source_name=SOURCE_NAMES.get(s.source, s.source or "Signal"),
+                summary=(s.content or "")[:300],
+                signal_strength=round(strength * 10, 1) if strength <= 1 else round(strength, 1),
+                published_at=s.created_at,
+            )
+            db.add(news_item)
+            existing_urls.add(s.url)
+            count += 1
+
+        if count:
+            logger.info(f"Backfilled {count} news items from raw signals")
+
+
 def _resolve_hn_urls():
     """Auto-resolve any news items with HN discussion/main page URLs to original article URLs."""
     import httpx
@@ -173,7 +219,9 @@ def on_startup():
         load_cache(db)
     logger.info("Resolving HN news URLs...")
     _resolve_hn_urls()
+    logger.info("Backfilling news feed from raw signals...")
+    _backfill_news_from_signals()
     logger.info("Starting scheduler...")
     from venture_engine.scheduler import start_scheduler
     start_scheduler()
-    logger.info("Venture Intelligence Engine is running. v2.1")
+    logger.info("Venture Intelligence Engine is running. v2.2")

@@ -33,20 +33,20 @@ def migrate_sqlite_to_postgres():
     from sqlalchemy import create_engine, text, inspect
     pg_engine = create_engine(db_url, pool_pre_ping=True)
 
+    # Create all tables first
+    from venture_engine.db.models import Base
+    Base.metadata.create_all(bind=pg_engine)
+
     # Check if PostgreSQL already has data (skip migration if so)
     with pg_engine.connect() as conn:
-        inspector = inspect(pg_engine)
-        tables = inspector.get_table_names()
-        if "news_feed" in tables:
+        try:
             result = conn.execute(text("SELECT COUNT(*) FROM news_feed"))
             count = result.scalar()
             if count > 0:
                 print(f"[start] PostgreSQL already has {count} news items, skipping migration")
                 return
-
-    # Create all tables first
-    from venture_engine.db.models import Base
-    Base.metadata.create_all(bind=pg_engine)
+        except Exception:
+            pass  # Table might not exist yet, continue with migration
 
     # Read from SQLite and insert into PostgreSQL
     sqlite_conn = sqlite3.connect(seed_db)

@@ -1272,6 +1272,7 @@ def _fetch_storyboard_spec(video_id: str):
     import re
     import json
     import time as _time
+    import httpx
 
     resp = httpx.get(
         f"https://www.youtube.com/watch?v={video_id}",
@@ -1332,6 +1333,7 @@ def _fetch_storyboard_spec(video_id: str):
 def _extract_storyboard_frame(spec_data: dict, video_id: str, t: int):
     """Extract a frame from YouTube storyboard sprite sheets. Returns JPEG bytes."""
     import io
+    import httpx
     from PIL import Image
 
     base_url = spec_data["base_url"]

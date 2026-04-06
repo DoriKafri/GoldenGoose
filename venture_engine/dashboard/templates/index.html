@@ -1501,6 +1501,8 @@ window.addEventListener('popstate', (e) => {
 });
 
 async function loadVentures() {
+  // Show loading state immediately for instant tab feedback
+  document.getElementById('ventureList').innerHTML = '<div class="loading">Loading...</div>';
   const domain = document.getElementById('filterDomain').value;
   const status = document.getElementById('filterStatus').value;
   const sort = document.getElementById('sortBy').value;
@@ -1596,6 +1598,8 @@ function renderList(ventures) {
 async function loadNews() {
   // Ensure post bar is visible on News tab
   document.getElementById('newsPostBar').style.display = '';
+  // Show loading state immediately for instant tab feedback
+  document.getElementById('ventureList').innerHTML = '<div class="loading">Loading...</div>';
   const params = new URLSearchParams({limit: PAGE_SIZE, offset: currentPage * PAGE_SIZE});
   const res = await fetch(`${API}/api/news?${params}`);
   const data = await res.json();

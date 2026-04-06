@@ -1922,9 +1922,15 @@ function openReader(url, title, newsItemId) {
 
   document.getElementById('readerOverlay').classList.add('open');
   document.body.style.overflow = 'hidden';
-  // Save pre-reader hash so we can restore on close, then set reader URL
-  window._preReaderHash = location.hash;
-  history.pushState({reader: true}, '', '#news/read/' + encodeURIComponent(url));
+  // Set reader URL — only pushState if we're not already on a reader URL
+  var readerHash = '#news/read/' + encodeURIComponent(url);
+  if (location.hash.startsWith('#news/read/')) {
+    // Already on a reader URL (e.g., opened via permalink) — replace, don't push
+    history.replaceState({reader: true}, '', readerHash);
+  } else {
+    window._preReaderHash = location.hash || '#news';
+    history.pushState({reader: true}, '', readerHash);
+  }
 }
 
 function closeReader(fromPopstate) {
@@ -1939,9 +1945,16 @@ function closeReader(fromPopstate) {
   if (_btn) _btn.style.display = 'none';
   var _comp = document.getElementById('annCompose');
   if (_comp) _comp.style.display = 'none';
-  if (!fromPopstate) {
-    // Closed via X or Escape — replace current history entry to remove reader URL
-    history.replaceState(null, '', window._preReaderHash || '#news');
+  // Always restore the URL to the pre-reader hash
+  var restoreHash = window._preReaderHash || '#news';
+  if (fromPopstate) {
+    // Back button already popped — but if we landed on another reader URL, clean it
+    if (location.hash.startsWith('#news/read/')) {
+      history.replaceState(null, '', restoreHash);
+    }
+  } else {
+    // Closed via X or Escape — replace current entry to remove reader URL
+    history.replaceState(null, '', restoreHash);
   }
 }
 

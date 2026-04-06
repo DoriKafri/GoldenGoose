@@ -1461,8 +1461,9 @@ function readHash() {
   // Handle reader permalink: #news/read/<encoded-url>
   if (tab === 'news' && parts[1] === 'read' && parts.length >= 3) {
     const articleUrl = decodeURIComponent(parts.slice(2).join('/'));
-    switchTab('news', true);
-    setTimeout(() => openReader(articleUrl, '', ''), 500);
+    currentTab = 'news';
+    document.querySelectorAll('.top-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === 'news'));
+    openReader(articleUrl, '', '');
     return;
   }
   const ventureId = parts[1];
@@ -3376,6 +3377,11 @@ window.addEventListener('resize', updateTabScrollHint);
 setTimeout(updateTabScrollHint, 100);
 
 // Read hash on page load for deep linking
+// If it's a reader permalink, show the overlay shell immediately to prevent flash
+if (location.hash && location.hash.startsWith('#news/read/')) {
+  document.getElementById('readerOverlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
 if (location.hash) {
   readHash();
 } else {

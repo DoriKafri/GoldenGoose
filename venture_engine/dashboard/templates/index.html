@@ -486,6 +486,61 @@ html.dark .toggle-track::after { transform:translateX(16px); }
   .venture-title { font-size:13px !important; }
   .score-badge { width:28px !important; height:28px !important; font-size:11px !important; }
 }
+/* ─── News Post Trigger (LinkedIn-style) ─────────────────────────── */
+.news-post-trigger { background:var(--card); border-radius:var(--radius-lg); border:1px solid var(--border); padding:14px 16px; cursor:pointer; transition:box-shadow 0.2s, border-color 0.2s; box-shadow:var(--shadow); }
+.news-post-trigger:hover { border-color:var(--accent); box-shadow:var(--shadow-md); }
+.npt-avatar { width:44px; height:44px; border-radius:50%; background:var(--accent-light); display:flex; align-items:center; justify-content:center; flex-shrink:0; float:left; margin-right:12px; }
+.npt-placeholder { display:block; padding:10px 16px; border-radius:var(--radius-pill); border:1px solid var(--border); color:var(--text3); font-size:14px; font-weight:500; margin-bottom:10px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; transition:background 0.15s; }
+.news-post-trigger:hover .npt-placeholder { background:var(--bg2); }
+.npt-actions { display:flex; gap:2px; clear:both; padding-left:56px; }
+.npt-action { display:flex; align-items:center; gap:6px; padding:8px 14px; border:none; background:transparent; border-radius:8px; cursor:pointer; font-size:12px; font-weight:600; color:var(--text2); transition:background 0.15s; font-family:inherit; }
+.npt-action:hover { background:var(--bg2); }
+.npt-action span { white-space:nowrap; }
+
+/* ─── Post Composer Modal ────────────────────────────────────────── */
+.post-composer-overlay { position:fixed; inset:0; z-index:700; background:rgba(0,0,0,0.55); display:flex; align-items:flex-start; justify-content:center; padding-top:min(8vh,80px); animation:pcFadeIn 0.18s ease; }
+@keyframes pcFadeIn { from{opacity:0} to{opacity:1} }
+.post-composer { background:var(--card); border-radius:var(--radius-lg); width:100%; max-width:560px; box-shadow:0 20px 60px rgba(0,0,0,0.25); display:flex; flex-direction:column; animation:pcSlideUp 0.22s ease; max-height:85vh; overflow:hidden; }
+@keyframes pcSlideUp { from{transform:translateY(16px);opacity:0} to{transform:translateY(0);opacity:1} }
+.pc-header { display:flex; align-items:center; justify-content:space-between; padding:16px 20px 12px; }
+.pc-header-left { display:flex; align-items:center; gap:10px; }
+.pc-avatar { width:44px; height:44px; border-radius:50%; background:var(--accent-light); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.pc-username { font-size:14px; font-weight:600; color:var(--text); }
+.pc-visibility { font-size:11px; color:var(--text3); font-weight:500; }
+.pc-close { width:36px; height:36px; border-radius:50%; border:none; background:transparent; font-size:24px; color:var(--text3); cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background 0.15s; }
+.pc-close:hover { background:var(--bg2); color:var(--text); }
+.pc-body { padding:0 20px; flex:1; overflow-y:auto; min-height:180px; }
+.pc-textarea { width:100%; min-height:160px; max-height:40vh; border:none; outline:none; font-family:inherit; font-size:15px; color:var(--text); background:transparent; resize:none; line-height:1.6; padding:0; }
+.pc-textarea::placeholder { color:var(--text3); }
+.pc-link-preview { display:flex; align-items:center; gap:8px; padding:8px 12px; background:var(--bg2); border-radius:8px; margin-top:8px; }
+.pc-link-icon { flex-shrink:0; display:flex; align-items:center; }
+.pc-link-url { flex:1; font-size:12px; color:var(--accent-hover); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:500; }
+.pc-link-remove { border:none; background:transparent; color:var(--text3); font-size:18px; cursor:pointer; padding:0 4px; line-height:1; }
+.pc-link-remove:hover { color:var(--red); }
+.pc-divider { height:1px; background:var(--border); margin:12px 0 0; }
+.pc-footer { display:flex; align-items:center; justify-content:space-between; padding:10px 20px 14px; }
+.pc-tools { display:flex; gap:4px; }
+.pc-tool-btn { width:36px; height:36px; border-radius:50%; border:none; background:transparent; color:var(--text3); cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background 0.15s, color 0.15s; }
+.pc-tool-btn:hover { background:var(--bg2); color:var(--accent); }
+.pc-submit-area { display:flex; align-items:center; gap:10px; }
+.pc-char-count { font-size:11px; color:var(--text3); }
+.pc-post-btn { padding:8px 22px; border-radius:var(--radius-pill); background:var(--accent); color:#1a1a1a; border:none; font-size:13px; font-weight:700; cursor:pointer; font-family:inherit; transition:opacity 0.2s, background 0.2s; }
+.pc-post-btn:disabled { opacity:0.4; cursor:not-allowed; }
+.pc-post-btn:not(:disabled):hover { background:var(--accent-hover); }
+.pc-link-input-row { display:flex; gap:8px; padding:8px 20px 14px; border-top:1px solid var(--border); }
+.pc-link-field { flex:1; padding:8px 14px; border-radius:var(--radius-pill); border:1px solid var(--border); background:var(--bg); font-size:13px; color:var(--text); outline:none; font-family:inherit; transition:border-color 0.2s; }
+.pc-link-field:focus { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-light); }
+.pc-link-confirm { padding:8px 18px; border-radius:var(--radius-pill); background:var(--accent); color:#1a1a1a; border:none; font-size:12px; font-weight:700; cursor:pointer; font-family:inherit; transition:background 0.15s; }
+.pc-link-confirm:hover { background:var(--accent-hover); }
+/* Post success toast */
+.post-toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%) translateY(20px); background:var(--teal); color:#fff; padding:12px 24px; border-radius:var(--radius-pill); font-size:13px; font-weight:600; box-shadow:0 8px 24px rgba(0,0,0,0.2); z-index:800; opacity:0; transition:opacity 0.3s, transform 0.3s; pointer-events:none; white-space:nowrap; }
+.post-toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+@media(max-width:600px) {
+  .post-composer-overlay { padding-top:0; align-items:stretch; }
+  .post-composer { max-width:100%; border-radius:0; max-height:100vh; }
+  .npt-actions { padding-left:0; flex-wrap:wrap; }
+  .npt-action span { display:none; }
+}
 /* ─── Reader / Annotation Overlay ────────────────────────────────── */
 .reader-overlay { display:none; position:fixed; inset:0; z-index:600; background:var(--bg); flex-direction:column; }
 .reader-overlay.open { display:flex; }
@@ -753,20 +808,93 @@ html.dark .toggle-track::after { transform:translateX(16px); }
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
         </button>
       </div>
-      <!-- News Post Bar (visible only on News tab) -->
+      <!-- News Post Bar – LinkedIn-style (visible only on News tab) -->
       <div id="newsPostBar" style="display:none;margin-bottom:12px;">
-        <div style="background:var(--surface);border-radius:var(--radius-lg);border:1px solid var(--border);padding:12px 16px;display:flex;align-items:center;gap:12px;box-shadow:var(--shadow-sm);">
-          <div style="width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,#2563eb,#7c3aed);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-            <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" style="width:20px;height:20px;"><circle cx="12" cy="12" r="10"/><path d="M12 8v8M8 12h8"/></svg>
+        <!-- Trigger bar -->
+        <div class="news-post-trigger" onclick="openPostComposer()">
+          <div class="npt-avatar">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:22px;height:22px;color:var(--accent)"><path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
           </div>
-          <div style="flex:1;display:flex;flex-direction:column;gap:6px;">
-            <div style="display:flex;gap:8px;align-items:center;">
-              <input type="url" id="newsUrlInput" placeholder="Paste a URL to add to the news feed..." style="flex:1;padding:8px 14px;border-radius:var(--radius-pill);border:1px solid var(--border);background:var(--bg);font-size:13px;color:var(--text);outline:none;transition:border-color 0.2s;" onfocus="this.style.borderColor='#2563eb'" onblur="this.style.borderColor='var(--border)'">
-              <button id="newsPostBtn" onclick="postNewsUrl()" style="padding:6px 18px;border-radius:var(--radius-pill);background:linear-gradient(135deg,#2563eb,#7c3aed);color:white;border:none;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;transition:opacity 0.2s;" onmouseenter="this.style.opacity='0.9'" onmouseleave="this.style.opacity='1'">Post</button>
+          <span class="npt-placeholder">Share a problem or opportunity...</span>
+          <div class="npt-actions">
+            <button class="npt-action" onclick="event.stopPropagation();openPostComposer('link')" title="Add link">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px;color:#2563eb"><path d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101"/><path d="M10.172 13.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
+              <span>Link</span>
+            </button>
+            <button class="npt-action" onclick="event.stopPropagation();openPostComposer('video')" title="Add video">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px;color:#ef4444"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+              <span>Video</span>
+            </button>
+            <button class="npt-action" onclick="event.stopPropagation();openPostComposer('write')" title="Write insight">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px;color:#f59e0b"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              <span>Insight</span>
+            </button>
+          </div>
+        </div>
+        <!-- Search bar -->
+        <div style="margin-top:8px;display:flex;gap:8px;align-items:center;">
+          <div style="flex:1;position:relative;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" style="width:16px;height:16px;position:absolute;left:12px;top:50%;transform:translateY(-50%);pointer-events:none;"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+            <input type="text" id="newsSearchInput" placeholder="Search news..." style="width:100%;padding:8px 14px 8px 36px;border-radius:var(--radius-pill);border:1px solid var(--border);background:var(--bg);font-size:13px;color:var(--text);outline:none;transition:border-color 0.2s;" oninput="debounceNewsSearch()" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'">
+          </div>
+          <select id="newsSourceFilter" onchange="currentPage=0;loadNews()" style="padding:8px 28px 8px 10px;border-radius:var(--radius-pill);border:1px solid var(--border);background:var(--bg);font-size:12px;color:var(--text2);outline:none;cursor:pointer;appearance:none;-webkit-appearance:none;background-image:url(&quot;data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23999' stroke-width='1.5' fill='none'/%3E%3C/svg%3E&quot;);background-repeat:no-repeat;background-position:right 10px center;">
+            <option value="">All sources</option>
+            <option value="hackernews">Hacker News</option>
+            <option value="producthunt">Product Hunt</option>
+            <option value="github_trending">GitHub</option>
+            <option value="arxiv">arXiv</option>
+            <option value="blog">Blogs</option>
+            <option value="youtube">YouTube</option>
+            <option value="podcast">Podcast</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Post Composer Modal -->
+      <div id="postComposerOverlay" class="post-composer-overlay" onclick="closePostComposer(event)" style="display:none;">
+        <div class="post-composer" onclick="event.stopPropagation()">
+          <div class="pc-header">
+            <div class="pc-header-left">
+              <div class="pc-avatar">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:22px;height:22px;color:var(--accent)"><path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+              </div>
+              <div>
+                <div class="pc-username" id="pcUsername">Scout</div>
+                <div class="pc-visibility">Post to team</div>
+              </div>
             </div>
-            <input type="text" id="newsCommentInput" placeholder="Add a comment (optional)" style="padding:6px 14px;border-radius:var(--radius-pill);border:1px solid var(--border);background:var(--bg);font-size:11px;color:var(--text2);outline:none;">
-            <div id="newsPostError" style="display:none;font-size:11px;color:#ef4444;padding-left:4px;"></div>
-            <div id="newsPostSuccess" style="display:none;font-size:11px;color:#22c55e;padding-left:4px;"></div>
+            <button class="pc-close" onclick="closePostComposer()">&times;</button>
+          </div>
+          <div class="pc-body">
+            <textarea id="newsCommentInput" class="pc-textarea" placeholder="What problem or opportunity did you spot?" oninput="updatePostBtn()"></textarea>
+            <div id="pcLinkPreview" class="pc-link-preview" style="display:none;">
+              <div class="pc-link-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" style="width:16px;height:16px;"><path d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101"/><path d="M10.172 13.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
+              </div>
+              <span id="pcLinkUrl" class="pc-link-url"></span>
+              <button class="pc-link-remove" onclick="removePostLink()" title="Remove link">&times;</button>
+            </div>
+            <div id="newsPostError" style="display:none;font-size:12px;color:#ef4444;padding:4px 0;"></div>
+            <div id="newsPostSuccess" style="display:none;font-size:12px;color:#22c55e;padding:4px 0;"></div>
+          </div>
+          <div class="pc-divider"></div>
+          <div class="pc-footer">
+            <div class="pc-tools">
+              <button class="pc-tool-btn" onclick="toggleLinkInput()" title="Add link" id="pcLinkToggle">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:20px;height:20px;"><path d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101"/><path d="M10.172 13.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
+              </button>
+              <button class="pc-tool-btn" onclick="toggleLinkInput();document.getElementById('newsUrlInput').placeholder='Paste YouTube or video URL...'" title="Add video">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:20px;height:20px;"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+              </button>
+            </div>
+            <div class="pc-submit-area">
+              <div id="pcCharCount" class="pc-char-count"></div>
+              <button id="newsPostBtn" class="pc-post-btn" onclick="postNewsUrl()" disabled>Post</button>
+            </div>
+          </div>
+          <div id="pcLinkInputRow" class="pc-link-input-row" style="display:none;">
+            <input type="text" id="newsUrlInput" class="pc-link-field" placeholder="Paste article, YouTube, or podcast URL..." onkeydown="if(event.key==='Enter'){event.preventDefault();confirmPostLink()}" oninput="updatePostBtn()">
+            <button class="pc-link-confirm" onclick="confirmPostLink()">Add</button>
           </div>
         </div>
       </div>
@@ -1620,12 +1748,22 @@ function renderList(ventures) {
 }
 
 // ── News Feed ──
+let _newsSearchTimer = null;
+function debounceNewsSearch() {
+  clearTimeout(_newsSearchTimer);
+  _newsSearchTimer = setTimeout(() => { currentPage = 0; loadNews(); }, 300);
+}
+
 async function loadNews() {
   // Ensure post bar is visible on News tab
   document.getElementById('newsPostBar').style.display = '';
   // Show loading state immediately for instant tab feedback
   document.getElementById('ventureList').innerHTML = '<div class="loading">Loading...</div>';
   const params = new URLSearchParams({limit: PAGE_SIZE, offset: currentPage * PAGE_SIZE});
+  const searchEl = document.getElementById('newsSearchInput');
+  const sourceEl = document.getElementById('newsSourceFilter');
+  if (searchEl && searchEl.value.trim()) params.set('q', searchEl.value.trim());
+  if (sourceEl && sourceEl.value) params.set('source', sourceEl.value);
   const res = await fetch(`${API}/api/news?${params}`);
   const data = await res.json();
   totalVentures = data.total;
@@ -1640,10 +1778,19 @@ function renderNewsFeed(items) {
   if (!items.length) { el.innerHTML = '<div class="loading">No news items yet.</div>'; return; }
   const sourceIcons = {
     hackernews: '\uD83D\uDCD0', twitter: '\uD83D\uDC26', blog: '\u270D\uFE0F', arxiv: '\uD83D\uDCDA',
-    github: '\uD83D\uDC19', conference: '\uD83C\uDFE4', podcast: '\uD83C\uDFA7', newsletter: '\uD83D\uDCEC',
+    github: '\uD83D\uDC19', github_trending: '\uD83D\uDC19', conference: '\uD83C\uDFE4', podcast: '\uD83C\uDFA7', newsletter: '\uD83D\uDCEC',
     disaster: '\uD83D\uDEA8', research: '\uD83D\uDD2C', announcement: '\uD83D\uDCE2',
+    youtube: '\u{1F3AC}', video: '\u{1F3AC}', startup_signal: '\u{1F680}', producthunt: '\u{1F431}',
   };
   function _hostname(url) { try { return new URL(url).hostname; } catch(e) { return url; } }
+  function _youtubeId(url) {
+    try {
+      const u = new URL(url);
+      if (u.hostname.includes('youtube.com')) return u.searchParams.get('v');
+      if (u.hostname === 'youtu.be') return u.pathname.slice(1);
+    } catch(e) {}
+    return null;
+  }
   el.innerHTML = items.map(item => {
     try {
     const icon = sourceIcons[item.source] || '\uD83D\uDCF0';
@@ -1832,9 +1979,82 @@ async function deleteNewsAnnotation(annId, btn) {
   } catch(e) { alert('Failed to delete: ' + e.message); }
 }
 
-// ── Post News URL ──
+// ── Post Composer (LinkedIn-style) ──
+let _postComposerUrl = '';
+
+function openPostComposer(focus) {
+  const overlay = document.getElementById('postComposerOverlay');
+  overlay.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+  // Set username from localStorage
+  const name = localStorage.getItem('ve_anon_name') || 'Scout';
+  document.getElementById('pcUsername').textContent = name;
+  // Reset state
+  document.getElementById('newsPostError').style.display = 'none';
+  document.getElementById('newsPostSuccess').style.display = 'none';
+  updatePostBtn();
+  if (focus === 'link' || focus === 'video') {
+    toggleLinkInput(true);
+    if (focus === 'video') document.getElementById('newsUrlInput').placeholder = 'Paste YouTube or video URL...';
+    else document.getElementById('newsUrlInput').placeholder = 'Paste article, YouTube, or podcast URL...';
+    setTimeout(() => document.getElementById('newsUrlInput').focus(), 100);
+  } else {
+    setTimeout(() => document.getElementById('newsCommentInput').focus(), 100);
+  }
+}
+
+function closePostComposer(ev) {
+  if (ev && ev.target !== ev.currentTarget) return;
+  document.getElementById('postComposerOverlay').style.display = 'none';
+  document.body.style.overflow = '';
+}
+
+function toggleLinkInput(forceShow) {
+  const row = document.getElementById('pcLinkInputRow');
+  const show = forceShow === true || row.style.display === 'none';
+  row.style.display = show ? 'flex' : 'none';
+  if (show) setTimeout(() => document.getElementById('newsUrlInput').focus(), 50);
+}
+
+function confirmPostLink() {
+  const input = document.getElementById('newsUrlInput');
+  const url = input.value.trim();
+  if (!url) return;
+  // Validate URL
+  try {
+    const parsed = new URL(url);
+    if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('bad');
+  } catch {
+    input.style.borderColor = '#ef4444';
+    setTimeout(() => input.style.borderColor = '', 2000);
+    return;
+  }
+  _postComposerUrl = url;
+  document.getElementById('pcLinkUrl').textContent = url;
+  document.getElementById('pcLinkPreview').style.display = 'flex';
+  document.getElementById('pcLinkInputRow').style.display = 'none';
+  updatePostBtn();
+}
+
+function removePostLink() {
+  _postComposerUrl = '';
+  document.getElementById('newsUrlInput').value = '';
+  document.getElementById('pcLinkPreview').style.display = 'none';
+  updatePostBtn();
+}
+
+function updatePostBtn() {
+  const comment = (document.getElementById('newsCommentInput')?.value || '').trim();
+  const hasUrl = !!_postComposerUrl;
+  const urlInput = (document.getElementById('newsUrlInput')?.value || '').trim();
+  const btn = document.getElementById('newsPostBtn');
+  if (btn) btn.disabled = !comment && !hasUrl && !urlInput;
+  // Char count
+  const cc = document.getElementById('pcCharCount');
+  if (cc) cc.textContent = comment.length ? `${comment.length}` : '';
+}
+
 async function postNewsUrl() {
-  const urlInput = document.getElementById('newsUrlInput');
   const commentInput = document.getElementById('newsCommentInput');
   const errorEl = document.getElementById('newsPostError');
   const successEl = document.getElementById('newsPostSuccess');
@@ -1843,30 +2063,38 @@ async function postNewsUrl() {
   errorEl.style.display = 'none';
   successEl.style.display = 'none';
 
-  const url = urlInput.value.trim();
-  if (!url) { errorEl.textContent = 'Please enter a URL.'; errorEl.style.display = ''; return; }
+  // If link input is visible but not confirmed, auto-confirm it
+  const urlInput = document.getElementById('newsUrlInput');
+  const rawUrl = urlInput ? urlInput.value.trim() : '';
+  if (rawUrl && !_postComposerUrl) {
+    try {
+      const parsed = new URL(rawUrl);
+      if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('bad');
+      _postComposerUrl = rawUrl;
+    } catch {
+      errorEl.textContent = 'Please enter a valid URL.';
+      errorEl.style.display = '';
+      return;
+    }
+  }
 
-  // Client-side URL validation
-  try {
-    const parsed = new URL(url);
-    if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('bad protocol');
-  } catch {
-    errorEl.textContent = 'Please enter a valid http or https URL.';
+  const comment = commentInput.value.trim();
+  const url = _postComposerUrl;
+
+  if (!url && !comment) {
+    errorEl.textContent = 'Add a link or write something to post.';
     errorEl.style.display = '';
-    urlInput.style.borderColor = '#ef4444';
-    setTimeout(() => urlInput.style.borderColor = '', 2000);
     return;
   }
 
   btn.disabled = true;
   btn.textContent = 'Posting...';
-  btn.style.opacity = '0.6';
 
   try {
     const res = await fetch(`${API}/api/news/post`, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ url, comment: commentInput.value.trim() }),
+      body: JSON.stringify({ url: url || undefined, comment }),
     });
     const data = await res.json();
 
@@ -1876,14 +2104,21 @@ async function postNewsUrl() {
       return;
     }
 
-    // Success
-    urlInput.value = '';
+    // Success — close modal and show inline notification
+    _postComposerUrl = '';
+    if (urlInput) urlInput.value = '';
     commentInput.value = '';
-    successEl.textContent = `Posted! "${data.title}"` + (data.venture ? ` — Generated venture (score: ${Math.round(data.venture.score)})` : '');
-    successEl.style.display = '';
-    setTimeout(() => { successEl.style.display = 'none'; }, 5000);
+    document.getElementById('pcLinkPreview').style.display = 'none';
+    closePostComposer();
 
-    // Reload news feed
+    // Brief success toast
+    const toast = document.createElement('div');
+    toast.className = 'post-toast';
+    toast.innerHTML = `✓ Posted! "${(data.title || 'Item').substring(0, 50)}"` + (data.venture ? ` — venture generated` : '');
+    document.body.appendChild(toast);
+    setTimeout(() => toast.classList.add('show'), 10);
+    setTimeout(() => { toast.classList.remove('show'); setTimeout(() => toast.remove(), 300); }, 4000);
+
     loadNews();
   } catch (e) {
     errorEl.textContent = 'Network error. Please try again.';
@@ -1891,14 +2126,14 @@ async function postNewsUrl() {
   } finally {
     btn.disabled = false;
     btn.textContent = 'Post';
-    btn.style.opacity = '1';
   }
 }
 
-// Handle Enter key on URL input
-document.addEventListener('DOMContentLoaded', () => {
-  const inp = document.getElementById('newsUrlInput');
-  if (inp) inp.addEventListener('keydown', e => { if (e.key === 'Enter') postNewsUrl(); });
+// Close composer with Escape key
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && document.getElementById('postComposerOverlay').style.display === 'flex') {
+    closePostComposer();
+  }
 });
 
 // ─── Reader / Annotation Overlay ─────────────────────────────────

@@ -970,15 +970,24 @@ def leaderboard(db: Session = Depends(get_db_dependency)):
 def list_news(
     source: Optional[str] = None,
     tag: Optional[str] = None,
+    q: Optional[str] = Query(None, description="Search query"),
     limit: int = Query(25, ge=1, le=100),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db_dependency),
 ):
-    q = db.query(NewsFeedItem).order_by(NewsFeedItem.published_at.desc().nullslast())
+    query = db.query(NewsFeedItem).order_by(NewsFeedItem.published_at.desc().nullslast())
     if source:
-        q = q.filter(NewsFeedItem.source == source)
-    total = q.count()
-    items = q.offset(offset).limit(limit).all()
+        query = query.filter(NewsFeedItem.source == source)
+    if q and q.strip():
+        search = f"%{q.strip()}%"
+        query = query.filter(
+            (NewsFeedItem.title.ilike(search)) |
+            (NewsFeedItem.summary.ilike(search)) |
+            (NewsFeedItem.url.ilike(search)) |
+            (NewsFeedItem.source_name.ilike(search))
+        )
+    total = query.count()
+    items = query.offset(offset).limit(limit).all()
 
     results = []
     for item in items:
@@ -1741,76 +1750,116 @@ def ralph_loop_endpoint(req: RalphLoopRequest, db: Session = Depends(get_db_depe
 # ─── News Post (add URL) ────────────────────────────────────────
 
 class NewsPostRequest(BaseModel):
-    url: str
+    url: Optional[str] = None
     comment: str = ""
 
 
 @router.post("/api/news/post")
 def post_news_url(req: NewsPostRequest, db: Session = Depends(get_db_dependency)):
-    """Add a URL to the news feed, scrape metadata, and trigger venture generation."""
+    """Add a news item to the feed — either a URL, a text insight, or both."""
     import re
     from urllib.parse import urlparse
 
-    # Validate URL
-    url = req.url.strip()
-    parsed = urlparse(url)
-    if not parsed.scheme or not parsed.netloc or parsed.scheme not in ("http", "https"):
-        raise HTTPException(400, "Invalid URL. Must be a valid http or https URL.")
-    if not re.match(r"^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$", parsed.netloc.split(":")[0]):
-        raise HTTPException(400, "Invalid URL domain.")
+    url = (req.url or "").strip() or None
+    comment = (req.comment or "").strip()
 
-    # Check for duplicate URL
-    existing = db.query(NewsFeedItem).filter(NewsFeedItem.url == url).first()
-    if existing:
-        raise HTTPException(409, "This URL has already been posted.")
+    if not url and not comment:
+        raise HTTPException(400, "Please provide a URL or write something.")
 
-    # Scrape metadata from URL via Claude
-    try:
-        from venture_engine.ventures.scorer import call_claude, _strip_code_fences
-        import json as _json
+    parsed = None
+    if url:
+        # Validate URL
+        parsed = urlparse(url)
+        if not parsed.scheme or not parsed.netloc or parsed.scheme not in ("http", "https"):
+            raise HTTPException(400, "Invalid URL. Must be a valid http or https URL.")
+        if not re.match(r"^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$", parsed.netloc.split(":")[0]):
+            raise HTTPException(400, "Invalid URL domain.")
 
-        scrape_prompt = (
-            f"Given this URL: {url}\n"
-            f"User comment: {req.comment or 'No comment'}\n\n"
-            "Based on the URL and your knowledge, provide metadata about this article/post. "
-            "If you recognize the URL, use what you know. Otherwise, infer from the URL structure.\n\n"
-            "Respond with valid JSON only:\n"
-            '{"title": "article title", "summary": "1-2 sentence summary", '
-            '"source": "hackernews|twitter|blog|arxiv|github|conference|podcast|newsletter|other", '
-            '"source_name": "e.g. Hacker News, TechCrunch, GitHub", '
-            '"author": "author name or empty", '
-            '"tags": ["tag1", "tag2"], '
-            '"signal_strength": 7.0}'
-        )
+        # Check for duplicate URL
+        existing = db.query(NewsFeedItem).filter(NewsFeedItem.url == url).first()
+        if existing:
+            raise HTTPException(409, "This URL has already been posted.")
 
-        raw = call_claude(
-            "You extract metadata from URLs for a DevOps/AI venture intelligence engine. "
-            "Be concise and accurate. Respond with valid JSON only.",
-            scrape_prompt,
-        )
-        raw = _strip_code_fences(raw)
-        meta = _json.loads(raw)
-    except Exception as exc:
-        logger.error(f"URL metadata extraction failed: {exc}")
-        # Fallback: create with minimal data
-        meta = {
-            "title": parsed.netloc + parsed.path[:50],
-            "summary": req.comment or "User-submitted link",
-            "source": "other",
-            "source_name": parsed.netloc,
-            "author": "",
-            "tags": [],
-            "signal_strength": 5.0,
-        }
+    if url:
+        # Scrape metadata from URL via Claude
+        try:
+            from venture_engine.ventures.scorer import call_claude, _strip_code_fences
+            import json as _json
+
+            scrape_prompt = (
+                f"Given this URL: {url}\n"
+                f"User comment: {comment or 'No comment'}\n\n"
+                "Based on the URL and your knowledge, provide metadata about this article/post. "
+                "If you recognize the URL, use what you know. Otherwise, infer from the URL structure.\n\n"
+                "Respond with valid JSON only:\n"
+                '{"title": "article title", "summary": "1-2 sentence summary", '
+                '"source": "hackernews|twitter|blog|arxiv|github|conference|podcast|newsletter|other", '
+                '"source_name": "e.g. Hacker News, TechCrunch, GitHub", '
+                '"author": "author name or empty", '
+                '"tags": ["tag1", "tag2"], '
+                '"signal_strength": 7.0}'
+            )
+
+            raw = call_claude(
+                "You extract metadata from URLs for a DevOps/AI venture intelligence engine. "
+                "Be concise and accurate. Respond with valid JSON only.",
+                scrape_prompt,
+            )
+            raw = _strip_code_fences(raw)
+            meta = _json.loads(raw)
+        except Exception as exc:
+            logger.error(f"URL metadata extraction failed: {exc}")
+            meta = {
+                "title": parsed.netloc + parsed.path[:50],
+                "summary": comment or "User-submitted link",
+                "source": "other",
+                "source_name": parsed.netloc,
+                "author": "",
+                "tags": [],
+                "signal_strength": 5.0,
+            }
+    else:
+        # Text-only post (insight / problem / opportunity)
+        try:
+            from venture_engine.ventures.scorer import call_claude, _strip_code_fences
+            import json as _json
+
+            insight_prompt = (
+                f"A user posted this insight/observation:\n\n\"{comment}\"\n\n"
+                "Generate metadata for this post. "
+                "Create a concise title (max 80 chars) that captures the key point.\n\n"
+                "Respond with valid JSON only:\n"
+                '{"title": "concise title", '
+                '"tags": ["tag1", "tag2"], '
+                '"signal_strength": 6.0}'
+            )
+
+            raw = call_claude(
+                "You help organize insights for a DevOps/AI venture intelligence engine. "
+                "Be concise. Respond with valid JSON only.",
+                insight_prompt,
+            )
+            raw = _strip_code_fences(raw)
+            meta = _json.loads(raw)
+        except Exception as exc:
+            logger.error(f"Insight metadata generation failed: {exc}")
+            meta = {
+                "title": comment[:80] + ("..." if len(comment) > 80 else ""),
+                "tags": [],
+                "signal_strength": 5.0,
+            }
+        meta.setdefault("source", "insight")
+        meta.setdefault("source_name", "Team Insight")
+        meta.setdefault("summary", comment)
 
     # Create news feed item
     news_item = NewsFeedItem(
-        title=meta.get("title", url),
+        title=meta.get("title", url or comment[:80]),
         url=url,
         source=meta.get("source", "other"),
-        source_name=meta.get("source_name", parsed.netloc),
+        source_name=meta.get("source_name", parsed.netloc if parsed else "Team Insight"),
         author=meta.get("author") or None,
-        summary=meta.get("summary") or req.comment or None,
+        summary=meta.get("summary") or comment or None,
         tags=meta.get("tags") or [],
         signal_strength=meta.get("signal_strength", 5.0),
         published_at=datetime.utcnow(),
@@ -1842,8 +1891,8 @@ def post_news_url(req: NewsPostRequest, db: Session = Depends(get_db_dependency)
         idea = (
             f"Based on this news: {news_title}\n"
             f"Summary: {news_summary}\n"
-            f"URL: {url}\n"
-            f"User note: {req.comment}\n\n"
+            + (f"URL: {url}\n" if url else "")
+            + f"User note: {comment}\n\n"
             "Generate a venture idea inspired by this article."
         )
         ralph_result = suggest_and_ralph(db, idea=idea, category="venture", target_score=95, max_iterations=5)

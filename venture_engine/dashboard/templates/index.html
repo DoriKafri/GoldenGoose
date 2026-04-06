@@ -512,11 +512,28 @@ html.dark .toggle-track::after { transform:translateX(16px); }
 .pc-body { padding:0 20px; flex:1; overflow-y:auto; min-height:180px; }
 .pc-textarea { width:100%; min-height:160px; max-height:40vh; border:none; outline:none; font-family:inherit; font-size:15px; color:var(--text); background:transparent; resize:none; line-height:1.6; padding:0; }
 .pc-textarea::placeholder { color:var(--text3); }
-.pc-link-preview { display:flex; align-items:center; gap:8px; padding:8px 12px; background:var(--bg2); border-radius:8px; margin-top:8px; }
-.pc-link-icon { flex-shrink:0; display:flex; align-items:center; }
-.pc-link-url { flex:1; font-size:12px; color:var(--accent-hover); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:500; }
-.pc-link-remove { border:none; background:transparent; color:var(--text3); font-size:18px; cursor:pointer; padding:0 4px; line-height:1; }
-.pc-link-remove:hover { color:var(--red); }
+/* Rich link preview card (composer) */
+.pc-link-preview-card { position:relative; border:1px solid var(--border); border-radius:10px; overflow:hidden; margin-top:10px; background:var(--bg2); }
+.pc-preview-remove { position:absolute; top:8px; right:8px; z-index:2; width:26px; height:26px; border-radius:50%; border:none; background:rgba(0,0,0,0.55); color:#fff; font-size:16px; cursor:pointer; display:flex; align-items:center; justify-content:center; line-height:1; transition:background 0.15s; }
+.pc-preview-remove:hover { background:rgba(239,68,68,0.85); }
+.pc-preview-img-wrap { width:100%; max-height:200px; overflow:hidden; background:#000; display:flex; align-items:center; justify-content:center; }
+.pc-preview-img-wrap img { width:100%; height:auto; object-fit:cover; max-height:200px; }
+.pc-preview-info { padding:10px 14px; }
+.pc-preview-site { display:flex; align-items:center; gap:6px; font-size:11px; color:var(--text3); margin-bottom:4px; font-weight:500; }
+.pc-preview-title { font-size:14px; font-weight:600; color:var(--text); line-height:1.3; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+.pc-preview-desc { font-size:12px; color:var(--text2); margin-top:4px; line-height:1.4; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+/* Rich preview in news feed cards */
+.news-card-preview { border:1px solid var(--border); border-radius:8px; overflow:hidden; margin-top:8px; background:var(--bg2); cursor:pointer; transition:border-color 0.15s; }
+.news-card-preview:hover { border-color:var(--accent); }
+.news-card-preview-img { width:100%; height:140px; object-fit:cover; display:block; background:#e5e5e5; }
+.news-card-preview-yt { position:relative; width:100%; padding-top:56.25%; background:#000; }
+.news-card-preview-yt img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+.news-card-preview-yt .yt-play-icon { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:54px; height:38px; background:rgba(255,0,0,0.85); border-radius:10px; display:flex; align-items:center; justify-content:center; }
+.news-card-preview-yt .yt-play-icon::after { content:''; border-style:solid; border-width:9px 0 9px 16px; border-color:transparent transparent transparent #fff; margin-left:2px; }
+.news-card-preview-info { padding:8px 12px; }
+.news-card-preview-site { font-size:10px; color:var(--text3); font-weight:500; text-transform:uppercase; letter-spacing:0.3px; display:flex; align-items:center; gap:4px; margin-bottom:2px; }
+.news-card-preview-site img { width:12px; height:12px; border-radius:2px; }
+.news-card-preview-title { font-size:12px; font-weight:600; color:var(--text); line-height:1.3; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
 .pc-divider { height:1px; background:var(--border); margin:12px 0 0; }
 .pc-footer { display:flex; align-items:center; justify-content:space-between; padding:10px 20px 14px; }
 .pc-tools { display:flex; gap:4px; }
@@ -888,13 +905,20 @@ html.dark .toggle-track::after { transform:translateX(16px); }
             <button class="pc-close" onclick="closePostComposer()">&times;</button>
           </div>
           <div class="pc-body">
-            <textarea id="newsCommentInput" class="pc-textarea" placeholder="What problem or opportunity did you spot?" oninput="updatePostBtn()"></textarea>
-            <div id="pcLinkPreview" class="pc-link-preview" style="display:none;">
-              <div class="pc-link-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" style="width:16px;height:16px;"><path d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101"/><path d="M10.172 13.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
+            <textarea id="newsCommentInput" class="pc-textarea" placeholder="What problem or opportunity did you spot?" oninput="updatePostBtn()" onpaste="_handleTextareaPaste(event)"></textarea>
+            <div id="pcLinkPreview" class="pc-link-preview-card" style="display:none;">
+              <button class="pc-preview-remove" onclick="removePostLink()" title="Remove link">&times;</button>
+              <div class="pc-preview-img-wrap" id="pcPreviewImgWrap" style="display:none;">
+                <img id="pcPreviewImg" src="" alt="" onerror="this.parentElement.style.display='none'">
               </div>
-              <span id="pcLinkUrl" class="pc-link-url"></span>
-              <button class="pc-link-remove" onclick="removePostLink()" title="Remove link">&times;</button>
+              <div class="pc-preview-info">
+                <div class="pc-preview-site" id="pcPreviewSite">
+                  <img id="pcPreviewFavicon" src="" alt="" style="width:14px;height:14px;border-radius:2px;" onerror="this.style.display='none'">
+                  <span id="pcPreviewSiteName"></span>
+                </div>
+                <div class="pc-preview-title" id="pcPreviewTitle">Loading...</div>
+                <div class="pc-preview-desc" id="pcPreviewDesc"></div>
+              </div>
             </div>
             <div id="newsPostError" style="display:none;font-size:12px;color:#ef4444;padding:4px 0;"></div>
             <div id="newsPostSuccess" style="display:none;font-size:12px;color:#22c55e;padding:4px 0;"></div>
@@ -915,7 +939,7 @@ html.dark .toggle-track::after { transform:translateX(16px); }
             </div>
           </div>
           <div id="pcLinkInputRow" class="pc-link-input-row" style="display:none;">
-            <input type="text" id="newsUrlInput" class="pc-link-field" placeholder="Paste article, YouTube, or podcast URL..." onkeydown="if(event.key==='Enter'){event.preventDefault();confirmPostLink()}" oninput="updatePostBtn()">
+            <input type="text" id="newsUrlInput" class="pc-link-field" placeholder="Paste article, YouTube, or podcast URL..." onkeydown="if(event.key==='Enter'){event.preventDefault();confirmPostLink()}" oninput="updatePostBtn()" onpaste="setTimeout(()=>confirmPostLink(),50)">
             <button class="pc-link-confirm" onclick="confirmPostLink()">Add</button>
           </div>
         </div>
@@ -1877,6 +1901,32 @@ function renderNewsFeed(items) {
         </div>
       </div>`;
     }
+    // Build rich preview card (YouTube or OG image)
+    const ytId = item.url ? _youtubeId(item.url) : null;
+    let previewCard = '';
+    if (ytId) {
+      previewCard = `
+        <div class="news-card-preview">
+          <div class="news-card-preview-yt">
+            <img src="https://img.youtube.com/vi/${ytId}/hqdefault.jpg" alt="" loading="lazy">
+            <div class="yt-play-icon"></div>
+          </div>
+          <div class="news-card-preview-info">
+            <div class="news-card-preview-site"><img src="https://www.youtube.com/favicon.ico" alt="">YouTube</div>
+            <div class="news-card-preview-title">${esc(item.title)}</div>
+          </div>
+        </div>`;
+    } else if (item.url && item.image_url) {
+      previewCard = `
+        <div class="news-card-preview">
+          <img class="news-card-preview-img" src="${esc(item.image_url)}" alt="" loading="lazy" onerror="this.style.display='none'">
+          <div class="news-card-preview-info">
+            <div class="news-card-preview-site"><img src="https://www.google.com/s2/favicons?domain=${esc(_hostname(item.url))}&sz=32" alt="" onerror="this.style.display='none'">${esc(_hostname(item.url))}</div>
+            <div class="news-card-preview-title">${esc(item.title)}</div>
+          </div>
+        </div>`;
+    }
+
     return `
     <div class="venture-row news-reader-card" style="cursor:${item.url?'pointer':'default'}; position:relative;" data-url="${esc(item.url||'')}" data-title="${esc(item.title||'')}" data-news-id="${item.id}">
       ${strength}
@@ -1884,6 +1934,7 @@ function renderNewsFeed(items) {
       <div class="venture-info" style="gap:4px;">
         <div class="venture-title"><strong>${esc(item.title)}</strong></div>
         <div class="venture-summary" style="font-size:12px;color:var(--text2);">${esc(item.summary||'')}</div>
+        ${previewCard}
         <div class="venture-meta" style="flex-wrap:wrap;gap:4px;">
           <span style="font-size:10px;padding:2px 8px;border-radius:var(--radius-pill);background:rgba(245,158,11,0.1);color:#d97706;font-weight:600;">${esc(item.source_name||item.source||'Signal')}</span>
           ${item.author ? '<span style="font-size:10px;color:var(--text2);">by '+esc(item.author)+'</span>' : ''}
@@ -2038,7 +2089,25 @@ function toggleLinkInput(forceShow) {
   if (show) setTimeout(() => document.getElementById('newsUrlInput').focus(), 50);
 }
 
-function confirmPostLink() {
+function _handleTextareaPaste(e) {
+  // If pasting a URL into the textarea and no link is set yet, auto-add it as the link
+  if (_postComposerUrl) return; // already have a link
+  setTimeout(() => {
+    const text = document.getElementById('newsCommentInput').value.trim();
+    // Check if the pasted content looks like a URL on its own
+    try {
+      const u = new URL(text);
+      if ((u.protocol === 'http:' || u.protocol === 'https:') && text.indexOf(' ') === -1) {
+        // It's a pure URL paste — move it to the link field
+        document.getElementById('newsCommentInput').value = '';
+        document.getElementById('newsUrlInput').value = text;
+        confirmPostLink();
+      }
+    } catch(e2) { /* not a URL, that's fine */ }
+  }, 50);
+}
+
+async function confirmPostLink() {
   const input = document.getElementById('newsUrlInput');
   const url = input.value.trim();
   if (!url) return;
@@ -2052,10 +2121,40 @@ function confirmPostLink() {
     return;
   }
   _postComposerUrl = url;
-  document.getElementById('pcLinkUrl').textContent = url;
-  document.getElementById('pcLinkPreview').style.display = 'flex';
   document.getElementById('pcLinkInputRow').style.display = 'none';
   updatePostBtn();
+
+  // Show preview card with loading state
+  const preview = document.getElementById('pcLinkPreview');
+  preview.style.display = 'block';
+  document.getElementById('pcPreviewTitle').textContent = 'Loading preview...';
+  document.getElementById('pcPreviewDesc').textContent = '';
+  document.getElementById('pcPreviewSiteName').textContent = '';
+  document.getElementById('pcPreviewImgWrap').style.display = 'none';
+
+  // Fetch rich preview
+  try {
+    const res = await fetch(`${API}/api/url-preview?url=${encodeURIComponent(url)}`);
+    if (!res.ok) throw new Error('fail');
+    const data = await res.json();
+    document.getElementById('pcPreviewTitle').textContent = data.title || url;
+    document.getElementById('pcPreviewDesc').textContent = data.description || '';
+    document.getElementById('pcPreviewSiteName').textContent = data.site_name || '';
+    if (data.favicon) {
+      const fav = document.getElementById('pcPreviewFavicon');
+      fav.src = data.favicon;
+      fav.style.display = '';
+    }
+    if (data.image) {
+      const imgWrap = document.getElementById('pcPreviewImgWrap');
+      document.getElementById('pcPreviewImg').src = data.image;
+      imgWrap.style.display = 'flex';
+    }
+  } catch(e) {
+    // Fallback: show URL only
+    try { document.getElementById('pcPreviewSiteName').textContent = new URL(url).hostname; } catch(e2) {}
+    document.getElementById('pcPreviewTitle').textContent = url;
+  }
 }
 
 function removePostLink() {

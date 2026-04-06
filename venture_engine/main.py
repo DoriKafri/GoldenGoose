@@ -17,6 +17,35 @@ app = FastAPI(title="Develeap Venture Intelligence Engine")
 app.include_router(router)
 
 
+def _backfill_youtube_thumbnails():
+    """Set image_url for existing YouTube news items that don't have one."""
+    from venture_engine.db.models import NewsFeedItem
+    from urllib.parse import urlparse, parse_qs
+    with get_db() as db:
+        items = db.query(NewsFeedItem).filter(
+            NewsFeedItem.url.isnot(None),
+            NewsFeedItem.image_url.is_(None),
+        ).all()
+        count = 0
+        for item in items:
+            if not item.url:
+                continue
+            try:
+                ph = urlparse(item.url).hostname or ""
+                vid = None
+                if "youtube.com" in ph:
+                    vid = parse_qs(urlparse(item.url).query).get("v", [None])[0]
+                elif ph == "youtu.be":
+                    vid = urlparse(item.url).path.lstrip("/").split("/")[0]
+                if vid:
+                    item.image_url = f"https://img.youtube.com/vi/{vid}/hqdefault.jpg"
+                    count += 1
+            except Exception:
+                continue
+        if count:
+            logger.info(f"Backfilled {count} YouTube thumbnails")
+
+
 def _add_missing_columns():
     """Add any new columns to existing tables (safe migration)."""
     from sqlalchemy import text, inspect
@@ -28,6 +57,13 @@ def _add_missing_columns():
             if "timestamp_seconds" not in cols:
                 logger.info("Adding timestamp_seconds column to page_annotations...")
                 db.execute(text("ALTER TABLE page_annotations ADD COLUMN timestamp_seconds INTEGER"))
+                db.commit()
+        # Add image_url to news_feed if missing
+        if insp.has_table("news_feed"):
+            cols = [c["name"] for c in insp.get_columns("news_feed")]
+            if "image_url" not in cols:
+                logger.info("Adding image_url column to news_feed...")
+                db.execute(text("ALTER TABLE news_feed ADD COLUMN image_url TEXT"))
                 db.commit()
 
 
@@ -237,6 +273,8 @@ def on_startup():
     _resolve_hn_urls()
     logger.info("Backfilling news feed from raw signals...")
     _backfill_news_from_signals()
+    logger.info("Backfilling image_url for YouTube news items...")
+    _backfill_youtube_thumbnails()
     logger.info("Starting scheduler...")
     from venture_engine.scheduler import start_scheduler
     start_scheduler()

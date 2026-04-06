@@ -1050,6 +1050,7 @@ def list_news(
             "summary": item.summary,
             "tags": item.tags or [],
             "signal_strength": item.signal_strength,
+            "image_url": item.image_url,
             "linked_ventures": linked_ventures,
             "annotation_count": ann_count,
             "annotations": annotations_preview,
@@ -1255,6 +1256,118 @@ ANNOTATION_IFRAME_SCRIPT = """
 })();
 </script>
 """
+
+
+@router.get("/api/url-preview")
+def url_preview(url: str = Query(...)):
+    """Fetch URL metadata (title, description, image) for link preview cards."""
+    import httpx
+    import re as _re
+    from urllib.parse import urlparse, urljoin
+
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        raise HTTPException(400, "Only http/https URLs.")
+    hostname = parsed.hostname or ""
+    if hostname in ("localhost", "127.0.0.1", "0.0.0.0"):
+        raise HTTPException(400, "Private URLs not allowed.")
+
+    # YouTube: use oEmbed + known thumbnail
+    yt_id = None
+    if "youtube.com" in hostname:
+        import urllib.parse
+        yt_id = urllib.parse.parse_qs(parsed.query).get("v", [None])[0]
+    elif hostname == "youtu.be":
+        yt_id = parsed.path.lstrip("/").split("/")[0] if parsed.path else None
+
+    if yt_id:
+        # Fetch title from oEmbed
+        title = url
+        try:
+            oembed = httpx.get(
+                f"https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v={yt_id}&format=json",
+                timeout=5.0,
+            )
+            if oembed.status_code == 200:
+                data = oembed.json()
+                title = data.get("title", url)
+        except Exception:
+            pass
+        return {
+            "url": url,
+            "title": title,
+            "description": "",
+            "image": f"https://img.youtube.com/vi/{yt_id}/hqdefault.jpg",
+            "site_name": "YouTube",
+            "favicon": "https://www.youtube.com/favicon.ico",
+            "type": "video",
+        }
+
+    # Generic URL: fetch HTML and extract OG tags
+    try:
+        resp = httpx.get(url, timeout=8.0, follow_redirects=True, headers={
+            "User-Agent": "Mozilla/5.0 (compatible; VentureBot/1.0)",
+            "Accept": "text/html,application/xhtml+xml,*/*;q=0.8",
+        })
+        resp.raise_for_status()
+    except Exception as e:
+        # Return minimal fallback
+        return {
+            "url": url,
+            "title": hostname + (parsed.path[:50] if parsed.path else ""),
+            "description": "",
+            "image": None,
+            "site_name": hostname,
+            "favicon": f"https://www.google.com/s2/favicons?domain={hostname}&sz=64",
+            "type": "link",
+        }
+
+    html = resp.text[:50000]  # limit parsing
+
+    def _og(prop):
+        m = _re.search(
+            rf'<meta[^>]+(?:property|name)=["\']og:{prop}["\'][^>]+content=["\']([^"\']+)["\']',
+            html, _re.IGNORECASE,
+        )
+        if not m:
+            m = _re.search(
+                rf'<meta[^>]+content=["\']([^"\']+)["\'][^>]+(?:property|name)=["\']og:{prop}["\']',
+                html, _re.IGNORECASE,
+            )
+        return m.group(1) if m else None
+
+    def _meta(name):
+        m = _re.search(
+            rf'<meta[^>]+name=["\'](?:twitter:)?{name}["\'][^>]+content=["\']([^"\']+)["\']',
+            html, _re.IGNORECASE,
+        )
+        if not m:
+            m = _re.search(
+                rf'<meta[^>]+content=["\']([^"\']+)["\'][^>]+name=["\'](?:twitter:)?{name}["\']',
+                html, _re.IGNORECASE,
+            )
+        return m.group(1) if m else None
+
+    title = _og("title") or _meta("title")
+    if not title:
+        m = _re.search(r'<title[^>]*>([^<]+)</title>', html, _re.IGNORECASE)
+        title = m.group(1).strip() if m else hostname
+
+    description = _og("description") or _meta("description") or ""
+    image = _og("image") or _meta("image")
+    if image and not image.startswith("http"):
+        image = urljoin(str(resp.url), image)
+    site_name = _og("site_name") or hostname
+
+    return {
+        "url": url,
+        "title": title[:200],
+        "description": description[:300],
+        "image": image,
+        "site_name": site_name,
+        "favicon": f"https://www.google.com/s2/favicons?domain={hostname}&sz=64",
+        "type": "link",
+    }
 
 
 @router.get("/api/proxy")
@@ -1855,6 +1968,43 @@ def post_news_url(req: NewsPostRequest, db: Session = Depends(get_db_dependency)
         meta.setdefault("source_name", "Team Insight")
         meta.setdefault("summary", comment)
 
+    # Fetch preview image for the URL
+    image_url = None
+    if url:
+        import re as _re2
+        from urllib.parse import urlparse as _urlparse2
+        _ph = _urlparse2(url).hostname or ""
+        # YouTube: use known thumbnail
+        _yt_id = None
+        if "youtube.com" in _ph:
+            import urllib.parse as _up
+            _yt_id = _up.parse_qs(_urlparse2(url).query).get("v", [None])[0]
+        elif _ph == "youtu.be":
+            _yt_id = _urlparse2(url).path.lstrip("/").split("/")[0]
+        if _yt_id:
+            image_url = f"https://img.youtube.com/vi/{_yt_id}/hqdefault.jpg"
+        else:
+            # Try fetching OG image
+            try:
+                import httpx as _hx
+                _resp = _hx.get(url, timeout=6.0, follow_redirects=True, headers={
+                    "User-Agent": "Mozilla/5.0 (compatible; VentureBot/1.0)",
+                })
+                _html = _resp.text[:50000]
+                for _pat in [
+                    r'<meta[^>]+(?:property|name)=["\']og:image["\'][^>]+content=["\']([^"\']+)["\']',
+                    r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+(?:property|name)=["\']og:image["\']',
+                ]:
+                    _m = _re2.search(_pat, _html, _re2.IGNORECASE)
+                    if _m:
+                        image_url = _m.group(1)
+                        if image_url and not image_url.startswith("http"):
+                            from urllib.parse import urljoin as _uj
+                            image_url = _uj(str(_resp.url), image_url)
+                        break
+            except Exception:
+                pass
+
     # Create news feed item
     news_item = NewsFeedItem(
         title=meta.get("title", url or comment[:80]),
@@ -1865,6 +2015,7 @@ def post_news_url(req: NewsPostRequest, db: Session = Depends(get_db_dependency)
         summary=meta.get("summary") or comment or None,
         tags=meta.get("tags") or [],
         signal_strength=meta.get("signal_strength", 5.0),
+        image_url=image_url,
         published_at=datetime.utcnow(),
     )
     db.add(news_item)

@@ -112,6 +112,22 @@ def run_all_sources(db: Session) -> HarvestRun:
         if url and url not in existing_news_urls:
             source = s.get("source", "unknown")
             strength = s.get("signal_strength", 0.5)
+            # Detect YouTube thumbnail
+            _img = None
+            try:
+                from urllib.parse import urlparse as _up, parse_qs as _pq
+                _ph = _up(url).hostname or ""
+                if "youtube.com" in _ph:
+                    _vid = _pq(_up(url).query).get("v", [None])[0]
+                    if _vid:
+                        _img = f"https://img.youtube.com/vi/{_vid}/hqdefault.jpg"
+                elif _ph == "youtu.be":
+                    _vid = _up(url).path.lstrip("/").split("/")[0]
+                    if _vid:
+                        _img = f"https://img.youtube.com/vi/{_vid}/hqdefault.jpg"
+            except Exception:
+                pass
+
             news_item = NewsFeedItem(
                 title=s.get("title", "Untitled"),
                 url=url,
@@ -119,6 +135,7 @@ def run_all_sources(db: Session) -> HarvestRun:
                 source_name=SOURCE_NAMES.get(source, source),
                 summary=s.get("content", "")[:300] if s.get("content") else "",
                 signal_strength=round(strength * 10, 1) if strength <= 1 else round(strength, 1),
+                image_url=_img,
                 published_at=datetime.utcnow(),
             )
             db.add(news_item)

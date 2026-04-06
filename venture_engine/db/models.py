@@ -275,6 +275,7 @@ class NewsFeedItem(Base):
     summary = Column(Text, nullable=True)
     tags = Column(JSON, nullable=True)           # ["AI agents", "security", "DevOps"]
     signal_strength = Column(Float, nullable=True)  # 0-10 how relevant
+    image_url = Column(Text, nullable=True)      # OG image / thumbnail URL
     venture_ids = Column(JSON, nullable=True)    # Venture IDs this inspired
     published_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)

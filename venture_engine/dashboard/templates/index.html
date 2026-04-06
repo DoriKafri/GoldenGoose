@@ -2536,7 +2536,7 @@ function _ytMarkTimestamp() {
     try { _cvid = _youtubeId(_ytPlayer.getVideoUrl()); } catch(e) {}
   }
   if (_cvid) {
-    const frameUrl = `${API}/api/youtube-frame?video_id=${_cvid}&t=${seconds}&_v=2`;
+    const frameUrl = `${API}/api/youtube-frame?video_id=${_cvid}&t=${seconds}&_v=${Date.now()}`;
     document.getElementById('annComposeQuote').innerHTML = `
       <div class="ann-video-thumb ann-video-thumb-sm" style="cursor:default;">
         <img src="${frameUrl}" alt="" onerror="this.src='https://img.youtube.com/vi/${_cvid}/hqdefault.jpg'">
@@ -2900,7 +2900,7 @@ function renderReaderAnnotations() {
     }
     let tsBadge;
     if (isVideoAnn && _vid) {
-      const frameUrl = `${API}/api/youtube-frame?video_id=${_vid}&t=${ann.timestamp_seconds}&_v=2`;
+      const frameUrl = `${API}/api/youtube-frame?video_id=${_vid}&t=${ann.timestamp_seconds}&_v=${Date.now()}`;
       tsBadge = `<div class="ann-video-thumb" onclick="event.stopPropagation();_ytSeekTo(${ann.timestamp_seconds})">
         <img src="${frameUrl}" alt="" loading="lazy">
         <div class="ann-video-thumb-overlay">

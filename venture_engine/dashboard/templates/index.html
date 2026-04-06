@@ -2057,7 +2057,8 @@ function _directHighlight(doc, annotations) {
         }
         // Wrap each text node (or portion) in a mark — iterate REVERSE
         // so DOM mutations don't invalidate later node references
-        var hlStyle = 'background:rgba(255,213,79,0.4);border-bottom:2px solid #f59e0b;cursor:pointer;border-radius:2px;padding:0 1px;';
+        var hlStyle = 'background:rgba(255,213,79,0.4);border-bottom:2px solid #f59e0b;cursor:pointer;border-radius:2px;padding:0 1px;transition:background .15s;';
+        var hlHoverStyle = 'background:rgba(255,193,7,0.6);';
         var annId = a.id;
         var annBody = (a.body || '').slice(0, 80);
         for (var ti = textNodes.length - 1; ti >= 0; ti--) {
@@ -2079,11 +2080,35 @@ function _directHighlight(doc, annotations) {
             var card = document.querySelector('.reader-ann-card[data-ann-id="' + annId + '"]');
             if (card) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
           });
+          // Highlight ALL marks for this annotation on hover
+          (function(id) {
+            mark.addEventListener('mouseenter', function() {
+              doc.querySelectorAll('mark.page-ann-hl[data-ann-id="' + id + '"]').forEach(function(m) {
+                m.style.background = 'rgba(255,193,7,0.6)';
+              });
+            });
+            mark.addEventListener('mouseleave', function() {
+              doc.querySelectorAll('mark.page-ann-hl[data-ann-id="' + id + '"]').forEach(function(m) {
+                m.style.background = 'rgba(255,213,79,0.4)';
+              });
+            });
+          })(annId);
           r.surroundContents(mark);
         }
       }
     } catch(ex) { /* anchoring failed */ }
   });
+}
+
+// Highlight/unhighlight all marks in iframe for a given annotation (used on hover)
+function _highlightMarks(annId, hover) {
+  try {
+    var iframe = document.getElementById('readerIframe');
+    var idoc = iframe.contentDocument || iframe.contentWindow.document;
+    idoc.querySelectorAll('mark.page-ann-hl[data-ann-id="' + annId + '"]').forEach(function(m) {
+      m.style.background = hover ? 'rgba(255,193,7,0.6)' : 'rgba(255,213,79,0.4)';
+    });
+  } catch(e) {}
 }
 
 function renderReaderAnnotations() {
@@ -2110,7 +2135,7 @@ function renderReaderAnnotations() {
       </div>`;
     }).join('');
 
-    return `<div class="reader-ann-card" data-ann-id="${ann.id}" onclick="scrollToAnnotation('${ann.id}')">
+    return `<div class="reader-ann-card" data-ann-id="${ann.id}" onclick="scrollToAnnotation('${ann.id}')" onmouseenter="_highlightMarks('${ann.id}',true)" onmouseleave="_highlightMarks('${ann.id}',false)">
       <div class="reader-ann-quote">"${esc(ann.selected_text.slice(0, 300))}${ann.selected_text.length > 300 ? '...' : ''}"</div>
       <div class="reader-ann-body">${esc(ann.body)}</div>
       <div class="reader-ann-meta">

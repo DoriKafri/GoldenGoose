@@ -3040,7 +3040,7 @@ function sendToDarkFactory(v) {
   navigator.clipboard.writeText(prompt);
   const toast=document.getElementById('copiedToast');toast.classList.add('show');setTimeout(()=>toast.classList.remove('show'),2000);
 }
-async function loadHarvestInfo(){try{const res=await fetch(`${API}/api/harvest/latest`);const data=await res.json();if(data.completed_at){document.getElementById('lastHarvest').textContent=timeAgo(data.completed_at);}}catch(e){}}
+async function loadHarvestInfo(){try{const res=await fetch(`${API}/api/harvest/latest`);const data=await res.json();if(data.completed_at){document.getElementById('lastHarvest').textContent=timeAgo(data.completed_at);const last=new Date(data.completed_at.endsWith('Z')?data.completed_at:data.completed_at+'Z');const next=new Date(last.getTime()+60*60*1000);const diff=next-Date.now();document.getElementById('nextHarvest').textContent=diff>0?'in '+Math.round(diff/60000)+'m':'soon';}}catch(e){}}
 function updatePagination(){const tp=Math.ceil(totalVentures/PAGE_SIZE);document.getElementById('prevBtn').disabled=currentPage===0;document.getElementById('nextBtn').disabled=currentPage>=tp-1;document.getElementById('pageInfo').textContent=totalVentures>0?`Page ${currentPage+1} of ${tp} (${totalVentures} ventures)`:'';}
 function prevPage(){if(currentPage>0){currentPage--;loadVentures();}}
 function nextPage(){currentPage++;loadVentures();}

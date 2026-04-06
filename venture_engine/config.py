@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     notify_webhook_url: str = ""
     api_key: str = "changeme"
     serpapi_key: str = ""
-    harvest_interval_hours: int = 4
+    harvest_interval_hours: int = 1
     gap_check_hour: int = 8
     tl_sync_interval_hours: int = 12
     weekly_digest_day: str = "mon"

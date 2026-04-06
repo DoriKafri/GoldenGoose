@@ -939,7 +939,7 @@ html.dark .toggle-track::after { transform:translateX(16px); }
             </div>
           </div>
           <div id="pcLinkInputRow" class="pc-link-input-row" style="display:none;">
-            <input type="text" id="newsUrlInput" class="pc-link-field" placeholder="Paste article, YouTube, or podcast URL..." onkeydown="if(event.key==='Enter'){event.preventDefault();confirmPostLink()}" oninput="updatePostBtn()" onpaste="setTimeout(()=>confirmPostLink(),50)">
+            <input type="text" id="newsUrlInput" class="pc-link-field" placeholder="Paste article, YouTube, or podcast URL..." onkeydown="if(event.key==='Enter'){event.preventDefault();confirmPostLink()}" oninput="_onUrlInput()">
             <button class="pc-link-confirm" onclick="confirmPostLink()">Add</button>
           </div>
         </div>
@@ -2062,9 +2062,14 @@ function openPostComposer(focus) {
   // Set username from localStorage
   const name = localStorage.getItem('ve_anon_name') || 'Scout';
   document.getElementById('pcUsername').textContent = name;
-  // Reset state
+  // Reset all state
+  _postComposerUrl = '';
+  document.getElementById('newsUrlInput').value = '';
+  document.getElementById('newsCommentInput').value = '';
   document.getElementById('newsPostError').style.display = 'none';
   document.getElementById('newsPostSuccess').style.display = 'none';
+  document.getElementById('pcLinkPreview').style.display = 'none';
+  document.getElementById('pcLinkInputRow').style.display = 'none';
   updatePostBtn();
   if (focus === 'link' || focus === 'video') {
     toggleLinkInput(true);
@@ -2089,28 +2094,46 @@ function toggleLinkInput(forceShow) {
   if (show) setTimeout(() => document.getElementById('newsUrlInput').focus(), 50);
 }
 
+let _urlInputTimer = null;
+function _onUrlInput() {
+  updatePostBtn();
+  // Debounce: auto-confirm after user stops typing/pasting a valid URL
+  clearTimeout(_urlInputTimer);
+  _urlInputTimer = setTimeout(() => {
+    const val = document.getElementById('newsUrlInput').value.trim();
+    if (!val) return;
+    try {
+      const u = new URL(val);
+      if (u.protocol === 'http:' || u.protocol === 'https:') {
+        confirmPostLink();
+      }
+    } catch(e) { /* not a valid URL yet */ }
+  }, 400);
+}
+
 function _handleTextareaPaste(e) {
   // If pasting a URL into the textarea and no link is set yet, auto-add it as the link
   if (_postComposerUrl) return; // already have a link
   setTimeout(() => {
     const text = document.getElementById('newsCommentInput').value.trim();
-    // Check if the pasted content looks like a URL on its own
     try {
       const u = new URL(text);
       if ((u.protocol === 'http:' || u.protocol === 'https:') && text.indexOf(' ') === -1) {
-        // It's a pure URL paste — move it to the link field
         document.getElementById('newsCommentInput').value = '';
         document.getElementById('newsUrlInput').value = text;
+        toggleLinkInput(true);
         confirmPostLink();
       }
-    } catch(e2) { /* not a URL, that's fine */ }
-  }, 50);
+    } catch(e2) {}
+  }, 100);
 }
 
 async function confirmPostLink() {
   const input = document.getElementById('newsUrlInput');
   const url = input.value.trim();
   if (!url) return;
+  // Don't re-confirm same URL
+  if (_postComposerUrl === url) return;
   // Validate URL
   try {
     const parsed = new URL(url);
@@ -2124,36 +2147,53 @@ async function confirmPostLink() {
   document.getElementById('pcLinkInputRow').style.display = 'none';
   updatePostBtn();
 
-  // Show preview card with loading state
   const preview = document.getElementById('pcLinkPreview');
-  preview.style.display = 'block';
-  document.getElementById('pcPreviewTitle').textContent = 'Loading preview...';
-  document.getElementById('pcPreviewDesc').textContent = '';
-  document.getElementById('pcPreviewSiteName').textContent = '';
-  document.getElementById('pcPreviewImgWrap').style.display = 'none';
+  const imgWrap = document.getElementById('pcPreviewImgWrap');
+  const previewImg = document.getElementById('pcPreviewImg');
+  const previewTitle = document.getElementById('pcPreviewTitle');
+  const previewDesc = document.getElementById('pcPreviewDesc');
+  const previewSiteName = document.getElementById('pcPreviewSiteName');
+  const previewFavicon = document.getElementById('pcPreviewFavicon');
 
-  // Fetch rich preview
+  // Show preview card immediately
+  preview.style.display = 'block';
+  previewDesc.textContent = '';
+  imgWrap.style.display = 'none';
+
+  // YouTube instant preview (no API call needed for thumbnail)
+  const ytId = _youtubeId(url);
+  if (ytId) {
+    previewImg.src = `https://img.youtube.com/vi/${ytId}/hqdefault.jpg`;
+    imgWrap.style.display = 'flex';
+    previewSiteName.textContent = 'YouTube';
+    previewFavicon.src = 'https://www.youtube.com/favicon.ico';
+    previewFavicon.style.display = '';
+    previewTitle.textContent = 'Loading title...';
+  } else {
+    previewTitle.textContent = 'Loading preview...';
+    try { previewSiteName.textContent = new URL(url).hostname; } catch(e) { previewSiteName.textContent = ''; }
+    previewFavicon.src = `https://www.google.com/s2/favicons?domain=${encodeURIComponent(new URL(url).hostname)}&sz=64`;
+    previewFavicon.style.display = '';
+  }
+
+  // Fetch full metadata from API
   try {
     const res = await fetch(`${API}/api/url-preview?url=${encodeURIComponent(url)}`);
-    if (!res.ok) throw new Error('fail');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
     const data = await res.json();
-    document.getElementById('pcPreviewTitle').textContent = data.title || url;
-    document.getElementById('pcPreviewDesc').textContent = data.description || '';
-    document.getElementById('pcPreviewSiteName').textContent = data.site_name || '';
-    if (data.favicon) {
-      const fav = document.getElementById('pcPreviewFavicon');
-      fav.src = data.favicon;
-      fav.style.display = '';
-    }
-    if (data.image) {
-      const imgWrap = document.getElementById('pcPreviewImgWrap');
-      document.getElementById('pcPreviewImg').src = data.image;
+    previewTitle.textContent = data.title || url;
+    if (data.description) previewDesc.textContent = data.description;
+    if (data.site_name) previewSiteName.textContent = data.site_name;
+    if (data.favicon) { previewFavicon.src = data.favicon; previewFavicon.style.display = ''; }
+    if (data.image && !ytId) {
+      previewImg.src = data.image;
       imgWrap.style.display = 'flex';
     }
   } catch(e) {
-    // Fallback: show URL only
-    try { document.getElementById('pcPreviewSiteName').textContent = new URL(url).hostname; } catch(e2) {}
-    document.getElementById('pcPreviewTitle').textContent = url;
+    console.warn('URL preview fetch failed:', e);
+    if (previewTitle.textContent.startsWith('Loading')) {
+      previewTitle.textContent = url;
+    }
   }
 }
 

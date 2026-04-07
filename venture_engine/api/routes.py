@@ -2679,34 +2679,64 @@ def post_news_url(req: NewsPostRequest, db: Session = Depends(get_db_dependency)
             raise HTTPException(409, "This URL has already been posted.")
 
     if url:
-        # Scrape metadata from URL via Claude
-        try:
-            from venture_engine.ventures.scorer import call_claude, _strip_code_fences
-            import json as _json
+        import json as _json
+        meta = None
 
-            scrape_prompt = (
-                f"Given this URL: {url}\n"
-                f"User comment: {comment or 'No comment'}\n\n"
-                "Based on the URL and your knowledge, provide metadata about this article/post. "
-                "If you recognize the URL, use what you know. Otherwise, infer from the URL structure.\n\n"
-                "Respond with valid JSON only:\n"
-                '{"title": "article title", "summary": "1-2 sentence summary", '
-                '"source": "hackernews|twitter|blog|arxiv|github|conference|podcast|newsletter|other", '
-                '"source_name": "e.g. Hacker News, TechCrunch, GitHub", '
-                '"author": "author name or empty", '
-                '"tags": ["tag1", "tag2"], '
-                '"signal_strength": 7.0}'
-            )
+        # For YouTube URLs, use oEmbed API (fast, no API key needed)
+        _yt_host = parsed.netloc.replace("www.", "")
+        if _yt_host in ("youtube.com", "youtu.be"):
+            try:
+                import httpx
+                oembed_resp = httpx.get(
+                    f"https://www.youtube.com/oembed?url={url}&format=json",
+                    timeout=5.0,
+                )
+                if oembed_resp.status_code == 200:
+                    oembed = oembed_resp.json()
+                    meta = {
+                        "title": oembed.get("title", "YouTube Video"),
+                        "summary": comment or oembed.get("title", ""),
+                        "source": "youtube",
+                        "source_name": "YouTube",
+                        "author": oembed.get("author_name", ""),
+                        "tags": ["youtube", "video"],
+                        "signal_strength": 7.0,
+                    }
+                    logger.info(f"YouTube oEmbed metadata: {meta['title']}")
+            except Exception as e:
+                logger.warning(f"YouTube oEmbed failed: {e}")
 
-            raw = call_claude(
-                "You extract metadata from URLs for a DevOps/AI venture intelligence engine. "
-                "Be concise and accurate. Respond with valid JSON only.",
-                scrape_prompt,
-            )
-            raw = _strip_code_fences(raw)
-            meta = _json.loads(raw)
-        except Exception as exc:
-            logger.error(f"URL metadata extraction failed: {exc}")
+        # For non-YouTube URLs (or if oEmbed failed), try Claude if API key is set
+        if not meta and settings.anthropic_api_key:
+            try:
+                from venture_engine.ventures.scorer import call_claude, _strip_code_fences
+
+                scrape_prompt = (
+                    f"Given this URL: {url}\n"
+                    f"User comment: {comment or 'No comment'}\n\n"
+                    "Based on the URL and your knowledge, provide metadata about this article/post. "
+                    "If you recognize the URL, use what you know. Otherwise, infer from the URL structure.\n\n"
+                    "Respond with valid JSON only:\n"
+                    '{"title": "article title", "summary": "1-2 sentence summary", '
+                    '"source": "hackernews|twitter|blog|arxiv|github|conference|podcast|newsletter|other", '
+                    '"source_name": "e.g. Hacker News, TechCrunch, GitHub", '
+                    '"author": "author name or empty", '
+                    '"tags": ["tag1", "tag2"], '
+                    '"signal_strength": 7.0}'
+                )
+
+                raw = call_claude(
+                    "You extract metadata from URLs for a DevOps/AI venture intelligence engine. "
+                    "Be concise and accurate. Respond with valid JSON only.",
+                    scrape_prompt,
+                )
+                raw = _strip_code_fences(raw)
+                meta = _json.loads(raw)
+            except Exception as exc:
+                logger.error(f"URL metadata extraction failed: {exc}")
+
+        # Fallback: basic metadata from URL
+        if not meta:
             meta = {
                 "title": parsed.netloc + parsed.path[:50],
                 "summary": comment or "User-submitted link",
@@ -2821,34 +2851,37 @@ def post_news_url(req: NewsPostRequest, db: Session = Depends(get_db_dependency)
         "status": "posted",
     }
 
-    # Generate ventures from this news item (async-style but synchronous for now)
-    try:
-        from venture_engine.ventures.ralph_loop import suggest_and_ralph
-        idea = (
-            f"Based on this news: {news_title}\n"
-            f"Summary: {news_summary}\n"
-            + (f"URL: {url}\n" if url else "")
-            + f"User note: {comment}\n\n"
-            "Generate a venture idea inspired by this article."
-        )
-        ralph_result = suggest_and_ralph(db, idea=idea, category="venture", target_score=95, max_iterations=5)
+    # Generate ventures from this news item (only if API key is available)
+    if settings.anthropic_api_key:
+        try:
+            from venture_engine.ventures.ralph_loop import suggest_and_ralph
+            idea = (
+                f"Based on this news: {news_title}\n"
+                f"Summary: {news_summary}\n"
+                + (f"URL: {url}\n" if url else "")
+                + f"User note: {comment}\n\n"
+                "Generate a venture idea inspired by this article."
+            )
+            ralph_result = suggest_and_ralph(db, idea=idea, category="venture", target_score=95, max_iterations=5)
 
-        # Link the generated venture to this news item
-        news_item_fresh = db.query(NewsFeedItem).filter(NewsFeedItem.id == news_id).first()
-        if news_item_fresh:
-            existing_vids = news_item_fresh.venture_ids or []
-            news_item_fresh.venture_ids = existing_vids + [ralph_result["venture_id"]]
-            db.flush()
+            # Link the generated venture to this news item
+            news_item_fresh = db.query(NewsFeedItem).filter(NewsFeedItem.id == news_id).first()
+            if news_item_fresh:
+                existing_vids = news_item_fresh.venture_ids or []
+                news_item_fresh.venture_ids = existing_vids + [ralph_result["venture_id"]]
+                db.flush()
 
-        result["venture"] = {
-            "id": ralph_result["venture_id"],
-            "score": ralph_result["score"],
-            "iterations": ralph_result["iterations"],
-            "reached_target": ralph_result["reached_target"],
-        }
-    except Exception as exc:
-        logger.error(f"Venture generation from news post failed: {exc}")
+            result["venture"] = {
+                "id": ralph_result["venture_id"],
+                "score": ralph_result["score"],
+                "iterations": ralph_result["iterations"],
+                "reached_target": ralph_result["reached_target"],
+            }
+        except Exception as exc:
+            logger.error(f"Venture generation from news post failed: {exc}")
+            result["venture"] = None
+            result["venture_error"] = str(exc)
+    else:
         result["venture"] = None
-        result["venture_error"] = str(exc)
 
     return result

@@ -3185,6 +3185,42 @@ class NewsPostRequest(BaseModel):
     comment: str = ""
 
 
+@router.post("/api/news/dedup")
+def dedup_news(db: Session = Depends(get_db_dependency)):
+    """Delete duplicate news items, keeping the oldest per URL (or per title if no URL)."""
+    from sqlalchemy import func
+
+    total_deleted = 0
+
+    # Dedup by URL
+    dupes = db.query(NewsFeedItem.url, func.count(NewsFeedItem.id).label('cnt')).filter(
+        NewsFeedItem.url != None, NewsFeedItem.url != ''
+    ).group_by(NewsFeedItem.url).having(func.count(NewsFeedItem.id) > 1).all()
+
+    for url, cnt in dupes:
+        items = db.query(NewsFeedItem).filter(NewsFeedItem.url == url).order_by(NewsFeedItem.created_at.asc()).all()
+        for item in items[1:]:
+            db.delete(item)
+            total_deleted += 1
+
+    # Dedup by title for items without URLs
+    title_dupes = db.query(NewsFeedItem.title, func.count(NewsFeedItem.id).label('cnt')).filter(
+        (NewsFeedItem.url == None) | (NewsFeedItem.url == '')
+    ).group_by(NewsFeedItem.title).having(func.count(NewsFeedItem.id) > 1).all()
+
+    for title, cnt in title_dupes:
+        items = db.query(NewsFeedItem).filter(
+            NewsFeedItem.title == title, (NewsFeedItem.url == None) | (NewsFeedItem.url == '')
+        ).order_by(NewsFeedItem.created_at.asc()).all()
+        for item in items[1:]:
+            db.delete(item)
+            total_deleted += 1
+
+    db.commit()
+    remaining = db.query(func.count(NewsFeedItem.id)).scalar()
+    return {"deleted": total_deleted, "remaining": remaining}
+
+
 @router.post("/api/news/post")
 def post_news_url(req: NewsPostRequest, db: Session = Depends(get_db_dependency)):
     """Add a news item to the feed — either a URL, a text insight, or both."""

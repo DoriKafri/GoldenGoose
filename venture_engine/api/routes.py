@@ -1838,8 +1838,7 @@ def youtube_transcript(
             import httpx
             yt_url = f"https://www.youtube.com/watch?v={video_id}"
             gemini_prompt = (
-                f"Go to this YouTube video: {yt_url}\n\n"
-                "Produce a full verbatim transcript of everything spoken in the video. "
+                "Produce a full verbatim transcript of everything spoken in this video. "
                 "Output ONLY a JSON array of objects with keys: start (seconds as float), "
                 "duration (float, estimate ~5-10s per segment), text (the spoken words). "
                 "Cover the ENTIRE video from beginning to end. Do NOT summarize — transcribe "
@@ -1853,7 +1852,10 @@ def youtube_transcript(
                         f"?key={settings.google_gemini_api_key}",
                         json={
                             "contents": [{
-                                "parts": [{"text": gemini_prompt}]
+                                "parts": [
+                                    {"fileData": {"mimeType": "video/mp4", "fileUri": yt_url}},
+                                    {"text": gemini_prompt}
+                                ]
                             }],
                             "generationConfig": {"temperature": 0.1, "maxOutputTokens": 65536}
                         },

@@ -3714,6 +3714,9 @@ function closeReader(fromPopstate) {
     // Closed via X or Escape — replace current entry to remove reader URL
     history.replaceState(null, '', restoreHash);
   }
+  // Restore the news feed so user doesn't return to an empty page
+  var activeTab = restoreHash.replace('#', '').split('/')[0] || 'news';
+  switchTab(activeTab, true);
 }
 
 async function loadReaderAnnotations() {

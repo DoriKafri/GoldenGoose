@@ -2027,6 +2027,17 @@ TRANSCRIPT:
         return None
 
 
+@router.get("/api/debug-gemini")
+def debug_gemini(video_id: str = Query(default="wc8FBhQtdsA")):
+    """Debug: check Gemini key and transcript availability."""
+    has_key = bool(settings.google_gemini_api_key)
+    key_prefix = settings.google_gemini_api_key[:8] + "..." if has_key else "EMPTY"
+    transcript = _get_transcript_text(video_id)
+    transcript_len = len(transcript) if transcript else 0
+    return {"gemini_key_set": has_key, "key_prefix": key_prefix,
+            "transcript_length": transcript_len, "video_id": video_id}
+
+
 @router.get("/api/youtube-key-takeaways")
 def youtube_key_takeaways(video_id: str = Query(..., min_length=11, max_length=11)):
     """Return cached AI key takeaways, or auto-generate via Gemini if available."""

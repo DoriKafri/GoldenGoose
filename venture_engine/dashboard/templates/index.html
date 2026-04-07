@@ -1827,9 +1827,10 @@ window.addEventListener('popstate', (e) => {
   // If reader overlay is open, close it and restore news feed
   if (document.getElementById('readerOverlay').classList.contains('open')) {
     closeReader(true);
-    // After closing, ensure the news feed is visible
-    if (!location.hash || location.hash === '#news' || location.hash === '#') {
-      switchTab('news', true);
+    // Always restore news feed after closing reader
+    switchTab('news', true);
+    if (!location.hash || !location.hash.startsWith('#news')) {
+      history.replaceState(null, '', '#news');
     }
     return;
   }
@@ -3537,9 +3538,6 @@ async function shareNewsItem(title, articleUrl) {
 function closeReader(fromPopstate) {
   var overlay = document.getElementById('readerOverlay');
   overlay.classList.remove('open');
-  overlay.style.display = 'none';
-  // Force re-show on next open
-  setTimeout(function() { overlay.style.display = ''; }, 50);
   document.getElementById('readerIframe').src = 'about:blank';
   document.getElementById('readerIframe').style.display = '';
   document.body.style.overflow = '';

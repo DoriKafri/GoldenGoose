@@ -3197,18 +3197,14 @@ function _mergeTranscriptSegments(segments) {
   return merged;
 }
 
-function _ytGetInsightBanners(secs) {
-  // Return insight sentences at this timestamp
+function _ytGetInsightColor(secs) {
+  // Return highlight color if this segment starts an insight
   const tolerance = 10;
-  const banners = [];
   if (_ytDpoiData && Array.isArray(_ytDpoiData)) {
     for (const d of _ytDpoiData) {
       const s = d.start_seconds || 0;
       if (secs >= s && secs < s + tolerance) {
-        const color = d.type === 'problem' ? 'rgba(239,68,68,0.25)' : 'rgba(34,197,94,0.25)';
-        // Title + first sentence of description
-        const firstSentence = (d.description || '').split(/(?<=[.!?])\s/)[0];
-        banners.push({text: d.title + ': ' + firstSentence, color});
+        return d.type === 'problem' ? 'rgba(239,68,68,0.25)' : 'rgba(34,197,94,0.25)';
       }
     }
   }
@@ -3216,12 +3212,11 @@ function _ytGetInsightBanners(secs) {
     for (const t of _ytTakeawaysData) {
       const s = t.start_seconds || 0;
       if (secs >= s && secs < s + tolerance) {
-        // Full takeaway sentence
-        banners.push({text: t.takeaway || '', color: 'rgba(250,204,21,0.35)'});
+        return 'rgba(250,204,21,0.35)';
       }
     }
   }
-  return banners;
+  return null;
 }
 
 function _ytRenderTranscript(segments, filter) {
@@ -3253,13 +3248,21 @@ function _ytRenderTranscript(segments, filter) {
       const re = new RegExp('(' + query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi');
       textHtml = textHtml.replace(re, '<mark style="background:#fef08a;padding:0 1px;border-radius:2px;">$1</mark>');
     }
-    const banners = _ytGetInsightBanners(secs);
-    const bannerHtml = banners.map(b =>
-      `<mark style="background:${b.color};padding:2px 6px;border-radius:3px;font-size:12px;font-weight:600;color:inherit;display:inline-block;margin-bottom:4px;">${esc(b.text)}</mark>`
-    ).join(' ');
+    const hlColor = _ytGetInsightColor(secs);
+    if (hlColor) {
+      // Highlight the first full sentence of the actual transcript text
+      const sentenceRe = /^((?:[^.!?]|(?:\.\d))+[.!?])/;
+      const m = textHtml.match(sentenceRe);
+      if (m) {
+        textHtml = `<mark style="background:${hlColor};padding:1px 2px;border-radius:2px;color:inherit;">${m[1]}</mark>` + textHtml.slice(m[1].length);
+      } else {
+        // No sentence-ending punctuation — highlight the whole segment
+        textHtml = `<mark style="background:${hlColor};padding:1px 2px;border-radius:2px;color:inherit;">${textHtml}</mark>`;
+      }
+    }
     return `<div class="yt-transcript-seg" data-start="${seg.start}" onclick="_ytTranscriptClick(${secs})">
       <span class="yt-transcript-time">${timeStr}</span>
-      <span class="yt-transcript-text">${bannerHtml ? bannerHtml + '<br>' : ''}${textHtml}</span>
+      <span class="yt-transcript-text">${textHtml}</span>
     </div>`;
   }).join('') + '</div>';
 

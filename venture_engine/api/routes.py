@@ -2043,6 +2043,29 @@ def debug_gemini(video_id: str = Query(default="wc8FBhQtdsA")):
             "transcript_length": transcript_len, "video_id": video_id}
 
 
+@router.get("/api/debug-auto-generate")
+def debug_auto_generate(video_id: str = Query(default="wc8FBhQtdsA")):
+    """Debug: try auto-generating takeaways and return detailed status."""
+    import traceback
+    steps = {}
+    try:
+        steps["gemini_key"] = bool(settings.google_gemini_api_key)
+        transcript_text = _get_transcript_text(video_id)
+        steps["transcript_len"] = len(transcript_text) if transcript_text else 0
+        if not transcript_text:
+            return {"steps": steps, "error": "no transcript"}
+        truncated = transcript_text[:12000]
+        steps["truncated_len"] = len(truncated)
+        # Try a minimal Gemini call
+        test_result = _gemini_generate("Return exactly: {\"test\": true}")
+        steps["gemini_test"] = test_result
+        return {"steps": steps}
+    except Exception as e:
+        steps["error"] = str(e)
+        steps["traceback"] = traceback.format_exc()
+        return {"steps": steps}
+
+
 @router.get("/api/youtube-key-takeaways")
 def youtube_key_takeaways(video_id: str = Query(..., min_length=11, max_length=11)):
     """Return cached AI key takeaways, or auto-generate via Gemini if available."""

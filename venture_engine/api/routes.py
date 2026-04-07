@@ -1699,6 +1699,7 @@ def youtube_transcript(
 
     except Exception as exc:
         logger.warning(f"Transcript HTML fetch failed for {video_id}: {exc}")
+        errors = [f"html: {exc}"]
 
         # Fallback 1: try youtube-transcript-api
         try:
@@ -1716,6 +1717,7 @@ def youtube_transcript(
             return {"segments": segments, "language": "en"}
         except Exception as exc2:
             logger.warning(f"Transcript youtube-transcript-api failed for {video_id}: {exc2}")
+            errors.append(f"yt-api: {exc2}")
 
         # Fallback 2: try yt-dlp subtitle extraction
         try:
@@ -1787,8 +1789,9 @@ def youtube_transcript(
                 return {"segments": segments, "language": "en"}
         except Exception as exc3:
             logger.warning(f"Transcript yt-dlp fallback failed for {video_id}: {exc3}")
+            errors.append(f"yt-dlp: {exc3}")
             return Response(
-                content=_json.dumps({"error": "Transcript unavailable for this video"}),
+                content=_json.dumps({"error": "Transcript unavailable for this video", "details": errors}),
                 media_type="application/json",
                 status_code=500,
             )

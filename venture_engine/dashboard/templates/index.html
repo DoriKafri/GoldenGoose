@@ -3197,70 +3197,32 @@ function _mergeTranscriptSegments(segments) {
   return merged;
 }
 
-function _ytGetInsightMarkers(secs) {
-  // Return keyword markers for insights starting near this timestamp
-  const tolerance = 15;
-  const markers = [];
+function _ytGetInsightBanners(secs) {
+  // Return minimal insight labels at this timestamp
+  const tolerance = 10;
+  const banners = [];
   if (_ytDpoiData && Array.isArray(_ytDpoiData)) {
     for (const d of _ytDpoiData) {
       const s = d.start_seconds || 0;
-      if (secs >= s && secs <= s + tolerance) {
-        const color = d.type === 'problem' ? 'rgba(239,68,68,0.3)' : 'rgba(34,197,94,0.3)';
-        // Use the title as the keyword phrase to highlight
-        if (d.title) markers.push({words: d.title, color});
+      if (secs >= s && secs < s + tolerance) {
+        const color = d.type === 'problem' ? 'rgba(239,68,68,0.25)' : 'rgba(34,197,94,0.25)';
+        banners.push({text: d.title, color});
       }
     }
   }
   if (_ytTakeawaysData && Array.isArray(_ytTakeawaysData)) {
     for (const t of _ytTakeawaysData) {
       const s = t.start_seconds || 0;
-      if (secs >= s && secs <= s + tolerance) {
-        // Extract first key phrase from takeaway (up to first comma or period, max 8 words)
-        let phrase = (t.takeaway || '').split(/[,.:;—–-]/)[0].trim();
-        const words = phrase.split(/\s+/);
-        if (words.length > 8) phrase = words.slice(0, 8).join(' ');
-        if (phrase) markers.push({words: phrase, color: 'rgba(250,204,21,0.4)'});
+      if (secs >= s && secs < s + tolerance) {
+        // First clause only — up to first comma, colon, or dash, max ~6 words
+        let phrase = (t.takeaway || '').split(/[,:;—–\-]/)[0].trim();
+        const w = phrase.split(/\s+/);
+        if (w.length > 6) phrase = w.slice(0, 6).join(' ') + '…';
+        banners.push({text: phrase, color: 'rgba(250,204,21,0.35)'});
       }
     }
   }
-  return markers;
-}
-
-function _ytApplyMarkers(textHtml, markers) {
-  // For each marker, find the best matching substring in the text and wrap in <mark>
-  for (const m of markers) {
-    // Try to find key words from the marker phrase in the text
-    const mWords = m.words.toLowerCase().split(/\s+/).filter(w => w.length > 3);
-    if (!mWords.length) continue;
-    // Find the longest consecutive run of marker words that appear in the text
-    const textLower = textHtml.replace(/<[^>]*>/g, '').toLowerCase();
-    let bestMatch = '';
-    for (const w of mWords) {
-      // Escape for regex
-      const esc = w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const re = new RegExp('\\b' + esc + '\\w{0,3}\\b', 'i');
-      const match = textHtml.match(re);
-      if (match && match[0].length > bestMatch.length) bestMatch = match[0];
-    }
-    // Try matching 2-3 consecutive words from the title in the transcript text
-    const titleWords = m.words.split(/\s+/);
-    for (let len = Math.min(titleWords.length, 4); len >= 2; len--) {
-      for (let i = 0; i <= titleWords.length - len; i++) {
-        const chunk = titleWords.slice(i, i + len).join('\\s+');
-        const chunkRe = new RegExp('(' + chunk.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\\s\+/g, '\\s+') + ')', 'i');
-        const cm = textHtml.match(chunkRe);
-        if (cm && cm[1].length > bestMatch.length) {
-          bestMatch = cm[1];
-        }
-      }
-    }
-    if (bestMatch.length > 3) {
-      const safeMatch = bestMatch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      textHtml = textHtml.replace(new RegExp('(' + safeMatch + ')', 'i'),
-        `<mark style="background:${m.color};padding:1px 2px;border-radius:2px;color:inherit;">$1</mark>`);
-    }
-  }
-  return textHtml;
+  return banners;
 }
 
 function _ytRenderTranscript(segments, filter) {
@@ -3292,13 +3254,13 @@ function _ytRenderTranscript(segments, filter) {
       const re = new RegExp('(' + query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi');
       textHtml = textHtml.replace(re, '<mark style="background:#fef08a;padding:0 1px;border-radius:2px;">$1</mark>');
     }
-    const markers = _ytGetInsightMarkers(secs);
-    if (markers.length) {
-      textHtml = _ytApplyMarkers(textHtml, markers);
-    }
+    const banners = _ytGetInsightBanners(secs);
+    const bannerHtml = banners.map(b =>
+      `<mark style="background:${b.color};padding:2px 6px;border-radius:3px;font-size:12px;font-weight:600;color:inherit;display:inline-block;margin-bottom:4px;">${esc(b.text)}</mark>`
+    ).join(' ');
     return `<div class="yt-transcript-seg" data-start="${seg.start}" onclick="_ytTranscriptClick(${secs})">
       <span class="yt-transcript-time">${timeStr}</span>
-      <span class="yt-transcript-text">${textHtml}</span>
+      <span class="yt-transcript-text">${bannerHtml ? bannerHtml + '<br>' : ''}${textHtml}</span>
     </div>`;
   }).join('') + '</div>';
 

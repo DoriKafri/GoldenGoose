@@ -3234,6 +3234,34 @@ function _ytHighlightTranscriptSeg() {
 let _ytTakeawaysData = null;
 let _ytTakeawaysVideoId = null;
 
+// Client-side embedded cache (survives deploys)
+const _ytAnalysisCache = {
+  "7HP1jFJ9W1c": {
+    takeaways: [
+      {takeaway:"A new infrastructure stack for AI agents is being assembled, representing a shift as fundamental as cloud computing (2006-2010) and microservices (2012-2016) — the new customer for infrastructure is the agent itself.",start_seconds:0,end_seconds:100,start_time:"0:00",end_time:"1:40"},
+      {takeaway:"Layer 1 — Compute & Sandboxing is the most mature layer: agents need isolated, sandboxed execution environments. E2B uses firecracker microVMs (ephemeral), Daytona uses Docker with 90ms cold starts (persistent), and Browserbase handles browser automation at $300M valuation.",start_seconds:181,end_seconds:328,start_time:"3:01",end_time:"5:28"},
+      {takeaway:"Layer 2 — Identity & Communication is in flux: email is the pragmatic bet for agent identity (AgentMail raised $6M from General Catalyst), but email may be a 'shim' — the real need is agent-native identity and communication protocols that don't require pretending to be human.",start_seconds:330,end_seconds:487,start_time:"5:30",end_time:"8:07"},
+      {takeaway:"Layer 3 — Memory & State: Mem0 leads with $24M raised and AWS exclusive partnership, treating memory as active curation (not conversation saving), but frontier labs building memory into models poses existential platform risk for standalone memory companies.",start_seconds:490,end_seconds:656,start_time:"8:10",end_time:"10:56"},
+      {takeaway:"Layer 4 — Tools & Integration solves the N×M integration nightmare: every agent builder independently managing credentials, auth flows, and API changes for every tool is unsustainable. Compose.io ($29M funding) provides managed integration, but MCP standardization could diminish its value long-term.",start_seconds:666,end_seconds:804,start_time:"11:06",end_time:"13:24"},
+      {takeaway:"Layer 5 — Provisioning & Billing: Stripe Projects is the first credible trust layer for agent-to-service transactions, with databases ready in 350ms, designed for terminal/agent speed rather than human dashboard clicking.",start_seconds:810,end_seconds:933,start_time:"13:30",end_time:"15:33"},
+      {takeaway:"Layer 6 — Orchestration & Coordination is the biggest opportunity and gap in the stack. It needs scheduling/lifecycle management, merge infrastructure for parallel agent work, supervision hierarchies, financial observability, and standard failure recovery — whoever solves this owns the most valuable position.",start_seconds:935,end_seconds:1124,start_time:"15:35",end_time:"18:44"},
+      {takeaway:"Reliability compounds negatively across agent primitives: 5 services at 99% uptime each deliver only 95% end-to-end reliability, and transitional lock-in from shims like email-as-identity creates real migration costs when native protocols arrive.",start_seconds:1126,end_seconds:1214,start_time:"18:46",end_time:"20:14"},
+      {takeaway:"Agent sprawl is coming — the same problem that plagued microservices in 2018. Without orchestration layers and observability, enterprises will deploy agents that take unexpected actions across their systems without proper governance.",start_seconds:1215,end_seconds:1260,start_time:"20:15",end_time:"21:00"},
+      {takeaway:"Three essential builder skills for 2026: context engineering (what you feed the agent drives outcomes), eval-driven development (autonomous testing against results), and stack literacy (knowing which infrastructure layer is your competitive advantage).",start_seconds:1260,end_seconds:1370,start_time:"21:00",end_time:"22:50"}
+    ],
+    insights: [
+      {type:"opportunity",title:"Agent Orchestration Platform for DevOps",description:"The video identifies orchestration as the biggest gap and highest-value opportunity in the agent stack. No infrastructure-grade solution exists yet for agent scheduling, lifecycle management, health checking, and multi-agent coordination. Develeap could build the 'Kubernetes for agents' specifically targeting DevOps and MLOps workflows.",start_seconds:935,end_seconds:1124,start_time:"15:35",end_time:"18:44",venture_relevance:10},
+      {type:"problem",title:"N×M Agent Integration Nightmare at Scale",description:"Every agent builder independently manages credentials, OAuth flows, rate limits, error handling, and API schema changes for every tool — an unsustainable combinatorial problem. Develeap could build a managed integration layer specifically for DevOps toolchains (Jenkins, GitHub, ArgoCD, Terraform, Datadog) that handles all the plumbing agents need.",start_seconds:666,end_seconds:804,start_time:"11:06",end_time:"13:24",venture_relevance:9},
+      {type:"opportunity",title:"FinOps Observability for Agent Workloads",description:"The video highlights that financial observability across multi-agent workflows barely exists — tracking what each agent spent, outcome quality, and cost per successful task. This is 'FinOps for agents' and is a natural extension of Develeap's DevOps/SRE expertise into the agentic economy.",start_seconds:1037,end_seconds:1073,start_time:"17:17",end_time:"17:53",venture_relevance:9},
+      {type:"problem",title:"Agent Reliability Degrades Multiplicatively Across Stack",description:"When agents depend on 5 different primitives, end-to-end reliability is the product of individual reliabilities (99% × 5 = 95%). Building reliability engineering, circuit breakers, and observability tooling specifically for agent infrastructure stacks is a critical unmet need.",start_seconds:1126,end_seconds:1214,start_time:"18:46",end_time:"20:14",venture_relevance:8},
+      {type:"opportunity",title:"Agent-Native Memory for DevOps Context",description:"Mem0 proves the market for agent memory, but frontier labs threaten standalone providers. A specialized memory layer that understands DevOps context — deployment history, incident patterns, infrastructure state, runbook knowledge — across agent sessions could differentiate from both generic memory startups and built-in model memory.",start_seconds:490,end_seconds:656,start_time:"8:10",end_time:"10:56",venture_relevance:8},
+      {type:"problem",title:"Agent Sprawl Without Governance or Observability",description:"Just like microservices sprawl in 2018, enterprises are deploying agents that take unexpected actions without proper orchestration, audit trails, or cost controls. Develeap could build agent governance and observability tooling — the equivalent of service mesh for agents — ensuring enterprises maintain control over their agent deployments.",start_seconds:1215,end_seconds:1260,start_time:"20:15",end_time:"21:00",venture_relevance:8},
+      {type:"opportunity",title:"Secure Agent Sandboxing for CI/CD Pipelines",description:"The compute and sandboxing layer is mature but focused on general-purpose agent execution. There's an opportunity for purpose-built agent sandboxes optimized for CI/CD and DevOps workflows — secure environments where agents can safely run infrastructure-as-code, execute deployments, and interact with production systems with proper guardrails.",start_seconds:181,end_seconds:328,start_time:"3:01",end_time:"5:28",venture_relevance:7},
+      {type:"problem",title:"Transitional Lock-in From Agent Identity Shims",description:"Using email as agent identity is a pragmatic bet that creates migration costs when native protocols arrive. DevOps teams need proper agent identity management — service accounts, identity federation, and verifiable credentials — that integrates with existing IAM and doesn't rely on human-oriented protocols.",start_seconds:1134,end_seconds:1214,start_time:"18:54",end_time:"20:14",venture_relevance:7}
+    ]
+  }
+};
+
 async function _ytLoadTakeaways() {
   const contentEl = document.getElementById('ytTakeawaysContent');
   if (!contentEl) return;
@@ -3250,13 +3278,19 @@ async function _ytLoadTakeaways() {
 
   try {
     const resp = await fetch(`${API}/api/youtube-key-takeaways?video_id=${vid}`);
-    if (!resp.ok) {
-      const errData = await resp.json().catch(() => ({}));
-      throw new Error(errData.detail || 'Failed to generate takeaways');
+    if (resp.ok) {
+      const data = await resp.json();
+      if (data.error) throw new Error(data.error);
+      _ytTakeawaysData = data.takeaways || data;
+    } else {
+      // Fallback to embedded cache
+      const cached = _ytAnalysisCache[vid];
+      if (cached && cached.takeaways) {
+        _ytTakeawaysData = cached.takeaways;
+      } else {
+        throw new Error('Takeaways not yet generated for this video.');
+      }
     }
-    const data = await resp.json();
-    if (data.error) throw new Error(data.error);
-    _ytTakeawaysData = data.takeaways || data;
     _ytTakeawaysVideoId = vid;
     _ytRenderTakeaways(_ytTakeawaysData);
   } catch(e) {
@@ -3304,13 +3338,19 @@ async function _ytLoadDpoi() {
 
   try {
     const resp = await fetch(`${API}/api/youtube-dpoi?video_id=${vid}`);
-    if (!resp.ok) {
-      const errData = await resp.json().catch(() => ({}));
-      throw new Error(errData.detail || 'Failed to generate DPOI analysis');
+    if (resp.ok) {
+      const data = await resp.json();
+      if (data.error) throw new Error(data.error);
+      _ytDpoiData = data.insights || data;
+    } else {
+      // Fallback to embedded cache
+      const cached = _ytAnalysisCache[vid];
+      if (cached && cached.insights) {
+        _ytDpoiData = cached.insights;
+      } else {
+        throw new Error('DPOI analysis not yet generated for this video.');
+      }
     }
-    const data = await resp.json();
-    if (data.error) throw new Error(data.error);
-    _ytDpoiData = data.insights || data;
     _ytDpoiVideoId = vid;
     _ytRenderDpoi(_ytDpoiData);
   } catch(e) {

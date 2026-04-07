@@ -3260,15 +3260,21 @@ function _ytRenderTranscript(segments, filter) {
     }
     const hlColor = _ytGetInsightColor(secs);
     if (hlColor) {
-      // Highlight the first full sentence of the actual transcript text
-      const sentenceRe = /^((?:[^.!?]|(?:\.\d))+[.!?])/;
-      const m = textHtml.match(sentenceRe);
-      if (m) {
-        textHtml = `<mark style="background:${hlColor};padding:1px 2px;border-radius:2px;color:inherit;">${m[1]}</mark>` + textHtml.slice(m[1].length);
-      } else {
-        // No sentence-ending punctuation — highlight the whole segment
-        textHtml = `<mark style="background:${hlColor};padding:1px 2px;border-radius:2px;color:inherit;">${textHtml}</mark>`;
+      // Find the first meaningful sentence (at least 40 chars ending with punctuation)
+      // If the first sentence is too short, keep adding until we have enough
+      const sentences = textHtml.match(/[^.!?]*[.!?]+/g) || [textHtml];
+      let highlighted = '';
+      let charCount = 0;
+      let i = 0;
+      while (i < sentences.length && charCount < 40) {
+        highlighted += sentences[i];
+        charCount += sentences[i].length;
+        i++;
       }
+      // If still too short, take the whole segment
+      if (charCount < 20) highlighted = textHtml;
+      const rest = textHtml.slice(highlighted.length);
+      textHtml = `<mark style="background:${hlColor};padding:1px 2px;border-radius:2px;color:inherit;">${highlighted.trim()}</mark>${rest ? ' ' + rest : ''}`;
     }
     return `<div class="yt-transcript-seg" data-start="${seg.start}" onclick="_ytTranscriptClick(${secs})">
       <span class="yt-transcript-time">${timeStr}</span>

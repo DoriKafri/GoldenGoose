@@ -1274,18 +1274,25 @@ def _fetch_storyboard_spec(video_id: str):
     import time as _time
     import httpx
 
-    resp = httpx.get(
-        f"https://www.youtube.com/watch?v={video_id}",
-        headers={
-            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                          "AppleWebKit/537.36 (KHTML, like Gecko) "
-                          "Chrome/120.0.0.0 Safari/537.36",
-            "Accept-Language": "en-US,en;q=0.9",
-        },
-        cookies={"CONSENT": "YES+cb.20210328-17-p0.en+FX+999"},
-        follow_redirects=True,
-        timeout=10,
+    ua = (
+        "Mozilla/5.0 (X11; Linux x86_64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/120.0.0.0 Safari/537.36"
     )
+
+    # Use a session: first visit youtube.com to get session cookies,
+    # then fetch the watch page. This prevents YouTube from returning
+    # a bot/consent gate page on servers outside the US.
+    with httpx.Client(follow_redirects=True, timeout=12) as client:
+        client.get(
+            "https://www.youtube.com/",
+            headers={"User-Agent": ua, "Accept-Language": "en-US,en;q=0.9"},
+        )
+        client.cookies.set("CONSENT", "YES+cb.20210328-17-p0.en+FX+999", domain=".youtube.com")
+        resp = client.get(
+            f"https://www.youtube.com/watch?v={video_id}",
+            headers={"User-Agent": ua, "Accept-Language": "en-US,en;q=0.9"},
+        )
     resp.raise_for_status()
 
     match = re.search(r'ytInitialPlayerResponse\s*=\s*(\{.+?\})\s*;', resp.text)

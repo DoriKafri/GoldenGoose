@@ -660,11 +660,11 @@ html.dark .toggle-track::after { transform:translateX(16px); }
 .yt-transcript-loading { padding:40px; text-align:center; color:var(--text3); font-size:13px; }
 .yt-transcript-error { padding:40px; text-align:center; color:#ef4444; font-size:13px; }
 .yt-transcript-list { padding:8px 0; }
-.yt-transcript-seg { display:flex; gap:12px; padding:8px 20px; cursor:pointer; transition:background 0.12s; border-left:3px solid transparent; }
+.yt-transcript-seg { display:flex; gap:12px; padding:10px 20px; cursor:pointer; transition:background 0.12s; border-left:3px solid transparent; margin-bottom:2px; }
 .yt-transcript-seg:hover { background:var(--bg2); }
 .yt-transcript-seg.active { background:rgba(245,158,11,0.08); border-left-color:#f59e0b; }
-.yt-transcript-time { flex-shrink:0; font-size:12px; font-weight:700; color:var(--accent); font-variant-numeric:tabular-nums; min-width:44px; padding-top:1px; }
-.yt-transcript-text { font-size:13px; color:var(--text); line-height:1.5; }
+.yt-transcript-time { flex-shrink:0; font-size:12px; font-weight:700; color:var(--accent); font-variant-numeric:tabular-nums; min-width:44px; padding-top:2px; }
+.yt-transcript-text { font-size:14px; color:var(--text); line-height:1.6; }
 .yt-transcript-search { display:flex; padding:10px 16px; border-bottom:1px solid var(--border); background:var(--card); flex-shrink:0; }
 .yt-transcript-search input { flex:1; padding:6px 12px; border:1px solid var(--border); border-radius:var(--radius-pill); font-size:12px; background:var(--bg); color:var(--text); font-family:inherit; outline:none; }
 .yt-transcript-search input:focus { border-color:var(--accent); }
@@ -3077,11 +3077,47 @@ async function _ytLoadTranscript() {
   }
 }
 
+function _mergeTranscriptSegments(segments) {
+  // Merge fragmented auto-caption segments into readable paragraphs
+  // Group by sentences (ending with . ! ?) and time gaps > 2s
+  const merged = [];
+  let current = null;
+
+  for (const seg of segments) {
+    if (!current) {
+      current = { start: seg.start, text: seg.text, endTime: seg.start + seg.duration };
+      continue;
+    }
+
+    const gap = seg.start - current.endTime;
+    const endsWithSentence = /[.!?]$/.test(current.text.trim());
+    const tooLong = current.text.length > 200;
+
+    // Start a new paragraph on: sentence end, big time gap, or text too long
+    if ((endsWithSentence && current.text.length > 40) || gap > 3 || tooLong) {
+      merged.push(current);
+      current = { start: seg.start, text: seg.text, endTime: seg.start + seg.duration };
+    } else {
+      // Merge: append text with space
+      current.text = current.text.trimEnd() + ' ' + seg.text.trimStart();
+      current.endTime = seg.start + seg.duration;
+    }
+  }
+  if (current) merged.push(current);
+  return merged;
+}
+
 function _ytRenderTranscript(segments, filter) {
   const contentEl = document.getElementById('ytTranscriptContent');
   if (!contentEl || !segments) return;
   const query = (filter || '').toLowerCase().trim();
-  const filtered = query ? segments.filter(s => s.text.toLowerCase().includes(query)) : segments;
+
+  // Merge into readable paragraphs
+  const merged = _mergeTranscriptSegments(segments);
+
+  const filtered = query
+    ? merged.filter(s => s.text.toLowerCase().includes(query))
+    : merged;
 
   if (!filtered.length) {
     contentEl.innerHTML = query
@@ -3097,7 +3133,6 @@ function _ytRenderTranscript(segments, filter) {
     const timeStr = mm + ':' + (ss < 10 ? '0' : '') + ss;
     let textHtml = esc(seg.text);
     if (query) {
-      // Highlight matching text
       const re = new RegExp('(' + query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi');
       textHtml = textHtml.replace(re, '<mark style="background:#fef08a;padding:0 1px;border-radius:2px;">$1</mark>');
     }

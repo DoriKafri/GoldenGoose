@@ -88,6 +88,16 @@ a:hover { color:var(--accent); }
 .sidebar-btn.dark:hover { background:rgba(255,255,255,0.18); }
 .sidebar-btn.outline { background:transparent; color:var(--sidebar-text2); border:1px solid var(--sidebar-border); }
 .sidebar-btn.outline:hover { border-color:var(--accent); color:var(--accent); }
+/* Sidebar Navigation Items (moved from top tabs) */
+.sidebar-nav { margin-bottom:12px; }
+.sidebar-nav-label { display:block; font-size:10px; font-weight:700; color:var(--sidebar-text2); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:6px; padding:0 4px; }
+.sidebar-nav-item { display:flex; align-items:center; gap:8px; width:100%; padding:8px 10px; border:none; background:none; color:var(--sidebar-text2); font-size:12px; font-weight:500; font-family:inherit; cursor:pointer; border-radius:6px; transition:all 0.15s; text-align:left; }
+.sidebar-nav-item:hover { background:rgba(255,255,255,0.08); color:var(--sidebar-text); }
+.sidebar-nav-item.active { background:rgba(255,177,0,0.15); color:var(--accent); font-weight:700; }
+.sidebar-nav-item svg { width:16px; height:16px; flex-shrink:0; opacity:0.6; }
+.sidebar-nav-item.active svg { opacity:1; }
+.sidebar-nav-item .nav-badge { margin-left:auto; font-size:10px; font-weight:700; background:var(--accent); color:#1a1a1a; border-radius:10px; padding:1px 7px; min-width:18px; text-align:center; }
+.sidebar-nav-divider { height:1px; background:var(--sidebar-border); margin:8px 4px; }
 .sidebar-spacer { flex:1; }
 
 /* Dark mode toggle */
@@ -99,8 +109,33 @@ html.dark .toggle-track { background:var(--accent); }
 html.dark .toggle-track::after { transform:translateX(16px); }
 .theme-icons { font-size:14px; }
 
+/* ─── Threads View ──────────────────────────────────────────────── */
+.threads-header { display:flex; align-items:center; gap:10px; margin-bottom:16px; }
+.threads-header h2 { font-size:18px; font-weight:700; color:var(--text); margin:0; }
+.threads-header .threads-count { font-size:12px; color:var(--text3); font-weight:500; }
+.threads-empty { text-align:center; padding:60px 20px; color:var(--text3); }
+.threads-empty svg { width:48px; height:48px; margin-bottom:12px; opacity:0.3; }
+.threads-empty p { font-size:14px; margin:0; }
+.thread-card { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:14px 16px; margin-bottom:10px; cursor:pointer; transition:all 0.15s; }
+.thread-card:hover { border-color:var(--accent); box-shadow:0 2px 12px rgba(0,0,0,0.06); }
+.thread-card-header { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+.thread-card-source { font-size:11px; font-weight:600; color:var(--text2); flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.thread-card-source svg { width:14px; height:14px; vertical-align:-2px; margin-right:4px; color:var(--accent); }
+.thread-card-time { font-size:10px; color:var(--text3); flex-shrink:0; }
+.thread-card-body { font-size:13px; color:var(--text); line-height:1.5; margin-bottom:8px; }
+.thread-card-body .thread-quote { font-style:italic; color:var(--text2); border-left:3px solid var(--accent); padding-left:8px; margin-bottom:6px; font-size:12px; }
+.thread-card-meta { display:flex; align-items:center; gap:12px; font-size:11px; color:var(--text3); }
+.thread-card-meta svg { width:14px; height:14px; vertical-align:-2px; }
+.thread-card-avatars { display:flex; margin-right:4px; }
+.thread-card-avatars img { width:20px; height:20px; border-radius:50%; border:2px solid var(--card); margin-left:-6px; }
+.thread-card-avatars img:first-child { margin-left:0; }
+.thread-card-latest { background:var(--bg2); border-radius:8px; padding:8px 10px; margin-top:8px; font-size:12px; }
+.thread-card-latest-author { font-weight:600; color:var(--text); margin-right:4px; }
+.thread-card-latest-body { color:var(--text2); }
+.thread-card-latest-time { font-size:10px; color:var(--text3); margin-left:6px; }
+
 /* Top Tabs — elegant scrollable bar */
-.top-tabs-wrap { position:relative; display:flex; align-items:stretch; margin-bottom:20px; }
+.top-tabs-wrap { position:relative; display:flex; align-items:stretch; margin-bottom:20px; display:none; }
 .tab-arrow { display:flex; align-items:center; justify-content:center; width:36px; flex-shrink:0; border:none; background:var(--bg); color:var(--text3); cursor:pointer; transition:all 0.2s; z-index:3; border-bottom:2px solid var(--border); }
 .tab-arrow:hover { color:var(--accent); }
 .tab-arrow.hidden { opacity:0; pointer-events:none; width:0; min-width:0; overflow:hidden; }
@@ -806,7 +841,46 @@ html.dark .toggle-track::after { transform:translateX(16px); }
       Last harvest: <span id="lastHarvest">—</span> · Next: <span id="nextHarvest">—</span>
     </div>
 
-    <div class="sidebar-section">
+    <div class="sidebar-nav">
+      <span class="sidebar-nav-label">Feed</span>
+      <button class="sidebar-nav-item active" data-tab="news" onclick="switchTab('news')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z"/><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"/></svg>
+        News
+      </button>
+      <button class="sidebar-nav-item" data-tab="threads" onclick="switchTab('threads')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+        Threads
+        <span class="nav-badge" id="threadsBadge" style="display:none;">0</span>
+      </button>
+      <div class="sidebar-nav-divider"></div>
+      <span class="sidebar-nav-label">Ventures</span>
+      <button class="sidebar-nav-item" data-tab="venture" onclick="switchTab('venture')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
+        Ideas
+      </button>
+      <button class="sidebar-nav-item" data-tab="stealth" onclick="switchTab('stealth')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg>
+        Clone
+      </button>
+      <button class="sidebar-nav-item" data-tab="flip" onclick="switchTab('flip')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+        Quick Flip
+      </button>
+      <button class="sidebar-nav-item" data-tab="customer" onclick="switchTab('customer')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+        Customers
+      </button>
+      <button class="sidebar-nav-item" data-tab="missing_piece" onclick="switchTab('missing_piece')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.24 12.24a6 6 0 00-8.49-8.49L5 10.5V19h8.5z"/><line x1="16" y1="8" x2="2" y2="22"/><line x1="17.5" y1="15" x2="9" y2="15"/></svg>
+        Missing Piece
+      </button>
+      <button class="sidebar-nav-item" data-tab="training" onclick="switchTab('training')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>
+        Training
+      </button>
+    </div>
+
+    <div class="sidebar-section" id="sidebarFilters">
       <label>Domain</label>
       <select id="filterDomain">
         <option value="">All Domains</option>
@@ -817,9 +891,6 @@ html.dark .toggle-track::after { transform:translateX(16px); }
         <option value="AIEng">AIEng</option>
         <option value="SRE">SRE</option>
       </select>
-    </div>
-
-    <div class="sidebar-section">
       <label>Status</label>
       <select id="filterStatus">
         <option value="">All Status</option>
@@ -829,9 +900,6 @@ html.dark .toggle-track::after { transform:translateX(16px); }
         <option value="parked">Parked</option>
         <option value="launched">Launched</option>
       </select>
-    </div>
-
-    <div class="sidebar-section">
       <label>Sort</label>
       <select id="sortBy">
         <option value="score">Score</option>
@@ -1656,15 +1724,25 @@ function updateTabArrows() {
 function switchTab(tab, skipHash) {
   currentTab = tab;
   currentPage = 0;
+  // Update sidebar nav active state
+  document.querySelectorAll('.sidebar-nav-item').forEach(b => {
+    b.classList.toggle('active', b.dataset.tab === tab);
+  });
+  // Also update top-tabs if still present (backward compat)
   document.querySelectorAll('.top-tab').forEach(b => {
     b.classList.toggle('active', b.dataset.tab === tab);
-    if (b.dataset.tab === tab) b.scrollIntoView({ behavior:'smooth', block:'nearest', inline:'center' });
   });
-  document.getElementById('suggestTabBtn').style.display = (tab === 'training' || tab === 'news') ? 'none' : '';
+  // Show/hide context-sensitive elements
+  const isVentureTab = !['news','threads','training'].includes(tab);
+  document.getElementById('suggestTabBtn').style.display = isVentureTab ? '' : 'none';
   document.getElementById('newsPostBar').style.display = (tab === 'news') ? '' : 'none';
-  setTimeout(updateTabArrows, 300);
+  // Show filters only for venture tabs
+  const filtersEl = document.getElementById('sidebarFilters');
+  if (filtersEl) filtersEl.style.display = isVentureTab ? '' : 'none';
   if (!skipHash) updateHash();
-  if (tab === 'news') { loadNews(); } else { loadVentures(); }
+  if (tab === 'threads') { loadThreads(); }
+  else if (tab === 'news') { loadNews(); }
+  else { loadVentures(); }
 }
 
 // ── URL hash routing ──
@@ -1697,7 +1775,7 @@ function readHash() {
     return;
   }
   const ventureId = parts[1];
-  const validTabs = ['news','venture','stealth','flip','customer','missing_piece','training'];
+  const validTabs = ['news','venture','stealth','flip','customer','missing_piece','training','threads'];
   if (validTabs.includes(tab)) {
     switchTab(tab, true);
     if (ventureId) setTimeout(() => openDetail(ventureId, true), 300);
@@ -1725,7 +1803,7 @@ window.addEventListener('popstate', (e) => {
     return;
   }
   const ventureId = parts[1];
-  const validTabs = ['news','venture','stealth','flip','customer','missing_piece','training'];
+  const validTabs = ['news','venture','stealth','flip','customer','missing_piece','training','threads'];
   if (validTabs.includes(tab) && tab !== currentTab) switchTab(tab, true);
   if (ventureId) openDetail(ventureId, true);
   else closeDetailPanel(true);
@@ -1830,6 +1908,101 @@ let _newsSearchTimer = null;
 function debounceNewsSearch() {
   clearTimeout(_newsSearchTimer);
   _newsSearchTimer = setTimeout(() => { currentPage = 0; loadNews(); }, 300);
+}
+
+// ── Threads View ──
+async function loadThreads() {
+  const el = document.getElementById('ventureList');
+  el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text3);"><div class="loader"></div>Loading threads...</div>';
+  try {
+    const resp = await fetch(`${API}/api/annotation-threads`);
+    const data = await resp.json();
+    const threads = data.threads || [];
+
+    // Update badge
+    const badge = document.getElementById('threadsBadge');
+    if (badge) {
+      if (threads.length > 0) { badge.textContent = threads.length; badge.style.display = ''; }
+      else badge.style.display = 'none';
+    }
+
+    if (!threads.length) {
+      el.innerHTML = `<div class="threads-empty">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+        <p>No threads yet. Comment on news articles or videos to start a thread.</p>
+      </div>`;
+      return;
+    }
+
+    el.innerHTML = `<div class="threads-header">
+      <h2>Threads</h2>
+      <span class="threads-count">${threads.length} active thread${threads.length !== 1 ? 's' : ''}</span>
+    </div>` + threads.map(t => {
+      const title = (t.news_item && t.news_item.title) ? esc(t.news_item.title) : _threadUrlLabel(t.url);
+      const sourceIcon = _threadSourceIcon(t.news_item ? t.news_item.source : null);
+      const sourceName = (t.news_item && t.news_item.source_name) ? esc(t.news_item.source_name) : _threadDomain(t.url);
+      const timeStr = t.latest_time ? timeAgo(t.latest_time) : '';
+      const quote = t.first_annotation_quote && !t.first_annotation_quote.startsWith('[')
+        ? `<div class="thread-quote">"${esc(t.first_annotation_quote.slice(0, 120))}${t.first_annotation_quote.length > 120 ? '...' : ''}"</div>` : '';
+      const avatars = t.participants.slice(0, 4).map(p =>
+        `<img src="https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(p.author_name || p.author_id)}&backgroundColor=b6e3f4" alt="">`
+      ).join('');
+      const latestPreview = t.latest_body
+        ? `<div class="thread-card-latest">
+            <span class="thread-card-latest-author">${esc(t.latest_author || 'Anon')}</span>
+            <span class="thread-card-latest-body">${esc(t.latest_body.slice(0, 140))}${t.latest_body.length > 140 ? '...' : ''}</span>
+            <span class="thread-card-latest-time">${timeStr}</span>
+           </div>` : '';
+
+      const _niId = t.news_item ? t.news_item.id : '';
+      const _safeTitle = title.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+      return `<div class="thread-card" onclick="_openThread('${esc(t.url)}','${_safeTitle}','${_niId}')">
+        <div class="thread-card-header">
+          <span class="thread-card-source">${sourceIcon} ${title}</span>
+          <span class="thread-card-time">${timeStr}</span>
+        </div>
+        ${quote}
+        <div class="thread-card-body">${esc(t.first_annotation_body.slice(0, 200))}${t.first_annotation_body.length > 200 ? '...' : ''}</div>
+        <div class="thread-card-meta">
+          <span class="thread-card-avatars">${avatars}</span>
+          <span>${t.participant_count} participant${t.participant_count !== 1 ? 's' : ''}</span>
+          <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg> ${t.annotation_count + t.reply_count}</span>
+        </div>
+        ${latestPreview}
+      </div>`;
+    }).join('');
+
+  } catch(e) {
+    el.innerHTML = `<div style="text-align:center;padding:40px;color:#ef4444;">Failed to load threads: ${esc(e.message)}</div>`;
+  }
+}
+
+function _openThread(url, title, newsItemId) {
+  // Open the reader overlay for this thread's URL
+  openReader(url, title || '', newsItemId || '');
+}
+
+function _threadUrlLabel(url) {
+  try {
+    const u = new URL(url);
+    let path = u.pathname.replace(/\/$/, '');
+    if (path.length > 40) path = '...' + path.slice(-37);
+    return u.hostname + path;
+  } catch(e) { return url.slice(0, 60); }
+}
+
+function _threadDomain(url) {
+  try { return new URL(url).hostname.replace('www.', ''); } catch(e) { return ''; }
+}
+
+function _threadSourceIcon(source) {
+  const icons = {
+    hackernews: '<svg viewBox="0 0 24 24" fill="currentColor" style="width:14px;height:14px;vertical-align:-2px;margin-right:4px;color:#ff6600;"><path d="M12 2L2 22h20L12 2zm0 5l4 8h-8l4-8z"/></svg>',
+    youtube: '<svg viewBox="0 0 24 24" fill="currentColor" style="width:14px;height:14px;vertical-align:-2px;margin-right:4px;color:#ff0000;"><path d="M23 7s-.2-1.5-.9-2.1c-.8-.9-1.7-.9-2.1-.9C17 3.6 12 3.6 12 3.6s-5 0-8 .4c-.4 0-1.3 0-2.1.9C1.2 5.5 1 7 1 7S.8 8.7.8 10.5v1c0 1.8.2 3.5.2 3.5s.2 1.5.9 2.1c.8.9 1.9.8 2.4.9 1.7.2 7.7.2 7.7.2s5 0 8-.4c.4 0 1.3 0 2.1-.9.7-.7.9-2.1.9-2.1s.2-1.7.2-3.5v-1c0-1.8-.2-3.5-.2-3.5zM9.5 15.5v-7l6.5 3.5-6.5 3.5z"/></svg>',
+    github_trending: '<svg viewBox="0 0 24 24" fill="currentColor" style="width:14px;height:14px;vertical-align:-2px;margin-right:4px;"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>',
+    producthunt: '<svg viewBox="0 0 24 24" fill="currentColor" style="width:14px;height:14px;vertical-align:-2px;margin-right:4px;color:#da552f;"><circle cx="12" cy="12" r="12"/></svg>',
+  };
+  return icons[source] || '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;vertical-align:-2px;margin-right:4px;color:var(--accent);"><path d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101"/><path d="M10.172 13.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>';
 }
 
 async function loadNews() {

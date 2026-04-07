@@ -1925,6 +1925,90 @@ def _serialize_annotation(ann: PageAnnotation) -> dict:
     }
 
 
+@router.get("/api/annotation-threads")
+def list_annotation_threads(db: Session = Depends(get_db_dependency)):
+    """Return all annotation threads (grouped by URL), sorted by latest activity.
+
+    Each thread = one URL with its annotations. Sorted by the most recent
+    comment or reply timestamp so users can see where the action is.
+    """
+    from collections import defaultdict
+
+    # Get all annotations with their replies and news items
+    anns = (
+        db.query(PageAnnotation)
+        .outerjoin(NewsFeedItem, PageAnnotation.news_item_id == NewsFeedItem.id)
+        .order_by(PageAnnotation.created_at.desc())
+        .all()
+    )
+
+    # Group by URL
+    threads_by_url = defaultdict(list)
+    for ann in anns:
+        threads_by_url[ann.url].append(ann)
+
+    threads = []
+    for url, url_anns in threads_by_url.items():
+        # Find the latest activity time across all annotations + replies
+        latest_time = None
+        latest_author = None
+        latest_body = None
+        total_replies = 0
+        participants = {}  # author_id -> author_name
+
+        for ann in url_anns:
+            participants[ann.author_id] = ann.author_name or "Anon"
+            ann_time = ann.created_at
+            if latest_time is None or (ann_time and ann_time > latest_time):
+                latest_time = ann_time
+                latest_author = ann.author_name or "Anon"
+                latest_body = ann.body
+
+            for reply in (ann.replies or []):
+                total_replies += 1
+                participants[reply.author_id] = reply.author_name or "Anon"
+                if reply.created_at and (latest_time is None or reply.created_at > latest_time):
+                    latest_time = reply.created_at
+                    latest_author = reply.author_name or "Anon"
+                    latest_body = reply.body
+
+        # Get news item info if available
+        news_item = None
+        news_item_id = url_anns[0].news_item_id if url_anns else None
+        if news_item_id:
+            ni = db.query(NewsFeedItem).filter(NewsFeedItem.id == news_item_id).first()
+            if ni:
+                news_item = {
+                    "id": ni.id,
+                    "title": ni.title,
+                    "source": ni.source,
+                    "source_name": ni.source_name,
+                    "image_url": ni.image_url,
+                }
+
+        threads.append({
+            "url": url,
+            "news_item": news_item,
+            "annotation_count": len(url_anns),
+            "reply_count": total_replies,
+            "participant_count": len(participants),
+            "participants": [
+                {"author_id": aid, "author_name": aname}
+                for aid, aname in list(participants.items())[:5]
+            ],
+            "latest_time": latest_time.isoformat() if latest_time else None,
+            "latest_author": latest_author,
+            "latest_body": (latest_body or "")[:200],
+            "first_annotation_body": (url_anns[0].body if url_anns else "")[:200],
+            "first_annotation_quote": (url_anns[0].selected_text or "")[:150] if url_anns else "",
+        })
+
+    # Sort by latest_time descending (most recent activity first)
+    threads.sort(key=lambda t: t["latest_time"] or "", reverse=True)
+
+    return {"threads": threads}
+
+
 @router.get("/api/page-annotations")
 def list_page_annotations(url: str = Query(...), db: Session = Depends(get_db_dependency)):
     """Get all annotations for a given URL."""

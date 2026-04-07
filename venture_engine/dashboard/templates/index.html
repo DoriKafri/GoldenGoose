@@ -670,8 +670,8 @@ html.dark .toggle-track::after { transform:translateX(16px); }
 .yt-ai-badge { display:inline-block; padding:2px 8px; border-radius:var(--radius-pill); font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.03em; }
 .yt-ai-badge.problem { background:rgba(239,68,68,0.12); color:#ef4444; }
 .yt-ai-badge.opportunity { background:rgba(34,197,94,0.12); color:#16a34a; }
-.yt-ai-title { font-size:14px; font-weight:600; color:var(--text); }
-.yt-ai-desc { font-size:13px; color:var(--text2); line-height:1.55; margin-top:4px; }
+.yt-ai-title { font-size:14px; font-weight:600; color:var(--text); opacity:1; }
+.yt-ai-desc { font-size:13px; color:var(--text); line-height:1.55; margin-top:4px; opacity:0.85; }
 .yt-ai-relevance { display:flex; align-items:center; gap:4px; font-size:11px; color:var(--text3); margin-top:6px; }
 .yt-ai-relevance-bar { width:60px; height:4px; background:var(--border); border-radius:2px; overflow:hidden; }
 .yt-ai-relevance-fill { height:100%; border-radius:2px; background:var(--accent); }
@@ -1719,7 +1719,13 @@ function toggleTheme() {
   document.documentElement.classList.toggle('dark');
   localStorage.setItem('ve_theme', document.documentElement.classList.contains('dark') ? 'dark' : 'light');
 }
-if (localStorage.getItem('ve_theme') === 'dark') document.documentElement.classList.add('dark');
+// Default to light mode; only go dark if explicitly set
+if (localStorage.getItem('ve_theme') === 'dark') {
+  document.documentElement.classList.add('dark');
+} else {
+  document.documentElement.classList.remove('dark');
+  localStorage.setItem('ve_theme', 'light');
+}
 
 // ── Tab scrolling with arrows ──
 function scrollTabs(dir) {

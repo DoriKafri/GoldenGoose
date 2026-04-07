@@ -1833,8 +1833,11 @@ def youtube_transcript(
     # ── Approach 5: Gemini AI transcript generation ──
     # When all fetch methods fail (common on cloud IPs), use Gemini to
     # transcribe the video directly from its YouTube URL.
+    import os as _os
+    _gemini_key = settings.google_gemini_api_key or _os.environ.get("GOOGLE_GEMINI_API_KEY", "")
+    logger.info(f"Gemini transcript fallback for {video_id}, key present: {bool(_gemini_key)}, key len: {len(_gemini_key)}")
     try:
-        if settings.google_gemini_api_key:
+        if _gemini_key:
             import httpx
             yt_url = f"https://www.youtube.com/watch?v={video_id}"
             gemini_prompt = (
@@ -1849,7 +1852,7 @@ def youtube_transcript(
                 try:
                     resp = httpx.post(
                         f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
-                        f"?key={settings.google_gemini_api_key}",
+                        f"?key={_gemini_key}",
                         json={
                             "contents": [{
                                 "parts": [
@@ -1973,7 +1976,9 @@ def _get_transcript_text(video_id: str) -> str:
 
 def _gemini_generate(prompt: str) -> Optional[str]:
     """Call Google Gemini API to generate text. Returns None on failure."""
-    if not settings.google_gemini_api_key:
+    import os as _os
+    _gkey = settings.google_gemini_api_key or _os.environ.get("GOOGLE_GEMINI_API_KEY", "")
+    if not _gkey:
         logger.warning("Gemini API key not set, skipping generation")
         return None
     logger.info(f"Calling Gemini API with {len(prompt)} char prompt...")
@@ -1983,7 +1988,7 @@ def _gemini_generate(prompt: str) -> Optional[str]:
     for model in models:
         try:
             resp = httpx.post(
-                f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={settings.google_gemini_api_key}",
+                f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={_gkey}",
                 json={"contents": [{"parts": [{"text": prompt}]}],
                       "generationConfig": {"temperature": 0.3, "maxOutputTokens": 4096}},
                 timeout=60.0,

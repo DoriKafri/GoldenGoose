@@ -3198,7 +3198,7 @@ function _mergeTranscriptSegments(segments) {
 }
 
 function _ytGetInsightBanners(secs) {
-  // Return minimal insight labels at this timestamp
+  // Return insight sentences at this timestamp
   const tolerance = 10;
   const banners = [];
   if (_ytDpoiData && Array.isArray(_ytDpoiData)) {
@@ -3206,7 +3206,9 @@ function _ytGetInsightBanners(secs) {
       const s = d.start_seconds || 0;
       if (secs >= s && secs < s + tolerance) {
         const color = d.type === 'problem' ? 'rgba(239,68,68,0.25)' : 'rgba(34,197,94,0.25)';
-        banners.push({text: d.title, color});
+        // Title + first sentence of description
+        const firstSentence = (d.description || '').split(/(?<=[.!?])\s/)[0];
+        banners.push({text: d.title + ': ' + firstSentence, color});
       }
     }
   }
@@ -3214,11 +3216,8 @@ function _ytGetInsightBanners(secs) {
     for (const t of _ytTakeawaysData) {
       const s = t.start_seconds || 0;
       if (secs >= s && secs < s + tolerance) {
-        // First clause only — up to first comma, colon, or dash, max ~6 words
-        let phrase = (t.takeaway || '').split(/[,:;—–\-]/)[0].trim();
-        const w = phrase.split(/\s+/);
-        if (w.length > 6) phrase = w.slice(0, 6).join(' ') + '…';
-        banners.push({text: phrase, color: 'rgba(250,204,21,0.35)'});
+        // Full takeaway sentence
+        banners.push({text: t.takeaway || '', color: 'rgba(250,204,21,0.35)'});
       }
     }
   }
@@ -3361,7 +3360,10 @@ async function _ytLoadTakeaways() {
   }
   if (!vid) return;
 
-  if (_ytTakeawaysData && _ytTakeawaysVideoId === vid) return; // already loaded
+  if (_ytTakeawaysData && _ytTakeawaysVideoId === vid) {
+    _ytRenderTakeaways(_ytTakeawaysData);
+    return;
+  }
 
   contentEl.innerHTML = _ytBuildingHTML('takeaways');
 
@@ -3436,7 +3438,10 @@ async function _ytLoadDpoi() {
   }
   if (!vid) return;
 
-  if (_ytDpoiData && _ytDpoiVideoId === vid) return;
+  if (_ytDpoiData && _ytDpoiVideoId === vid) {
+    _ytRenderDpoi(_ytDpoiData);
+    return;
+  }
 
   contentEl.innerHTML = _ytBuildingHTML('DOPI insights');
 

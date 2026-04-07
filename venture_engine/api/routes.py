@@ -1274,6 +1274,115 @@ ANNOTATION_IFRAME_SCRIPT = """
       if (el) { el.scrollIntoView({behavior:'smooth',block:'center'}); el.style.background='rgba(245,158,11,0.7)';
         setTimeout(function(){el.style.background='rgba(255,213,79,0.4)';},1500); }
     }
+    // ── Article insight highlights (takeaways/DOPI markers) ──
+    if (e.data && e.data.type === 'vie-highlights') {
+      var hls = e.data.highlights || [];
+      // Inject highlight CSS
+      var st = document.createElement('style');
+      st.textContent = '.vie-hl{border-radius:2px;padding:1px 0;cursor:default;position:relative;}' +
+        '.vie-hl[data-type="takeaway"]{background:rgba(250,204,21,0.35);}' +
+        '.vie-hl[data-type="problem"]{background:rgba(239,68,68,0.25);}' +
+        '.vie-hl[data-type="opportunity"]{background:rgba(34,197,94,0.25);}' +
+        '.vie-hl:hover::after{content:attr(data-label);position:absolute;background:#1a1a1a;color:#fff;' +
+        'font-size:11px;padding:3px 8px;border-radius:4px;white-space:nowrap;top:-28px;left:0;' +
+        'z-index:99999;pointer-events:none;font-family:Inter,sans-serif;}';
+      (document.head || document.documentElement).appendChild(st);
+
+      var applied = 0;
+      hls.forEach(function(hl) {
+        if (!hl.text || hl.text.length < 15) return;
+        var needle = hl.text.replace(/\s+/g, ' ').trim();
+        // Collect text nodes
+        var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false);
+        var charCount = 0, startNode = null, startOff = 0, endNode = null, endOff = 0;
+        // Get full body text for searching
+        var bodyText = document.body.innerText.replace(/\s+/g, ' ');
+        var idx = bodyText.indexOf(needle);
+        if (idx === -1) idx = bodyText.toLowerCase().indexOf(needle.toLowerCase());
+        if (idx === -1 && needle.length > 40) {
+          var short = needle.substring(0, 40);
+          idx = bodyText.indexOf(short);
+          if (idx === -1) idx = bodyText.toLowerCase().indexOf(short.toLowerCase());
+        }
+        if (idx === -1) return;
+
+        // Now find this text in the actual DOM text nodes
+        // Rebuild with actual text nodes to get proper offsets
+        var walker2 = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
+          acceptNode: function(n) {
+            var p = n.parentElement;
+            if (p && (p.tagName === 'SCRIPT' || p.tagName === 'STYLE' || p.tagName === 'NOSCRIPT')) return NodeFilter.FILTER_REJECT;
+            return NodeFilter.FILTER_ACCEPT;
+          }
+        }, false);
+        var nodes = [];
+        while (walker2.nextNode()) nodes.push(walker2.currentNode);
+        var combined = '';
+        var nodeRanges = [];
+        for (var ni = 0; ni < nodes.length; ni++) {
+          var s = combined.length;
+          combined += nodes[ni].textContent;
+          nodeRanges.push({node: nodes[ni], start: s, end: combined.length});
+        }
+        // Search in combined (not normalized — preserve offsets)
+        var cIdx = combined.indexOf(needle);
+        if (cIdx === -1) {
+          // Try normalized search then map back
+          var normCombined = combined.replace(/\s+/g, ' ');
+          var nIdx = normCombined.indexOf(needle);
+          if (nIdx === -1) nIdx = normCombined.toLowerCase().indexOf(needle.toLowerCase());
+          if (nIdx === -1 && needle.length > 40) {
+            nIdx = normCombined.indexOf(needle.substring(0, 40));
+            if (nIdx === -1) nIdx = normCombined.toLowerCase().indexOf(needle.substring(0, 40).toLowerCase());
+          }
+          if (nIdx === -1) return;
+          // Map normalized index back to original
+          var oi = 0, nni = 0;
+          while (nni < nIdx && oi < combined.length) {
+            if (/\s/.test(combined[oi])) {
+              while (oi + 1 < combined.length && /\s/.test(combined[oi + 1])) oi++;
+            }
+            oi++; nni++;
+          }
+          cIdx = oi;
+        }
+        var cEnd = cIdx + needle.length;
+        // Clamp to combined length
+        if (cEnd > combined.length) cEnd = combined.length;
+
+        var sNode = null, sOff = 0, eNode = null, eOff = 0;
+        for (var ri = 0; ri < nodeRanges.length; ri++) {
+          var nr = nodeRanges[ri];
+          if (!sNode && nr.end > cIdx) { sNode = nr.node; sOff = cIdx - nr.start; }
+          if (nr.end >= cEnd) { eNode = nr.node; eOff = cEnd - nr.start; break; }
+        }
+        if (!sNode || !eNode) return;
+        try {
+          var range = document.createRange();
+          range.setStart(sNode, Math.min(sOff, sNode.textContent.length));
+          range.setEnd(eNode, Math.min(eOff, eNode.textContent.length));
+          var mark = document.createElement('mark');
+          mark.className = 'vie-hl';
+          mark.setAttribute('data-type', hl.type || 'takeaway');
+          mark.setAttribute('data-label', hl.label || '');
+          range.surroundContents(mark);
+          applied++;
+        } catch(ex) {
+          // If surroundContents fails (crossing element boundaries), try first node only
+          try {
+            var r2 = document.createRange();
+            r2.setStart(sNode, Math.min(sOff, sNode.textContent.length));
+            r2.setEnd(sNode, sNode.textContent.length);
+            var m2 = document.createElement('mark');
+            m2.className = 'vie-hl';
+            m2.setAttribute('data-type', hl.type || 'takeaway');
+            m2.setAttribute('data-label', hl.label || '');
+            r2.surroundContents(m2);
+            applied++;
+          } catch(ex2) {}
+        }
+      });
+    }
   });
 })();
 </script>

@@ -1990,8 +1990,8 @@ def _gemini_generate(prompt: str) -> Optional[str]:
             resp = httpx.post(
                 f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={_gkey}",
                 json={"contents": [{"parts": [{"text": prompt}]}],
-                      "generationConfig": {"temperature": 0.3, "maxOutputTokens": 4096}},
-                timeout=60.0,
+                      "generationConfig": {"temperature": 0.3, "maxOutputTokens": 8192}},
+                timeout=120.0,
             )
             if resp.status_code == 200:
                 data = resp.json()
@@ -2016,9 +2016,9 @@ def _auto_generate_takeaways(video_id: str) -> Optional[dict]:
     if not transcript_text:
         return None
 
-    # Truncate to ~12K chars to stay within free tier limits
-    if len(transcript_text) > 12000:
-        transcript_text = transcript_text[:12000]
+    # Truncate to ~100K chars to cover long videos (Gemini 2.5 Flash supports 1M tokens)
+    if len(transcript_text) > 100000:
+        transcript_text = transcript_text[:100000]
 
     prompt = f"""Analyze this YouTube video transcript and extract 6-10 key takeaways.
 
@@ -2140,19 +2140,20 @@ TRANSCRIPT:
 
 
 @router.get("/api/youtube-key-takeaways")
-def youtube_key_takeaways(video_id: str = Query(..., min_length=11, max_length=11)):
+def youtube_key_takeaways(video_id: str = Query(..., min_length=11, max_length=11), refresh: bool = Query(False)):
     """Return cached AI key takeaways, or auto-generate via Gemini if available."""
     from venture_engine.db.session import SessionLocal
     from venture_engine.db.models import TakeawaysCache
 
-    try:
-        db = SessionLocal()
-        cached = db.query(TakeawaysCache).filter(TakeawaysCache.video_id == video_id).first()
-        db.close()
-        if cached and cached.data:
-            return cached.data
-    except Exception as e:
-        logger.warning(f"Takeaways cache lookup failed: {e}")
+    if not refresh:
+        try:
+            db = SessionLocal()
+            cached = db.query(TakeawaysCache).filter(TakeawaysCache.video_id == video_id).first()
+            db.close()
+            if cached and cached.data:
+                return cached.data
+        except Exception as e:
+            logger.warning(f"Takeaways cache lookup failed: {e}")
 
     # Auto-generate if Gemini key is available
     auto = _auto_generate_takeaways(video_id)
@@ -2184,19 +2185,20 @@ async def youtube_key_takeaways_cache_put(video_id: str, request: Request):
 
 
 @router.get("/api/youtube-dpoi")
-def youtube_dpoi(video_id: str = Query(..., min_length=11, max_length=11)):
+def youtube_dpoi(video_id: str = Query(..., min_length=11, max_length=11), refresh: bool = Query(False)):
     """Return cached DOPI insights, or auto-generate via Gemini if available."""
     from venture_engine.db.session import SessionLocal
     from venture_engine.db.models import DpoiCache
 
-    try:
-        db = SessionLocal()
-        cached = db.query(DpoiCache).filter(DpoiCache.video_id == video_id).first()
-        db.close()
-        if cached and cached.data:
-            return cached.data
-    except Exception as e:
-        logger.warning(f"DPOI cache lookup failed: {e}")
+    if not refresh:
+        try:
+            db = SessionLocal()
+            cached = db.query(DpoiCache).filter(DpoiCache.video_id == video_id).first()
+            db.close()
+            if cached and cached.data:
+                return cached.data
+        except Exception as e:
+            logger.warning(f"DPOI cache lookup failed: {e}")
 
     # Auto-generate if Gemini key is available
     auto = _auto_generate_dopi(video_id)

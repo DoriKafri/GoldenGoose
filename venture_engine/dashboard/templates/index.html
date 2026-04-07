@@ -135,7 +135,7 @@ html.dark .toggle-track::after { transform:translateX(16px); }
 .thread-card-latest-time { font-size:10px; color:var(--text3); margin-left:6px; }
 
 /* Top Tabs — elegant scrollable bar */
-.top-tabs-wrap { position:relative; display:flex; align-items:stretch; margin-bottom:20px; display:none; }
+.top-tabs-wrap { display:none !important; }
 .tab-arrow { display:flex; align-items:center; justify-content:center; width:36px; flex-shrink:0; border:none; background:var(--bg); color:var(--text3); cursor:pointer; transition:all 0.2s; z-index:3; border-bottom:2px solid var(--border); }
 .tab-arrow:hover { color:var(--accent); }
 .tab-arrow.hidden { opacity:0; pointer-events:none; width:0; min-width:0; overflow:hidden; }
@@ -448,8 +448,8 @@ html.dark .toggle-track::after { transform:translateX(16px); }
   .mobile-drawer .drawer-close { width:28px; height:28px; border:none; background:none; color:var(--sidebar-text); font-size:20px; cursor:pointer; }
   .main { margin-left:0; max-width:100vw; padding:8px; overflow-x:hidden; box-sizing:border-box; }
   .main-inner { max-width:100%; overflow-x:hidden; }
-  /* Tabs: mobile */
-  .top-tabs-wrap { margin-bottom:10px; }
+  /* Tabs: hidden (moved to sidebar) */
+  .top-tabs-wrap { display:none !important; }
   .tab-arrow { width:28px; min-width:28px; }
   .tab-arrow svg { width:14px; height:14px; }
   .top-tabs-wrap::before { left:28px; width:16px; }

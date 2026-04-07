@@ -1771,7 +1771,8 @@ def youtube_transcript(
     ]
     for instance in _invidious_instances:
         try:
-            with httpx.Client(timeout=10) as client:
+            _headers = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"}
+            with httpx.Client(timeout=10, headers=_headers) as client:
                 list_resp = client.get(f"{instance}/api/v1/captions/{video_id}")
                 if list_resp.status_code != 200:
                     continue

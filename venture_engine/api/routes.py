@@ -1805,26 +1805,15 @@ def youtube_transcript(
 
 
 @router.post("/api/youtube-transcript-cache/{video_id}")
-def youtube_transcript_cache_put(video_id: str, request: Request):
+async def youtube_transcript_cache_put(video_id: str, request: Request):
     """Client submits transcript segments to be cached.
 
     Body: {segments: [{start, duration, text}], language?: "en"}
     """
-    import json as _json
     from venture_engine.db.session import SessionLocal
     from venture_engine.db.models import TranscriptCache
 
-    # Read body synchronously
-    import asyncio
-    try:
-        body = asyncio.get_event_loop().run_until_complete(request.json())
-    except RuntimeError:
-        # Already in async loop — use a thread
-        import concurrent.futures
-        with concurrent.futures.ThreadPoolExecutor() as pool:
-            future = pool.submit(lambda: asyncio.run(request.json()))
-            body = future.result(timeout=5)
-
+    body = await request.json()
     segments = body.get("segments", [])
     language = body.get("language", "en")
 

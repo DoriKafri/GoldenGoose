@@ -1879,7 +1879,9 @@ def _get_transcript_text(video_id: str) -> str:
 def _gemini_generate(prompt: str) -> Optional[str]:
     """Call Google Gemini API (free tier) to generate text. Returns None on failure."""
     if not settings.google_gemini_api_key:
+        logger.warning("Gemini API key not set, skipping generation")
         return None
+    logger.info(f"Calling Gemini API with {len(prompt)} char prompt...")
     try:
         import httpx
         resp = httpx.post(
@@ -1900,9 +1902,12 @@ def _gemini_generate(prompt: str) -> Optional[str]:
 
 def _auto_generate_takeaways(video_id: str) -> Optional[dict]:
     """Auto-generate takeaways for a video using Gemini, cache result, and return it."""
+    logger.info(f"Auto-generating takeaways for {video_id}, gemini_key={'SET' if settings.google_gemini_api_key else 'EMPTY'}")
     transcript_text = _get_transcript_text(video_id)
     if not transcript_text:
+        logger.warning(f"No transcript for auto-generate takeaways {video_id}")
         return None
+    logger.info(f"Transcript for {video_id}: {len(transcript_text)} chars, calling Gemini...")
 
     # Truncate to ~12K chars to stay within free tier limits
     if len(transcript_text) > 12000:
@@ -2049,15 +2054,20 @@ def youtube_key_takeaways(video_id: str = Query(..., min_length=11, max_length=1
         cached = db.query(TakeawaysCache).filter(TakeawaysCache.video_id == video_id).first()
         db.close()
         if cached and cached.data:
+            logger.info(f"Takeaways cache HIT for {video_id}")
             return cached.data
+        logger.info(f"Takeaways cache MISS for {video_id}, cached={cached is not None}")
     except Exception as e:
         logger.warning(f"Takeaways cache lookup failed: {e}")
 
     # Auto-generate if Gemini key is available
+    logger.info(f"Attempting auto-generate takeaways for {video_id}")
     auto = _auto_generate_takeaways(video_id)
     if auto:
+        logger.info(f"Auto-generated takeaways for {video_id}: {len(auto)} items")
         return auto
 
+    logger.warning(f"Auto-generate returned None for {video_id}")
     raise HTTPException(404, "Takeaways not yet generated for this video.")
 
 

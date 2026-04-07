@@ -1164,7 +1164,7 @@ html.dark .toggle-track::after { transform:translateX(16px); }
 <script>
 // Show reader overlay IMMEDIATELY if URL is a reader permalink — prevents news list flash
 if (location.hash && location.hash.startsWith('#news/read/')) {
-  document.write('<style>#readerOverlay{display:flex!important}#ventureList,.main-content .loading{visibility:hidden}</style>');
+  document.write('<style id="readerPreloadStyle">#readerOverlay{display:flex!important}#ventureList,.main-content .loading{visibility:hidden}</style>');
   document.body && (document.body.style.overflow = 'hidden');
 }
 </script>
@@ -3541,6 +3541,9 @@ async function shareNewsItem(title, articleUrl) {
 function closeReader(fromPopstate) {
   var overlay = document.getElementById('readerOverlay');
   overlay.classList.remove('open');
+  // Remove the preload !important style that prevents hiding
+  var preloadStyle = document.getElementById('readerPreloadStyle');
+  if (preloadStyle) preloadStyle.remove();
   document.getElementById('readerIframe').src = 'about:blank';
   document.getElementById('readerIframe').style.display = '';
   document.body.style.overflow = '';

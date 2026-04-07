@@ -2222,6 +2222,9 @@ function renderNewsFeed(items) {
       openReader(url, this.dataset.title || '', this.dataset.newsId || '');
     });
   });
+
+  // Pre-generate article insights for all non-YouTube articles in background
+  _prefetchArticleInsights(items);
 }
 
 // ── News Annotations (list view) ──
@@ -3131,6 +3134,36 @@ function _artScrollToText(text) {
   if (iframe && iframe.contentWindow) {
     iframe.contentWindow.postMessage({type: 'vie-scroll-to', text: text}, '*');
   }
+}
+
+// Pre-fetch article insights for all news feed items (background, sequential to avoid overload)
+let _prefetchQueue = [];
+let _prefetchRunning = false;
+function _prefetchArticleInsights(items) {
+  const urls = items
+    .filter(i => i.url && !_youtubeId(i.url))
+    .map(i => i.url);
+  if (!urls.length) return;
+  // Add to queue (deduplicate)
+  const queued = new Set(_prefetchQueue);
+  for (const u of urls) {
+    if (!queued.has(u)) _prefetchQueue.push(u);
+  }
+  if (!_prefetchRunning) _runPrefetchQueue();
+}
+
+async function _runPrefetchQueue() {
+  _prefetchRunning = true;
+  while (_prefetchQueue.length) {
+    const url = _prefetchQueue.shift();
+    try {
+      // Fire and forget — just trigger the endpoint so it caches
+      await fetch(`${API}/api/article-insights?url=${encodeURIComponent(url)}`);
+    } catch(e) {}
+    // Small delay between requests to avoid hammering the server
+    await new Promise(r => setTimeout(r, 500));
+  }
+  _prefetchRunning = false;
 }
 
 // ── YouTube Tabs: Video / Transcript ──

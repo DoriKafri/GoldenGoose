@@ -3233,11 +3233,14 @@ async function _ytLoadTakeaways() {
 
   if (_ytTakeawaysData && _ytTakeawaysVideoId === vid) return; // already loaded
 
-  contentEl.innerHTML = '<div class="yt-ai-loading"><div class="spinner"></div>Generating key takeaways...</div>';
+  contentEl.innerHTML = '<div class="yt-ai-loading"><div class="spinner"></div>Loading key takeaways...</div>';
 
   try {
     const resp = await fetch(`${API}/api/youtube-key-takeaways?video_id=${vid}`);
-    if (!resp.ok) throw new Error('Failed to generate takeaways');
+    if (!resp.ok) {
+      const errData = await resp.json().catch(() => ({}));
+      throw new Error(errData.detail || 'Failed to generate takeaways');
+    }
     const data = await resp.json();
     if (data.error) throw new Error(data.error);
     _ytTakeawaysData = data.takeaways || data;
@@ -3284,11 +3287,14 @@ async function _ytLoadDpoi() {
 
   if (_ytDpoiData && _ytDpoiVideoId === vid) return;
 
-  contentEl.innerHTML = '<div class="yt-ai-loading"><div class="spinner"></div>Analyzing problems & opportunities...</div>';
+  contentEl.innerHTML = '<div class="yt-ai-loading"><div class="spinner"></div>Loading DPOI analysis...</div>';
 
   try {
     const resp = await fetch(`${API}/api/youtube-dpoi?video_id=${vid}`);
-    if (!resp.ok) throw new Error('Failed to generate DPOI analysis');
+    if (!resp.ok) {
+      const errData = await resp.json().catch(() => ({}));
+      throw new Error(errData.detail || 'Failed to generate DPOI analysis');
+    }
     const data = await resp.json();
     if (data.error) throw new Error(data.error);
     _ytDpoiData = data.insights || data;

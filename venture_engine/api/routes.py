@@ -1878,113 +1878,82 @@ def _get_transcript_text(video_id: str) -> str:
 
 @router.get("/api/youtube-key-takeaways")
 def youtube_key_takeaways(video_id: str = Query(..., min_length=11, max_length=11)):
-    """Generate AI key takeaways from a YouTube video transcript."""
-    import json as _json
-    from anthropic import Anthropic
-
-    transcript_text = _get_transcript_text(video_id)
-    if not transcript_text:
-        raise HTTPException(400, "Transcript not available for this video")
-
-    # Truncate if too long (keep within context window)
-    if len(transcript_text) > 80000:
-        transcript_text = transcript_text[:80000] + "\n[...transcript truncated...]"
-
-    client = Anthropic(api_key=settings.anthropic_api_key)
-
-    system = """You are an expert content analyst. Given a YouTube video transcript with timestamps, extract 6-10 key takeaways that capture the most important ideas, insights, and conclusions from the video.
-
-For each takeaway, provide:
-- The start and end timestamps (in seconds) of the relevant section
-- Formatted start/end times as "M:SS"
-- A clear, concise one-sentence summary of the takeaway
-
-Respond with valid JSON only, no markdown fences:
-{"takeaways": [
-  {"takeaway": "...", "start_seconds": 0, "end_seconds": 30, "start_time": "0:00", "end_time": "0:30"}
-]}
-
-Important:
-- Each takeaway should cover a distinct topic or idea
-- Use the exact timestamps where the topic is discussed
-- Order takeaways chronologically
-- Keep each takeaway to 1-2 sentences maximum
-- Make them specific and actionable, not generic"""
+    """Return cached AI key takeaways from a YouTube video transcript."""
+    from venture_engine.db.session import SessionLocal
+    from venture_engine.db.models import TakeawaysCache
 
     try:
-        response = client.messages.create(
-            model=settings.claude_model,
-            max_tokens=4096,
-            system=system,
-            messages=[{"role": "user", "content": f"Extract key takeaways from this video transcript:\n\n{transcript_text}"}],
-        )
-        raw = response.content[0].text.strip()
-        raw = re.sub(r"^```(?:json)?\s*\n?", "", raw)
-        raw = re.sub(r"\n?```\s*$", "", raw)
-        data = json.loads(raw.strip())
-        return data
-    except Exception as exc:
-        logger.error(f"Key takeaways generation failed: {exc}")
-        raise HTTPException(500, f"Failed to generate takeaways: {str(exc)}")
+        db = SessionLocal()
+        cached = db.query(TakeawaysCache).filter(TakeawaysCache.video_id == video_id).first()
+        db.close()
+        if cached and cached.data:
+            return cached.data
+    except Exception as e:
+        logger.warning(f"Takeaways cache lookup failed: {e}")
+
+    raise HTTPException(404, "Takeaways not yet generated for this video. Ask Claude Code to analyze it.")
+
+
+@router.post("/api/youtube-key-takeaways-cache/{video_id}")
+async def youtube_key_takeaways_cache_put(video_id: str, request: Request):
+    """Cache pre-generated takeaways for a video."""
+    from venture_engine.db.session import SessionLocal
+    from venture_engine.db.models import TakeawaysCache
+
+    body = await request.json()
+    try:
+        db = SessionLocal()
+        existing = db.query(TakeawaysCache).filter(TakeawaysCache.video_id == video_id).first()
+        if existing:
+            existing.data = body
+        else:
+            db.add(TakeawaysCache(video_id=video_id, data=body))
+        db.commit()
+        db.close()
+        return {"status": "cached", "video_id": video_id}
+    except Exception as e:
+        logger.error(f"Takeaways cache write failed: {e}")
+        raise HTTPException(500, str(e))
 
 
 @router.get("/api/youtube-dpoi")
 def youtube_dpoi(video_id: str = Query(..., min_length=11, max_length=11)):
-    """Generate Develeap Problem/Opportunity Insights from a YouTube video transcript."""
-    import json as _json
-    from anthropic import Anthropic
-
-    transcript_text = _get_transcript_text(video_id)
-    if not transcript_text:
-        raise HTTPException(400, "Transcript not available for this video")
-
-    if len(transcript_text) > 80000:
-        transcript_text = transcript_text[:80000] + "\n[...transcript truncated...]"
-
-    client = Anthropic(api_key=settings.anthropic_api_key)
-
-    system = """You are a Develeap venture analyst specializing in identifying problems and opportunities for dark factory and service development. Develeap builds ventures in DevOps, DevSecOps, MLOps, DataOps, AI Engineering, and SRE domains.
-
-Given a YouTube video transcript, identify concrete problems and opportunities mentioned that could lead to venture-buildable products, tools, or services.
-
-For each insight, provide:
-- type: "problem" or "opportunity"
-- title: Short, punchy title (5-8 words)
-- description: 2-3 sentences explaining the insight and why it matters for venture building
-- start_seconds / end_seconds: Timestamp range where this is discussed
-- start_time / end_time: Formatted as "M:SS"
-- venture_relevance: Score 1-10 (10 = immediate high-value venture opportunity)
-
-Respond with valid JSON only, no markdown fences:
-{"insights": [
-  {"type": "problem", "title": "...", "description": "...", "start_seconds": 0, "end_seconds": 30, "start_time": "0:00", "end_time": "0:30", "venture_relevance": 8}
-]}
-
-Focus on:
-- Pain points that developers/teams face (problems)
-- Emerging technology gaps or unmet needs (opportunities)
-- Workflow inefficiencies that could be automated (dark factory potential)
-- Integration gaps between tools/platforms
-- Scaling challenges with existing approaches
-- New market segments or underserved niches
-
-Order by venture_relevance (highest first). Identify 5-10 insights."""
+    """Return cached Develeap Problem/Opportunity Insights from a YouTube video transcript."""
+    from venture_engine.db.session import SessionLocal
+    from venture_engine.db.models import DpoiCache
 
     try:
-        response = client.messages.create(
-            model=settings.claude_model,
-            max_tokens=4096,
-            system=system,
-            messages=[{"role": "user", "content": f"Analyze this video transcript for venture-building problems and opportunities:\n\n{transcript_text}"}],
-        )
-        raw = response.content[0].text.strip()
-        raw = re.sub(r"^```(?:json)?\s*\n?", "", raw)
-        raw = re.sub(r"\n?```\s*$", "", raw)
-        data = json.loads(raw.strip())
-        return data
-    except Exception as exc:
-        logger.error(f"DPOI analysis failed: {exc}")
-        raise HTTPException(500, f"Failed to generate DPOI analysis: {str(exc)}")
+        db = SessionLocal()
+        cached = db.query(DpoiCache).filter(DpoiCache.video_id == video_id).first()
+        db.close()
+        if cached and cached.data:
+            return cached.data
+    except Exception as e:
+        logger.warning(f"DPOI cache lookup failed: {e}")
+
+    raise HTTPException(404, "DPOI analysis not yet generated for this video. Ask Claude Code to analyze it.")
+
+
+@router.post("/api/youtube-dpoi-cache/{video_id}")
+async def youtube_dpoi_cache_put(video_id: str, request: Request):
+    """Cache pre-generated DPOI analysis for a video."""
+    from venture_engine.db.session import SessionLocal
+    from venture_engine.db.models import DpoiCache
+
+    body = await request.json()
+    try:
+        db = SessionLocal()
+        existing = db.query(DpoiCache).filter(DpoiCache.video_id == video_id).first()
+        if existing:
+            existing.data = body
+        else:
+            db.add(DpoiCache(video_id=video_id, data=body))
+        db.commit()
+        db.close()
+        return {"status": "cached", "video_id": video_id}
+    except Exception as e:
+        logger.error(f"DPOI cache write failed: {e}")
+        raise HTTPException(500, str(e))
 
 
 @router.get("/api/url-preview")

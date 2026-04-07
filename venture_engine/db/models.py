@@ -352,3 +352,19 @@ class TranscriptCache(Base):
     language = Column(Text, default="en")
     segments = Column(JSON, nullable=False)  # [{start, duration, text}]
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class TakeawaysCache(Base):
+    __tablename__ = "takeaways_cache"
+
+    video_id = Column(String(11), primary_key=True)
+    data = Column(JSON, nullable=False)  # {"takeaways": [...]}
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class DpoiCache(Base):
+    __tablename__ = "dpoi_cache"
+
+    video_id = Column(String(11), primary_key=True)
+    data = Column(JSON, nullable=False)  # {"insights": [...]}
+    created_at = Column(DateTime, default=datetime.utcnow)

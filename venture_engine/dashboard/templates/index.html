@@ -3208,14 +3208,29 @@ function _mergeTranscriptSegments(segments) {
   return merged;
 }
 
-function _ytGetInsightColor(secs) {
-  // Return highlight color if this segment starts an insight
-  const tolerance = 10;
+function _ytGetInsightForSeg(secs, segText) {
+  // Find the best matching insight for this segment by checking keyword overlap
+  const tolerance = 30; // wider window to find the right segment
+  const segWords = new Set(segText.toLowerCase().split(/\W+/).filter(w => w.length > 4));
+  let best = null;
+  let bestScore = 0;
+
+  function score(insightText) {
+    const iWords = insightText.toLowerCase().split(/\W+/).filter(w => w.length > 4);
+    let hits = 0;
+    for (const w of iWords) { if (segWords.has(w)) hits++; }
+    return iWords.length ? hits / iWords.length : 0;
+  }
+
   if (_ytDpoiData && Array.isArray(_ytDpoiData)) {
     for (const d of _ytDpoiData) {
       const s = d.start_seconds || 0;
       if (secs >= s && secs < s + tolerance) {
-        return d.type === 'problem' ? 'rgba(239,68,68,0.25)' : 'rgba(34,197,94,0.25)';
+        const sc = score((d.title || '') + ' ' + (d.description || ''));
+        if (sc > bestScore && sc >= 0.15) {
+          bestScore = sc;
+          best = {color: d.type === 'problem' ? 'rgba(239,68,68,0.25)' : 'rgba(34,197,94,0.25)'};
+        }
       }
     }
   }
@@ -3223,11 +3238,15 @@ function _ytGetInsightColor(secs) {
     for (const t of _ytTakeawaysData) {
       const s = t.start_seconds || 0;
       if (secs >= s && secs < s + tolerance) {
-        return 'rgba(250,204,21,0.35)';
+        const sc = score(t.takeaway || '');
+        if (sc > bestScore && sc >= 0.15) {
+          bestScore = sc;
+          best = {color: 'rgba(250,204,21,0.35)'};
+        }
       }
     }
   }
-  return null;
+  return best;
 }
 
 function _ytRenderTranscript(segments, filter) {
@@ -3259,16 +3278,15 @@ function _ytRenderTranscript(segments, filter) {
       const re = new RegExp('(' + query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi');
       textHtml = textHtml.replace(re, '<mark style="background:#fef08a;padding:0 1px;border-radius:2px;">$1</mark>');
     }
-    const hlColor = _ytGetInsightColor(secs);
-    if (hlColor) {
-      // Find the first complete sentence — starts with a capital letter, ends with punctuation
-      // Skip leading fragments (e.g. "history." leftover from previous segment)
+    const insight = _ytGetInsightForSeg(secs, seg.text);
+    if (insight) {
+      // Find the best complete sentence to highlight (capital letter start, punctuation end)
       const m = textHtml.match(/^(.*?[.!?]\s+)?([A-Z][^.!?]*[.!?])/);
       if (m && m[2].length >= 30) {
         const before = m[1] || '';
         const sentence = m[2];
         const after = textHtml.slice(before.length + sentence.length);
-        textHtml = `${before}<mark style="background:${hlColor};padding:1px 2px;border-radius:2px;color:inherit;">${sentence}</mark>${after}`;
+        textHtml = `${before}<mark style="background:${insight.color};padding:1px 2px;border-radius:2px;color:inherit;">${sentence}</mark>${after}`;
       }
     }
     return `<div class="yt-transcript-seg" data-start="${seg.start}" onclick="_ytTranscriptClick(${secs})">

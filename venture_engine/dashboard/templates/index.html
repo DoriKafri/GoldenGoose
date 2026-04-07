@@ -686,7 +686,8 @@ html.dark .toggle-track::after { transform:translateX(16px); }
 .yt-transcript-search { display:flex; padding:10px 16px; border-bottom:1px solid var(--border); background:var(--card); flex-shrink:0; }
 .yt-transcript-search input { flex:1; padding:6px 12px; border:1px solid var(--border); border-radius:var(--radius-pill); font-size:12px; background:var(--bg); color:var(--text); font-family:inherit; outline:none; }
 .yt-transcript-search input:focus { border-color:var(--accent); }
-.yt-player-wrap { width:100%; height:100%; display:flex; flex-direction:column; background:#000; }
+.yt-player-wrap { width:100%; height:100%; display:flex; flex-direction:column; background:var(--bg); }
+#ytVideoPanel { background:#000; }
 .yt-player-container { flex:1; position:relative; }
 .yt-player-container iframe { position:absolute; inset:0; width:100%; height:100%; border:none; }
 .yt-controls { display:flex; align-items:center; gap:10px; padding:10px 16px; background:var(--card); border-top:1px solid var(--border); flex-shrink:0; }
@@ -2822,7 +2823,9 @@ function openReader(url, title, newsItemId) {
       </div>
     `;
     contentEl.appendChild(wrap);
-    _ytTranscriptData = null; // reset transcript cache
+    _ytTranscriptData = null; // reset caches so tabs reload fresh
+    _ytTakeawaysData = null; _ytTakeawaysVideoId = null;
+    _ytDpoiData = null; _ytDpoiVideoId = null;
 
     // Update sidebar hint for video
     const sidebarHint = document.querySelector('.reader-sidebar-header span:last-child');

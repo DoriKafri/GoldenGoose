@@ -1280,7 +1280,9 @@ def _fetch_storyboard_spec(video_id: str):
             "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
                           "AppleWebKit/537.36 (KHTML, like Gecko) "
                           "Chrome/120.0.0.0 Safari/537.36",
+            "Accept-Language": "en-US,en;q=0.9",
         },
+        cookies={"CONSENT": "YES+cb.20210328-17-p0.en+FX+999"},
         follow_redirects=True,
         timeout=10,
     )
@@ -1292,6 +1294,10 @@ def _fetch_storyboard_spec(video_id: str):
 
     player_data = json.loads(match.group(1))
     duration = int(player_data.get("videoDetails", {}).get("lengthSeconds", 0))
+    if duration <= 0:
+        # Try alternative: microformat
+        mf = player_data.get("microformat", {}).get("playerMicroformatRenderer", {})
+        duration = int(mf.get("lengthSeconds", 0))
     if duration <= 0:
         raise ValueError("Could not determine video duration")
 

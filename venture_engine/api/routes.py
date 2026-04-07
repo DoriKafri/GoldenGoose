@@ -1623,45 +1623,155 @@ def _parse_vtt_segments(vtt_text: str) -> list:
     return segments
 
 
+def _parse_innertube_caption_xml(xml_text: str) -> list:
+    """Parse YouTube's timedtext XML (format=3 or legacy) into segments."""
+    import xml.etree.ElementTree as ET
+    import html as _html
+
+    root = ET.fromstring(xml_text)
+    segments = []
+    seen_texts = set()
+
+    # Format 3: <p t="320" d="3999"><s>word</s><s t="240">word</s>...</p>
+    for p in root.findall(".//p"):
+        start_ms = int(p.get("t", 0))
+        dur_ms = int(p.get("d", 0))
+        # Collect text from <s> children or direct text
+        words = []
+        for s in p.findall("s"):
+            word = (s.text or "").strip()
+            if word:
+                words.append(word)
+        text = " ".join(words).strip()
+        if not text:
+            text = (p.text or "").strip()
+        if text and text not in seen_texts:
+            seen_texts.add(text)
+            text = _html.unescape(text)
+            segments.append({
+                "start": round(start_ms / 1000, 2),
+                "duration": round(dur_ms / 1000, 2),
+                "text": text,
+            })
+
+    # Legacy format: <text start="0.32" dur="4.0">word</text>
+    if not segments:
+        for elem in root.findall(".//text"):
+            start = float(elem.get("start", 0))
+            dur = float(elem.get("dur", 0))
+            text = (elem.text or "").strip()
+            if text and text not in seen_texts:
+                seen_texts.add(text)
+                text = _html.unescape(text)
+                segments.append({"start": round(start, 2), "duration": round(dur, 2), "text": text})
+
+    return segments
+
+
 @router.get("/api/youtube-transcript")
 def youtube_transcript(
     video_id: str = Query(..., min_length=11, max_length=11),
 ):
     """Return auto-generated transcript for a YouTube video.
 
+    Tries multiple approaches:
+    1. InnerTube ANDROID player API (best for cloud IPs)
+    2. youtube-transcript-api library
+    3. HTML watch page scraping
+    4. yt-dlp subtitle extraction
+
     Returns {segments: [{start, duration, text}]}.
     """
     import re as _re
     import json as _json
     import httpx
-    import xml.etree.ElementTree as ET
 
-    ua = (
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/120.0.0.0 Safari/537.36"
-    )
+    errors = []
 
+    # ── Approach 1: InnerTube ANDROID player API ──
+    # This endpoint is less likely to be blocked on cloud IPs
     try:
+        android_ua = "com.google.android.youtube/20.10.38"
+        innertube_body = {
+            "context": {
+                "client": {
+                    "clientName": "ANDROID",
+                    "clientVersion": "20.10.38",
+                    "hl": "en",
+                }
+            },
+            "videoId": video_id,
+        }
+        with httpx.Client(timeout=15) as client:
+            player_resp = client.post(
+                "https://www.youtube.com/youtubei/v1/player?prettyPrint=false",
+                json=innertube_body,
+                headers={"User-Agent": android_ua, "Content-Type": "application/json"},
+            )
+            player_data = player_resp.json()
+            playability = player_data.get("playabilityStatus", {}).get("status", "")
+            tracks = (
+                player_data.get("captions", {})
+                .get("playerCaptionsTracklistRenderer", {})
+                .get("captionTracks", [])
+            )
+            if not tracks:
+                raise ValueError(f"No caption tracks (playability={playability})")
+
+            # Prefer English track
+            track = next((t for t in tracks if t.get("languageCode", "").startswith("en")), tracks[0])
+            track_url = track["baseUrl"]
+
+            # Fetch caption XML
+            cap_resp = client.get(track_url, headers={"User-Agent": android_ua}, timeout=15)
+            if not cap_resp.text or len(cap_resp.text) < 50:
+                raise ValueError("Empty caption response")
+
+            segments = _parse_innertube_caption_xml(cap_resp.text)
+            if not segments:
+                raise ValueError("No segments parsed from caption XML")
+
+            logger.info(f"Transcript via InnerTube ANDROID for {video_id}: {len(segments)} segments")
+            return {"segments": segments, "language": track.get("languageCode", "en")}
+
+    except Exception as exc:
+        logger.warning(f"Transcript InnerTube ANDROID failed for {video_id}: {exc}")
+        errors.append(f"innertube: {exc}")
+
+    # ── Approach 2: youtube-transcript-api library ──
+    try:
+        from youtube_transcript_api import YouTubeTranscriptApi
+        api = YouTubeTranscriptApi()
+        transcript = api.fetch(video_id)
+        segments = []
+        for snippet in transcript.snippets:
+            segments.append({
+                "start": round(snippet.start, 2),
+                "duration": round(snippet.duration, 2),
+                "text": snippet.text,
+            })
+        logger.info(f"Transcript via youtube-transcript-api for {video_id}: {len(segments)} segments")
+        return {"segments": segments, "language": "en"}
+    except Exception as exc2:
+        logger.warning(f"Transcript youtube-transcript-api failed for {video_id}: {exc2}")
+        errors.append(f"yt-api: {str(exc2)[:200]}")
+
+    # ── Approach 3: HTML watch page scraping ──
+    try:
+        ua = (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/120.0.0.0 Safari/537.36"
+        )
         with httpx.Client(follow_redirects=True, timeout=15) as client:
-            client.get(
-                "https://www.youtube.com/",
-                headers={"User-Agent": ua, "Accept-Language": "en-US,en;q=0.9"},
-            )
-            client.cookies.set(
-                "CONSENT", "YES+cb.20210328-17-p0.en+FX+999", domain=".youtube.com"
-            )
+            client.cookies.set("CONSENT", "YES+cb.20210328-17-p0.en+FX+999", domain=".youtube.com")
             resp = client.get(
                 f"https://www.youtube.com/watch?v={video_id}",
                 headers={"User-Agent": ua, "Accept-Language": "en-US,en;q=0.9"},
             )
-
-            match = _re.search(
-                r'ytInitialPlayerResponse\s*=\s*(\{.+?\})\s*;', resp.text
-            )
+            match = _re.search(r'ytInitialPlayerResponse\s*=\s*(\{.+?\})\s*;', resp.text)
             if not match:
                 raise ValueError("Could not find player response")
-
             player_data = _json.loads(match.group(1))
             tracks = (
                 player_data.get("captions", {})
@@ -1669,132 +1779,50 @@ def youtube_transcript(
                 .get("captionTracks", [])
             )
             if not tracks:
-                raise ValueError("No caption tracks available")
+                raise ValueError("No caption tracks in HTML")
 
-            # Fetch the caption XML
             track_url = tracks[0]["baseUrl"]
-            tr = client.get(
-                track_url,
-                headers={
-                    "User-Agent": ua,
-                    "Referer": f"https://www.youtube.com/watch?v={video_id}",
-                },
-            )
+            tr = client.get(track_url, headers={"User-Agent": ua}, timeout=15)
             if not tr.text:
                 raise ValueError("Empty transcript response")
 
-            root = ET.fromstring(tr.text)
-            segments = []
-            for elem in root.findall(".//text"):
-                start = float(elem.get("start", 0))
-                dur = float(elem.get("dur", 0))
-                text = (elem.text or "").strip()
-                if text:
-                    # Decode HTML entities
-                    import html as _html
-                    text = _html.unescape(text)
-                    segments.append({"start": round(start, 2), "duration": round(dur, 2), "text": text})
+            segments = _parse_innertube_caption_xml(tr.text)
+            if segments:
+                logger.info(f"Transcript via HTML scraping for {video_id}: {len(segments)} segments")
+                return {"segments": segments, "language": tracks[0].get("languageCode", "en")}
+            raise ValueError("No segments parsed")
+    except Exception as exc3:
+        logger.warning(f"Transcript HTML scraping failed for {video_id}: {exc3}")
+        errors.append(f"html: {exc3}")
 
-            return {"segments": segments, "language": tracks[0].get("languageCode", "en")}
-
-    except Exception as exc:
-        logger.warning(f"Transcript HTML fetch failed for {video_id}: {exc}")
-        errors = [f"html: {exc}"]
-
-        # Fallback 1: try youtube-transcript-api
-        try:
-            from youtube_transcript_api import YouTubeTranscriptApi
-            api = YouTubeTranscriptApi()
-            transcript = api.fetch(video_id)
-            segments = []
-            for snippet in transcript.snippets:
-                segments.append({
-                    "start": round(snippet.start, 2),
-                    "duration": round(snippet.duration, 2),
-                    "text": snippet.text,
-                })
-            logger.info(f"Transcript via youtube-transcript-api for {video_id}: {len(segments)} segments")
-            return {"segments": segments, "language": "en"}
-        except Exception as exc2:
-            logger.warning(f"Transcript youtube-transcript-api failed for {video_id}: {exc2}")
-            errors.append(f"yt-api: {exc2}")
-
-        # Fallback 2: try yt-dlp subtitle extraction
-        try:
-            import subprocess, tempfile, os, glob as _glob
-            with tempfile.TemporaryDirectory() as tmpdir:
-                result = subprocess.run(
-                    [
-                        "yt-dlp",
-                        "--skip-download",
-                        "--write-auto-sub",
-                        "--sub-lang", "en",
-                        "--sub-format", "json3",
-                        "-o", os.path.join(tmpdir, "sub"),
-                        f"https://www.youtube.com/watch?v={video_id}",
-                    ],
-                    capture_output=True, text=True, timeout=30,
-                )
-                # Find the subtitle file
-                sub_files = _glob.glob(os.path.join(tmpdir, "sub*.json3"))
-                if not sub_files:
-                    # Try vtt format as fallback
-                    result2 = subprocess.run(
-                        [
-                            "yt-dlp",
-                            "--skip-download",
-                            "--write-auto-sub",
-                            "--sub-lang", "en",
-                            "--sub-format", "vtt",
-                            "-o", os.path.join(tmpdir, "sub"),
-                            f"https://www.youtube.com/watch?v={video_id}",
-                        ],
-                        capture_output=True, text=True, timeout=30,
-                    )
-                    sub_files = _glob.glob(os.path.join(tmpdir, "sub*.vtt"))
-                    if sub_files:
-                        # Parse VTT
-                        with open(sub_files[0], "r") as f:
-                            vtt_text = f.read()
-                        segments = _parse_vtt_segments(vtt_text)
-                        logger.info(f"Transcript via yt-dlp VTT for {video_id}: {len(segments)} segments")
-                        return {"segments": segments, "language": "en"}
-                    raise ValueError(f"yt-dlp produced no subtitle files: {result.stderr}")
-
-                with open(sub_files[0], "r") as f:
-                    sub_data = _json.loads(f.read())
-
-                segments = []
-                seen_texts = set()
-                for event in sub_data.get("events", []):
-                    start_ms = event.get("tStartMs", 0)
-                    dur_ms = event.get("dDurationMs", 0)
-                    # Build text from segs
-                    text_parts = []
-                    for seg in event.get("segs", []):
-                        t = seg.get("utf8", "").strip()
-                        if t and t != "\n":
-                            text_parts.append(t)
-                    text = " ".join(text_parts).strip()
-                    if text and text not in seen_texts:
-                        seen_texts.add(text)
-                        import html as _html
-                        text = _html.unescape(text)
-                        segments.append({
-                            "start": round(start_ms / 1000, 2),
-                            "duration": round(dur_ms / 1000, 2),
-                            "text": text,
-                        })
-                logger.info(f"Transcript via yt-dlp json3 for {video_id}: {len(segments)} segments")
-                return {"segments": segments, "language": "en"}
-        except Exception as exc3:
-            logger.warning(f"Transcript yt-dlp fallback failed for {video_id}: {exc3}")
-            errors.append(f"yt-dlp: {exc3}")
-            return Response(
-                content=_json.dumps({"error": "Transcript unavailable for this video", "details": errors}),
-                media_type="application/json",
-                status_code=500,
+    # ── Approach 4: yt-dlp subtitle extraction ──
+    try:
+        import subprocess, tempfile, os, glob as _glob
+        with tempfile.TemporaryDirectory() as tmpdir:
+            subprocess.run(
+                ["yt-dlp", "--skip-download", "--write-auto-sub",
+                 "--sub-lang", "en", "--sub-format", "vtt",
+                 "-o", os.path.join(tmpdir, "sub"),
+                 f"https://www.youtube.com/watch?v={video_id}"],
+                capture_output=True, text=True, timeout=30,
             )
+            sub_files = _glob.glob(os.path.join(tmpdir, "sub*.vtt"))
+            if sub_files:
+                with open(sub_files[0], "r") as f:
+                    segments = _parse_vtt_segments(f.read())
+                if segments:
+                    logger.info(f"Transcript via yt-dlp VTT for {video_id}: {len(segments)} segments")
+                    return {"segments": segments, "language": "en"}
+            raise ValueError("yt-dlp produced no usable subtitle files")
+    except Exception as exc4:
+        logger.warning(f"Transcript yt-dlp failed for {video_id}: {exc4}")
+        errors.append(f"yt-dlp: {str(exc4)[:200]}")
+
+    return Response(
+        content=_json.dumps({"error": "Transcript unavailable for this video", "details": errors}),
+        media_type="application/json",
+        status_code=500,
+    )
 
 
 @router.get("/api/url-preview")

@@ -1438,7 +1438,10 @@ def youtube_frame(
 
     return Response(
         status_code=302,
-        headers={"Location": f"https://img.youtube.com/vi/{video_id}/hqdefault.jpg"},
+        headers={
+            "Location": f"https://img.youtube.com/vi/{video_id}/hqdefault.jpg",
+            "Cache-Control": "no-store, no-cache, must-revalidate",
+        },
     )
 
 

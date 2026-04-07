@@ -1912,12 +1912,9 @@ def _gemini_generate(prompt: str) -> Optional[str]:
 
 def _auto_generate_takeaways(video_id: str) -> Optional[dict]:
     """Auto-generate takeaways for a video using Gemini, cache result, and return it."""
-    logger.info(f"Auto-generating takeaways for {video_id}, gemini_key={'SET' if settings.google_gemini_api_key else 'EMPTY'}")
     transcript_text = _get_transcript_text(video_id)
     if not transcript_text:
-        logger.warning(f"No transcript for auto-generate takeaways {video_id}")
         return None
-    logger.info(f"Transcript for {video_id}: {len(transcript_text)} chars, calling Gemini...")
 
     # Truncate to ~12K chars to stay within free tier limits
     if len(transcript_text) > 12000:
@@ -2042,51 +2039,6 @@ TRANSCRIPT:
         return None
 
 
-@router.get("/api/debug-gemini")
-def debug_gemini(video_id: str = Query(default="wc8FBhQtdsA")):
-    """Debug: check Gemini key and transcript availability."""
-    has_key = bool(settings.google_gemini_api_key)
-    key_prefix = settings.google_gemini_api_key[:8] + "..." if has_key else "EMPTY"
-    transcript = _get_transcript_text(video_id)
-    transcript_len = len(transcript) if transcript else 0
-    return {"gemini_key_set": has_key, "key_prefix": key_prefix,
-            "transcript_length": transcript_len, "video_id": video_id}
-
-
-@router.get("/api/debug-auto-generate")
-def debug_auto_generate(video_id: str = Query(default="wc8FBhQtdsA")):
-    """Debug: try auto-generating takeaways and return detailed status."""
-    import traceback
-    steps = {}
-    try:
-        steps["gemini_key"] = bool(settings.google_gemini_api_key)
-        transcript_text = _get_transcript_text(video_id)
-        steps["transcript_len"] = len(transcript_text) if transcript_text else 0
-        if not transcript_text:
-            return {"steps": steps, "error": "no transcript"}
-        truncated = transcript_text[:12000]
-        steps["truncated_len"] = len(truncated)
-        # Try Gemini directly to see raw response
-        import httpx
-        for model in ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.0-flash-lite"]:
-            try:
-                r = httpx.post(
-                    f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={settings.google_gemini_api_key}",
-                    json={"contents": [{"parts": [{"text": "Say hello"}]}]},
-                    timeout=15.0,
-                )
-                steps[model] = {"status": r.status_code, "body": r.text[:300]}
-                if r.status_code == 200:
-                    break
-            except Exception as e:
-                steps[model] = {"error": str(e)}
-        return {"steps": steps}
-    except Exception as e:
-        steps["error"] = str(e)
-        steps["traceback"] = traceback.format_exc()
-        return {"steps": steps}
-
-
 @router.get("/api/youtube-key-takeaways")
 def youtube_key_takeaways(video_id: str = Query(..., min_length=11, max_length=11)):
     """Return cached AI key takeaways, or auto-generate via Gemini if available."""
@@ -2098,20 +2050,14 @@ def youtube_key_takeaways(video_id: str = Query(..., min_length=11, max_length=1
         cached = db.query(TakeawaysCache).filter(TakeawaysCache.video_id == video_id).first()
         db.close()
         if cached and cached.data:
-            logger.info(f"Takeaways cache HIT for {video_id}")
             return cached.data
-        logger.info(f"Takeaways cache MISS for {video_id}, cached={cached is not None}")
     except Exception as e:
         logger.warning(f"Takeaways cache lookup failed: {e}")
 
     # Auto-generate if Gemini key is available
-    logger.info(f"Attempting auto-generate takeaways for {video_id}")
     auto = _auto_generate_takeaways(video_id)
     if auto:
-        logger.info(f"Auto-generated takeaways for {video_id}: {len(auto)} items")
         return auto
-
-    logger.warning(f"Auto-generate returned None for {video_id}")
     raise HTTPException(404, "Takeaways not yet generated for this video.")
 
 

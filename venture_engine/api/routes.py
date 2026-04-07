@@ -2081,8 +2081,8 @@ def _auto_generate_dopi(video_id: str) -> Optional[dict]:
     if not transcript_text:
         return None
 
-    if len(transcript_text) > 12000:
-        transcript_text = transcript_text[:12000]
+    if len(transcript_text) > 500000:
+        transcript_text = transcript_text[:500000]
 
     prompt = f"""Analyze the ENTIRE YouTube video transcript below and identify 5-8 Develeap Problem/Opportunity Insights (DOPI).
 

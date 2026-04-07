@@ -1764,9 +1764,10 @@ def youtube_transcript(
 
     # ── Approach 2: Invidious API instances (server-side) ──
     _invidious_instances = [
+        "https://inv.nadeko.net",
+        "https://invidious.nerdvpn.de",
         "https://invidious.fdn.fr",
         "https://vid.puffyan.us",
-        "https://invidious.nerdvpn.de",
     ]
     for instance in _invidious_instances:
         try:

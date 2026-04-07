@@ -1274,6 +1274,43 @@ ANNOTATION_IFRAME_SCRIPT = """
       if (el) { el.scrollIntoView({behavior:'smooth',block:'center'}); el.style.background='rgba(245,158,11,0.7)';
         setTimeout(function(){el.style.background='rgba(255,213,79,0.4)';},1500); }
     }
+    // ── Scroll to and flash-highlight a specific text in the article ──
+    if (e.data && e.data.type === 'vie-scroll-to') {
+      var needle = (e.data.text || '').replace(/\\s+/g, ' ').trim();
+      if (!needle) return;
+      // Find the existing vie-hl mark that contains this text
+      var marks = document.querySelectorAll('mark.vie-hl');
+      var found = null;
+      for (var mi = 0; mi < marks.length; mi++) {
+        if (marks[mi].textContent.indexOf(needle.substring(0, 40)) !== -1) { found = marks[mi]; break; }
+      }
+      if (found) {
+        found.scrollIntoView({behavior:'smooth', block:'center'});
+        var origBg = found.style.background || '';
+        found.style.background = 'rgba(245,158,11,0.7)';
+        found.style.outline = '2px solid #f59e0b';
+        setTimeout(function(){ found.style.background = origBg; found.style.outline = ''; }, 2000);
+        return;
+      }
+      // Fallback: use window.find to select the text
+      if (window.find) {
+        window.getSelection().removeAllRanges();
+        if (window.find(needle.substring(0, 60), false, false, true)) {
+          var sel = window.getSelection();
+          if (sel.rangeCount) {
+            var r = sel.getRangeAt(0);
+            var span = document.createElement('span');
+            span.style.cssText = 'background:rgba(245,158,11,0.5);border-radius:2px;outline:2px solid #f59e0b;';
+            try { r.surroundContents(span); } catch(ex){}
+            span.scrollIntoView({behavior:'smooth', block:'center'});
+            setTimeout(function(){
+              if (span.parentNode) { span.outerHTML = span.innerHTML; }
+            }, 2500);
+          }
+          sel.removeAllRanges();
+        }
+      }
+    }
     // ── Article insight highlights (takeaways/DOPI markers) ──
     if (e.data && e.data.type === 'vie-highlights') {
       var hls = e.data.highlights || [];

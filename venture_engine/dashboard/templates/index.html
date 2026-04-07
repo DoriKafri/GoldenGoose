@@ -3070,8 +3070,8 @@ async function _artLoadTakeaways() {
 function _artRenderTakeaways(items) {
   const el = document.getElementById('artTakeawaysContent');
   if (!el) return;
-  el.innerHTML = '<div class="yt-ai-list">' + items.map(item =>
-    `<div class="yt-ai-item" style="cursor:default; border-left-color:rgba(250,204,21,0.6);">
+  el.innerHTML = '<div class="yt-ai-list">' + items.map((item, i) =>
+    `<div class="yt-ai-item" style="cursor:pointer; border-left-color:rgba(250,204,21,0.6);" onclick="_artScrollToText(${JSON.stringify(item.text).replace(/"/g, '&quot;')})">
       <div class="yt-ai-title">${esc(item.text || '')}</div>
       ${item.label ? `<div class="yt-ai-desc" style="margin-top:4px;font-size:12px;color:var(--text3);">${esc(item.label)}</div>` : ''}
     </div>`
@@ -3115,12 +3115,22 @@ function _artRenderDpoi(items) {
     const badge = item.type === 'problem'
       ? '<span class="yt-ai-badge problem">Problem</span>'
       : '<span class="yt-ai-badge opportunity">Opportunity</span>';
-    return `<div class="yt-ai-item" style="cursor:default;">
+    return `<div class="yt-ai-item" style="cursor:pointer;" onclick="_artScrollToText(${JSON.stringify(item.text).replace(/"/g, '&quot;')})">
       <div class="yt-ai-item-header">${badge}</div>
       <div class="yt-ai-title">${esc(item.text || '')}</div>
       ${item.label ? `<div class="yt-ai-desc" style="margin-top:4px;font-size:12px;color:var(--text3);">${esc(item.label)}</div>` : ''}
     </div>`;
   }).join('') + '</div>';
+}
+
+function _artScrollToText(text) {
+  // Switch to article tab
+  _artSwitchTab('article');
+  // Tell the iframe to find and scroll to the text
+  const iframe = document.getElementById('artIframe');
+  if (iframe && iframe.contentWindow) {
+    iframe.contentWindow.postMessage({type: 'vie-scroll-to', text: text}, '*');
+  }
 }
 
 // ── YouTube Tabs: Video / Transcript ──

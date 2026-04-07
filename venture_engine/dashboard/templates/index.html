@@ -1719,12 +1719,15 @@ function toggleTheme() {
   document.documentElement.classList.toggle('dark');
   localStorage.setItem('ve_theme', document.documentElement.classList.contains('dark') ? 'dark' : 'light');
 }
-// Default to light mode; only go dark if explicitly set
+// Force light mode (one-time migration), then respect user choice
+if (localStorage.getItem('ve_theme_v2') !== 'migrated') {
+  localStorage.setItem('ve_theme', 'light');
+  localStorage.setItem('ve_theme_v2', 'migrated');
+}
 if (localStorage.getItem('ve_theme') === 'dark') {
   document.documentElement.classList.add('dark');
 } else {
   document.documentElement.classList.remove('dark');
-  localStorage.setItem('ve_theme', 'light');
 }
 
 // ── Tab scrolling with arrows ──

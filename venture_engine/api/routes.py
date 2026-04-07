@@ -1570,6 +1570,105 @@ def youtube_storyboard_spec(
         )
 
 
+@router.get("/api/youtube-transcript")
+def youtube_transcript(
+    video_id: str = Query(..., min_length=11, max_length=11),
+):
+    """Return auto-generated transcript for a YouTube video.
+
+    Returns {segments: [{start, duration, text}]}.
+    """
+    import re as _re
+    import json as _json
+    import httpx
+    import xml.etree.ElementTree as ET
+
+    ua = (
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/120.0.0.0 Safari/537.36"
+    )
+
+    try:
+        with httpx.Client(follow_redirects=True, timeout=15) as client:
+            client.get(
+                "https://www.youtube.com/",
+                headers={"User-Agent": ua, "Accept-Language": "en-US,en;q=0.9"},
+            )
+            client.cookies.set(
+                "CONSENT", "YES+cb.20210328-17-p0.en+FX+999", domain=".youtube.com"
+            )
+            resp = client.get(
+                f"https://www.youtube.com/watch?v={video_id}",
+                headers={"User-Agent": ua, "Accept-Language": "en-US,en;q=0.9"},
+            )
+
+            match = _re.search(
+                r'ytInitialPlayerResponse\s*=\s*(\{.+?\})\s*;', resp.text
+            )
+            if not match:
+                raise ValueError("Could not find player response")
+
+            player_data = _json.loads(match.group(1))
+            tracks = (
+                player_data.get("captions", {})
+                .get("playerCaptionsTracklistRenderer", {})
+                .get("captionTracks", [])
+            )
+            if not tracks:
+                raise ValueError("No caption tracks available")
+
+            # Fetch the caption XML
+            track_url = tracks[0]["baseUrl"]
+            tr = client.get(
+                track_url,
+                headers={
+                    "User-Agent": ua,
+                    "Referer": f"https://www.youtube.com/watch?v={video_id}",
+                },
+            )
+            if not tr.text:
+                raise ValueError("Empty transcript response")
+
+            root = ET.fromstring(tr.text)
+            segments = []
+            for elem in root.findall(".//text"):
+                start = float(elem.get("start", 0))
+                dur = float(elem.get("dur", 0))
+                text = (elem.text or "").strip()
+                if text:
+                    # Decode HTML entities
+                    import html as _html
+                    text = _html.unescape(text)
+                    segments.append({"start": round(start, 2), "duration": round(dur, 2), "text": text})
+
+            return {"segments": segments, "language": tracks[0].get("languageCode", "en")}
+
+    except Exception as exc:
+        logger.warning(f"Transcript fetch failed for {video_id}: {exc}")
+
+        # Fallback: try youtube-transcript-api if installed
+        try:
+            from youtube_transcript_api import YouTubeTranscriptApi
+            api = YouTubeTranscriptApi()
+            transcript = api.fetch(video_id)
+            segments = []
+            for snippet in transcript.snippets:
+                segments.append({
+                    "start": round(snippet.start, 2),
+                    "duration": round(snippet.duration, 2),
+                    "text": snippet.text,
+                })
+            return {"segments": segments, "language": "en"}
+        except Exception as exc2:
+            logger.warning(f"Transcript fallback also failed for {video_id}: {exc2}")
+            return Response(
+                content=_json.dumps({"error": str(exc)}),
+                media_type="application/json",
+                status_code=500,
+            )
+
+
 @router.get("/api/url-preview")
 def url_preview(url: str = Query(...)):
     """Fetch URL metadata (title, description, image) for link preview cards."""

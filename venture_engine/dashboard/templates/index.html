@@ -3469,8 +3469,8 @@ function _ytMarkTimestamp() {
     try { _cvid = _youtubeId(_ytPlayer.getVideoUrl()); } catch(e) {}
   }
   if (_cvid) {
-    // Use YouTube thumbnail as initial placeholder, then try storyboard sprite
-    const thumbUrl = `https://i.ytimg.com/vi/${_cvid}/hqdefault.jpg`;
+    // Use server-side frame endpoint as placeholder (matches annotation display), then try storyboard sprite
+    const thumbUrl = `${API}/api/youtube-frame?video_id=${_cvid}&t=${seconds}&_v=${Date.now()}`;
     document.getElementById('annComposeQuote').innerHTML = `
       <div class="ann-video-thumb ann-video-thumb-sm" style="cursor:default;">
         <img id="annComposeFrameImg" src="${thumbUrl}" alt="" style="width:100%;height:100%;object-fit:cover;">

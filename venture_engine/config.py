@@ -8,6 +8,7 @@ load_dotenv(override=True)
 
 class Settings(BaseSettings):
     anthropic_api_key: str = ""
+    google_gemini_api_key: str = ""
     database_url: str = "sqlite:///./venture_engine.db"
     notify_webhook_url: str = ""
     api_key: str = "changeme"

@@ -1876,9 +1876,160 @@ def _get_transcript_text(video_id: str) -> str:
     return "\n".join(lines)
 
 
+def _gemini_generate(prompt: str) -> Optional[str]:
+    """Call Google Gemini API (free tier) to generate text. Returns None on failure."""
+    if not settings.google_gemini_api_key:
+        return None
+    try:
+        import httpx
+        resp = httpx.post(
+            f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={settings.google_gemini_api_key}",
+            json={"contents": [{"parts": [{"text": prompt}]}],
+                  "generationConfig": {"temperature": 0.3, "maxOutputTokens": 4096}},
+            timeout=60.0,
+        )
+        if resp.status_code == 200:
+            data = resp.json()
+            return data["candidates"][0]["content"]["parts"][0]["text"]
+        else:
+            logger.warning(f"Gemini API error {resp.status_code}: {resp.text[:200]}")
+    except Exception as e:
+        logger.warning(f"Gemini API call failed: {e}")
+    return None
+
+
+def _auto_generate_takeaways(video_id: str) -> Optional[dict]:
+    """Auto-generate takeaways for a video using Gemini, cache result, and return it."""
+    transcript_text = _get_transcript_text(video_id)
+    if not transcript_text:
+        return None
+
+    # Truncate to ~12K chars to stay within free tier limits
+    if len(transcript_text) > 12000:
+        transcript_text = transcript_text[:12000]
+
+    prompt = f"""Analyze this YouTube video transcript and extract 6-10 key takeaways.
+
+For each takeaway, provide:
+- takeaway: A 1-2 sentence summary of the key point
+- start_time: Approximate timestamp where this topic starts (format "M:SS")
+- end_time: Approximate timestamp where this topic ends (format "M:SS")
+- start_seconds: start_time in total seconds
+- end_seconds: end_time in total seconds
+
+Return ONLY valid JSON array, no markdown, no explanation. Example:
+[{{"takeaway":"The key insight...","start_seconds":120,"end_seconds":240,"start_time":"2:00","end_time":"4:00"}}]
+
+TRANSCRIPT:
+{transcript_text}"""
+
+    result = _gemini_generate(prompt)
+    if not result:
+        return None
+
+    try:
+        # Strip markdown code fences if present
+        cleaned = result.strip()
+        if cleaned.startswith("```"):
+            cleaned = cleaned.split("\n", 1)[1] if "\n" in cleaned else cleaned[3:]
+            if cleaned.endswith("```"):
+                cleaned = cleaned[:-3]
+            cleaned = cleaned.strip()
+        takeaways = json.loads(cleaned)
+        if not isinstance(takeaways, list):
+            return None
+
+        # Cache it
+        from venture_engine.db.session import SessionLocal
+        from venture_engine.db.models import TakeawaysCache
+        cache_data = takeaways
+        try:
+            db = SessionLocal()
+            existing = db.query(TakeawaysCache).filter(TakeawaysCache.video_id == video_id).first()
+            if existing:
+                existing.data = cache_data
+            else:
+                db.add(TakeawaysCache(video_id=video_id, data=cache_data))
+            db.commit()
+            db.close()
+        except Exception as e:
+            logger.warning(f"Failed to cache auto-generated takeaways: {e}")
+
+        return cache_data
+    except (json.JSONDecodeError, KeyError, IndexError) as e:
+        logger.warning(f"Failed to parse Gemini takeaways response: {e}")
+        return None
+
+
+def _auto_generate_dopi(video_id: str) -> Optional[dict]:
+    """Auto-generate DOPI insights for a video using Gemini, cache result, and return it."""
+    transcript_text = _get_transcript_text(video_id)
+    if not transcript_text:
+        return None
+
+    if len(transcript_text) > 12000:
+        transcript_text = transcript_text[:12000]
+
+    prompt = f"""Analyze this YouTube video transcript and identify 5-8 Develeap Problem/Opportunity Insights (DOPI).
+
+Develeap is a DevOps, cloud, and AI engineering consultancy. For each insight, identify either a PROBLEM companies face or an OPPORTUNITY to build a product/service.
+
+For each insight, provide:
+- type: "problem" or "opportunity"
+- title: Short title (5-8 words)
+- description: 2-3 sentence explanation of the problem/opportunity and how Develeap could capitalize on it
+- start_time: Approximate timestamp (format "M:SS")
+- end_time: Approximate timestamp (format "M:SS")
+- start_seconds: start_time in total seconds
+- end_seconds: end_time in total seconds
+- venture_relevance: Score 1-10 how relevant this is for venture building
+
+Return ONLY valid JSON array, no markdown, no explanation. Example:
+[{{"type":"opportunity","title":"AI Testing Platform","description":"The insight...","start_seconds":120,"end_seconds":240,"start_time":"2:00","end_time":"4:00","venture_relevance":8}}]
+
+TRANSCRIPT:
+{transcript_text}"""
+
+    result = _gemini_generate(prompt)
+    if not result:
+        return None
+
+    try:
+        cleaned = result.strip()
+        if cleaned.startswith("```"):
+            cleaned = cleaned.split("\n", 1)[1] if "\n" in cleaned else cleaned[3:]
+            if cleaned.endswith("```"):
+                cleaned = cleaned[:-3]
+            cleaned = cleaned.strip()
+        insights = json.loads(cleaned)
+        if not isinstance(insights, list):
+            return None
+
+        # Cache it
+        from venture_engine.db.session import SessionLocal
+        from venture_engine.db.models import DpoiCache
+        cache_data = insights
+        try:
+            db = SessionLocal()
+            existing = db.query(DpoiCache).filter(DpoiCache.video_id == video_id).first()
+            if existing:
+                existing.data = cache_data
+            else:
+                db.add(DpoiCache(video_id=video_id, data=cache_data))
+            db.commit()
+            db.close()
+        except Exception as e:
+            logger.warning(f"Failed to cache auto-generated DOPI: {e}")
+
+        return cache_data
+    except (json.JSONDecodeError, KeyError, IndexError) as e:
+        logger.warning(f"Failed to parse Gemini DOPI response: {e}")
+        return None
+
+
 @router.get("/api/youtube-key-takeaways")
 def youtube_key_takeaways(video_id: str = Query(..., min_length=11, max_length=11)):
-    """Return cached AI key takeaways from a YouTube video transcript."""
+    """Return cached AI key takeaways, or auto-generate via Gemini if available."""
     from venture_engine.db.session import SessionLocal
     from venture_engine.db.models import TakeawaysCache
 
@@ -1891,7 +2042,12 @@ def youtube_key_takeaways(video_id: str = Query(..., min_length=11, max_length=1
     except Exception as e:
         logger.warning(f"Takeaways cache lookup failed: {e}")
 
-    raise HTTPException(404, "Takeaways not yet generated for this video. Ask Claude Code to analyze it.")
+    # Auto-generate if Gemini key is available
+    auto = _auto_generate_takeaways(video_id)
+    if auto:
+        return auto
+
+    raise HTTPException(404, "Takeaways not yet generated for this video.")
 
 
 @router.post("/api/youtube-key-takeaways-cache/{video_id}")
@@ -1918,7 +2074,7 @@ async def youtube_key_takeaways_cache_put(video_id: str, request: Request):
 
 @router.get("/api/youtube-dpoi")
 def youtube_dpoi(video_id: str = Query(..., min_length=11, max_length=11)):
-    """Return cached Develeap Problem/Opportunity Insights from a YouTube video transcript."""
+    """Return cached DOPI insights, or auto-generate via Gemini if available."""
     from venture_engine.db.session import SessionLocal
     from venture_engine.db.models import DpoiCache
 
@@ -1931,7 +2087,12 @@ def youtube_dpoi(video_id: str = Query(..., min_length=11, max_length=11)):
     except Exception as e:
         logger.warning(f"DPOI cache lookup failed: {e}")
 
-    raise HTTPException(404, "DPOI analysis not yet generated for this video. Ask Claude Code to analyze it.")
+    # Auto-generate if Gemini key is available
+    auto = _auto_generate_dopi(video_id)
+    if auto:
+        return auto
+
+    raise HTTPException(404, "DOPI analysis not yet generated for this video.")
 
 
 @router.post("/api/youtube-dpoi-cache/{video_id}")

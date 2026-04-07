@@ -3248,6 +3248,29 @@ let _ytTakeawaysVideoId = null;
 
 // Client-side embedded cache (survives deploys)
 const _ytAnalysisCache = {
+  "wc8FBhQtdsA": {
+    takeaways: [
+      {takeaway:"November 2025 was the inflection point: GPT 5.1 and Claude Opus 4.5 crossed a threshold where coding agents went from 'mostly works' to 'almost always works,' triggering a mass realization among software engineers over the holidays.",start_seconds:192,end_seconds:315,start_time:"3:12",end_time:"5:15"},
+      {takeaway:"Vibe coding vs agentic engineering: vibe coding means not looking at the code (great for prototyping), while agentic engineering is professional use of coding agents with review and quality practices. The distinction matters because calling everything 'vibe coding' devalues the term.",start_seconds:531,end_seconds:734,start_time:"8:51",end_time:"12:14"},
+      {takeaway:"The dark factory pattern from StrongDM: nobody writes code AND nobody reads code. They run AI-simulated QA swarms 24/7 ($10K/day on tokens) testing security software with fake Slack, Jira, and Okta environments all built by AI agents.",start_seconds:766,end_seconds:1020,start_time:"12:46",end_time:"17:00"},
+      {takeaway:"Mid-career engineers are most at risk: ThoughtWorks found AI tools are great for experienced engineers (amplifies 25 years of skill) and beginners (faster onboarding), but mid-career engineers lack the depth to amplify and already have the beginner boosts.",start_seconds:1769,end_seconds:1848,start_time:"29:29",end_time:"30:48"},
+      {takeaway:"Simon writes most of his code from his phone using Claude Code for Web, running agents in YOLO mode on Anthropic servers. His 2026 resolution: be MORE ambitious, not less. He runs 4 agents in parallel but is mentally wiped out by 11am.",start_seconds:492,end_seconds:522,start_time:"8:12",end_time:"8:42"},
+      {takeaway:"Code is cheap, quality is the real challenge: writing code takes way less time, but the bottleneck shifted to specs, testing, and deployment. The key question is how to make cheap AI-generated code also genuinely good code.",start_seconds:2701,end_seconds:2794,start_time:"45:01",end_time:"46:34"},
+      {takeaway:"Red/green TDD is the most important agentic engineering pattern: have agents write tests first, watch them fail, then implement. The 2-word prompt 'red/green TDD' replaces a full paragraph of testing instructions.",start_seconds:4117,end_seconds:4367,start_time:"68:37",end_time:"72:47"},
+      {takeaway:"The Lethal Trifecta makes personal AI assistants dangerous: private data access + malicious instruction exposure + exfiltration capability = inevitable security disaster. 97% prompt injection detection is a failing grade since 3 out of 100 attacks still steal all your data.",start_seconds:4621,end_seconds:5174,start_time:"77:01",end_time:"86:14"},
+      {takeaway:"OpenClaw went from first line of code (Nov 25) to Super Bowl ad in 3.5 months, proving massive demand for personal AI assistants despite catastrophic security. Building a 'safe OpenClaw' is the biggest AI opportunity right now.",start_seconds:5326,end_seconds:5460,start_time:"88:46",end_time:"91:00"},
+      {takeaway:"Hoarding things you know how to do: build a massive backlog of techniques and prototypes (Simon has 193 HTML/JS tools on GitHub). AI makes this easier since you can quickly prototype with new technologies and capture learnings for future recombination.",start_seconds:3662,end_seconds:3950,start_time:"61:02",end_time:"65:50"}
+    ],
+    insights: [
+      {type:"opportunity",title:"Dark Factory QA Testing Platform",description:"StrongDM spends $10K/day on simulated QA swarms testing security software with fake Slack/Jira/Okta environments. A productized, affordable platform for simulated SaaS environments that any engineering team can deploy for continuous AI-driven testing would have massive demand as more companies adopt the dark factory pattern.",start_seconds:766,end_seconds:1020,start_time:"12:46",end_time:"17:00",venture_relevance:9},
+      {type:"opportunity",title:"Agentic Engineering Training Program",description:"Simon says using coding agents effectively takes 'every inch of 25 years of experience' and is mentally exhausting. There is no structured training for this new discipline. A Develeap training course teaching professionals agentic engineering patterns (red/green TDD, template-first development, hoarding techniques) is a clear market need.",start_seconds:1586,end_seconds:1709,start_time:"26:26",end_time:"28:29",venture_relevance:10},
+      {type:"problem",title:"Mid-Career Engineer Skills Gap",description:"ThoughtWorks identified mid-career engineers as the most vulnerable cohort: they lack the deep expertise to amplify with AI tools and don't get the beginner onboarding benefits. Training programs specifically targeting this group with accelerated skill-building using AI as a learning companion could capture a huge anxious market.",start_seconds:1769,end_seconds:1848,start_time:"29:29",end_time:"30:48",venture_relevance:8},
+      {type:"problem",title:"Agent Cognitive Load & Burnout Prevention",description:"Engineers running 4 agents in parallel are 'wiped out by 11am' and losing sleep checking on agents at 4am. Tools for agent work orchestration, cognitive load balancing, and sustainable async workflows are urgently needed as agent adoption accelerates. The gambling/addiction dynamic Simon describes is a real product opportunity.",start_seconds:1880,end_seconds:1990,start_time:"31:20",end_time:"33:10",venture_relevance:7},
+      {type:"opportunity",title:"Secure Personal AI Assistant (Safe OpenClaw)",description:"Simon says building a secure OpenClaw is 'the biggest opportunity in AI right now.' The Lethal Trifecta (private data + malicious input + exfiltration) prevents Anthropic and OpenAI from shipping this themselves. A product implementing the CAMEL paper architecture (privileged/quarantined agent split with taint tracking) could win this massive market.",start_seconds:5326,end_seconds:5460,start_time:"88:46",end_time:"91:00",venture_relevance:9},
+      {type:"problem",title:"Code Quality Signal Collapse",description:"Previously, good tests + documentation = good code. Now AI generates both instantly, destroying that quality signal. Simon marks everything 'alpha' because he hasn't used it yet. Tools providing 'proof of usage' metrics (not just proof of work) would restore trust signals for AI-generated software and open-source projects.",start_seconds:3703,end_seconds:3762,start_time:"61:43",end_time:"62:42",venture_relevance:7},
+      {type:"opportunity",title:"Agent Security Penetration Testing Service",description:"AI agents are becoming credible security researchers. Anthropic found 100+ Firefox vulnerabilities using specialized security models (invite-only access). A managed agent-powered security audit service that actually verifies findings (unlike the spam of fake ChatGPT vulnerability reports) is a premium product opportunity.",start_seconds:1149,end_seconds:1200,start_time:"19:09",end_time:"20:00",venture_relevance:8}
+    ]
+  },
   "7HP1jFJ9W1c": {
     takeaways: [
       {takeaway:"A new infrastructure stack for AI agents is being assembled, representing a shift as fundamental as cloud computing (2006-2010) and microservices (2012-2016) — the new customer for infrastructure is the agent itself.",start_seconds:0,end_seconds:100,start_time:"0:00",end_time:"1:40"},
@@ -3287,7 +3310,7 @@ async function _ytLoadTakeaways() {
 
   if (_ytTakeawaysData && _ytTakeawaysVideoId === vid) return; // already loaded
 
-  contentEl.innerHTML = '<div class="yt-ai-loading"><div class="spinner"></div>Loading key takeaways...</div>';
+  contentEl.innerHTML = _ytBuildingHTML('takeaways');
 
   try {
     const resp = await fetch(`${API}/api/youtube-key-takeaways?video_id=${vid}`);
@@ -3301,13 +3324,17 @@ async function _ytLoadTakeaways() {
       if (cached && cached.takeaways) {
         _ytTakeawaysData = cached.takeaways;
       } else {
-        throw new Error('Takeaways not yet generated for this video.');
+        throw new Error('generating');
       }
     }
     _ytTakeawaysVideoId = vid;
     _ytRenderTakeaways(_ytTakeawaysData);
   } catch(e) {
-    contentEl.innerHTML = `<div class="yt-transcript-error">${esc(e.message)}</div>`;
+    if (e.message === 'generating') {
+      contentEl.innerHTML = _ytBuildingHTML('takeaways');
+    } else {
+      contentEl.innerHTML = `<div class="yt-transcript-error">${esc(e.message)}</div>`;
+    }
   }
 }
 
@@ -3316,6 +3343,17 @@ function _fmtTime(secs) {
   const mm = Math.floor(s / 60);
   const ss = s % 60;
   return mm + ':' + (ss < 10 ? '0' : '') + ss;
+}
+
+function _ytBuildingHTML(label) {
+  return `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:48px 24px;text-align:center;gap:16px;">
+    <div style="font-size:48px;animation:hourglassSpin 2s ease-in-out infinite;">&#9203;</div>
+    <div style="font-size:16px;font-weight:600;color:var(--text);opacity:0.9;">Building ${label}...</div>
+    <div style="font-size:13px;color:var(--text);opacity:0.6;max-width:280px;line-height:1.5;">
+      AI is analyzing the transcript. This may take a minute.<br>Feel free to come back shortly.
+    </div>
+    <style>@keyframes hourglassSpin{0%{transform:rotate(0deg)}50%{transform:rotate(180deg)}100%{transform:rotate(360deg)}}</style>
+  </div>`;
 }
 
 function _ytRenderTakeaways(items) {
@@ -3347,7 +3385,7 @@ async function _ytLoadDpoi() {
 
   if (_ytDpoiData && _ytDpoiVideoId === vid) return;
 
-  contentEl.innerHTML = '<div class="yt-ai-loading"><div class="spinner"></div>Loading DOPI analysis...</div>';
+  contentEl.innerHTML = _ytBuildingHTML('DOPI insights');
 
   try {
     const resp = await fetch(`${API}/api/youtube-dpoi?video_id=${vid}`);
@@ -3361,13 +3399,17 @@ async function _ytLoadDpoi() {
       if (cached && cached.insights) {
         _ytDpoiData = cached.insights;
       } else {
-        throw new Error('DOPI analysis not yet generated for this video.');
+        throw new Error('generating');
       }
     }
     _ytDpoiVideoId = vid;
     _ytRenderDpoi(_ytDpoiData);
   } catch(e) {
-    contentEl.innerHTML = `<div class="yt-transcript-error">${esc(e.message)}</div>`;
+    if (e.message === 'generating') {
+      contentEl.innerHTML = _ytBuildingHTML('DOPI insights');
+    } else {
+      contentEl.innerHTML = `<div class="yt-transcript-error">${esc(e.message)}</div>`;
+    }
   }
 }
 

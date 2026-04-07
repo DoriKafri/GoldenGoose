@@ -1592,6 +1592,37 @@ def youtube_storyboard_spec(
         )
 
 
+def _parse_vtt_segments(vtt_text: str) -> list:
+    """Parse WebVTT subtitle text into segments."""
+    import re as _re
+    import html as _html
+    segments = []
+    seen_texts = set()
+    # Match VTT cues: timestamp --> timestamp\ntext
+    pattern = _re.compile(
+        r'(\d{2}:\d{2}:\d{2}\.\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2}\.\d{3})\s*\n(.+?)(?=\n\n|\Z)',
+        _re.DOTALL,
+    )
+    for m in pattern.finditer(vtt_text):
+        start_str, end_str, text = m.group(1), m.group(2), m.group(3)
+        # Parse timestamp to seconds
+        parts = start_str.split(":")
+        start = int(parts[0]) * 3600 + int(parts[1]) * 60 + float(parts[2])
+        parts2 = end_str.split(":")
+        end = int(parts2[0]) * 3600 + int(parts2[1]) * 60 + float(parts2[2])
+        # Clean text: remove VTT tags like <c> </c>
+        text = _re.sub(r'<[^>]+>', '', text).strip()
+        text = _html.unescape(text)
+        if text and text not in seen_texts:
+            seen_texts.add(text)
+            segments.append({
+                "start": round(start, 2),
+                "duration": round(end - start, 2),
+                "text": text,
+            })
+    return segments
+
+
 @router.get("/api/youtube-transcript")
 def youtube_transcript(
     video_id: str = Query(..., min_length=11, max_length=11),
@@ -1667,9 +1698,9 @@ def youtube_transcript(
             return {"segments": segments, "language": tracks[0].get("languageCode", "en")}
 
     except Exception as exc:
-        logger.warning(f"Transcript fetch failed for {video_id}: {exc}")
+        logger.warning(f"Transcript HTML fetch failed for {video_id}: {exc}")
 
-        # Fallback: try youtube-transcript-api if installed
+        # Fallback 1: try youtube-transcript-api
         try:
             from youtube_transcript_api import YouTubeTranscriptApi
             api = YouTubeTranscriptApi()
@@ -1681,11 +1712,83 @@ def youtube_transcript(
                     "duration": round(snippet.duration, 2),
                     "text": snippet.text,
                 })
+            logger.info(f"Transcript via youtube-transcript-api for {video_id}: {len(segments)} segments")
             return {"segments": segments, "language": "en"}
         except Exception as exc2:
-            logger.warning(f"Transcript fallback also failed for {video_id}: {exc2}")
+            logger.warning(f"Transcript youtube-transcript-api failed for {video_id}: {exc2}")
+
+        # Fallback 2: try yt-dlp subtitle extraction
+        try:
+            import subprocess, tempfile, os, glob as _glob
+            with tempfile.TemporaryDirectory() as tmpdir:
+                result = subprocess.run(
+                    [
+                        "yt-dlp",
+                        "--skip-download",
+                        "--write-auto-sub",
+                        "--sub-lang", "en",
+                        "--sub-format", "json3",
+                        "-o", os.path.join(tmpdir, "sub"),
+                        f"https://www.youtube.com/watch?v={video_id}",
+                    ],
+                    capture_output=True, text=True, timeout=30,
+                )
+                # Find the subtitle file
+                sub_files = _glob.glob(os.path.join(tmpdir, "sub*.json3"))
+                if not sub_files:
+                    # Try vtt format as fallback
+                    result2 = subprocess.run(
+                        [
+                            "yt-dlp",
+                            "--skip-download",
+                            "--write-auto-sub",
+                            "--sub-lang", "en",
+                            "--sub-format", "vtt",
+                            "-o", os.path.join(tmpdir, "sub"),
+                            f"https://www.youtube.com/watch?v={video_id}",
+                        ],
+                        capture_output=True, text=True, timeout=30,
+                    )
+                    sub_files = _glob.glob(os.path.join(tmpdir, "sub*.vtt"))
+                    if sub_files:
+                        # Parse VTT
+                        with open(sub_files[0], "r") as f:
+                            vtt_text = f.read()
+                        segments = _parse_vtt_segments(vtt_text)
+                        logger.info(f"Transcript via yt-dlp VTT for {video_id}: {len(segments)} segments")
+                        return {"segments": segments, "language": "en"}
+                    raise ValueError(f"yt-dlp produced no subtitle files: {result.stderr}")
+
+                with open(sub_files[0], "r") as f:
+                    sub_data = _json.loads(f.read())
+
+                segments = []
+                seen_texts = set()
+                for event in sub_data.get("events", []):
+                    start_ms = event.get("tStartMs", 0)
+                    dur_ms = event.get("dDurationMs", 0)
+                    # Build text from segs
+                    text_parts = []
+                    for seg in event.get("segs", []):
+                        t = seg.get("utf8", "").strip()
+                        if t and t != "\n":
+                            text_parts.append(t)
+                    text = " ".join(text_parts).strip()
+                    if text and text not in seen_texts:
+                        seen_texts.add(text)
+                        import html as _html
+                        text = _html.unescape(text)
+                        segments.append({
+                            "start": round(start_ms / 1000, 2),
+                            "duration": round(dur_ms / 1000, 2),
+                            "text": text,
+                        })
+                logger.info(f"Transcript via yt-dlp json3 for {video_id}: {len(segments)} segments")
+                return {"segments": segments, "language": "en"}
+        except Exception as exc3:
+            logger.warning(f"Transcript yt-dlp fallback failed for {video_id}: {exc3}")
             return Response(
-                content=_json.dumps({"error": str(exc)}),
+                content=_json.dumps({"error": "Transcript unavailable for this video"}),
                 media_type="application/json",
                 status_code=500,
             )

@@ -2886,6 +2886,137 @@ function _ytSwitchTab(tab) {
   if (tab === 'transcript') _ytLoadTranscript();
 }
 
+// ── Client-side transcript helpers ──
+
+function _parseXmlTranscript(xmlText) {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(xmlText, 'text/xml');
+  const segments = [];
+  const seen = new Set();
+
+  // Format 3: <p t="320" d="3999"><s>word</s>...</p>
+  const pNodes = doc.querySelectorAll('p');
+  if (pNodes.length > 0) {
+    pNodes.forEach(p => {
+      const startMs = parseInt(p.getAttribute('t') || '0');
+      const durMs = parseInt(p.getAttribute('d') || '0');
+      let text = '';
+      const sNodes = p.querySelectorAll('s');
+      if (sNodes.length > 0) {
+        const words = [];
+        sNodes.forEach(s => { const w = (s.textContent || '').trim(); if (w) words.push(w); });
+        text = words.join(' ');
+      }
+      if (!text) text = (p.textContent || '').trim();
+      if (text && !seen.has(text)) {
+        seen.add(text);
+        segments.push({start: Math.round(startMs/10)/100, duration: Math.round(durMs/10)/100, text});
+      }
+    });
+  }
+
+  // Legacy format: <text start="0.32" dur="4.0">word</text>
+  if (segments.length === 0) {
+    doc.querySelectorAll('text').forEach(el => {
+      const start = parseFloat(el.getAttribute('start') || '0');
+      const dur = parseFloat(el.getAttribute('dur') || '0');
+      const text = (el.textContent || '').trim();
+      if (text && !seen.has(text)) {
+        seen.add(text);
+        segments.push({start: Math.round(start*100)/100, duration: Math.round(dur*100)/100, text});
+      }
+    });
+  }
+  return segments;
+}
+
+async function _ytFetchTranscriptClientSide(videoId) {
+  // Method 1: Try Invidious instances
+  for (const instance of _INVIDIOUS_INSTANCES) {
+    try {
+      // 1. Get caption track list
+      const listResp = await fetch(`${instance}/api/v1/captions/${videoId}`, {signal: AbortSignal.timeout(8000)});
+      if (!listResp.ok) continue;
+      const listData = await listResp.json();
+      const tracks = listData.captions || [];
+      if (!tracks.length) continue;
+
+      // Prefer English, fall back to first track
+      let track = tracks.find(t => (t.language_code || t.languageCode || '').startsWith('en'));
+      if (!track) track = tracks[0];
+
+      // 2. Fetch the subtitle content (VTT format)
+      let subUrl = track.url;
+      if (subUrl && !subUrl.startsWith('http')) {
+        subUrl = instance + subUrl;
+      }
+      const subResp = await fetch(subUrl, {signal: AbortSignal.timeout(8000)});
+      if (!subResp.ok) continue;
+      const vttText = await subResp.text();
+      if (!vttText || vttText.length < 20) continue;
+
+      // 3. Parse VTT into segments
+      const segments = _parseVttSegments(vttText);
+      if (segments.length > 0) {
+        console.log(`Transcript via Invidious (${instance}): ${segments.length} segments`);
+        return segments;
+      }
+    } catch(e) {
+      console.warn(`Invidious ${instance} failed:`, e.message);
+    }
+  }
+
+  // Method 2: Try YouTube timedtext directly with user's cookies (CORS supported)
+  try {
+    for (const kind of ['asr', '']) {
+      const params = new URLSearchParams({v: videoId, lang: 'en', fmt: 'srv3'});
+      if (kind) params.set('kind', kind);
+      const resp = await fetch(`https://www.youtube.com/api/timedtext?${params}`, {
+        credentials: 'include',
+        signal: AbortSignal.timeout(8000),
+      });
+      if (resp.ok) {
+        const xmlText = await resp.text();
+        if (xmlText && xmlText.length > 50) {
+          const segments = _parseXmlTranscript(xmlText);
+          if (segments.length > 0) {
+            console.log(`Transcript via YouTube timedtext direct: ${segments.length} segments`);
+            return segments;
+          }
+        }
+      }
+    }
+  } catch(e) {
+    console.warn('YouTube timedtext direct failed:', e.message);
+  }
+
+  return null;
+}
+
+function _parseVttSegments(vttText) {
+  const segments = [];
+  const seen = new Set();
+  // Match VTT cues: HH:MM:SS.mmm --> HH:MM:SS.mmm\ntext
+  const pattern = /(\d{2}:\d{2}:\d{2}\.\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2}\.\d{3})[^\n]*\n([\s\S]+?)(?=\n\n|\n\d{2}:\d{2}|\Z)/g;
+  let m;
+  while ((m = pattern.exec(vttText)) !== null) {
+    const start = _vttTimeToSec(m[1]);
+    const end = _vttTimeToSec(m[2]);
+    // Remove VTT tags like <c>, </c>, <00:00:00.000>, alignment tags
+    let text = m[3].replace(/<[^>]+>/g, '').replace(/\n/g, ' ').trim();
+    if (text && !seen.has(text)) {
+      seen.add(text);
+      segments.push({start: Math.round(start*100)/100, duration: Math.round((end-start)*100)/100, text});
+    }
+  }
+  return segments;
+}
+
+function _vttTimeToSec(ts) {
+  const p = ts.split(':');
+  return parseInt(p[0])*3600 + parseInt(p[1])*60 + parseFloat(p[2]);
+}
+
 async function _ytLoadTranscript() {
   const contentEl = document.getElementById('ytTranscriptContent');
   if (!contentEl) return;
@@ -2907,16 +3038,42 @@ async function _ytLoadTranscript() {
 
   contentEl.innerHTML = '<div class="yt-transcript-loading">Loading transcript...</div>';
 
+  let segments = null;
+
+  // 1. Server-side (may return cached or freshly fetched)
   try {
     const resp = await fetch(`${API}/api/youtube-transcript?video_id=${vid}`);
-    if (!resp.ok) throw new Error('Failed to load transcript');
-    const data = await resp.json();
-    if (data.error) throw new Error(data.error);
-    _ytTranscriptData = data.segments;
+    if (resp.ok) {
+      const data = await resp.json();
+      if (!data.error && data.segments && data.segments.length) {
+        segments = data.segments;
+      }
+    }
+  } catch(e) {
+    console.warn('Server transcript failed:', e.message);
+  }
+
+  // 2. Client-side fallback (Invidious + direct YouTube timedtext)
+  if (!segments) {
+    contentEl.innerHTML = '<div class="yt-transcript-loading">Trying client-side extraction...</div>';
+    segments = await _ytFetchTranscriptClientSide(vid);
+
+    // Cache successful client-side result on server for future requests
+    if (segments && segments.length) {
+      fetch(`${API}/api/youtube-transcript-cache/${vid}`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({segments, language: 'en'}),
+      }).catch(() => {});
+    }
+  }
+
+  if (segments && segments.length) {
+    _ytTranscriptData = segments;
     _ytTranscriptVideoId = vid;
     _ytRenderTranscript(_ytTranscriptData);
-  } catch(e) {
-    contentEl.innerHTML = `<div class="yt-transcript-error">Transcript unavailable: ${esc(e.message)}</div>`;
+  } else {
+    contentEl.innerHTML = '<div class="yt-transcript-error">Transcript unavailable for this video.</div>';
   }
 }
 

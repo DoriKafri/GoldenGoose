@@ -1674,128 +1674,107 @@ def youtube_transcript(
 ):
     """Return auto-generated transcript for a YouTube video.
 
-    Tries multiple approaches:
-    1. InnerTube ANDROID player API (best for cloud IPs)
-    2. youtube-transcript-api library
-    3. HTML watch page scraping
+    Strategy:
+    0. Check database cache first
+    1. InnerTube ANDROID player API
+    2. InnerTube IOS player API
+    3. youtube-transcript-api library
     4. yt-dlp subtitle extraction
 
+    Successfully fetched transcripts are cached in the database.
     Returns {segments: [{start, duration, text}]}.
     """
-    import re as _re
     import json as _json
     import httpx
+    from venture_engine.db.session import SessionLocal
+    from venture_engine.db.models import TranscriptCache
+
+    # ── Check cache first ──
+    try:
+        db = SessionLocal()
+        cached = db.query(TranscriptCache).filter(TranscriptCache.video_id == video_id).first()
+        if cached and cached.segments:
+            logger.info(f"Transcript from cache for {video_id}: {len(cached.segments)} segments")
+            db.close()
+            return {"segments": cached.segments, "language": cached.language or "en"}
+        db.close()
+    except Exception as cache_err:
+        logger.warning(f"Cache lookup failed: {cache_err}")
 
     errors = []
 
+    def _cache_and_return(segments, language="en"):
+        """Cache segments in DB and return response."""
+        try:
+            db = SessionLocal()
+            existing = db.query(TranscriptCache).filter(TranscriptCache.video_id == video_id).first()
+            if existing:
+                existing.segments = segments
+                existing.language = language
+            else:
+                db.add(TranscriptCache(video_id=video_id, language=language, segments=segments))
+            db.commit()
+            db.close()
+            logger.info(f"Cached transcript for {video_id}")
+        except Exception as e:
+            logger.warning(f"Failed to cache transcript: {e}")
+        return {"segments": segments, "language": language}
+
     # ── Approach 1: InnerTube ANDROID player API ──
-    # This endpoint is less likely to be blocked on cloud IPs
-    try:
-        android_ua = "com.google.android.youtube/20.10.38"
-        innertube_body = {
-            "context": {
-                "client": {
-                    "clientName": "ANDROID",
-                    "clientVersion": "20.10.38",
-                    "hl": "en",
-                }
-            },
-            "videoId": video_id,
-        }
-        with httpx.Client(timeout=15) as client:
-            player_resp = client.post(
-                "https://www.youtube.com/youtubei/v1/player?prettyPrint=false",
-                json=innertube_body,
-                headers={"User-Agent": android_ua, "Content-Type": "application/json"},
-            )
-            player_data = player_resp.json()
-            playability = player_data.get("playabilityStatus", {}).get("status", "")
-            tracks = (
-                player_data.get("captions", {})
-                .get("playerCaptionsTracklistRenderer", {})
-                .get("captionTracks", [])
-            )
-            if not tracks:
-                raise ValueError(f"No caption tracks (playability={playability})")
+    for client_name, client_ver, ua in [
+        ("ANDROID", "20.10.38", "com.google.android.youtube/20.10.38"),
+        ("IOS", "20.10.38", "com.google.ios.youtube/20.10.38"),
+    ]:
+        try:
+            innertube_body = {
+                "context": {"client": {"clientName": client_name, "clientVersion": client_ver, "hl": "en"}},
+                "videoId": video_id,
+            }
+            with httpx.Client(timeout=15) as client:
+                player_resp = client.post(
+                    "https://www.youtube.com/youtubei/v1/player?prettyPrint=false",
+                    json=innertube_body,
+                    headers={"User-Agent": ua, "Content-Type": "application/json"},
+                )
+                player_data = player_resp.json()
+                playability = player_data.get("playabilityStatus", {}).get("status", "")
+                tracks = (
+                    player_data.get("captions", {})
+                    .get("playerCaptionsTracklistRenderer", {})
+                    .get("captionTracks", [])
+                )
+                if not tracks:
+                    raise ValueError(f"No tracks (playability={playability})")
 
-            # Prefer English track
-            track = next((t for t in tracks if t.get("languageCode", "").startswith("en")), tracks[0])
-            track_url = track["baseUrl"]
+                track = next((t for t in tracks if t.get("languageCode", "").startswith("en")), tracks[0])
+                cap_resp = client.get(track["baseUrl"], headers={"User-Agent": ua}, timeout=15)
+                if not cap_resp.text or len(cap_resp.text) < 50:
+                    raise ValueError("Empty caption response")
 
-            # Fetch caption XML
-            cap_resp = client.get(track_url, headers={"User-Agent": android_ua}, timeout=15)
-            if not cap_resp.text or len(cap_resp.text) < 50:
-                raise ValueError("Empty caption response")
+                segments = _parse_innertube_caption_xml(cap_resp.text)
+                if not segments:
+                    raise ValueError("No segments parsed")
 
-            segments = _parse_innertube_caption_xml(cap_resp.text)
-            if not segments:
-                raise ValueError("No segments parsed from caption XML")
+                logger.info(f"Transcript via InnerTube {client_name} for {video_id}: {len(segments)} segments")
+                return _cache_and_return(segments, track.get("languageCode", "en"))
 
-            logger.info(f"Transcript via InnerTube ANDROID for {video_id}: {len(segments)} segments")
-            return {"segments": segments, "language": track.get("languageCode", "en")}
-
-    except Exception as exc:
-        logger.warning(f"Transcript InnerTube ANDROID failed for {video_id}: {exc}")
-        errors.append(f"innertube: {exc}")
+        except Exception as exc:
+            logger.warning(f"Transcript InnerTube {client_name} failed for {video_id}: {exc}")
+            errors.append(f"innertube-{client_name.lower()}: {str(exc)[:100]}")
 
     # ── Approach 2: youtube-transcript-api library ──
     try:
         from youtube_transcript_api import YouTubeTranscriptApi
         api = YouTubeTranscriptApi()
         transcript = api.fetch(video_id)
-        segments = []
-        for snippet in transcript.snippets:
-            segments.append({
-                "start": round(snippet.start, 2),
-                "duration": round(snippet.duration, 2),
-                "text": snippet.text,
-            })
+        segments = [{"start": round(s.start, 2), "duration": round(s.duration, 2), "text": s.text} for s in transcript.snippets]
         logger.info(f"Transcript via youtube-transcript-api for {video_id}: {len(segments)} segments")
-        return {"segments": segments, "language": "en"}
+        return _cache_and_return(segments)
     except Exception as exc2:
         logger.warning(f"Transcript youtube-transcript-api failed for {video_id}: {exc2}")
-        errors.append(f"yt-api: {str(exc2)[:200]}")
+        errors.append(f"yt-api: {str(exc2)[:100]}")
 
-    # ── Approach 3: HTML watch page scraping ──
-    try:
-        ua = (
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/120.0.0.0 Safari/537.36"
-        )
-        with httpx.Client(follow_redirects=True, timeout=15) as client:
-            client.cookies.set("CONSENT", "YES+cb.20210328-17-p0.en+FX+999", domain=".youtube.com")
-            resp = client.get(
-                f"https://www.youtube.com/watch?v={video_id}",
-                headers={"User-Agent": ua, "Accept-Language": "en-US,en;q=0.9"},
-            )
-            match = _re.search(r'ytInitialPlayerResponse\s*=\s*(\{.+?\})\s*;', resp.text)
-            if not match:
-                raise ValueError("Could not find player response")
-            player_data = _json.loads(match.group(1))
-            tracks = (
-                player_data.get("captions", {})
-                .get("playerCaptionsTracklistRenderer", {})
-                .get("captionTracks", [])
-            )
-            if not tracks:
-                raise ValueError("No caption tracks in HTML")
-
-            track_url = tracks[0]["baseUrl"]
-            tr = client.get(track_url, headers={"User-Agent": ua}, timeout=15)
-            if not tr.text:
-                raise ValueError("Empty transcript response")
-
-            segments = _parse_innertube_caption_xml(tr.text)
-            if segments:
-                logger.info(f"Transcript via HTML scraping for {video_id}: {len(segments)} segments")
-                return {"segments": segments, "language": tracks[0].get("languageCode", "en")}
-            raise ValueError("No segments parsed")
-    except Exception as exc3:
-        logger.warning(f"Transcript HTML scraping failed for {video_id}: {exc3}")
-        errors.append(f"html: {exc3}")
-
-    # ── Approach 4: yt-dlp subtitle extraction ──
+    # ── Approach 3: yt-dlp subtitle extraction ──
     try:
         import subprocess, tempfile, os, glob as _glob
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -1811,18 +1790,60 @@ def youtube_transcript(
                 with open(sub_files[0], "r") as f:
                     segments = _parse_vtt_segments(f.read())
                 if segments:
-                    logger.info(f"Transcript via yt-dlp VTT for {video_id}: {len(segments)} segments")
-                    return {"segments": segments, "language": "en"}
-            raise ValueError("yt-dlp produced no usable subtitle files")
-    except Exception as exc4:
-        logger.warning(f"Transcript yt-dlp failed for {video_id}: {exc4}")
-        errors.append(f"yt-dlp: {str(exc4)[:200]}")
+                    logger.info(f"Transcript via yt-dlp for {video_id}: {len(segments)} segments")
+                    return _cache_and_return(segments)
+            raise ValueError("No subtitle files")
+    except Exception as exc3:
+        logger.warning(f"Transcript yt-dlp failed for {video_id}: {exc3}")
+        errors.append(f"yt-dlp: {str(exc3)[:100]}")
 
     return Response(
-        content=_json.dumps({"error": "Transcript unavailable for this video", "details": errors}),
+        content=_json.dumps({"error": "Transcript unavailable", "details": errors}),
         media_type="application/json",
         status_code=500,
     )
+
+
+@router.post("/api/youtube-transcript-cache/{video_id}")
+def youtube_transcript_cache_put(video_id: str, request: Request):
+    """Client submits transcript segments to be cached.
+
+    Body: {segments: [{start, duration, text}], language?: "en"}
+    """
+    import json as _json
+    from venture_engine.db.session import SessionLocal
+    from venture_engine.db.models import TranscriptCache
+
+    # Read body synchronously
+    import asyncio
+    try:
+        body = asyncio.get_event_loop().run_until_complete(request.json())
+    except RuntimeError:
+        # Already in async loop — use a thread
+        import concurrent.futures
+        with concurrent.futures.ThreadPoolExecutor() as pool:
+            future = pool.submit(lambda: asyncio.run(request.json()))
+            body = future.result(timeout=5)
+
+    segments = body.get("segments", [])
+    language = body.get("language", "en")
+
+    if not segments:
+        raise HTTPException(400, "segments required")
+
+    try:
+        db = SessionLocal()
+        existing = db.query(TranscriptCache).filter(TranscriptCache.video_id == video_id).first()
+        if existing:
+            existing.segments = segments
+            existing.language = language
+        else:
+            db.add(TranscriptCache(video_id=video_id, language=language, segments=segments))
+        db.commit()
+        db.close()
+        return {"status": "cached", "count": len(segments)}
+    except Exception as e:
+        raise HTTPException(500, str(e))
 
 
 @router.get("/api/url-preview")

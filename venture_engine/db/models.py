@@ -343,3 +343,12 @@ class PlatformUser(Base):
     invited_by = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     last_login_at = Column(DateTime, nullable=True)
+
+
+class TranscriptCache(Base):
+    __tablename__ = "transcript_cache"
+
+    video_id = Column(String(11), primary_key=True)
+    language = Column(Text, default="en")
+    segments = Column(JSON, nullable=False)  # [{start, duration, text}]
+    created_at = Column(DateTime, default=datetime.utcnow)

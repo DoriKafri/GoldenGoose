@@ -1720,8 +1720,9 @@ def youtube_transcript(
             logger.warning(f"Failed to cache transcript: {e}")
         return {"segments": segments, "language": language}
 
-    # ── Approach 1: InnerTube ANDROID player API ──
+    # ── Approach 1: InnerTube player API (multiple clients) ──
     for client_name, client_ver, ua in [
+        ("WEB", "2.20250401", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"),
         ("ANDROID", "20.10.38", "com.google.android.youtube/20.10.38"),
         ("IOS", "20.10.38", "com.google.ios.youtube/20.10.38"),
     ]:

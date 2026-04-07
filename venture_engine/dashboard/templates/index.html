@@ -2953,102 +2953,171 @@ function _ytSeekTo(seconds) {
 // ── Article Insight Highlights ──
 async function _applyArticleInsights(articleUrl) {
   try {
+    console.log('[VIE] Fetching article insights for:', articleUrl);
     const resp = await fetch(`${API}/api/article-insights?url=${encodeURIComponent(articleUrl)}`);
-    if (!resp.ok) return;
+    if (!resp.ok) { console.log('[VIE] insights API returned', resp.status); return; }
     const data = await resp.json();
     const highlights = data.highlights;
-    if (!highlights || !highlights.length) return;
+    if (!highlights || !highlights.length) { console.log('[VIE] No highlights returned'); return; }
+    console.log('[VIE] Got', highlights.length, 'highlights');
 
     const iframe = document.getElementById('readerIframe');
     if (!iframe) return;
-    const idoc = iframe.contentDocument || iframe.contentWindow.document;
-    if (!idoc || !idoc.body) return;
 
-    // Inject highlight style
+    // Use postMessage to inject highlights into the iframe
+    // The proxy injects our annotation script which can listen for messages
+    // But since the proxy is same-origin, we can also directly access the DOM
+    let idoc;
+    try {
+      idoc = iframe.contentDocument || iframe.contentWindow.document;
+    } catch(e) {
+      console.log('[VIE] Cannot access iframe document (cross-origin?):', e);
+      return;
+    }
+    if (!idoc || !idoc.body) { console.log('[VIE] No iframe body'); return; }
+
+    // Inject highlight CSS
     const style = idoc.createElement('style');
     style.textContent = `
-      .vie-hl { border-radius:2px; padding:1px 0; cursor:default; }
+      .vie-hl { border-radius:2px; padding:1px 0; cursor:default; position:relative; }
       .vie-hl[data-type="takeaway"] { background:rgba(250,204,21,0.35); }
       .vie-hl[data-type="problem"] { background:rgba(239,68,68,0.25); }
       .vie-hl[data-type="opportunity"] { background:rgba(34,197,94,0.25); }
       .vie-hl:hover::after { content:attr(data-label); position:absolute; background:#1a1a1a; color:#fff;
-        font-size:11px; padding:3px 8px; border-radius:4px; white-space:nowrap; margin-top:-28px;
-        margin-left:0; z-index:99999; pointer-events:none; font-family:Inter,sans-serif; }
-      .vie-hl { position:relative; }
+        font-size:11px; padding:3px 8px; border-radius:4px; white-space:nowrap; top:-28px; left:0;
+        z-index:99999; pointer-events:none; font-family:Inter,sans-serif; }
     `;
-    idoc.head.appendChild(style);
+    (idoc.head || idoc.documentElement).appendChild(style);
 
-    // Walk text nodes and highlight matching sentences
+    let applied = 0;
     for (const hl of highlights) {
-      if (!hl.text || hl.text.length < 20) continue;
-      _highlightTextInDoc(idoc.body, hl.text, hl.type || 'takeaway', hl.label || '');
+      if (!hl.text || hl.text.length < 15) continue;
+      if (_highlightTextInDoc(idoc.body, hl.text, hl.type || 'takeaway', hl.label || '')) applied++;
     }
+    console.log('[VIE] Applied', applied, '/', highlights.length, 'highlights');
   } catch(e) {
-    // Silently fail — highlights are a nice-to-have
+    console.log('[VIE] Error applying insights:', e);
   }
 }
 
 function _highlightTextInDoc(root, searchText, type, label) {
-  // Find text nodes containing (parts of) the search text
   const doc = root.ownerDocument || document;
-  const walker = doc.createTreeWalker(root, NodeFilter.SHOW_TEXT, null, false);
+
+  // Normalize the search text
+  const needle = searchText.replace(/\s+/g, ' ').trim();
+  if (needle.length < 15) return false;
+
+  // Use the browser's built-in find-and-replace via Range API
+  // First, collect all text content to find position
+  const walker = doc.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    acceptNode: function(node) {
+      // Skip script/style nodes
+      const p = node.parentElement;
+      if (p && (p.tagName === 'SCRIPT' || p.tagName === 'STYLE' || p.tagName === 'NOSCRIPT')) return NodeFilter.FILTER_REJECT;
+      return NodeFilter.FILTER_ACCEPT;
+    }
+  });
   const textNodes = [];
   while (walker.nextNode()) textNodes.push(walker.currentNode);
 
-  // Normalize search text for matching
-  const needle = searchText.replace(/\s+/g, ' ').trim();
-  if (needle.length < 20) return;
+  // Build a combined text map with node references
+  let fullText = '';
+  const nodeMap = []; // {node, start, end}
+  for (const tn of textNodes) {
+    const start = fullText.length;
+    fullText += tn.textContent;
+    nodeMap.push({node: tn, start, end: fullText.length});
+  }
 
-  // Try to find the needle across consecutive text nodes
-  for (let i = 0; i < textNodes.length; i++) {
-    const node = textNodes[i];
-    // Check single node first
-    const nodeText = node.textContent;
-    const idx = nodeText.indexOf(needle);
-    if (idx !== -1) {
-      // Split and wrap
-      const before = nodeText.substring(0, idx);
-      const match = nodeText.substring(idx, idx + needle.length);
-      const after = nodeText.substring(idx + needle.length);
-      const mark = node.ownerDocument.createElement('mark');
-      mark.className = 'vie-hl';
-      mark.setAttribute('data-type', type);
-      mark.setAttribute('data-label', label);
-      mark.textContent = match;
-      const parent = node.parentNode;
-      if (before) parent.insertBefore(node.ownerDocument.createTextNode(before), node);
-      parent.insertBefore(mark, node);
-      if (after) parent.insertBefore(node.ownerDocument.createTextNode(after), node);
-      parent.removeChild(node);
-      return; // Found — done with this highlight
+  // Normalize fullText for searching (collapse whitespace)
+  const normFull = fullText.replace(/\s+/g, ' ');
+
+  // Try exact match first
+  let matchIdx = normFull.indexOf(needle);
+
+  // Try matching just the first 50 chars if exact fails
+  if (matchIdx === -1 && needle.length > 50) {
+    const shortNeedle = needle.substring(0, 50);
+    matchIdx = normFull.indexOf(shortNeedle);
+  }
+
+  // Try case-insensitive
+  if (matchIdx === -1) {
+    matchIdx = normFull.toLowerCase().indexOf(needle.toLowerCase());
+  }
+
+  // Try first 50 chars case-insensitive
+  if (matchIdx === -1 && needle.length > 50) {
+    matchIdx = normFull.toLowerCase().indexOf(needle.substring(0, 50).toLowerCase());
+  }
+
+  if (matchIdx === -1) return false;
+
+  // Map the normFull index back to the original fullText position
+  // Since we collapsed whitespace, we need to map back
+  let origIdx = 0, normIdx = 0;
+  const origMap = []; // normIdx -> origIdx
+  for (let i = 0; i < fullText.length; i++) {
+    origMap[normIdx] = i;
+    if (/\s/.test(fullText[i])) {
+      // Skip consecutive whitespace in original, advance normIdx by 1
+      while (i + 1 < fullText.length && /\s/.test(fullText[i + 1])) i++;
+      normIdx++;
+    } else {
+      normIdx++;
     }
+  }
+  origMap[normIdx] = fullText.length;
 
-    // Try fuzzy: first 40 chars of needle in this node
-    const shortNeedle = needle.substring(0, Math.min(40, needle.length));
-    const shortIdx = nodeText.indexOf(shortNeedle);
-    if (shortIdx !== -1) {
-      // Highlight from shortIdx to end of sentence or node
-      const startIdx = shortIdx;
-      // Find end: look for sentence end or use full needle length
-      let endIdx = nodeText.indexOf('.', startIdx + shortNeedle.length);
-      if (endIdx === -1 || endIdx - startIdx > needle.length + 20) endIdx = Math.min(startIdx + needle.length, nodeText.length);
-      else endIdx++; // include the period
+  const origStart = origMap[matchIdx] || 0;
+  // Find end: use the full needle length in normalized space
+  const needleEnd = Math.min(matchIdx + needle.length, normFull.length);
+  const origEnd = origMap[needleEnd] || fullText.length;
 
-      const before = nodeText.substring(0, startIdx);
-      const match = nodeText.substring(startIdx, endIdx);
-      const after = nodeText.substring(endIdx);
-      if (match.length < 20) continue;
-      const mark = node.ownerDocument.createElement('mark');
+  // Find which text nodes contain our match range
+  let startNode = null, startOffset = 0, endNode = null, endOffset = 0;
+  for (const nm of nodeMap) {
+    if (!startNode && nm.end > origStart) {
+      startNode = nm.node;
+      startOffset = origStart - nm.start;
+    }
+    if (nm.end >= origEnd) {
+      endNode = nm.node;
+      endOffset = origEnd - nm.start;
+      break;
+    }
+  }
+
+  if (!startNode || !endNode) return false;
+
+  // Create a range and surround with mark element
+  try {
+    const range = doc.createRange();
+    range.setStart(startNode, Math.min(startOffset, startNode.textContent.length));
+    range.setEnd(endNode, Math.min(endOffset, endNode.textContent.length));
+
+    const mark = doc.createElement('mark');
+    mark.className = 'vie-hl';
+    mark.setAttribute('data-type', type);
+    mark.setAttribute('data-label', label);
+    range.surroundContents(mark);
+    return true;
+  } catch(e) {
+    // surroundContents fails if range crosses element boundaries — fallback
+    // Just highlight the first text node portion
+    try {
+      const range = doc.createRange();
+      range.setStart(startNode, Math.min(startOffset, startNode.textContent.length));
+      const endOff = startNode === endNode ? Math.min(endOffset, startNode.textContent.length) : startNode.textContent.length;
+      range.setEnd(startNode, endOff);
+      const mark = doc.createElement('mark');
       mark.className = 'vie-hl';
       mark.setAttribute('data-type', type);
       mark.setAttribute('data-label', label);
-      mark.textContent = match;
-      const parent = node.parentNode;
-      if (before) parent.insertBefore(node.ownerDocument.createTextNode(before), node);
-      parent.insertBefore(mark, node);
-      if (after) parent.insertBefore(node.ownerDocument.createTextNode(after), node);
-      parent.removeChild(node);
-      return;
+      range.surroundContents(mark);
+      return true;
+    } catch(e2) {
+      return false;
     }
   }
 }

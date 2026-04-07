@@ -1293,13 +1293,30 @@ def _fetch_storyboard_spec(video_id: str):
         raise ValueError("Could not find ytInitialPlayerResponse in YouTube page")
 
     player_data = json.loads(match.group(1))
+
+    # Try multiple sources for video duration
     duration = int(player_data.get("videoDetails", {}).get("lengthSeconds", 0))
     if duration <= 0:
-        # Try alternative: microformat
         mf = player_data.get("microformat", {}).get("playerMicroformatRenderer", {})
         duration = int(mf.get("lengthSeconds", 0))
     if duration <= 0:
-        raise ValueError("Could not determine video duration")
+        # Try streamingData approxDurationMs
+        approx_ms = player_data.get("streamingData", {}).get("approxDurationMs", "0")
+        duration = int(approx_ms) // 1000
+    if duration <= 0:
+        # Log what we got for debugging
+        available_keys = list(player_data.keys())
+        vd_keys = list(player_data.get("videoDetails", {}).keys())
+        logger.error(
+            f"No duration for {video_id}. "
+            f"Player keys: {available_keys[:10]}, "
+            f"videoDetails keys: {vd_keys}"
+        )
+        raise ValueError(
+            f"Could not determine video duration. "
+            f"Player keys: {available_keys[:10]}, "
+            f"videoDetails keys: {vd_keys}"
+        )
 
     spec_str = (
         player_data.get("storyboards", {})

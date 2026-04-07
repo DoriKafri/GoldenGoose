@@ -989,6 +989,14 @@ html.dark .toggle-track::after { transform:translateX(16px); }
         </div>
       </div>
 
+      <!-- Venture Search Bar (visible on venture tabs) -->
+      <div id="ventureSearchBar" style="display:none;margin-bottom:16px;">
+        <div style="position:relative;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" style="width:16px;height:16px;position:absolute;left:14px;top:50%;transform:translateY(-50%);pointer-events:none;"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+          <input type="text" id="ventureSearchInput" placeholder="Search ventures..." style="width:100%;padding:10px 16px 10px 40px;border-radius:var(--radius-pill);border:1px solid var(--border);background:var(--bg);font-size:13px;color:var(--text);outline:none;transition:border-color 0.2s;font-family:inherit;" oninput="debounceVentureSearch()" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'">
+        </div>
+      </div>
+
       <!-- Post Composer Modal -->
       <div id="postComposerOverlay" class="post-composer-overlay" onclick="closePostComposer(event)" style="display:none;">
         <div class="post-composer" onclick="event.stopPropagation()">
@@ -1733,9 +1741,16 @@ function switchTab(tab, skipHash) {
     b.classList.toggle('active', b.dataset.tab === tab);
   });
   // Show/hide context-sensitive elements
-  const isVentureTab = !['news','threads','training'].includes(tab);
+  const isVentureTab = !['news','threads'].includes(tab);
   document.getElementById('suggestTabBtn').style.display = isVentureTab ? '' : 'none';
   document.getElementById('newsPostBar').style.display = (tab === 'news') ? '' : 'none';
+  document.getElementById('ventureSearchBar').style.display = isVentureTab ? '' : 'none';
+  // Update search placeholder based on tab
+  const searchInput = document.getElementById('ventureSearchInput');
+  if (searchInput) {
+    const placeholders = {venture:'Search ideas...', stealth:'Search clones...', flip:'Search quick flips...', customer:'Search customers...', missing_piece:'Search missing pieces...', training:'Search training...'};
+    searchInput.placeholder = placeholders[tab] || 'Search ventures...';
+  }
   // Show filters only for venture tabs
   const filtersEl = document.getElementById('sidebarFilters');
   if (filtersEl) filtersEl.style.display = isVentureTab ? '' : 'none';
@@ -1809,6 +1824,12 @@ window.addEventListener('popstate', (e) => {
   else closeDetailPanel(true);
 });
 
+let _ventureSearchTimer = null;
+function debounceVentureSearch() {
+  clearTimeout(_ventureSearchTimer);
+  _ventureSearchTimer = setTimeout(() => { currentPage = 0; loadVentures(); }, 300);
+}
+
 async function loadVentures() {
   // Show loading state immediately for instant tab feedback
   document.getElementById('ventureList').innerHTML = '<div class="loading">Loading...</div>';
@@ -1818,6 +1839,8 @@ async function loadVentures() {
   const params = new URLSearchParams({sort, limit: PAGE_SIZE, offset: currentPage * PAGE_SIZE, category: currentTab});
   if (domain) params.set('domain', domain);
   if (status) params.set('status', status);
+  const searchEl = document.getElementById('ventureSearchInput');
+  if (searchEl && searchEl.value.trim()) params.set('q', searchEl.value.trim());
   const res = await fetch(`${API}/api/ventures?${params}`);
   const data = await res.json();
   totalVentures = data.total;

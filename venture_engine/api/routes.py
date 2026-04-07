@@ -272,18 +272,40 @@ def list_ventures(
     sort: str = Query("score", regex="^(score|date|votes)$"),
     limit: int = Query(25, ge=1, le=100),
     offset: int = Query(0, ge=0),
+    q: Optional[str] = Query(None, alias="q", description="Search query for semantic filtering"),
     db: Session = Depends(get_db_dependency),
 ):
-    q = db.query(Venture).filter(Venture.category == category)
+    query = db.query(Venture).filter(Venture.category == category)
     if status:
-        q = q.filter(Venture.status == status)
+        query = query.filter(Venture.status == status)
     if domain:
-        q = q.filter(Venture.domain == domain)
+        query = query.filter(Venture.domain == domain)
+
+    # Text search across key fields
+    if q and q.strip():
+        search_term = f"%{q.strip()}%"
+        from sqlalchemy import or_
+        query = query.filter(
+            or_(
+                Venture.title.ilike(search_term),
+                Venture.summary.ilike(search_term),
+                Venture.problem.ilike(search_term),
+                Venture.proposed_solution.ilike(search_term),
+                Venture.target_buyer.ilike(search_term),
+                Venture.slogan.ilike(search_term),
+                Venture.domain.ilike(search_term),
+                Venture.target_acquirer.ilike(search_term),
+                Venture.target_product.ilike(search_term),
+                Venture.achilles_heel.ilike(search_term),
+                Venture.target_isv.ilike(search_term),
+                Venture.isv_pain_point.ilike(search_term),
+            )
+        )
 
     if sort == "score":
-        q = q.order_by(Venture.score_total.desc().nullslast())
+        query = query.order_by(Venture.score_total.desc().nullslast())
     elif sort == "date":
-        q = q.order_by(Venture.created_at.desc())
+        query = query.order_by(Venture.created_at.desc())
     elif sort == "votes":
         # Subquery for vote count
         vote_count = (
@@ -292,13 +314,13 @@ def list_ventures(
             .group_by(Vote.venture_id)
             .subquery()
         )
-        q = (
-            q.outerjoin(vote_count, Venture.id == vote_count.c.venture_id)
+        query = (
+            query.outerjoin(vote_count, Venture.id == vote_count.c.venture_id)
             .order_by(vote_count.c.cnt.desc().nullslast())
         )
 
-    total = q.count()
-    ventures = q.offset(offset).limit(limit).all()
+    total = query.count()
+    ventures = query.offset(offset).limit(limit).all()
 
     results = []
     for v in ventures:

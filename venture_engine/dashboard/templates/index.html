@@ -2884,6 +2884,8 @@ function openReader(url, title, newsItemId) {
           window._parentSelTimer = setTimeout(function() { _parentCheckIframeSelection(); }, 250);
         }, true);
       } catch(e) {}
+      // Fetch and apply article insight highlights
+      _applyArticleInsights(url);
     };
     try {
       iframe.contentWindow.location.replace(proxyUrl);
@@ -2946,6 +2948,109 @@ function _ytSeekTo(seconds) {
   _ytPlayer.playVideo();
   // Switch to video tab if on transcript
   _ytSwitchTab('video');
+}
+
+// ── Article Insight Highlights ──
+async function _applyArticleInsights(articleUrl) {
+  try {
+    const resp = await fetch(`${API}/api/article-insights?url=${encodeURIComponent(articleUrl)}`);
+    if (!resp.ok) return;
+    const data = await resp.json();
+    const highlights = data.highlights;
+    if (!highlights || !highlights.length) return;
+
+    const iframe = document.getElementById('readerIframe');
+    if (!iframe) return;
+    const idoc = iframe.contentDocument || iframe.contentWindow.document;
+    if (!idoc || !idoc.body) return;
+
+    // Inject highlight style
+    const style = idoc.createElement('style');
+    style.textContent = `
+      .vie-hl { border-radius:2px; padding:1px 0; cursor:default; }
+      .vie-hl[data-type="takeaway"] { background:rgba(250,204,21,0.35); }
+      .vie-hl[data-type="problem"] { background:rgba(239,68,68,0.25); }
+      .vie-hl[data-type="opportunity"] { background:rgba(34,197,94,0.25); }
+      .vie-hl:hover::after { content:attr(data-label); position:absolute; background:#1a1a1a; color:#fff;
+        font-size:11px; padding:3px 8px; border-radius:4px; white-space:nowrap; margin-top:-28px;
+        margin-left:0; z-index:99999; pointer-events:none; font-family:Inter,sans-serif; }
+      .vie-hl { position:relative; }
+    `;
+    idoc.head.appendChild(style);
+
+    // Walk text nodes and highlight matching sentences
+    for (const hl of highlights) {
+      if (!hl.text || hl.text.length < 20) continue;
+      _highlightTextInDoc(idoc.body, hl.text, hl.type || 'takeaway', hl.label || '');
+    }
+  } catch(e) {
+    // Silently fail — highlights are a nice-to-have
+  }
+}
+
+function _highlightTextInDoc(root, searchText, type, label) {
+  // Find text nodes containing (parts of) the search text
+  const doc = root.ownerDocument || document;
+  const walker = doc.createTreeWalker(root, NodeFilter.SHOW_TEXT, null, false);
+  const textNodes = [];
+  while (walker.nextNode()) textNodes.push(walker.currentNode);
+
+  // Normalize search text for matching
+  const needle = searchText.replace(/\s+/g, ' ').trim();
+  if (needle.length < 20) return;
+
+  // Try to find the needle across consecutive text nodes
+  for (let i = 0; i < textNodes.length; i++) {
+    const node = textNodes[i];
+    // Check single node first
+    const nodeText = node.textContent;
+    const idx = nodeText.indexOf(needle);
+    if (idx !== -1) {
+      // Split and wrap
+      const before = nodeText.substring(0, idx);
+      const match = nodeText.substring(idx, idx + needle.length);
+      const after = nodeText.substring(idx + needle.length);
+      const mark = node.ownerDocument.createElement('mark');
+      mark.className = 'vie-hl';
+      mark.setAttribute('data-type', type);
+      mark.setAttribute('data-label', label);
+      mark.textContent = match;
+      const parent = node.parentNode;
+      if (before) parent.insertBefore(node.ownerDocument.createTextNode(before), node);
+      parent.insertBefore(mark, node);
+      if (after) parent.insertBefore(node.ownerDocument.createTextNode(after), node);
+      parent.removeChild(node);
+      return; // Found — done with this highlight
+    }
+
+    // Try fuzzy: first 40 chars of needle in this node
+    const shortNeedle = needle.substring(0, Math.min(40, needle.length));
+    const shortIdx = nodeText.indexOf(shortNeedle);
+    if (shortIdx !== -1) {
+      // Highlight from shortIdx to end of sentence or node
+      const startIdx = shortIdx;
+      // Find end: look for sentence end or use full needle length
+      let endIdx = nodeText.indexOf('.', startIdx + shortNeedle.length);
+      if (endIdx === -1 || endIdx - startIdx > needle.length + 20) endIdx = Math.min(startIdx + needle.length, nodeText.length);
+      else endIdx++; // include the period
+
+      const before = nodeText.substring(0, startIdx);
+      const match = nodeText.substring(startIdx, endIdx);
+      const after = nodeText.substring(endIdx);
+      if (match.length < 20) continue;
+      const mark = node.ownerDocument.createElement('mark');
+      mark.className = 'vie-hl';
+      mark.setAttribute('data-type', type);
+      mark.setAttribute('data-label', label);
+      mark.textContent = match;
+      const parent = node.parentNode;
+      if (before) parent.insertBefore(node.ownerDocument.createTextNode(before), node);
+      parent.insertBefore(mark, node);
+      if (after) parent.insertBefore(node.ownerDocument.createTextNode(after), node);
+      parent.removeChild(node);
+      return;
+    }
+  }
 }
 
 // ── YouTube Tabs: Video / Transcript ──

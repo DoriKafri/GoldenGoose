@@ -368,3 +368,12 @@ class DpoiCache(Base):
     video_id = Column(String(11), primary_key=True)
     data = Column(JSON, nullable=False)  # {"insights": [...]}
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class ArticleInsightsCache(Base):
+    __tablename__ = "article_insights_cache"
+
+    url_hash = Column(String(64), primary_key=True)  # SHA-256 of URL
+    url = Column(Text, nullable=False)
+    data = Column(JSON, nullable=False)  # {"highlights": [...]}
+    created_at = Column(DateTime, default=datetime.utcnow)

@@ -2234,6 +2234,115 @@ async def youtube_dpoi_cache_put(video_id: str, request: Request):
         raise HTTPException(500, str(e))
 
 
+@router.get("/api/article-insights")
+def article_insights(url: str = Query(...), refresh: bool = Query(False)):
+    """Extract article text, generate takeaway/DOPI highlights via Gemini, return highlight sentences."""
+    import hashlib
+    import httpx
+    from bs4 import BeautifulSoup
+    from urllib.parse import urlparse
+
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        raise HTTPException(400, "Only http/https URLs.")
+    hostname = parsed.hostname or ""
+    if hostname in ("localhost", "127.0.0.1", "0.0.0.0"):
+        raise HTTPException(400, "Private URLs not allowed.")
+
+    url_hash = hashlib.sha256(url.encode()).hexdigest()
+
+    # Check cache
+    if not refresh:
+        from venture_engine.db.session import SessionLocal
+        from venture_engine.db.models import ArticleInsightsCache
+        try:
+            db = SessionLocal()
+            cached = db.query(ArticleInsightsCache).filter(ArticleInsightsCache.url_hash == url_hash).first()
+            db.close()
+            if cached and cached.data:
+                return cached.data
+        except Exception as e:
+            logger.warning(f"Article insights cache lookup failed: {e}")
+
+    # Fetch article HTML
+    try:
+        resp = httpx.get(url, timeout=15.0, follow_redirects=True, headers={
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+            "Accept": "text/html,*/*;q=0.8",
+        })
+        resp.raise_for_status()
+    except Exception as e:
+        raise HTTPException(502, f"Could not fetch article: {str(e)[:200]}")
+
+    soup = BeautifulSoup(resp.text, "html.parser")
+    # Remove non-content elements
+    for tag in soup.find_all(["script", "style", "nav", "footer", "header", "aside", "iframe"]):
+        tag.decompose()
+
+    # Try to find article body
+    article_el = soup.find("article") or soup.find("main") or soup.find("body")
+    if not article_el:
+        raise HTTPException(400, "Could not extract article content.")
+
+    article_text = article_el.get_text(separator="\n", strip=True)
+    if len(article_text) < 100:
+        raise HTTPException(400, "Article content too short to analyze.")
+    if len(article_text) > 100000:
+        article_text = article_text[:100000]
+
+    prompt = f"""Analyze the article text below and identify the most important sentences to highlight.
+
+For each highlight, provide:
+- "text": The EXACT sentence or phrase as it appears in the article (must be a verbatim match of 30+ characters). Pick complete, meaningful sentences.
+- "type": One of "takeaway" (key insight/finding), "problem" (problem/challenge mentioned), or "opportunity" (opportunity/positive trend)
+- "label": A 3-6 word summary of why this is important
+
+Find 5-10 highlights total, spread across the entire article. Pick sentences that a reader would want to highlight with a physical marker.
+
+Return ONLY valid JSON array, no markdown, no explanation. Example:
+[{{"text":"The exact sentence from the article...","type":"takeaway","label":"Key finding about X"}}]
+
+ARTICLE:
+{article_text}"""
+
+    result = _gemini_generate(prompt)
+    if not result:
+        raise HTTPException(503, "AI analysis unavailable.")
+
+    try:
+        cleaned = result.strip()
+        if cleaned.startswith("```"):
+            cleaned = cleaned.split("\n", 1)[1] if "\n" in cleaned else cleaned[3:]
+            if cleaned.endswith("```"):
+                cleaned = cleaned[:-3]
+            cleaned = cleaned.strip()
+        highlights = json.loads(cleaned)
+        if not isinstance(highlights, list):
+            raise HTTPException(500, "Invalid AI response format.")
+
+        cache_data = {"highlights": highlights}
+
+        # Cache it
+        from venture_engine.db.session import SessionLocal
+        from venture_engine.db.models import ArticleInsightsCache
+        try:
+            db = SessionLocal()
+            existing = db.query(ArticleInsightsCache).filter(ArticleInsightsCache.url_hash == url_hash).first()
+            if existing:
+                existing.data = cache_data
+            else:
+                db.add(ArticleInsightsCache(url_hash=url_hash, url=url, data=cache_data))
+            db.commit()
+            db.close()
+        except Exception as e:
+            logger.warning(f"Failed to cache article insights: {e}")
+
+        return cache_data
+    except (json.JSONDecodeError, KeyError, IndexError) as e:
+        logger.warning(f"Failed to parse Gemini article insights: {e}")
+        raise HTTPException(500, f"Failed to parse AI response: {e}")
+
+
 @router.get("/api/url-preview")
 def url_preview(url: str = Query(...)):
     """Fetch URL metadata (title, description, image) for link preview cards."""

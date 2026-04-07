@@ -7,7 +7,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from pydantic import BaseModel
-from loguru import logge
+from loguru import logger
 import os
 
 from venture_engine.config import settings

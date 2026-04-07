@@ -1841,22 +1841,30 @@ def _get_transcript_text(video_id: str) -> str:
     from venture_engine.db.models import TranscriptCache
 
     segments = None
+
+    # 1. Check cache
     try:
         db = SessionLocal()
         cached = db.query(TranscriptCache).filter(TranscriptCache.video_id == video_id).first()
         if cached and cached.segments:
             segments = cached.segments
+            logger.info(f"Transcript text from cache for {video_id}: {len(segments)} segments")
         db.close()
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"Transcript cache lookup failed for {video_id}: {e}")
+
+    # 2. Try fetching live
+    if not segments:
+        try:
+            result = youtube_transcript(video_id=video_id)
+            if isinstance(result, dict) and result.get("segments"):
+                segments = result["segments"]
+                logger.info(f"Transcript text from live fetch for {video_id}: {len(segments)} segments")
+        except Exception as e:
+            logger.warning(f"Live transcript fetch failed for {video_id}: {e}")
 
     if not segments:
-        # Try fetching live
-        result = youtube_transcript(video_id=video_id)
-        if isinstance(result, dict) and result.get("segments"):
-            segments = result["segments"]
-
-    if not segments:
+        logger.warning(f"No transcript available for {video_id}")
         return None
 
     # Format with timestamps for Claude

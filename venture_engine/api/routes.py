@@ -1877,26 +1877,36 @@ def _get_transcript_text(video_id: str) -> str:
 
 
 def _gemini_generate(prompt: str) -> Optional[str]:
-    """Call Google Gemini API (free tier) to generate text. Returns None on failure."""
+    """Call Google Gemini API to generate text. Returns None on failure."""
     if not settings.google_gemini_api_key:
         logger.warning("Gemini API key not set, skipping generation")
         return None
     logger.info(f"Calling Gemini API with {len(prompt)} char prompt...")
-    try:
-        import httpx
-        resp = httpx.post(
-            f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={settings.google_gemini_api_key}",
-            json={"contents": [{"parts": [{"text": prompt}]}],
-                  "generationConfig": {"temperature": 0.3, "maxOutputTokens": 4096}},
-            timeout=60.0,
-        )
-        if resp.status_code == 200:
-            data = resp.json()
-            return data["candidates"][0]["content"]["parts"][0]["text"]
-        else:
-            logger.warning(f"Gemini API error {resp.status_code}: {resp.text[:200]}")
-    except Exception as e:
-        logger.warning(f"Gemini API call failed: {e}")
+    # Try multiple models in order of preference
+    models = ["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-1.5-flash-latest"]
+    import httpx
+    for model in models:
+        try:
+            resp = httpx.post(
+                f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={settings.google_gemini_api_key}",
+                json={"contents": [{"parts": [{"text": prompt}]}],
+                      "generationConfig": {"temperature": 0.3, "maxOutputTokens": 4096}},
+                timeout=60.0,
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                logger.info(f"Gemini API success with model {model}")
+                return data["candidates"][0]["content"]["parts"][0]["text"]
+            elif resp.status_code == 429:
+                logger.warning(f"Gemini model {model} quota exceeded, trying next...")
+                continue
+            else:
+                logger.warning(f"Gemini API error {resp.status_code} for {model}: {resp.text[:200]}")
+                continue
+        except Exception as e:
+            logger.warning(f"Gemini API call failed for {model}: {e}")
+            continue
+    logger.warning("All Gemini models failed")
     return None
 
 
@@ -2056,18 +2066,9 @@ def debug_auto_generate(video_id: str = Query(default="wc8FBhQtdsA")):
             return {"steps": steps, "error": "no transcript"}
         truncated = transcript_text[:12000]
         steps["truncated_len"] = len(truncated)
-        # Try a minimal Gemini call directly
-        import httpx
-        try:
-            resp = httpx.post(
-                f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={settings.google_gemini_api_key}",
-                json={"contents": [{"parts": [{"text": "Return exactly: hello"}]}]},
-                timeout=30.0,
-            )
-            steps["gemini_status"] = resp.status_code
-            steps["gemini_body"] = resp.text[:500]
-        except Exception as e:
-            steps["gemini_error"] = str(e)
+        # Try Gemini via the helper
+        test_result = _gemini_generate("Return exactly this JSON: {\"ok\": true}")
+        steps["gemini_result"] = test_result
         return {"steps": steps}
     except Exception as e:
         steps["error"] = str(e)

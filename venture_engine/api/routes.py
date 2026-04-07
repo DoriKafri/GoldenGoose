@@ -3203,14 +3203,14 @@ def dedup_news(db: Session = Depends(get_db_dependency)):
             db.delete(item)
             total_deleted += 1
 
-    # Dedup by title for items without URLs
-    title_dupes = db.query(NewsFeedItem.title, func.count(NewsFeedItem.id).label('cnt')).filter(
-        (NewsFeedItem.url == None) | (NewsFeedItem.url == '')
-    ).group_by(NewsFeedItem.title).having(func.count(NewsFeedItem.id) > 1).all()
+    # Dedup by title (same title, different URLs = still duplicates)
+    title_dupes = db.query(NewsFeedItem.title, func.count(NewsFeedItem.id).label('cnt')).group_by(
+        NewsFeedItem.title
+    ).having(func.count(NewsFeedItem.id) > 1).all()
 
     for title, cnt in title_dupes:
         items = db.query(NewsFeedItem).filter(
-            NewsFeedItem.title == title, (NewsFeedItem.url == None) | (NewsFeedItem.url == '')
+            NewsFeedItem.title == title
         ).order_by(NewsFeedItem.created_at.asc()).all()
         for item in items[1:]:
             db.delete(item)

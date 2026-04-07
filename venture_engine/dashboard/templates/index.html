@@ -656,6 +656,9 @@ html.dark .toggle-track::after { transform:translateX(16px); }
 .yt-panel { display:none; overflow-x:hidden; position:relative; }
 .yt-panel.active { display:flex; flex-direction:column; flex:1; min-height:0; }
 #ytTakeawaysPanel.active, #ytDpoiPanel.active, #ytTranscriptPanel.active { display:block; flex:none; }
+#artTakeawaysPanel.active, #artDpoiPanel.active { display:block; flex:none; overflow-y:auto; }
+#artArticlePanel.active { display:flex; flex-direction:column; flex:1; min-height:0; }
+#artArticlePanel iframe { flex:1; min-height:0; }
 #ytTranscriptPanel { background:var(--bg); }
 .yt-transcript-panel { overflow-y:auto; padding:0; background:var(--bg); }
 .yt-transcript-loading { padding:40px; text-align:center; color:var(--text3); font-size:13px; }
@@ -2861,8 +2864,8 @@ function openReader(url, title, newsItemId) {
     // Load annotations immediately (no iframe load event to wait for)
     loadReaderAnnotations();
   } else {
-    // ── Article/web mode (original behavior) ──
-    iframe.style.display = '';
+    // ── Article/web mode ──
+    iframe.style.display = 'none';
     const oldWrap = contentEl.querySelector('.yt-player-wrap');
     if (oldWrap) oldWrap.remove();
     if (_ytTimeInterval) { clearInterval(_ytTimeInterval); _ytTimeInterval = null; }
@@ -2871,11 +2874,52 @@ function openReader(url, title, newsItemId) {
     const sidebarHint = document.querySelector('.reader-sidebar-header span:last-child');
     if (sidebarHint) sidebarHint.textContent = 'Select text to annotate';
 
+    // Build article wrapper with tabs
+    _articleInsightsData = null;
+    const artWrap = document.createElement('div');
+    artWrap.className = 'yt-player-wrap';
+    artWrap.innerHTML = `
+      <div class="yt-tabs">
+        <button class="yt-tab active" data-tab="article" onclick="_artSwitchTab('article')">
+          <svg class="yt-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>Article
+        </button>
+        <button class="yt-tab" data-tab="art-takeaways" onclick="_artSwitchTab('art-takeaways')">
+          <svg class="yt-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>Takeaways
+        </button>
+        <button class="yt-tab" data-tab="art-dpoi" onclick="_artSwitchTab('art-dpoi')">
+          <svg class="yt-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>DOPI
+        </button>
+      </div>
+      <div class="yt-panel active" id="artArticlePanel" style="flex:1;min-height:0;">
+        <iframe id="artIframe" sandbox="allow-same-origin allow-scripts" style="width:100%;height:100%;border:none;"></iframe>
+      </div>
+      <div class="yt-panel" id="artTakeawaysPanel">
+        <div class="yt-ai-panel" id="artTakeawaysContent">
+          <div class="yt-ai-placeholder">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:40px;height:40px;opacity:0.4;margin-bottom:8px;"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+            <div style="font-size:14px;font-weight:600;margin-bottom:4px;">Key Takeaways</div>
+            <div style="font-size:12px;color:var(--text3);">AI-generated summary of the article</div>
+          </div>
+        </div>
+      </div>
+      <div class="yt-panel" id="artDpoiPanel">
+        <div class="yt-ai-panel" id="artDpoiContent">
+          <div class="yt-ai-placeholder">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:40px;height:40px;opacity:0.4;margin-bottom:8px;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            <div style="font-size:14px;font-weight:600;margin-bottom:4px;">DOPI Analysis</div>
+            <div style="font-size:12px;color:var(--text3);">Problems & opportunities for venture building</div>
+          </div>
+        </div>
+      </div>
+    `;
+    contentEl.appendChild(artWrap);
+
+    const artIframe = document.getElementById('artIframe');
     const proxyUrl = `${API}/api/proxy?url=${encodeURIComponent(url)}`;
-    iframe.onload = function() {
+    artIframe.onload = function() {
       loadReaderAnnotations();
       try {
-        const idoc = iframe.contentDocument || iframe.contentWindow.document;
+        const idoc = artIframe.contentDocument || artIframe.contentWindow.document;
         idoc.addEventListener('mouseup', function() {
           setTimeout(function() { _parentCheckIframeSelection(); }, 150);
         }, true);
@@ -2884,13 +2928,13 @@ function openReader(url, title, newsItemId) {
           window._parentSelTimer = setTimeout(function() { _parentCheckIframeSelection(); }, 250);
         }, true);
       } catch(e) {}
-      // Fetch and apply article insight highlights
+      // Apply inline highlights on the article
       _applyArticleInsights(url);
     };
     try {
-      iframe.contentWindow.location.replace(proxyUrl);
+      artIframe.contentWindow.location.replace(proxyUrl);
     } catch(e) {
-      iframe.src = proxyUrl;
+      artIframe.src = proxyUrl;
     }
   }
 
@@ -2950,7 +2994,10 @@ function _ytSeekTo(seconds) {
   _ytSwitchTab('video');
 }
 
-// ── Article Insight Highlights ──
+// ── Article Insight Highlights + Tabs ──
+let _articleInsightsData = null;
+let _articleInsightsUrl = null;
+
 async function _applyArticleInsights(articleUrl) {
   try {
     const resp = await fetch(`${API}/api/article-insights?url=${encodeURIComponent(articleUrl)}`);
@@ -2959,12 +3006,121 @@ async function _applyArticleInsights(articleUrl) {
     const highlights = data.highlights;
     if (!highlights || !highlights.length) return;
 
-    const iframe = document.getElementById('readerIframe');
-    if (!iframe) return;
+    _articleInsightsData = highlights;
+    _articleInsightsUrl = articleUrl;
 
-    // Send highlights to the iframe via postMessage — the proxy injects our listener script
-    iframe.contentWindow.postMessage({type: 'vie-highlights', highlights: highlights}, '*');
+    // Apply inline highlights in the iframe
+    const iframe = document.getElementById('artIframe');
+    if (iframe && iframe.contentWindow) {
+      iframe.contentWindow.postMessage({type: 'vie-highlights', highlights: highlights}, '*');
+    }
   } catch(e) {}
+}
+
+function _artSwitchTab(tab) {
+  // Update tab buttons
+  const wrap = document.querySelector('#artArticlePanel')?.closest('.yt-player-wrap');
+  if (!wrap) return;
+  wrap.querySelectorAll('.yt-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+
+  // Show/hide panels
+  const panels = {article:'artArticlePanel', 'art-takeaways':'artTakeawaysPanel', 'art-dpoi':'artDpoiPanel'};
+  Object.values(panels).forEach(id => {
+    const p = document.getElementById(id);
+    if (p) p.classList.remove('active');
+  });
+  const activePanel = document.getElementById(panels[tab]);
+  if (activePanel) activePanel.classList.add('active');
+
+  // Load data on tab switch
+  if (tab === 'art-takeaways') _artLoadTakeaways();
+  if (tab === 'art-dpoi') _artLoadDpoi();
+}
+
+async function _artLoadTakeaways() {
+  const el = document.getElementById('artTakeawaysContent');
+  if (!el || !_readerUrl) return;
+
+  // If already have data, render
+  if (_articleInsightsData && _articleInsightsUrl === _readerUrl) {
+    const takeaways = _articleInsightsData.filter(h => h.type === 'takeaway');
+    if (takeaways.length) { _artRenderTakeaways(takeaways); return; }
+  }
+
+  el.innerHTML = _ytBuildingHTML('takeaways');
+
+  try {
+    const resp = await fetch(`${API}/api/article-insights?url=${encodeURIComponent(_readerUrl)}`);
+    if (!resp.ok) throw new Error('Failed to load');
+    const data = await resp.json();
+    const highlights = data.highlights || [];
+    _articleInsightsData = highlights;
+    _articleInsightsUrl = _readerUrl;
+    const takeaways = highlights.filter(h => h.type === 'takeaway');
+    if (takeaways.length) {
+      _artRenderTakeaways(takeaways);
+    } else {
+      el.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text3);font-size:13px;">No takeaways found for this article.</div>';
+    }
+  } catch(e) {
+    el.innerHTML = _ytBuildingHTML('takeaways');
+  }
+}
+
+function _artRenderTakeaways(items) {
+  const el = document.getElementById('artTakeawaysContent');
+  if (!el) return;
+  el.innerHTML = '<div class="yt-ai-list">' + items.map(item =>
+    `<div class="yt-ai-item" style="cursor:default; border-left-color:rgba(250,204,21,0.6);">
+      <div class="yt-ai-title">${esc(item.text || '')}</div>
+      ${item.label ? `<div class="yt-ai-desc" style="margin-top:4px;font-size:12px;color:var(--text3);">${esc(item.label)}</div>` : ''}
+    </div>`
+  ).join('') + '</div>';
+}
+
+async function _artLoadDpoi() {
+  const el = document.getElementById('artDpoiContent');
+  if (!el || !_readerUrl) return;
+
+  // If already have data, render
+  if (_articleInsightsData && _articleInsightsUrl === _readerUrl) {
+    const dpoi = _articleInsightsData.filter(h => h.type === 'problem' || h.type === 'opportunity');
+    if (dpoi.length) { _artRenderDpoi(dpoi); return; }
+  }
+
+  el.innerHTML = _ytBuildingHTML('DOPI insights');
+
+  try {
+    const resp = await fetch(`${API}/api/article-insights?url=${encodeURIComponent(_readerUrl)}`);
+    if (!resp.ok) throw new Error('Failed to load');
+    const data = await resp.json();
+    const highlights = data.highlights || [];
+    _articleInsightsData = highlights;
+    _articleInsightsUrl = _readerUrl;
+    const dpoi = highlights.filter(h => h.type === 'problem' || h.type === 'opportunity');
+    if (dpoi.length) {
+      _artRenderDpoi(dpoi);
+    } else {
+      el.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text3);font-size:13px;">No problems or opportunities found for this article.</div>';
+    }
+  } catch(e) {
+    el.innerHTML = _ytBuildingHTML('DOPI insights');
+  }
+}
+
+function _artRenderDpoi(items) {
+  const el = document.getElementById('artDpoiContent');
+  if (!el) return;
+  el.innerHTML = '<div class="yt-ai-list">' + items.map(item => {
+    const badge = item.type === 'problem'
+      ? '<span class="yt-ai-badge problem">Problem</span>'
+      : '<span class="yt-ai-badge opportunity">Opportunity</span>';
+    return `<div class="yt-ai-item" style="cursor:default;">
+      <div class="yt-ai-item-header">${badge}</div>
+      <div class="yt-ai-title">${esc(item.text || '')}</div>
+      ${item.label ? `<div class="yt-ai-desc" style="margin-top:4px;font-size:12px;color:var(--text3);">${esc(item.label)}</div>` : ''}
+    </div>`;
+  }).join('') + '</div>';
 }
 
 // ── YouTube Tabs: Video / Transcript ──
@@ -3704,6 +3860,9 @@ function closeReader(fromPopstate) {
   // Remove the preload !important style that prevents hiding
   var preloadStyle = document.getElementById('readerPreloadStyle');
   if (preloadStyle) preloadStyle.remove();
+  // Clean up article wrapper if present
+  const artWrapCleanup = document.querySelector('#readerContent .yt-player-wrap');
+  if (artWrapCleanup && !_isYouTube) artWrapCleanup.remove();
   document.getElementById('readerIframe').src = 'about:blank';
   document.getElementById('readerIframe').style.display = '';
   document.body.style.overflow = '';
@@ -3751,7 +3910,7 @@ async function loadReaderAnnotations() {
 }
 
 function highlightAnnotationsInIframe() {
-  const iframe = document.getElementById('readerIframe');
+  const iframe = document.getElementById('artIframe') || document.getElementById('readerIframe');
   // Try direct DOM highlighting first (same-origin), fall back to postMessage
   try {
     const idoc = iframe.contentDocument || iframe.contentWindow.document;
@@ -3892,7 +4051,7 @@ function _directHighlight(doc, annotations) {
 // Highlight/unhighlight all marks in iframe for a given annotation (used by sidebar card hover)
 function _highlightMarks(annId, hover) {
   try {
-    var iframe = document.getElementById('readerIframe');
+    var iframe = document.getElementById('artIframe') || document.getElementById('readerIframe');
     var idoc = iframe.contentDocument || iframe.contentWindow.document;
     idoc.querySelectorAll('mark.page-ann-hl[data-ann-id="' + annId + '"]').forEach(function(m) {
       if (hover) m.classList.add('ann-hover');
@@ -4013,7 +4172,7 @@ function scrollToAnnotation(annId) {
   // Highlight card in sidebar
   document.querySelectorAll('.reader-ann-card').forEach(c => c.classList.toggle('active', c.dataset.annId === annId));
   // Scroll iframe to annotation
-  const iframe = document.getElementById('readerIframe');
+  const iframe = document.getElementById('artIframe') || document.getElementById('readerIframe');
   try {
     iframe.contentWindow.postMessage({ type: 'ann-scroll-to', annId: annId }, '*');
   } catch(e) {}
@@ -4113,7 +4272,7 @@ async function toggleReaction(annId, emoji, isNewsList) {
 // ── Parent-side iframe selection check (reliable fallback) ──
 function _parentCheckIframeSelection() {
   try {
-    const iframe = document.getElementById('readerIframe');
+    const iframe = document.getElementById('artIframe') || document.getElementById('readerIframe');
     if (!iframe || !document.getElementById('readerOverlay').classList.contains('open')) return;
     const idoc = iframe.contentDocument || iframe.contentWindow.document;
     const sel = idoc.getSelection();
@@ -4150,7 +4309,7 @@ window.addEventListener('message', function(e) {
 
   if (e.data.type === 'ann-text-selected') {
     _pendingSelection = e.data;
-    const iframe = document.getElementById('readerIframe');
+    const iframe = document.getElementById('artIframe') || document.getElementById('readerIframe');
     const iframeRect = iframe.getBoundingClientRect();
     const btn = _getOrCreateAnnBtn();
     btn.style.display = 'block';

@@ -2016,16 +2016,18 @@ def _auto_generate_takeaways(video_id: str) -> Optional[dict]:
     if not transcript_text:
         return None
 
-    # Truncate to ~100K chars to cover long videos (Gemini 2.5 Flash supports 1M tokens)
-    if len(transcript_text) > 100000:
-        transcript_text = transcript_text[:100000]
+    # Truncate to ~500K chars to cover very long videos (Gemini 2.5 Flash supports 1M tokens)
+    if len(transcript_text) > 500000:
+        transcript_text = transcript_text[:500000]
 
-    prompt = f"""Analyze this YouTube video transcript and extract 6-10 key takeaways.
+    prompt = f"""Analyze the ENTIRE YouTube video transcript below and extract 6-10 key takeaways.
+
+IMPORTANT: Cover the ENTIRE video from beginning to end. Spread takeaways across different parts of the video — do NOT cluster them all in the first few minutes. Each takeaway must reference the actual timestamp where the topic is discussed in the transcript.
 
 For each takeaway, provide:
 - takeaway: A 1-2 sentence summary of the key point
-- start_time: Approximate timestamp where this topic starts (format "M:SS")
-- end_time: Approximate timestamp where this topic ends (format "M:SS")
+- start_time: Approximate timestamp where this topic starts (format "M:SS" or "H:MM:SS" for videos over 60 minutes)
+- end_time: Approximate timestamp where this topic ends (format "M:SS" or "H:MM:SS")
 - start_seconds: start_time in total seconds
 - end_seconds: end_time in total seconds
 
@@ -2082,16 +2084,18 @@ def _auto_generate_dopi(video_id: str) -> Optional[dict]:
     if len(transcript_text) > 12000:
         transcript_text = transcript_text[:12000]
 
-    prompt = f"""Analyze this YouTube video transcript and identify 5-8 Develeap Problem/Opportunity Insights (DOPI).
+    prompt = f"""Analyze the ENTIRE YouTube video transcript below and identify 5-8 Develeap Problem/Opportunity Insights (DOPI).
 
 Develeap is a DevOps, cloud, and AI engineering consultancy. For each insight, identify either a PROBLEM companies face or an OPPORTUNITY to build a product/service.
+
+IMPORTANT: Cover the ENTIRE video from beginning to end. Spread insights across different parts of the video — do NOT cluster them all in the first few minutes. Each insight must reference the actual timestamp where the topic is discussed in the transcript.
 
 For each insight, provide:
 - type: "problem" or "opportunity"
 - title: Short title (5-8 words)
 - description: 2-3 sentence explanation of the problem/opportunity and how Develeap could capitalize on it
-- start_time: Approximate timestamp (format "M:SS")
-- end_time: Approximate timestamp (format "M:SS")
+- start_time: Approximate timestamp where this topic is discussed (format "M:SS" or "H:MM:SS" for videos over 60 minutes)
+- end_time: Approximate timestamp (format "M:SS" or "H:MM:SS")
 - start_seconds: start_time in total seconds
 - end_seconds: end_time in total seconds
 - venture_relevance: Score 1-10 how relevant this is for venture building

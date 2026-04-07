@@ -3096,6 +3096,7 @@ async function _ytLoadTranscript() {
 
   // Use cache if same video
   if (_ytTranscriptData && _ytTranscriptVideoId === vid) {
+    await _ytPreFetchInsights(vid);
     _ytRenderTranscript(_ytTranscriptData);
     return;
   }
@@ -3143,10 +3144,27 @@ async function _ytLoadTranscript() {
   if (segments && segments.length) {
     _ytTranscriptData = segments;
     _ytTranscriptVideoId = vid;
+    // Pre-fetch takeaways & DOPI for transcript highlights (non-blocking)
+    await _ytPreFetchInsights(vid);
     _ytRenderTranscript(_ytTranscriptData);
   } else {
     contentEl.innerHTML = '<div class="yt-transcript-error">Transcript unavailable for this video.</div>';
   }
+}
+
+async function _ytPreFetchInsights(vid) {
+  const promises = [];
+  if (!_ytTakeawaysData || _ytTakeawaysVideoId !== vid) {
+    promises.push(fetch(`${API}/api/youtube-key-takeaways?video_id=${vid}`).then(r => r.ok ? r.json() : null).then(d => {
+      if (d && !d.error && !d.detail) { _ytTakeawaysData = d.takeaways || d; _ytTakeawaysVideoId = vid; }
+    }).catch(() => {}));
+  }
+  if (!_ytDpoiData || _ytDpoiVideoId !== vid) {
+    promises.push(fetch(`${API}/api/youtube-dpoi?video_id=${vid}`).then(r => r.ok ? r.json() : null).then(d => {
+      if (d && !d.error && !d.detail) { _ytDpoiData = d.insights || d; _ytDpoiVideoId = vid; }
+    }).catch(() => {}));
+  }
+  if (promises.length) await Promise.all(promises);
 }
 
 function _mergeTranscriptSegments(segments) {
@@ -3179,6 +3197,26 @@ function _mergeTranscriptSegments(segments) {
   return merged;
 }
 
+function _ytGetInsightHighlight(secs) {
+  // Check DOPI first (problem=red, opportunity=green), then takeaways (yellow)
+  if (_ytDpoiData && Array.isArray(_ytDpoiData)) {
+    for (const d of _ytDpoiData) {
+      if (secs >= (d.start_seconds || 0) && secs <= (d.end_seconds || 0)) {
+        if (d.type === 'problem') return {bg:'rgba(239,68,68,0.12)', border:'#ef4444', label:'PROBLEM', title: d.title};
+        return {bg:'rgba(34,197,94,0.12)', border:'#22c55e', label:'OPPORTUNITY', title: d.title};
+      }
+    }
+  }
+  if (_ytTakeawaysData && Array.isArray(_ytTakeawaysData)) {
+    for (const t of _ytTakeawaysData) {
+      if (secs >= (t.start_seconds || 0) && secs <= (t.end_seconds || 0)) {
+        return {bg:'rgba(250,204,21,0.15)', border:'#facc15', label:'TAKEAWAY', title: t.takeaway ? t.takeaway.substring(0, 60) : ''};
+      }
+    }
+  }
+  return null;
+}
+
 function _ytRenderTranscript(segments, filter) {
   const contentEl = document.getElementById('ytTranscriptContent');
   if (!contentEl || !segments) return;
@@ -3208,8 +3246,11 @@ function _ytRenderTranscript(segments, filter) {
       const re = new RegExp('(' + query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi');
       textHtml = textHtml.replace(re, '<mark style="background:#fef08a;padding:0 1px;border-radius:2px;">$1</mark>');
     }
-    return `<div class="yt-transcript-seg" data-start="${seg.start}" onclick="_ytTranscriptClick(${secs})">
-      <span class="yt-transcript-time">${timeStr}</span>
+    const hl = _ytGetInsightHighlight(secs);
+    const hlStyle = hl ? `background:${hl.bg};border-left:3px solid ${hl.border};padding-left:13px;` : '';
+    const hlBadge = hl ? `<span style="font-size:9px;font-weight:700;letter-spacing:0.5px;color:${hl.border};opacity:0.85;margin-left:8px;">${hl.label}</span>` : '';
+    return `<div class="yt-transcript-seg" data-start="${seg.start}" onclick="_ytTranscriptClick(${secs})" style="${hlStyle}">
+      <span class="yt-transcript-time">${timeStr}${hlBadge}</span>
       <span class="yt-transcript-text">${textHtml}</span>
     </div>`;
   }).join('') + '</div>';

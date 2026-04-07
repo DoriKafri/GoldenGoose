@@ -1885,7 +1885,7 @@ def _gemini_generate(prompt: str) -> Optional[str]:
     try:
         import httpx
         resp = httpx.post(
-            f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={settings.google_gemini_api_key}",
+            f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key={settings.google_gemini_api_key}",
             json={"contents": [{"parts": [{"text": prompt}]}],
                   "generationConfig": {"temperature": 0.3, "maxOutputTokens": 4096}},
             timeout=60.0,
@@ -2060,7 +2060,7 @@ def debug_auto_generate(video_id: str = Query(default="wc8FBhQtdsA")):
         import httpx
         try:
             resp = httpx.post(
-                f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={settings.google_gemini_api_key}",
+                f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key={settings.google_gemini_api_key}",
                 json={"contents": [{"parts": [{"text": "Return exactly: hello"}]}]},
                 timeout=30.0,
             )

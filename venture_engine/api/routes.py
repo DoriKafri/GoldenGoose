@@ -7,7 +7,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from pydantic import BaseModel
-from loguru import logger
+from loguru import logge
 import os
 
 from venture_engine.config import settings
@@ -1883,7 +1883,7 @@ def _gemini_generate(prompt: str) -> Optional[str]:
         return None
     logger.info(f"Calling Gemini API with {len(prompt)} char prompt...")
     # Try multiple models in order of preference
-    models = ["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-1.5-flash-latest"]
+    models = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.0-flash-lite"]
     import httpx
     for model in models:
         try:
@@ -2068,7 +2068,7 @@ def debug_auto_generate(video_id: str = Query(default="wc8FBhQtdsA")):
         steps["truncated_len"] = len(truncated)
         # Try Gemini directly to see raw response
         import httpx
-        for model in ["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-1.5-flash-latest"]:
+        for model in ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.0-flash-lite"]:
             try:
                 r = httpx.post(
                     f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={settings.google_gemini_api_key}",

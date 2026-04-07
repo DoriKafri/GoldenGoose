@@ -3198,10 +3198,13 @@ function _mergeTranscriptSegments(segments) {
 }
 
 function _ytGetInsightHighlight(secs) {
-  // Check DOPI first (problem=red, opportunity=green), then takeaways (yellow)
+  // Only highlight the segment closest to the START of each insight (not the full range)
+  // This lets users skim from one marked passage to the next
+  const tolerance = 15; // seconds — mark segments within 15s of insight start
   if (_ytDpoiData && Array.isArray(_ytDpoiData)) {
     for (const d of _ytDpoiData) {
-      if (secs >= (d.start_seconds || 0) && secs <= (d.end_seconds || 0)) {
+      const s = d.start_seconds || 0;
+      if (secs >= s && secs <= s + tolerance) {
         if (d.type === 'problem') return {mark:'rgba(239,68,68,0.25)'};
         return {mark:'rgba(34,197,94,0.25)'};
       }
@@ -3209,7 +3212,8 @@ function _ytGetInsightHighlight(secs) {
   }
   if (_ytTakeawaysData && Array.isArray(_ytTakeawaysData)) {
     for (const t of _ytTakeawaysData) {
-      if (secs >= (t.start_seconds || 0) && secs <= (t.end_seconds || 0)) {
+      const s = t.start_seconds || 0;
+      if (secs >= s && secs <= s + tolerance) {
         return {mark:'rgba(250,204,21,0.35)'};
       }
     }

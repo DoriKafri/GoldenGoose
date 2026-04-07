@@ -1762,7 +1762,37 @@ def youtube_transcript(
             logger.warning(f"Transcript InnerTube {client_name} failed for {video_id}: {exc}")
             errors.append(f"innertube-{client_name.lower()}: {str(exc)[:100]}")
 
-    # ── Approach 2: youtube-transcript-api library ──
+    # ── Approach 2: Invidious API instances (server-side) ──
+    _invidious_instances = [
+        "https://invidious.fdn.fr",
+        "https://vid.puffyan.us",
+        "https://invidious.nerdvpn.de",
+    ]
+    for instance in _invidious_instances:
+        try:
+            with httpx.Client(timeout=10) as client:
+                list_resp = client.get(f"{instance}/api/v1/captions/{video_id}")
+                if list_resp.status_code != 200:
+                    continue
+                tracks = list_resp.json().get("captions", [])
+                if not tracks:
+                    continue
+                track = next((t for t in tracks if (t.get("language_code") or t.get("languageCode", "")).startswith("en")), tracks[0])
+                sub_url = track.get("url", "")
+                if sub_url and not sub_url.startswith("http"):
+                    sub_url = instance + sub_url
+                sub_resp = client.get(sub_url, timeout=10)
+                if sub_resp.status_code != 200 or len(sub_resp.text) < 50:
+                    continue
+                segments = _parse_vtt_segments(sub_resp.text)
+                if segments:
+                    logger.info(f"Transcript via Invidious {instance} for {video_id}: {len(segments)} segments")
+                    return _cache_and_return(segments)
+        except Exception as inv_exc:
+            logger.warning(f"Invidious {instance} failed for {video_id}: {inv_exc}")
+            errors.append(f"invidious: {str(inv_exc)[:80]}")
+
+    # ── Approach 3: youtube-transcript-api library ──
     try:
         from youtube_transcript_api import YouTubeTranscriptApi
         api = YouTubeTranscriptApi()
@@ -1774,7 +1804,7 @@ def youtube_transcript(
         logger.warning(f"Transcript youtube-transcript-api failed for {video_id}: {exc2}")
         errors.append(f"yt-api: {str(exc2)[:100]}")
 
-    # ── Approach 3: yt-dlp subtitle extraction ──
+    # ── Approach 4: yt-dlp subtitle extraction ──
     try:
         import subprocess, tempfile, os, glob as _glob
         with tempfile.TemporaryDirectory() as tmpdir:

@@ -2056,9 +2056,18 @@ def debug_auto_generate(video_id: str = Query(default="wc8FBhQtdsA")):
             return {"steps": steps, "error": "no transcript"}
         truncated = transcript_text[:12000]
         steps["truncated_len"] = len(truncated)
-        # Try a minimal Gemini call
-        test_result = _gemini_generate("Return exactly: {\"test\": true}")
-        steps["gemini_test"] = test_result
+        # Try a minimal Gemini call directly
+        import httpx
+        try:
+            resp = httpx.post(
+                f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={settings.google_gemini_api_key}",
+                json={"contents": [{"parts": [{"text": "Return exactly: hello"}]}]},
+                timeout=30.0,
+            )
+            steps["gemini_status"] = resp.status_code
+            steps["gemini_body"] = resp.text[:500]
+        except Exception as e:
+            steps["gemini_error"] = str(e)
         return {"steps": steps}
     except Exception as e:
         steps["error"] = str(e)

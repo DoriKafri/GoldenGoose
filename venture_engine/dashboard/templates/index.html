@@ -660,7 +660,7 @@ html.dark .toggle-track::after { transform:translateX(16px); }
 .yt-transcript-loading { padding:40px; text-align:center; color:var(--text3); font-size:13px; }
 .yt-transcript-error { padding:40px; text-align:center; color:#ef4444; font-size:13px; }
 .yt-transcript-list { padding:8px 0; }
-/* AI analysis panels (Takeaways, DPOI) */
+/* AI analysis panels (Takeaways, DOPI) */
 .yt-ai-panel { overflow-y:auto; flex:1; }
 .yt-ai-placeholder { display:flex; flex-direction:column; align-items:center; justify-content:center; padding:60px 20px; color:var(--text2); cursor:default; }
 .yt-ai-item { padding:14px 20px; cursor:pointer; transition:background 0.12s; border-left:3px solid transparent; margin-bottom:2px; }
@@ -2778,7 +2778,7 @@ function openReader(url, title, newsItemId) {
           <svg class="yt-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>Takeaways
         </button>
         <button class="yt-tab" data-tab="dpoi" onclick="_ytSwitchTab('dpoi')">
-          <svg class="yt-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>DPOI
+          <svg class="yt-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>DOPI
         </button>
       </div>
       <div class="yt-panel active" id="ytVideoPanel">
@@ -2816,7 +2816,7 @@ function openReader(url, title, newsItemId) {
         <div class="yt-ai-panel" id="ytDpoiContent">
           <div class="yt-ai-placeholder" onclick="_ytSwitchTab('dpoi')">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:40px;height:40px;opacity:0.4;margin-bottom:8px;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-            <div style="font-size:14px;font-weight:600;margin-bottom:4px;">DPOI Analysis</div>
+            <div style="font-size:14px;font-weight:600;margin-bottom:4px;">DOPI Analysis</div>
             <div style="font-size:12px;color:var(--text3);">Problems & opportunities for venture building</div>
           </div>
         </div>
@@ -3322,7 +3322,7 @@ function _ytRenderTakeaways(items) {
   ).join('') + '</div>';
 }
 
-// ── DPOI (Develeap Problem/Opportunity Insights) ──
+// ── DOPI (Develeap Problem/Opportunity Insights) ──
 let _ytDpoiData = null;
 let _ytDpoiVideoId = null;
 
@@ -3338,7 +3338,7 @@ async function _ytLoadDpoi() {
 
   if (_ytDpoiData && _ytDpoiVideoId === vid) return;
 
-  contentEl.innerHTML = '<div class="yt-ai-loading"><div class="spinner"></div>Loading DPOI analysis...</div>';
+  contentEl.innerHTML = '<div class="yt-ai-loading"><div class="spinner"></div>Loading DOPI analysis...</div>';
 
   try {
     const resp = await fetch(`${API}/api/youtube-dpoi?video_id=${vid}`);
@@ -3352,7 +3352,7 @@ async function _ytLoadDpoi() {
       if (cached && cached.insights) {
         _ytDpoiData = cached.insights;
       } else {
-        throw new Error('DPOI analysis not yet generated for this video.');
+        throw new Error('DOPI analysis not yet generated for this video.');
       }
     }
     _ytDpoiVideoId = vid;

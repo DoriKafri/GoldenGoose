@@ -1263,15 +1263,14 @@ ANNOTATION_IFRAME_SCRIPT = """
 _yt_storyboard_cache: dict = {}  # video_id -> {spec_data, fetched_at}
 
 
-def _fetch_storyboard_spec(video_id: str):
-    """Fetch storyboard spec directly from YouTube page HTML (no yt-dlp needed).
+def _fetch_storyboard_spec_html(video_id: str):
+    """Fetch storyboard spec from YouTube page HTML.
 
     Returns dict with keys: base_url, duration, levels (list of level dicts).
     Each level has: width, height, total_frames, cols, rows, sigh, name_pattern, url_level.
     """
     import re
     import json
-    import time as _time
     import httpx
 
     ua = (
@@ -1280,9 +1279,6 @@ def _fetch_storyboard_spec(video_id: str):
         "Chrome/120.0.0.0 Safari/537.36"
     )
 
-    # Use a session: first visit youtube.com to get session cookies,
-    # then fetch the watch page. This prevents YouTube from returning
-    # a bot/consent gate page on servers outside the US.
     with httpx.Client(follow_redirects=True, timeout=12) as client:
         client.get(
             "https://www.youtube.com/",
@@ -1301,28 +1297,19 @@ def _fetch_storyboard_spec(video_id: str):
 
     player_data = json.loads(match.group(1))
 
-    # Try multiple sources for video duration
     duration = int(player_data.get("videoDetails", {}).get("lengthSeconds", 0))
     if duration <= 0:
         mf = player_data.get("microformat", {}).get("playerMicroformatRenderer", {})
         duration = int(mf.get("lengthSeconds", 0))
     if duration <= 0:
-        # Try streamingData approxDurationMs
         approx_ms = player_data.get("streamingData", {}).get("approxDurationMs", "0")
         duration = int(approx_ms) // 1000
     if duration <= 0:
-        # Log what we got for debugging
         available_keys = list(player_data.keys())
         vd_keys = list(player_data.get("videoDetails", {}).keys())
-        logger.error(
-            f"No duration for {video_id}. "
-            f"Player keys: {available_keys[:10]}, "
-            f"videoDetails keys: {vd_keys}"
-        )
         raise ValueError(
             f"Could not determine video duration. "
-            f"Player keys: {available_keys[:10]}, "
-            f"videoDetails keys: {vd_keys}"
+            f"Player keys: {available_keys[:10]}, videoDetails keys: {vd_keys}"
         )
 
     spec_str = (
@@ -1347,17 +1334,86 @@ def _fetch_storyboard_spec(video_id: str):
             "total_frames": int(fields[2]),
             "cols": int(fields[3]),
             "rows": int(fields[4]),
-            "name_pattern": fields[6],   # "default" or "M$M"
+            "name_pattern": fields[6],
             "sigh": fields[7],
-            "url_level": i - 1,           # 0-based level for URL
+            "url_level": i - 1,
         })
 
     if not levels:
         raise ValueError("No storyboard levels parsed from spec")
 
-    spec_data = {"base_url": base_url, "duration": duration, "levels": levels}
-    _yt_storyboard_cache[video_id] = {"spec_data": spec_data, "fetched_at": _time.time()}
-    return spec_data
+    return {"base_url": base_url, "duration": duration, "levels": levels}
+
+
+def _fetch_storyboard_spec_ytdlp(video_id: str):
+    """Fetch storyboard spec using yt-dlp (more robust against bot detection).
+
+    Returns dict with duration and levels, each level containing fragments
+    with fully-signed URLs ready to use.
+    """
+    import yt_dlp
+
+    ydl_opts = {"skip_download": True, "no_warnings": True, "quiet": True}
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        info = ydl.extract_info(
+            f"https://www.youtube.com/watch?v={video_id}", download=False
+        )
+
+    duration = info.get("duration", 0)
+    if duration <= 0:
+        raise ValueError("yt-dlp: could not determine video duration")
+
+    sb_formats = sorted(
+        [f for f in info.get("formats", [])
+         if "storyboard" in f.get("format_note", "").lower()],
+        key=lambda f: f.get("width", 0) * f.get("height", 0),
+    )
+
+    if not sb_formats:
+        raise ValueError("yt-dlp: no storyboard formats found")
+
+    levels = []
+    for f in sb_formats:
+        frags = f.get("fragments", [])
+        cols = f.get("columns", 1)
+        rows = f.get("rows", 1)
+        fps = f.get("fps", 0.1) or 0.1
+        interval_ms = int(1000 / fps)
+        total_frames = len(frags) * cols * rows
+
+        levels.append({
+            "width": f.get("width", 0),
+            "height": f.get("height", 0),
+            "total_frames": total_frames,
+            "cols": cols,
+            "rows": rows,
+            "interval_ms": interval_ms,
+            "fragments": [frag.get("url", "") for frag in frags],
+        })
+
+    return {"duration": duration, "levels": levels, "_ytdlp": True}
+
+
+def _fetch_storyboard_spec(video_id: str):
+    """Fetch storyboard spec: tries HTML parsing first, falls back to yt-dlp."""
+    import time as _time
+
+    # Try direct HTML parsing first (faster)
+    try:
+        spec_data = _fetch_storyboard_spec_html(video_id)
+        _yt_storyboard_cache[video_id] = {"spec_data": spec_data, "fetched_at": _time.time()}
+        return spec_data
+    except Exception as exc:
+        logger.info(f"HTML storyboard fetch failed for {video_id}: {exc}, trying yt-dlp")
+
+    # Fall back to yt-dlp (better at bypassing bot detection)
+    try:
+        spec_data = _fetch_storyboard_spec_ytdlp(video_id)
+        _yt_storyboard_cache[video_id] = {"spec_data": spec_data, "fetched_at": _time.time()}
+        return spec_data
+    except Exception as exc:
+        logger.warning(f"yt-dlp storyboard fetch also failed for {video_id}: {exc}")
+        raise
 
 
 def _extract_storyboard_frame(spec_data: dict, video_id: str, t: int):
@@ -1366,8 +1422,8 @@ def _extract_storyboard_frame(spec_data: dict, video_id: str, t: int):
     import httpx
     from PIL import Image
 
-    base_url = spec_data["base_url"]
     duration = spec_data["duration"]
+    is_ytdlp = spec_data.get("_ytdlp", False)
 
     # Pick the highest-resolution level
     level = max(spec_data["levels"], key=lambda lv: lv["width"] * lv["height"])
@@ -1380,15 +1436,25 @@ def _extract_storyboard_frame(spec_data: dict, video_id: str, t: int):
     fps = cols * rows  # frames per sheet
 
     # Calculate frame index and sprite sheet shard
-    frame_index = max(0, min(round(t / duration * (total_frames - 1)), total_frames - 1))
+    if is_ytdlp and level.get("interval_ms"):
+        frame_index = max(0, min(round(t * 1000 / level["interval_ms"]), total_frames - 1))
+    else:
+        frame_index = max(0, min(round(t / duration * (total_frames - 1)), total_frames - 1))
     shard = frame_index // fps
     cell = frame_index % fps
 
     # Build sprite sheet URL
-    name_pattern = level["name_pattern"]
-    filename = name_pattern.replace("$M", str(shard)) if "$M" in name_pattern else name_pattern
-    sheet_url = base_url.replace("$L", str(level["url_level"])).replace("$N", filename)
-    sheet_url += f"&sigh={level['sigh']}"
+    if is_ytdlp and level.get("fragments"):
+        fragments = level["fragments"]
+        if shard >= len(fragments):
+            shard = len(fragments) - 1
+        sheet_url = fragments[shard]
+    else:
+        base_url = spec_data["base_url"]
+        name_pattern = level["name_pattern"]
+        filename = name_pattern.replace("$M", str(shard)) if "$M" in name_pattern else name_pattern
+        sheet_url = base_url.replace("$L", str(level["url_level"])).replace("$N", filename)
+        sheet_url += f"&sigh={level['sigh']}"
 
     logger.info(
         f"YT frame: {video_id}@{t}s → frame {frame_index}/{total_frames}, "
@@ -1473,6 +1539,35 @@ def youtube_frame(
             "Cache-Control": "no-store, no-cache, must-revalidate",
         },
     )
+
+
+@router.get("/api/youtube-storyboard-spec")
+def youtube_storyboard_spec(
+    video_id: str = Query(..., min_length=11, max_length=11),
+    _v: str = Query("", description="Cache-buster"),
+):
+    """Return storyboard spec JSON for client-side frame extraction.
+
+    Returns {base_url, duration, levels: [{width, height, total_frames,
+    cols, rows, sigh, name_pattern, url_level}]}.
+    """
+    import time as _time
+    import json as _json
+
+    cached = _yt_storyboard_cache.get(video_id)
+    if cached and _time.time() - cached["fetched_at"] < 3600:
+        return cached["spec_data"]
+
+    try:
+        spec_data = _fetch_storyboard_spec(video_id)
+        return spec_data
+    except Exception as exc:
+        logger.warning(f"Storyboard spec fetch failed for {video_id}: {exc}")
+        return Response(
+            content=_json.dumps({"error": str(exc)}),
+            media_type="application/json",
+            status_code=500,
+        )
 
 
 @router.get("/api/url-preview")

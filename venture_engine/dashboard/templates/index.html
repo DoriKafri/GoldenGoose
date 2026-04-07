@@ -643,6 +643,7 @@ html.dark .toggle-track::after { transform:translateX(16px); }
 .ann-video-thumb-sm { max-width:220px; }
 .ann-video-thumb-sm .ann-video-thumb-play { width:30px; height:30px; }
 .ann-video-thumb-sm .ann-video-thumb-play svg { width:14px !important; height:14px !important; }
+.sprite-spacer { width:100%; }
 .ann-compose-cancel { background:var(--bg2); color:var(--text2); }
 .ann-compose-submit { background:linear-gradient(135deg,#f59e0b,#d97706); color:#fff; }
 @media(max-width:768px) {
@@ -2325,6 +2326,132 @@ function _youtubeId(url) {
   return m ? m[1] : null;
 }
 
+// ─── Client-side YouTube storyboard frame extraction ────────────
+// Fetches storyboard spec and constructs sprite sheet info.
+// Uses CSS sprite technique (no canvas/CORS issues).
+// Falls back to Invidious API when our server can't reach YouTube.
+const _ytStoryboardCache = {};  // videoId -> {spec, fetchedAt}
+
+const _INVIDIOUS_INSTANCES = [
+  'https://inv.nadeko.net',
+  'https://invidious.fdn.fr',
+  'https://vid.puffyan.us',
+  'https://invidious.nerdvpn.de',
+];
+
+// Try fetching storyboard spec from our server, then Invidious instances
+async function _fetchStoryboardSpec(videoId) {
+  // 1. Try our server first
+  try {
+    const resp = await fetch(`${API}/api/youtube-storyboard-spec?video_id=${videoId}&_v=${Date.now()}`);
+    if (resp.ok) {
+      const data = await resp.json();
+      if (data.levels && data.levels.length) return data;
+    }
+  } catch(e) { console.warn('Server storyboard fetch failed:', e); }
+
+  // 2. Fallback: try Invidious API instances (browser fetches directly, no CORS issues on most instances)
+  for (const instance of _INVIDIOUS_INSTANCES) {
+    try {
+      const resp = await fetch(`${instance}/api/v1/videos/${videoId}?fields=storyboards,lengthSeconds`, {signal: AbortSignal.timeout(5000)});
+      if (!resp.ok) continue;
+      const data = await resp.json();
+      if (!data.storyboards || !data.storyboards.length) continue;
+      // Normalize Invidious format to our format
+      const duration = data.lengthSeconds || 0;
+      const levels = data.storyboards.map((sb, i) => ({
+        width: sb.width,
+        height: sb.height,
+        total_frames: sb.count,
+        cols: sb.storyboardWidth,
+        rows: sb.storyboardHeight,
+        interval_ms: sb.interval,
+        templateUrl: sb.templateUrl || sb.url,
+        url_level: i,
+      }));
+      return { duration, levels, _invidious: true, _instance: instance };
+    } catch(e) { continue; }
+  }
+  return null;
+}
+
+async function _getYtFrameUrl(videoId, t) {
+  if (!videoId || t == null) return null;
+  try {
+    let spec = _ytStoryboardCache[videoId];
+    if (!spec || Date.now() - spec.fetchedAt > 3600000) {
+      spec = await _fetchStoryboardSpec(videoId);
+      if (!spec) return null;
+      spec.fetchedAt = Date.now();
+      _ytStoryboardCache[videoId] = spec;
+    }
+    // Pick highest resolution level
+    const levels = spec.levels || [];
+    if (!levels.length) return null;
+    const lv = levels[levels.length - 1];
+    const fps = lv.cols * lv.rows;
+
+    let frameIdx, sheetUrl;
+    if (lv.interval_ms) {
+      // yt-dlp or Invidious format: use interval_ms
+      frameIdx = Math.max(0, Math.min(Math.round(t * 1000 / lv.interval_ms), lv.total_frames - 1));
+    } else {
+      // HTML-parsed format: use duration
+      frameIdx = Math.max(0, Math.min(Math.round(t / spec.duration * (lv.total_frames - 1)), lv.total_frames - 1));
+    }
+    const shard = Math.floor(frameIdx / fps);
+
+    if (lv.fragments && lv.fragments.length) {
+      // yt-dlp format: fragments array has direct URLs per sprite sheet
+      const safeIdx = Math.min(shard, lv.fragments.length - 1);
+      sheetUrl = lv.fragments[safeIdx];
+    } else if (spec._invidious && lv.templateUrl) {
+      // Invidious format: template URL with $M placeholder
+      sheetUrl = lv.templateUrl.replace('M$M', 'M' + shard).replace('$M', shard);
+    } else {
+      // HTML-parsed format: base_url with $L/$N placeholders
+      sheetUrl = spec.base_url.replace('$L', lv.url_level).replace('$N', lv.name_pattern.replace('$M', shard)) + '&sigh=' + lv.sigh;
+    }
+    const cell = frameIdx % fps;
+    return { sheetUrl, cell, cols: lv.cols, rows: lv.rows };
+  } catch(e) {
+    console.warn('Storyboard spec fetch failed:', e);
+    return null;
+  }
+}
+
+// Apply CSS sprite technique to show a specific cell from a sprite sheet.
+// No canvas, no CORS issues — uses CSS positioning to crop visually.
+function _applySpriteFrame(elementId, info) {
+  const img = document.getElementById(elementId);
+  if (!img || !info) return;
+  const parent = img.closest('.ann-video-thumb');
+  if (!parent) return;
+  const col = info.cell % info.cols;
+  const row = Math.floor(info.cell / info.cols);
+  // Add a spacer div so parent keeps height when img is absolute
+  if (!parent.querySelector('.sprite-spacer')) {
+    const spacer = document.createElement('div');
+    spacer.className = 'sprite-spacer';
+    spacer.style.paddingBottom = '56.25%'; // 16:9
+    parent.insertBefore(spacer, parent.firstChild);
+  }
+  img.src = info.sheetUrl;
+  img.style.position = 'absolute';
+  img.style.top = `-${row * 100}%`;
+  img.style.left = `-${col * 100}%`;
+  img.style.width = `${info.cols * 100}%`;
+  img.style.height = `${info.rows * 100}%`;
+  img.style.objectFit = 'fill';
+  img.style.aspectRatio = 'unset';
+}
+
+// Load storyboard info and apply sprite frame to an element
+async function _loadAndApplyFrame(elementId, videoId, t) {
+  const info = await _getYtFrameUrl(videoId, t);
+  if (info) _applySpriteFrame(elementId, info);
+}
+
 let _readerUrl = '';
 let _readerNewsItemId = null;
 let _readerAnnotations = [];
@@ -2536,15 +2663,18 @@ function _ytMarkTimestamp() {
     try { _cvid = _youtubeId(_ytPlayer.getVideoUrl()); } catch(e) {}
   }
   if (_cvid) {
-    const frameUrl = `${API}/api/youtube-frame?video_id=${_cvid}&t=${seconds}&_v=${Date.now()}`;
+    // Show placeholder immediately, then load the actual frame
+    const fallbackUrl = `${API}/api/youtube-frame?video_id=${_cvid}&t=${seconds}&_v=${Date.now()}`;
     document.getElementById('annComposeQuote').innerHTML = `
       <div class="ann-video-thumb ann-video-thumb-sm" style="cursor:default;">
-        <img src="${frameUrl}" alt="">
+        <img id="annComposeFrameImg" src="${fallbackUrl}" alt="">
         <div class="ann-video-thumb-overlay">
           <div class="ann-video-thumb-play"><svg viewBox="0 0 24 24" fill="#fff" style="width:16px;height:16px;"><polygon points="6 3 20 12 6 21"/></svg></div>
           <span class="ann-video-thumb-time">${timeStr}</span>
         </div>
       </div>`;
+    // Load actual frame via CSS sprite technique (avoids server bot detection on Railway)
+    _loadAndApplyFrame('annComposeFrameImg', _cvid, seconds);
   } else {
     document.getElementById('annComposeQuote').innerHTML = '<span class="ann-timestamp" style="cursor:default;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px;"><polygon points="5 3 19 12 5 21 5 3"/></svg> ' + timeStr + '</span>';
   }
@@ -2876,6 +3006,7 @@ function renderReaderAnnotations() {
     sorted.sort((a, b) => (a.timestamp_seconds ?? 9999999) - (b.timestamp_seconds ?? 9999999));
   }
 
+  const _pendingFrameLoads = [];
   el.innerHTML = sorted.map(ann => {
     const avatar = `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(ann.author_name||ann.author_id)}&backgroundColor=b6e3f4`;
     const replies = (ann.replies||[]).map(r => {
@@ -2900,14 +3031,16 @@ function renderReaderAnnotations() {
     }
     let tsBadge;
     if (isVideoAnn && _vid) {
-      const frameUrl = `${API}/api/youtube-frame?video_id=${_vid}&t=${ann.timestamp_seconds}&_v=${Date.now()}`;
+      const _annFrameId = `ann-frame-${ann.id}`;
+      const fallbackFrameUrl = `${API}/api/youtube-frame?video_id=${_vid}&t=${ann.timestamp_seconds}&_v=${Date.now()}`;
       tsBadge = `<div class="ann-video-thumb" onclick="event.stopPropagation();_ytSeekTo(${ann.timestamp_seconds})">
-        <img src="${frameUrl}" alt="" loading="lazy">
+        <img id="${_annFrameId}" src="${fallbackFrameUrl}" alt="" loading="lazy">
         <div class="ann-video-thumb-overlay">
           <div class="ann-video-thumb-play"><svg viewBox="0 0 24 24" fill="#fff" style="width:20px;height:20px;filter:drop-shadow(0 1px 3px rgba(0,0,0,0.5));"><polygon points="6 3 20 12 6 21"/></svg></div>
           <span class="ann-video-thumb-time">${_fmtTime(ann.timestamp_seconds)}</span>
         </div>
       </div>`;
+      _pendingFrameLoads.push({id: _annFrameId, videoId: _vid, t: ann.timestamp_seconds});
     } else if (isVideoAnn) {
       tsBadge = `<div class="ann-timestamp" onclick="event.stopPropagation();_ytSeekTo(${ann.timestamp_seconds})">
            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:12px;height:12px;"><polygon points="5 3 19 12 5 21 5 3"/></svg>
@@ -2947,6 +3080,11 @@ function renderReaderAnnotations() {
       </div>
     </div>`;
   }).join('');
+
+  // Apply sprite frames to all pending thumbnail elements
+  _pendingFrameLoads.forEach(({id, videoId, t}) => {
+    _loadAndApplyFrame(id, videoId, t);
+  });
 
   // Render timeline markers for YouTube
   if (_isYouTube) _renderYtTimelineMarkers();

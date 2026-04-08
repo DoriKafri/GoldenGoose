@@ -183,26 +183,59 @@ html.dark .toggle-track::after { transform:translateX(16px); }
 @keyframes typingBounce { 0%,60%,100%{transform:translateY(0);opacity:.4} 30%{transform:translateY(-4px);opacity:1} }
 
 /* Slack-style thread UI */
-.sl-channel-header { display:flex;align-items:center;gap:8px;padding:12px 0 8px;border-bottom:1px solid var(--border); }
-.sl-back-btn { background:none;border:none;color:var(--accent);font-size:13px;cursor:pointer;font-weight:600;padding:4px 10px;border-radius:var(--radius-pill);font-family:inherit; }
-.sl-back-btn:hover { background:var(--bg2); }
+/* ─── Slack Workspace Layout ─── */
+.sl-workspace { display:flex;height:calc(100vh - 80px);overflow:hidden;border-radius:var(--radius-lg);border:1px solid var(--border);background:var(--card); }
+/* ─── Channel Sidebar ─── */
+.sl-sidebar { width:260px;min-width:220px;background:#1a1a2e;color:#ccc;display:flex;flex-direction:column;border-right:1px solid rgba(255,255,255,.08);flex-shrink:0; }
+html:not(.dark) .sl-sidebar { background:#3F0E40; }
+.sl-sidebar-header { padding:14px 16px 10px;display:flex;align-items:center;gap:8px;border-bottom:1px solid rgba(255,255,255,.1); }
+.sl-sidebar-workspace { font-size:16px;font-weight:900;color:#fff;flex:1; }
+.sl-sidebar-compose { background:none;border:none;color:rgba(255,255,255,.7);font-size:18px;cursor:pointer;padding:4px 8px;border-radius:6px; }
+.sl-sidebar-compose:hover { background:rgba(255,255,255,.1);color:#fff; }
+.sl-sidebar-section { padding:8px 0 2px; }
+.sl-sidebar-section-title { display:flex;align-items:center;gap:4px;padding:2px 16px;font-size:14px;font-weight:700;color:rgba(255,255,255,.7);cursor:pointer;user-select:none; }
+.sl-sidebar-section-title:hover { color:#fff; }
+.sl-sidebar-section-arrow { font-size:10px;transition:transform .15s; }
+.sl-ch-item { display:flex;align-items:center;gap:8px;padding:4px 16px 4px 22px;font-size:14px;cursor:pointer;border-radius:0;color:rgba(255,255,255,.7);transition:background .1s; }
+.sl-ch-item:hover { background:rgba(255,255,255,.08); }
+.sl-ch-item.sl-ch-active { background:rgba(255,255,255,.15);color:#fff;font-weight:700; }
+.sl-ch-item-hash { font-size:16px;font-weight:400;opacity:.6;width:18px;text-align:center;flex-shrink:0; }
+.sl-ch-item-name { flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
+.sl-ch-badge { background:#cd2553;color:#fff;font-size:11px;font-weight:700;padding:1px 7px;border-radius:10px;min-width:18px;text-align:center; }
+.sl-sidebar-dm-section { margin-top:auto;border-top:1px solid rgba(255,255,255,.1);padding:8px 0; }
+.sl-dm-item { display:flex;align-items:center;gap:8px;padding:4px 16px 4px 22px;font-size:14px;cursor:pointer;color:rgba(255,255,255,.7);transition:background .1s; }
+.sl-dm-item:hover { background:rgba(255,255,255,.08); }
+.sl-dm-avatar { width:20px;height:20px;border-radius:4px; }
+.sl-dm-status { width:8px;height:8px;border-radius:50%;background:#2bac76;flex-shrink:0; }
+/* ─── Main Channel Area ─── */
+.sl-main { flex:1;display:flex;flex-direction:column;min-width:0;overflow:hidden; }
+.sl-channel-header { display:flex;align-items:center;gap:8px;padding:10px 20px;border-bottom:1px solid var(--border);flex-shrink:0;background:var(--card); }
 .sl-channel-name { font-size:16px;font-weight:800;color:var(--text); }
-.sl-channel-desc { font-size:11px;color:var(--text3);flex:1; }
-.sl-message-list { overflow-y:auto;flex:1;padding:4px 0; }
-.sl-msg-wrap { position:relative;padding:8px 16px;margin:0 -16px;border-radius:0;transition:background .12s ease;overflow:visible; }
+.sl-channel-desc { font-size:12px;color:var(--text3);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
+.sl-header-actions { display:flex;gap:4px;flex-shrink:0; }
+.sl-header-btn { background:none;border:1px solid var(--border);color:var(--text2);padding:4px 10px;border-radius:6px;font-size:12px;cursor:pointer;display:flex;align-items:center;gap:4px; }
+.sl-header-btn:hover { background:var(--bg2);color:var(--text); }
+.sl-content-split { display:flex;flex:1;overflow:hidden; }
+.sl-message-list { overflow-y:auto;flex:1;padding:4px 0;min-width:0; }
+/* ─── Date Separator ─── */
+.sl-date-sep { display:flex;align-items:center;gap:12px;margin:12px 20px;font-size:13px;font-weight:700;color:var(--text); }
+.sl-date-sep::before,.sl-date-sep::after { content:'';flex:1;height:1px;background:var(--border); }
+.sl-date-sep-pill { background:var(--card);border:1px solid var(--border);border-radius:20px;padding:4px 14px;font-size:12px;font-weight:700;white-space:nowrap; }
+/* ─── Messages ─── */
+.sl-msg-wrap { position:relative;padding:8px 20px;margin:0;border-radius:0;transition:background .12s ease;overflow:visible; }
 .sl-msg-wrap:hover { background:#f5f5f5; }
 html.dark .sl-msg-wrap:hover { background:rgba(255,255,255,.08); }
-.sl-msg { display:flex;gap:10px;padding:6px 0; }
+.sl-msg { display:flex;gap:10px;padding:4px 0; }
 .sl-reply { padding:4px 0; }
-.sl-avatar { width:36px !important;height:36px !important;min-width:36px;min-height:36px;max-width:36px;max-height:36px;border-radius:50% !important;flex-shrink:0;object-fit:cover; }
+.sl-avatar { width:36px !important;height:36px !important;min-width:36px;min-height:36px;max-width:36px;max-height:36px;border-radius:6px !important;flex-shrink:0;object-fit:cover; }
 .sl-reply .sl-avatar { width:36px !important;height:36px !important; }
 .sl-body { flex:1;min-width:0; }
 .sl-meta { display:flex;align-items:baseline;gap:6px; }
-.sl-author { font-size:14px;font-weight:800;color:var(--text);cursor:pointer; }
+.sl-author { font-size:15px;font-weight:800;color:var(--text);cursor:pointer; }
 .sl-author:hover { text-decoration:underline; }
 .sl-reply .sl-author { font-size:13px; }
-.sl-time { font-size:11px;color:var(--text3);font-weight:400; }
-.sl-text { font-size:14px;color:var(--text);line-height:1.55;margin-top:2px;white-space:pre-wrap;word-break:break-word; }
+.sl-time { font-size:12px;color:var(--text3);font-weight:400; }
+.sl-text { font-size:15px;color:var(--text);line-height:1.55;margin-top:2px;white-space:pre-wrap;word-break:break-word; }
 .sl-reply .sl-text { font-size:13px; }
 .sl-reactions { display:flex;flex-wrap:wrap;gap:4px;margin-top:6px; }
 .sl-rxn { display:inline-flex;align-items:center;gap:3px;font-size:12px;background:var(--bg2);padding:2px 8px;border-radius:16px;border:1px solid var(--border);cursor:pointer;user-select:none; }
@@ -222,7 +255,7 @@ html.dark .sl-msg-wrap:hover { background:rgba(255,255,255,.08); }
 .sl-thread-count { margin-left:6px;color:var(--accent);font-weight:700; }
 .sl-thread-last { color:var(--text3);font-weight:400;flex:1; }
 .sl-thread-arrow { font-size:10px;color:var(--text3);margin-left:4px; }
-.sl-actions { position:absolute;top:2px;right:12px;display:none;background:var(--card);border:1px solid var(--border);border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,.2);z-index:5;gap:0; }
+.sl-actions { position:absolute;top:2px;right:20px;display:none;background:var(--card);border:1px solid var(--border);border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,.2);z-index:5;gap:0; }
 .sl-msg-wrap:hover .sl-actions { display:flex; }
 .sl-actions button { background:none;border:none;padding:6px 8px;cursor:pointer;color:var(--text3);display:flex;align-items:center;justify-content:center;transition:background .1s,color .1s; }
 .sl-actions button:hover { background:var(--bg2);color:var(--text); }
@@ -238,9 +271,7 @@ html.dark .sl-msg-wrap:hover { background:rgba(255,255,255,.08); }
 .sl-more-menu-divider { height:1px;background:var(--border);margin:4px 0; }
 .sl-more-menu button.sl-destructive { color:var(--red); }
 .sl-more-menu button.sl-destructive svg { color:var(--red); }
-/* ─── Slack Thread Side Panel (matches real Slack) ── */
-.sl-split { display:flex;height:100%;overflow:hidden; }
-.sl-split .sl-message-list { flex:1;min-width:0; }
+/* ─── Slack Thread Side Panel ── */
 .sl-thread-side { width:420px;min-width:380px;max-width:50%;border-left:1px solid var(--border);background:var(--card);display:flex;flex-direction:column;height:100%;animation:sl-slide-in .2s ease; }
 @keyframes sl-slide-in { from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1} }
 .sl-thread-side-header { display:flex;align-items:center;padding:10px 16px;border-bottom:1px solid var(--border);gap:8px;flex-shrink:0; }
@@ -256,6 +287,18 @@ html.dark .sl-msg-wrap:hover { background:rgba(255,255,255,.08); }
 .sl-thread-divider { display:flex;align-items:center;gap:10px;margin:12px 16px;font-size:12px;color:var(--text3);font-weight:600; }
 .sl-thread-divider::before,.sl-thread-divider::after { content:'';flex:1;height:1px;background:var(--border); }
 .sl-thread-composer { padding:12px 16px;border-top:1px solid var(--border);flex-shrink:0; }
+/* ─── Message Composer ─── */
+.sl-composer { padding:0 20px 16px;flex-shrink:0; }
+.sl-composer-box { border:1px solid var(--border);border-radius:8px;overflow:hidden; }
+.sl-composer-input { padding:10px 14px;min-height:22px;font-size:14px;color:var(--text);outline:none;font-family:inherit;line-height:1.5; }
+.sl-composer-input:empty::before { content:attr(data-placeholder);color:var(--text3);pointer-events:none; }
+.sl-composer-box:focus-within { border-color:var(--accent); }
+.sl-composer-toolbar { display:flex;align-items:center;gap:2px;padding:6px 10px;border-top:1px solid var(--border);background:var(--bg); }
+.sl-composer-toolbar button { background:none;border:none;color:var(--text3);font-size:16px;cursor:pointer;padding:4px 6px;border-radius:4px;display:flex;align-items:center; }
+.sl-composer-toolbar button:hover { background:var(--bg2);color:var(--text); }
+.sl-composer-send { background:none;border:none;padding:4px 8px;cursor:pointer;border-radius:4px;margin-left:auto;color:var(--text3);font-size:18px; }
+.sl-composer-send:hover { color:var(--accent); }
+@media(max-width:768px) { .sl-sidebar { width:60px;min-width:60px; } .sl-ch-item-name,.sl-sidebar-section-title span,.sl-ch-badge,.sl-sidebar-workspace,.sl-sidebar-compose,.sl-ch-item-hash { display:none; } .sl-ch-item { padding:8px 0;justify-content:center; } .sl-thread-side { width:100%;min-width:0;max-width:100%;position:absolute;top:0;left:0;right:0;bottom:0;z-index:20; } }
 /* ─── Media Preview Card (link unfurling) ─── */
 .sl-media-preview { display:flex;border:1px solid var(--border);border-radius:10px;overflow:hidden;margin:6px 0 10px;background:var(--bg2);cursor:pointer;transition:background .15s,border-color .15s;max-width:520px; }
 .sl-media-preview:hover { background:var(--bg3);border-color:var(--accent); }
@@ -275,17 +318,13 @@ html.dark .sl-msg-wrap:hover { background:rgba(255,255,255,.08); }
 .rn-list li::before { content:'';position:absolute;left:0;top:13px;width:6px;height:6px;border-radius:50%;background:var(--accent); }
 .rn-list li strong { color:var(--text);font-weight:700; }
 .rn-list li em { font-style:normal;color:var(--text3); }
-.sl-thread-composer-box { border:1px solid var(--border);border-radius:8px;padding:10px 12px;min-height:42px; }
-.sl-thread-composer-placeholder { color:var(--text3);font-size:13px;pointer-events:none; }
-.sl-thread-composer-toolbar { display:flex;align-items:center;gap:2px;padding:6px 12px 4px;border-top:1px solid var(--border);margin-top:6px; }
+.sl-thread-composer-box { border:1px solid var(--border);border-radius:8px;overflow:hidden; }
+.sl-thread-composer-toolbar { display:flex;align-items:center;gap:2px;padding:6px 10px;border-top:1px solid var(--border); }
 .sl-thread-composer-toolbar button { background:none;border:none;color:var(--text3);font-size:16px;cursor:pointer;padding:4px 6px;border-radius:4px; }
 .sl-thread-composer-toolbar button:hover { background:var(--bg2);color:var(--text); }
 .sl-thread-also-send { display:flex;align-items:center;gap:6px;margin-top:8px;font-size:12px;color:var(--text3); }
 .sl-thread-also-send input { accent-color:var(--accent); }
-.sl-thread-reply-input:empty::before { content:attr(data-placeholder);color:var(--text3);pointer-events:none; }
-.sl-thread-reply-input:focus { outline:none; }
 .sl-thread-composer-box:focus-within { border-color:var(--accent); }
-@media(max-width:768px) { .sl-thread-side { width:100%;min-width:0;max-width:100%;position:absolute;top:0;left:0;right:0;bottom:0;z-index:20; } }
 
 /* Margin opportunity pricing table */
 .margin-opp-section { background:linear-gradient(135deg, var(--bg2), var(--bg)) !important; }
@@ -7104,110 +7143,183 @@ loadHarvestInfo();
 
 // ─── Slack Tab ──────────────────────────────────────────────────────────
 let _slackCurrentChannel = null;
+let _slackChannelData = null;
+let _slackAllChannels = [];
 
 async function loadSlack() {
   const el = document.getElementById('ventureList');
-  el.innerHTML = '<div class="loading">Loading Slack channels...</div>';
+  el.innerHTML = '<div class="loading">Loading Slack...</div>';
   try {
     const resp = await fetch(`${API}/api/slack/channels`);
     let channels = await resp.json();
     if (!channels.length) {
-      // Auto-seed
       await fetch(`${API}/api/slack/seed`, {method:'POST'});
       const r2 = await fetch(`${API}/api/slack/channels`);
       channels = await r2.json();
     }
-    renderSlackChannels(channels);
+    _slackAllChannels = channels;
+    _renderSlackWorkspace(channels);
+    // Auto-select first channel
+    if (channels.length && !_slackCurrentChannel) {
+      _slackSelectChannel(channels[0].id);
+    } else if (_slackCurrentChannel) {
+      _slackSelectChannel(_slackCurrentChannel);
+    }
   } catch(e) { el.innerHTML = '<div class="loading">Failed to load Slack.</div>'; }
 }
 
-function renderSlackChannels(channels) {
+function _renderSlackWorkspace(channels) {
   const el = document.getElementById('ventureList');
-  const chList = channels.map(ch => {
-    const latest = ch.latest_message;
-    const preview = latest ? `<div style="font-size:11px;color:var(--text3);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><strong>${esc(latest.author_name||'')}</strong>: ${esc((latest.body||'').slice(0,80))}</div>` : '';
-    return `<div class="venture-row" style="cursor:pointer;" onclick="_slackOpenChannel('${ch.id}','${esc(ch.name)}')">
-      <div style="font-size:22px;flex-shrink:0;width:36px;text-align:center;">#</div>
-      <div class="venture-info" style="gap:2px;">
-        <div class="venture-title"><strong>#${esc(ch.name)}</strong></div>
-        <div style="font-size:11px;color:var(--text2);">${esc(ch.description||'')}</div>
-        ${preview}
-        <div style="font-size:10px;color:var(--text3);margin-top:2px;">${ch.message_count} messages</div>
-      </div>
+  const chItems = channels.map(ch => {
+    const isActive = ch.id === _slackCurrentChannel;
+    const badge = ch.message_count > 0 ? `<span class="sl-ch-badge">${ch.message_count > 99 ? '9+' : ch.message_count}</span>` : '';
+    return `<div class="sl-ch-item${isActive ? ' sl-ch-active' : ''}" onclick="_slackSelectChannel('${ch.id}')" data-chid="${ch.id}">
+      <span class="sl-ch-item-hash">#</span>
+      <span class="sl-ch-item-name">${esc(ch.name)}</span>
+      ${badge}
     </div>`;
   }).join('');
-  el.innerHTML = `
-    <div style="display:flex;align-items:center;gap:8px;padding:12px 0 8px;">
-      <span style="font-size:16px;font-weight:700;color:var(--text);">💬 Team Slack</span>
-      <span style="font-size:11px;color:var(--text3);">Simulated team communication</span>
+
+  el.innerHTML = `<div class="sl-workspace">
+    <div class="sl-sidebar">
+      <div class="sl-sidebar-header">
+        <span class="sl-sidebar-workspace">develeap</span>
+        <button class="sl-sidebar-compose" title="New message">&#x270E;</button>
+      </div>
+      <div class="sl-sidebar-section">
+        <div class="sl-sidebar-section-title" onclick="this.classList.toggle('collapsed')">
+          <span class="sl-sidebar-section-arrow">&#x25BE;</span>
+          <span>Channels</span>
+        </div>
+        ${chItems}
+      </div>
+      <div class="sl-sidebar-dm-section">
+        <div class="sl-sidebar-section-title">
+          <span class="sl-sidebar-section-arrow">&#x25BE;</span>
+          <span>Direct messages</span>
+        </div>
+      </div>
     </div>
-    ${chList}`;
+    <div class="sl-main">
+      <div class="sl-channel-header" id="slChannelHeader">
+        <span class="sl-channel-name" id="slChName"># general</span>
+        <span class="sl-channel-desc" id="slChDesc"></span>
+        <div class="sl-header-actions">
+          <button class="sl-header-btn"><svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="9" r="6"/><path d="M14 14l4 4" stroke-linecap="round"/></svg> Search</button>
+        </div>
+      </div>
+      <div class="sl-content-split">
+        <div class="sl-message-list" id="slMsgList"><div style="text-align:center;padding:40px;color:var(--text3);">Select a channel</div></div>
+        <div id="slThreadPanel"></div>
+      </div>
+      <div class="sl-composer" id="slComposer">
+        <div class="sl-composer-box">
+          <div class="sl-composer-input" contenteditable="true" data-placeholder="Message #general" id="slComposerInput"></div>
+          <div class="sl-composer-toolbar">
+            <button title="Attach">+</button>
+            <button title="Formatting" style="font-size:13px;font-weight:700;">Aa</button>
+            <button title="Emoji">&#x263A;</button>
+            <button title="Mention">@</button>
+            <button title="Record">&#x1F3A4;</button>
+            <button title="Shortcuts">&#x26A1;</button>
+            <button class="sl-composer-send" title="Send" onclick="_slackSendMessage()">&#x27A4;</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>`;
 }
 
-async function _slackOpenChannel(channelId, channelName) {
+async function _slackSelectChannel(channelId) {
   _slackCurrentChannel = channelId;
-  const el = document.getElementById('ventureList');
-  el.innerHTML = '<div class="loading">Loading messages...</div>';
+  // Update sidebar active state
+  document.querySelectorAll('.sl-ch-item').forEach(el => {
+    el.classList.toggle('sl-ch-active', el.dataset.chid === channelId);
+  });
+  const ch = _slackAllChannels.find(c => c.id === channelId);
+  const chName = ch ? ch.name : '';
+  const chDesc = ch ? (ch.description || '') : '';
+  const nameEl = document.getElementById('slChName');
+  const descEl = document.getElementById('slChDesc');
+  if (nameEl) nameEl.textContent = `# ${chName}`;
+  if (descEl) descEl.textContent = chDesc;
+  const composerInput = document.getElementById('slComposerInput');
+  if (composerInput) composerInput.setAttribute('data-placeholder', `Message #${chName}`);
+  // Close thread panel
+  _closeSlackThread();
+  // Load messages
+  const msgList = document.getElementById('slMsgList');
+  if (msgList) msgList.innerHTML = '<div class="loading" style="padding:40px;">Loading...</div>';
   try {
     const resp = await fetch(`${API}/api/slack/channels/${channelId}/messages`);
     const data = await resp.json();
-    _renderSlackChannel(data, channelId);
-  } catch(e) { el.innerHTML = '<div class="loading">Failed to load channel.</div>'; }
+    _slackChannelData = { channel: data.channel, messages: data.messages || [] };
+    _renderSlackMessages(data.messages || []);
+  } catch(e) {
+    if (msgList) msgList.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text3);">Failed to load messages.</div>';
+  }
 }
 
-// Store current channel messages for thread panel
-let _slackChannelData = null;
+function _slackFullDate(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  const h = d.getHours();
+  const m = d.getMinutes().toString().padStart(2,'0');
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const h12 = h % 12 || 12;
+  return `${h12}:${m} ${ampm}`;
+}
 
-function _renderSlackChannel(data, channelId) {
-  const el = document.getElementById('ventureList');
-  const ch = data.channel;
-  const msgs = data.messages || [];
-  _slackChannelData = { channel: ch, messages: msgs };
+function _slackDateLabel(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  const today = new Date();
+  const yesterday = new Date(); yesterday.setDate(today.getDate() - 1);
+  const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const day = d.getDate();
+  const suffix = day===1||day===21||day===31?'st':day===2||day===22?'nd':day===3||day===23?'rd':'th';
+  if (d.toDateString() === today.toDateString()) return 'Today';
+  if (d.toDateString() === yesterday.toDateString()) return 'Yesterday';
+  return `${days[d.getDay()]}, ${months[d.getMonth()]} ${day}${suffix}`;
+}
 
-  function _slackAvatar(name, size) { return _avatar(name, size); }
+function _slackRenderReactions(reactions) {
+  if (!reactions || !reactions.length) return '';
+  return '<div class="sl-reactions">' + reactions.map(rx => {
+    const cnt = (rx.users||[]).length;
+    return '<span class="sl-rxn">' + rx.emoji + (cnt > 1 ? ' <span class="sl-rxn-count">' + cnt + '</span>' : '') + '</span>';
+  }).join('') + '<span class="sl-rxn-add-btn" title="Add reaction">&#x263A;&#xFE0E; +</span></div>';
+}
 
-  function _slackFullDate(dateStr) {
-    if (!dateStr) return '';
-    const d = new Date(dateStr);
-    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    const day = d.getDate();
-    const suffix = day===1||day===21||day===31?'st':day===2||day===22?'nd':day===3||day===23?'rd':'th';
-    const h = d.getHours();
-    const m = d.getMinutes().toString().padStart(2,'0');
-    const ampm = h >= 12 ? 'PM' : 'AM';
-    const h12 = h % 12 || 12;
-    return `${months[d.getMonth()]} ${day}${suffix} at ${h12}:${m} ${ampm}`;
-  }
+function _renderSlackMessages(msgs) {
+  const msgList = document.getElementById('slMsgList');
+  if (!msgList) return;
 
-  function _renderReactions(reactions) {
-    if (!reactions || !reactions.length) return '';
-    return '<div class="sl-reactions">' + reactions.map(rx => {
-      const cnt = (rx.users||[]).length;
-      return '<span class="sl-rxn">' + rx.emoji + (cnt > 1 ? ' <span class="sl-rxn-count">' + cnt + '</span>' : '') + '</span>';
-    }).join('') + '</div>';
-  }
+  let html = '';
+  let lastDateKey = '';
 
-  // ── Build message list HTML ──
-  const msgHtml = msgs.map((msg, idx) => {
-    const avatar = _slackAvatar(msg.author_name, 36);
+  msgs.forEach((msg, idx) => {
+    // Date separator
+    const dateKey = msg.created_at ? new Date(msg.created_at).toDateString() : '';
+    if (dateKey && dateKey !== lastDateKey) {
+      lastDateKey = dateKey;
+      html += `<div class="sl-date-sep"><span class="sl-date-sep-pill">${_slackDateLabel(msg.created_at)}</span></div>`;
+    }
+
+    const avatar = _avatar(msg.author_name, 36);
     const replies = msg.replies || [];
     const replyCount = msg.reply_count || replies.length;
 
-    // Thread preview bar (like Slack: avatars + reply count + last reply time)
+    // Thread preview bar
     let threadPreview = '';
     if (replyCount > 0) {
       const uniqueAuthors = [];
       const seen = new Set();
       for (const r of replies) {
-        if (!seen.has(r.author_name)) {
-          seen.add(r.author_name);
-          uniqueAuthors.push(r.author_name);
-          if (uniqueAuthors.length >= 4) break;
-        }
+        if (!seen.has(r.author_name)) { seen.add(r.author_name); uniqueAuthors.push(r.author_name); if (uniqueAuthors.length >= 4) break; }
       }
-      const thumbs = uniqueAuthors.map(n =>
-        `<img src="${_slackAvatar(n, 20)}" alt="" class="sl-thread-thumb">`
-      ).join('');
+      const thumbs = uniqueAuthors.map(n => `<img src="${_avatar(n, 20)}" alt="" class="sl-thread-thumb">`).join('');
       const lastReply = replies[replies.length - 1];
       const lastTime = lastReply ? timeAgo(lastReply.created_at) : '';
       threadPreview = `<div class="sl-thread-bar" onclick="_openSlackThread(${idx})">
@@ -7218,7 +7330,6 @@ function _renderSlackChannel(data, channelId) {
       </div>`;
     }
 
-    // Hover action bar — clean SVG icons matching Slack
     const actionBar = `<div class="sl-actions">
       <button title="Add reaction" onclick="event.stopPropagation()"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="10" cy="10" r="8"/><path d="M6.5 11.5c.7 1.4 2 2 3.5 2s2.8-.6 3.5-2" stroke-linecap="round"/><circle cx="7.5" cy="8" r="0.7" fill="currentColor" stroke="none"/><circle cx="12.5" cy="8" r="0.7" fill="currentColor" stroke="none"/></svg></button>
       <button title="Reply in thread" onclick="event.stopPropagation();_openSlackThread(${idx})"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 7l-5-4v2.5C5 6.5 3 9 3 13c1.5-2.5 4-3.5 7-3.5V12l5-5z"/></svg></button>
@@ -7226,7 +7337,7 @@ function _renderSlackChannel(data, channelId) {
       <button title="More" onclick="event.stopPropagation()"><svg viewBox="0 0 20 20" fill="currentColor"><circle cx="10" cy="4" r="1.5"/><circle cx="10" cy="10" r="1.5"/><circle cx="10" cy="16" r="1.5"/></svg></button>
     </div>`;
 
-    return `<div class="sl-msg-wrap">
+    html += `<div class="sl-msg-wrap">
       ${actionBar}
       <div class="sl-msg">
         <img src="${avatar}" alt="" class="sl-avatar">
@@ -7236,26 +7347,35 @@ function _renderSlackChannel(data, channelId) {
             <span class="sl-time">${_slackFullDate(msg.created_at)}</span>
           </div>
           <div class="sl-text">${_slackFormatBody(msg.body)}</div>
-          ${_renderReactions(msg.reactions)}
+          ${_slackRenderReactions(msg.reactions)}
           ${threadPreview}
         </div>
       </div>
     </div>`;
-  }).join('');
+  });
 
-  el.innerHTML = `
-    <div class="sl-channel-header">
-      <button onclick="loadSlack()" class="sl-back-btn">\u2190 Back</button>
-      <span class="sl-channel-name"># ${esc(ch.name)}</span>
-      <span class="sl-channel-desc">${esc(ch.description||'')}</span>
-    </div>
-    <div class="sl-split">
-      <div class="sl-message-list" id="slMsgList">${msgHtml||'<div style="text-align:center;padding:40px;color:var(--text3);">No messages yet</div>'}</div>
-      <div id="slThreadPanel"></div>
-    </div>`;
+  msgList.innerHTML = html || '<div style="text-align:center;padding:40px;color:var(--text3);">No messages yet. Start the conversation!</div>';
+  // Scroll to bottom
+  msgList.scrollTop = msgList.scrollHeight;
 }
 
-// ── Open Slack thread side panel (real Slack UX) ──
+async function _slackSendMessage() {
+  if (!_slackCurrentChannel || !_slackChannelData) return;
+  const input = document.getElementById('slComposerInput');
+  const body = (input.innerText || '').trim();
+  if (!body) return;
+  input.textContent = '';
+  try {
+    await fetch(`${API}/api/slack/channels/${_slackCurrentChannel}/messages`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ body, author_email: 'you@develeap.com', author_name: 'You' }),
+    });
+    _slackSelectChannel(_slackCurrentChannel);
+  } catch(e) {}
+}
+
+// ── Open Slack thread side panel ──
 function _openSlackThread(msgIdx) {
   if (!_slackChannelData) return;
   const msg = _slackChannelData.messages[msgIdx];
@@ -7263,55 +7383,30 @@ function _openSlackThread(msgIdx) {
   const ch = _slackChannelData.channel;
   const replies = msg.replies || [];
 
-  function _slackAvatar(name, size) { return _avatar(name, size); }
-
-  function _slackFullDate(dateStr) {
-    if (!dateStr) return '';
-    const d = new Date(dateStr);
-    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    const day = d.getDate();
-    const suffix = day===1||day===21||day===31?'st':day===2||day===22?'nd':day===3||day===23?'rd':'th';
-    const h = d.getHours();
-    const m = d.getMinutes().toString().padStart(2,'0');
-    const ampm = h >= 12 ? 'PM' : 'AM';
-    const h12 = h % 12 || 12;
-    return `${months[d.getMonth()]} ${day}${suffix} at ${h12}:${m} ${ampm}`;
-  }
-
-  function _renderReactions(reactions) {
-    if (!reactions || !reactions.length) return '';
-    return '<div class="sl-reactions">' + reactions.map(rx => {
-      const cnt = (rx.users||[]).length;
-      return '<span class="sl-rxn">' + rx.emoji + (cnt > 1 ? ' <span class="sl-rxn-count">' + cnt + '</span>' : '') + '</span>';
-    }).join('') + '</div>';
-  }
-
-  // Parent message at top of thread
   const parentHtml = `<div class="sl-msg-wrap">
     <div class="sl-msg">
-      <img src="${_slackAvatar(msg.author_name, 36)}" alt="" class="sl-avatar">
+      <img src="${_avatar(msg.author_name, 36)}" alt="" class="sl-avatar">
       <div class="sl-body">
         <div class="sl-meta">
           <span class="sl-author">${esc(msg.author_name||'Anon')}</span>
           <span class="sl-time">${_slackFullDate(msg.created_at)}</span>
         </div>
         <div class="sl-text">${_slackFormatBody(msg.body)}</div>
-        ${_renderReactions(msg.reactions)}
+        ${_slackRenderReactions(msg.reactions)}
       </div>
     </div>
   </div>`;
 
-  // Thread replies
   const repliesHtml = replies.map(r => `<div class="sl-msg-wrap">
     <div class="sl-msg">
-      <img src="${_slackAvatar(r.author_name, 36)}" alt="" class="sl-avatar">
+      <img src="${_avatar(r.author_name, 36)}" alt="" class="sl-avatar">
       <div class="sl-body">
         <div class="sl-meta">
           <span class="sl-author">${esc(r.author_name||'Anon')}</span>
           <span class="sl-time">${_slackFullDate(r.created_at)}</span>
         </div>
         <div class="sl-text">${_slackFormatBody(r.body)}</div>
-        ${_renderReactions(r.reactions)}
+        ${_slackRenderReactions(r.reactions)}
       </div>
     </div>
   </div>`).join('');
@@ -7332,15 +7427,13 @@ function _openSlackThread(msgIdx) {
     </div>
     <div class="sl-thread-composer">
       <div class="sl-thread-composer-box">
-        <span class="sl-thread-composer-placeholder">Reply...</span>
+        <div class="sl-composer-input" contenteditable="true" data-placeholder="Reply..."></div>
       </div>
       <div class="sl-thread-composer-toolbar">
         <button title="Attach">+</button>
-        <button title="Formatting">Aa</button>
+        <button title="Formatting" style="font-size:13px;font-weight:700;">Aa</button>
         <button title="Emoji">&#x263A;</button>
         <button title="Mention">@</button>
-        <button title="Record">&#x1F3A4;</button>
-        <button title="Shortcuts">&#x26A1;</button>
         <span style="flex:1;"></span>
         <button title="Send" style="color:var(--text3);font-size:18px;">&#x27A4;</button>
       </div>
@@ -7357,12 +7450,11 @@ function _closeSlackThread() {
 }
 
 function _slackFormatBody(text) {
-  // Format code blocks, bold, mentions
   let s = esc(text);
-  s = s.replace(/```([\s\S]*?)```/g, '<pre style="background:var(--bg2);padding:8px 12px;border-radius:6px;font-size:11px;overflow-x:auto;margin:6px 0;font-family:monospace;">$1</pre>');
-  s = s.replace(/`([^`]+)`/g, '<code style="background:var(--bg2);padding:1px 4px;border-radius:3px;font-size:11px;">$1</code>');
+  s = s.replace(/```([\s\S]*?)```/g, '<pre style="background:var(--bg2);padding:8px 12px;border-radius:6px;font-size:12px;overflow-x:auto;margin:6px 0;font-family:monospace;">$1</pre>');
+  s = s.replace(/`([^`]+)`/g, '<code style="background:rgba(29,28,29,.04);padding:2px 4px;border-radius:3px;font-size:12px;color:#e01e5a;border:1px solid var(--border);">$1</code>');
   s = s.replace(/\*([^*]+)\*/g, '<strong>$1</strong>');
-  s = s.replace(/@(\w+)/g, '<span style="color:var(--accent);font-weight:600;">@$1</span>');
+  s = s.replace(/@(\w[\w.]*)/g, '<span style="background:rgba(29,155,209,.1);color:#1264a3;padding:1px 3px;border-radius:3px;font-weight:600;cursor:pointer;">@$1</span>');
   return s;
 }
 

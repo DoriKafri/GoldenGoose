@@ -3703,12 +3703,30 @@ def dedup_news(db: Session = Depends(get_db_dependency)):
     Reassigns annotations from duplicates to the surviving item before deletion."""
     total_deleted = 0
 
+    def _delete_news_item_cascade(item):
+        """Delete a news item and all its dependent records (replies, reactions, annotations)."""
+        ann_ids = [a.id for a in db.query(PageAnnotation).filter(
+            PageAnnotation.news_item_id == item.id
+        ).all()]
+        if ann_ids:
+            from venture_engine.db.models import PageAnnotationReply, AnnotationReaction
+            db.query(PageAnnotationReply).filter(
+                PageAnnotationReply.annotation_id.in_(ann_ids)
+            ).delete(synchronize_session=False)
+            db.query(AnnotationReaction).filter(
+                AnnotationReaction.annotation_id.in_(ann_ids)
+            ).delete(synchronize_session=False)
+            db.query(PageAnnotation).filter(
+                PageAnnotation.news_item_id == item.id
+            ).delete(synchronize_session=False)
+        db.delete(item)
+
     def _dedup_group(items_list):
         """Keep first item, reassign annotations from rest, then delete rest."""
         nonlocal total_deleted
         keep = items_list[0]
         for item in items_list[1:]:
-            # Reassign annotations to the surviving item
+            # Reassign annotations (and their replies/reactions stay intact)
             db.query(PageAnnotation).filter(
                 PageAnnotation.news_item_id == item.id
             ).update({"news_item_id": keep.id}, synchronize_session=False)
@@ -3722,10 +3740,7 @@ def dedup_news(db: Session = Depends(get_db_dependency)):
             NewsFeedItem.signal_strength < 8.5,
         ).all()
         for item in low_arxiv:
-            db.query(PageAnnotation).filter(
-                PageAnnotation.news_item_id == item.id
-            ).delete(synchronize_session=False)
-            db.delete(item)
+            _delete_news_item_cascade(item)
             total_deleted += 1
         db.flush()
 

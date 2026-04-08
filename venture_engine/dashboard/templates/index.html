@@ -1179,22 +1179,9 @@ html.dark .sl-msg-wrap:hover { background:rgba(255,255,255,.08); }
 .lm-user img { width:24px; height:24px; border-radius:50%; }
 .lm-user-name { font-size:11px; color:var(--text2); font-weight:500; max-width:100px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .lm-user-dot { width:8px; height:8px; border-radius:50%; background:#22c55e; flex-shrink:0; }
-.lm-chart { height:80px; display:flex; align-items:flex-end; gap:3px; }
-.lm-chart-bar { flex:1; border-radius:3px 3px 0 0; min-height:4px; transition:height .5s; position:relative; display:flex; flex-direction:column; justify-content:flex-end; }
-.lm-chart-bar .lm-bar-seg { width:100%; transition:height .5s; }
-.lm-chart-bar .lm-bar-seg.slack { background:#4A154B; border-radius:3px 3px 0 0; }
-.lm-chart-bar .lm-bar-seg.bugs { background:#8b5cf6; }
-.lm-chart-bar .lm-bar-seg.comments { background:var(--accent); border-radius:0 0 0 0; }
-.lm-chart-bar:hover { opacity:.85; }
-.lm-chart-bar:hover::after { content:attr(data-tip); position:absolute; bottom:calc(100% + 4px); left:50%; transform:translateX(-50%); background:var(--text); color:var(--bg); font-size:10px; padding:2px 6px; border-radius:4px; white-space:nowrap; z-index:5; pointer-events:none; }
-.lm-chart-labels { display:flex; gap:3px; margin-top:4px; }
-.lm-chart-labels span { flex:1; text-align:center; font-size:9px; color:var(--text3); }
 .lm-range-btn { border:none; background:var(--bg2); color:var(--text3); font-size:10px; font-weight:600; font-family:inherit; padding:3px 8px; border-radius:4px; cursor:pointer; transition:all .15s; }
 .lm-range-btn:hover { color:var(--text2); }
 .lm-range-btn.active { background:var(--accent); color:#1a1a1a; }
-.lm-chart-legend { display:flex; gap:10px; margin-top:8px; }
-.lm-chart-legend span { font-size:10px; color:var(--text3); display:flex; align-items:center; gap:3px; }
-.lm-chart-legend span::before { content:''; width:8px; height:8px; border-radius:2px; }
 @media(max-width:768px) {
   .lm-wrap { flex-direction:column; padding:16px; }
   .lm-side { width:100%; }
@@ -6960,15 +6947,14 @@ async function loadLiveMonitor() {
         <div class="lm-card">
           <div class="lm-card-title" style="justify-content:space-between;">
             <span>📊 Activity</span>
-            <div style="display:flex;gap:4px;" id="lmChartTabs">
+            <div style="display:flex;gap:3px;" id="lmChartTabs">
               <button class="lm-range-btn active" onclick="_lmSwitchRange('1h')">1H</button>
               <button class="lm-range-btn" onclick="_lmSwitchRange('6h')">6H</button>
               <button class="lm-range-btn" onclick="_lmSwitchRange('24h')">24H</button>
               <button class="lm-range-btn" onclick="_lmSwitchRange('7d')">7D</button>
             </div>
           </div>
-          <div class="lm-chart" id="lmChart" style="height:120px;"></div>
-          <div class="lm-chart-labels" id="lmChartLabels"></div>
+          <div id="lmChartWrap"></div>
         </div>
       </div>
     </div>`;
@@ -7082,36 +7068,137 @@ async function _lmSwitchRange(range) {
 }
 
 async function _lmLoadChart() {
-  const chartEl = document.getElementById('lmChart');
-  const labelsEl = document.getElementById('lmChartLabels');
-  if (!chartEl) return;
+  const wrap = document.getElementById('lmChartWrap');
+  if (!wrap) return;
   try {
     const resp = await fetch(`${API}/api/activity-chart?range=${_lmChartRange}`);
     const data = await resp.json();
     const buckets = data.buckets || [];
-    const max = Math.max(...buckets.map(b => b.total), 1);
-    chartEl.innerHTML = buckets.map(b => {
-      const pct = (b.total / max) * 100;
-      const sH = b.total > 0 ? Math.round((b.slack / b.total) * pct) : 0;
-      const bH = b.total > 0 ? Math.round((b.bugs / b.total) * pct) : 0;
-      const cH = Math.max(pct - sH - bH, 0);
-      return `<div class="lm-chart-bar" data-tip="${b.total} events">
-        <div class="lm-bar-seg slack" style="height:${sH || 0}%"></div>
-        <div class="lm-bar-seg bugs" style="height:${bH || 0}%"></div>
-        <div class="lm-bar-seg comments" style="height:${cH || (b.total === 0 ? 4 : 0)}%"></div>
-      </div>`;
-    }).join('') + `<div class="lm-chart-legend" style="position:absolute;bottom:-20px;left:0;right:0;display:flex;justify-content:center;gap:12px;">
-      <span style="color:var(--text3);font-size:10px;display:flex;align-items:center;gap:3px;"><span style="width:8px;height:8px;border-radius:2px;background:#4A154B;display:inline-block;"></span>Slack</span>
-      <span style="color:var(--text3);font-size:10px;display:flex;align-items:center;gap:3px;"><span style="width:8px;height:8px;border-radius:2px;background:#8b5cf6;display:inline-block;"></span>Bugs</span>
-      <span style="color:var(--text3);font-size:10px;display:flex;align-items:center;gap:3px;"><span style="width:8px;height:8px;border-radius:2px;background:var(--accent);display:inline-block;"></span>Comments</span>
-    </div>`;
-    chartEl.style.position = 'relative';
-    chartEl.style.paddingBottom = '22px';
-    if (labelsEl) {
-      labelsEl.innerHTML = buckets.map(b => `<span>${b.label}</span>`).join('');
+    const W = 280, H = 100, padL = 28, padR = 8, padT = 8, padB = 24;
+    const cw = W - padL - padR, ch = H - padT - padB;
+    const n = buckets.length || 1;
+    const max = Math.max(...buckets.map(b => b.total), 3); // min 3 so empty looks reasonable
+    const xStep = cw / (n - 1 || 1);
+
+    // Build area paths for stacked layers: comments(bottom), bugs(mid), slack(top)
+    function makeArea(key, prev) {
+      let top = '', bot = '';
+      for (let i = 0; i < n; i++) {
+        const x = padL + i * xStep;
+        const val = (prev ? prev[i] : 0) + (buckets[i][key] || 0);
+        const y = padT + ch - (val / max) * ch;
+        top += (i === 0 ? 'M' : 'L') + x.toFixed(1) + ',' + y.toFixed(1);
+        if (prev) prev[i] = val; else if (!prev) { /* handled below */ }
+      }
+      // Build cumulative
+      const cumul = [];
+      for (let i = 0; i < n; i++) {
+        cumul[i] = (prev ? prev[i] : 0);
+      }
+      // Recalc with cumulative
+      let topPath = '', botPath = '';
+      const stack = [];
+      for (let i = 0; i < n; i++) {
+        const x = padL + i * xStep;
+        const baseVal = prev ? prev[i] - (buckets[i][key] || 0) : 0;
+        const topVal = prev ? prev[i] : (buckets[i][key] || 0);
+        const yTop = padT + ch - (topVal / max) * ch;
+        const yBot = padT + ch - (baseVal / max) * ch;
+        topPath += (i === 0 ? 'M' : 'L') + x.toFixed(1) + ',' + yTop.toFixed(1);
+        stack.push({ x, yBot });
+      }
+      for (let i = n - 1; i >= 0; i--) {
+        botPath += 'L' + stack[i].x.toFixed(1) + ',' + stack[i].yBot.toFixed(1);
+      }
+      return topPath + botPath + 'Z';
     }
+
+    // Simple stacked approach
+    const cumul = new Array(n).fill(0);
+    function stackArea(key, color) {
+      let topPts = [], botPts = [];
+      for (let i = 0; i < n; i++) {
+        const x = padL + i * xStep;
+        const base = cumul[i];
+        cumul[i] += (buckets[i][key] || 0);
+        const yTop = padT + ch - (cumul[i] / max) * ch;
+        const yBot = padT + ch - (base / max) * ch;
+        topPts.push(`${x.toFixed(1)},${yTop.toFixed(1)}`);
+        botPts.push(`${x.toFixed(1)},${yBot.toFixed(1)}`);
+      }
+      const d = 'M' + topPts.join('L') + 'L' + botPts.reverse().join('L') + 'Z';
+      return `<path d="${d}" fill="${color}" opacity="0.7"/>`;
+    }
+
+    // Grid lines
+    let grid = '';
+    for (let i = 0; i <= 3; i++) {
+      const y = padT + (ch / 3) * i;
+      const val = Math.round(max - (max / 3) * i);
+      grid += `<line x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" stroke="var(--border)" stroke-width="0.5"/>`;
+      grid += `<text x="${padL - 4}" y="${y + 3}" text-anchor="end" fill="var(--text3)" font-size="8">${val}</text>`;
+    }
+
+    // X labels (show every 2nd or 3rd to avoid crowding)
+    let labels = '';
+    const labelEvery = n <= 7 ? 1 : n <= 12 ? 2 : 3;
+    for (let i = 0; i < n; i++) {
+      if (i % labelEvery === 0 || i === n - 1) {
+        const x = padL + i * xStep;
+        labels += `<text x="${x}" y="${H - 2}" text-anchor="middle" fill="var(--text3)" font-size="8">${buckets[i].label}</text>`;
+      }
+    }
+
+    // Dots on top line
+    let dots = '';
+    for (let i = 0; i < n; i++) {
+      const x = padL + i * xStep;
+      const y = padT + ch - (cumul[i] / max) * ch;
+      dots += `<circle cx="${x}" cy="${y}" r="2.5" fill="var(--accent)" stroke="#fff" stroke-width="1"/>`;
+    }
+
+    // Total line on top
+    let topLine = '';
+    for (let i = 0; i < n; i++) {
+      const x = padL + i * xStep;
+      const y = padT + ch - (cumul[i] / max) * ch;
+      topLine += (i === 0 ? 'M' : 'L') + `${x.toFixed(1)},${y.toFixed(1)}`;
+    }
+
+    // Reset cumul and build
+    cumul.fill(0);
+    const areas = stackArea('comments', '#FFB100') + stackArea('bugs', '#8b5cf6') + stackArea('slack', '#4A154B');
+
+    // Top line after stacking
+    let linePath = '';
+    for (let i = 0; i < n; i++) {
+      const x = padL + i * xStep;
+      const y = padT + ch - (cumul[i] / max) * ch;
+      linePath += (i === 0 ? 'M' : 'L') + `${x.toFixed(1)},${y.toFixed(1)}`;
+    }
+    let dotsStr = '';
+    for (let i = 0; i < n; i++) {
+      const x = padL + i * xStep;
+      const y = padT + ch - (cumul[i] / max) * ch;
+      dotsStr += `<circle cx="${x}" cy="${y}" r="2" fill="var(--text2)" stroke="var(--card)" stroke-width="1"/>`;
+    }
+
+    wrap.innerHTML = `
+      <svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block;">
+        ${grid}
+        ${areas}
+        <path d="${linePath}" fill="none" stroke="var(--text3)" stroke-width="1" opacity="0.5"/>
+        ${dotsStr}
+        ${labels}
+      </svg>
+      <div style="display:flex;justify-content:center;gap:12px;margin-top:6px;">
+        <span style="font-size:10px;color:var(--text3);display:flex;align-items:center;gap:4px;"><span style="width:8px;height:8px;border-radius:2px;background:#FFB100;display:inline-block;"></span>Comments</span>
+        <span style="font-size:10px;color:var(--text3);display:flex;align-items:center;gap:4px;"><span style="width:8px;height:8px;border-radius:2px;background:#8b5cf6;display:inline-block;"></span>Bugs</span>
+        <span style="font-size:10px;color:var(--text3);display:flex;align-items:center;gap:4px;"><span style="width:8px;height:8px;border-radius:2px;background:#4A154B;display:inline-block;"></span>Slack</span>
+      </div>`;
   } catch(e) {
     console.warn('Activity chart error:', e);
+    wrap.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3);font-size:12px;">Chart unavailable</div>';
   }
 }
 

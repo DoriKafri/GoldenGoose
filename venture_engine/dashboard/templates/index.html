@@ -192,8 +192,8 @@ html.dark .toggle-track::after { transform:translateX(16px); }
 .sl-msg-wrap:hover { background:var(--bg2); }
 .sl-msg { display:flex;gap:10px;padding:6px 0; }
 .sl-reply { padding:4px 0; }
-.sl-avatar { width:36px;height:36px;border-radius:50%;flex-shrink:0; }
-.sl-reply .sl-avatar { width:36px;height:36px; }
+.sl-avatar { width:36px !important;height:36px !important;min-width:36px;min-height:36px;max-width:36px;max-height:36px;border-radius:50% !important;flex-shrink:0;object-fit:cover; }
+.sl-reply .sl-avatar { width:36px !important;height:36px !important; }
 .sl-body { flex:1;min-width:0; }
 .sl-meta { display:flex;align-items:baseline;gap:6px; }
 .sl-author { font-size:14px;font-weight:800;color:var(--text);cursor:pointer; }
@@ -238,7 +238,7 @@ html.dark .toggle-track::after { transform:translateX(16px); }
 .sl-thread-msgs .sl-msg-wrap { padding:4px 16px;margin:0; }
 .sl-thread-msgs .sl-msg-wrap:hover { background:var(--bg2); }
 .sl-thread-msgs .sl-msg { padding:6px 0; }
-.sl-thread-msgs .sl-avatar { width:36px;height:36px; }
+.sl-thread-msgs .sl-avatar { width:36px !important;height:36px !important; }
 .sl-thread-divider { display:flex;align-items:center;gap:10px;margin:12px 16px;font-size:12px;color:var(--text3);font-weight:600; }
 .sl-thread-divider::before,.sl-thread-divider::after { content:'';flex:1;height:1px;background:var(--border); }
 .sl-thread-composer { padding:12px 16px;border-top:1px solid var(--border);flex-shrink:0; }
@@ -2307,7 +2307,7 @@ async function loadThreads() {
           ${msgsHtml}
           <div class="sl-thread-composer" style="margin-top:8px;">
             <div class="sl-thread-composer-box" style="display:flex;align-items:flex-start;gap:8px;">
-              <img src="${_threadAvatar('You', 28)}" alt="" style="width:28px;height:28px;border-radius:6px;flex-shrink:0;margin-top:2px;">
+              <img src="${_threadAvatar('You', 36)}" alt="" class="sl-avatar" style="margin-top:2px;">
               <div style="flex:1;min-width:0;">
                 <div contenteditable="true" class="sl-thread-reply-input" data-thread-idx="${tIdx}" style="min-height:20px;outline:none;font-size:13px;color:var(--text);line-height:1.5;padding:2px 0;" data-placeholder="Reply..."></div>
               </div>
@@ -5525,9 +5525,8 @@ function _avatarColor(name) {
   return _AVATAR_COLORS[Math.abs(hash) % _AVATAR_COLORS.length];
 }
 function _avatar(name, size) {
-  const s = size || 36;
   const c = _avatarColor(name);
-  return `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(name||'?')}&radius=50&backgroundColor=${c}&textColor=ffffff&size=${s}`;
+  return `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(name||'?')}&radius=50&backgroundColor=${c}&textColor=ffffff&size=128`;
 }
 function parseSkills(s){try{const arr=typeof s==='string'?JSON.parse(s):s;return arr.map(sk=>'<span class="stat-skill">'+esc(sk)+'</span>').join('');}catch(e){return esc(s);}}
 

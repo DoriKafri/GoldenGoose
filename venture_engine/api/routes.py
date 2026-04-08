@@ -3638,6 +3638,28 @@ class NewsPostRequest(BaseModel):
     comment: str = ""
 
 
+@router.post("/api/news/score-and-filter")
+def score_and_filter_news(min_score: float = Query(5.0), db: Session = Depends(get_db_dependency)):
+    """Retroactively score existing news items and remove low-DOPI ones."""
+    from venture_engine.main import _score_dopi_relevance
+
+    items = db.query(NewsFeedItem).all()
+    removed = 0
+    scored = 0
+    for item in items:
+        score = _score_dopi_relevance(item.title or "", item.summary or "")
+        if score < min_score:
+            db.delete(item)
+            removed += 1
+            logger.info(f"Removed low-DOPI news (score={score}): {(item.title or '')[:60]}")
+        else:
+            item.signal_strength = round(score, 1)
+            scored += 1
+    db.commit()
+    remaining = db.query(func.count(NewsFeedItem.id)).scalar()
+    return {"scored": scored, "removed": removed, "remaining": remaining, "min_score": min_score}
+
+
 @router.post("/api/news/dedup")
 def dedup_news(db: Session = Depends(get_db_dependency)):
     """Delete duplicate news items, keeping the oldest per URL (or per title if no URL)."""

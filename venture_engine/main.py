@@ -181,25 +181,85 @@ def _backfill_news_from_signals():
         ).order_by(RawSignal.created_at.desc()).all()
 
         count = 0
+        skipped = 0
         for s in signals:
             if s.url in existing_urls:
                 continue
             strength = s.signal_strength or 0.5
+
+            # ── DOPI relevance gate: score article before adding to feed ──
+            title = s.title or "Untitled"
+            summary = (s.content or "")[:300]
+            dopi_score = _score_dopi_relevance(title, summary)
+            if dopi_score < 5.0:
+                logger.info(f"Filtered low-DOPI article (score={dopi_score}): {title[:60]}")
+                existing_urls.add(s.url)  # don't re-check
+                skipped += 1
+                continue
+
             news_item = NewsFeedItem(
-                title=s.title or "Untitled",
+                title=title,
                 url=s.url,
                 source=s.source or "unknown",
                 source_name=SOURCE_NAMES.get(s.source, s.source or "Signal"),
-                summary=(s.content or "")[:300],
-                signal_strength=round(strength * 10, 1) if strength <= 1 else round(strength, 1),
+                summary=summary,
+                signal_strength=round(dopi_score, 1),  # use DOPI score as signal strength
                 published_at=s.created_at,
             )
             db.add(news_item)
             existing_urls.add(s.url)
             count += 1
 
-        if count:
-            logger.info(f"Backfilled {count} news items from raw signals")
+        if count or skipped:
+            logger.info(f"Backfilled {count} news items (filtered {skipped} low-DOPI)")
+
+
+def _score_dopi_relevance(title: str, summary: str) -> float:
+    """Score an article's DOPI relevance (0-10) using Gemini.
+
+    Evaluates whether the article contains actionable problems/opportunities
+    for a DevOps/AI engineering consultancy to build ventures around.
+    Returns a float 0-10. Articles scoring < 5 are filtered from the feed.
+    """
+    import os
+    _gkey = os.environ.get("GOOGLE_GEMINI_API_KEY", "")
+    if not _gkey:
+        return 6.0  # Default pass-through if no API key
+
+    prompt = f"""Rate this article's relevance for a DevOps, cloud, and AI engineering consultancy looking for venture-building opportunities.
+
+Score 0-10 based on:
+- Does it reveal actionable PROBLEMS companies face? (weight: 30%)
+- Does it highlight OPPORTUNITIES to build products/services? (weight: 30%)
+- Is it about a trending/growing domain (AI, DevOps, cloud, platform engineering, security)? (weight: 20%)
+- Does it contain concrete data, insights, or expert opinions (not just academic theory)? (weight: 20%)
+
+Title: {title}
+Summary: {summary}
+
+Return ONLY a single number (0-10, one decimal place). No explanation.
+Example: 7.5"""
+
+    try:
+        import httpx
+        resp = httpx.post(
+            f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key={_gkey}",
+            json={"contents": [{"parts": [{"text": prompt}]}],
+                  "generationConfig": {"temperature": 0.1, "maxOutputTokens": 10}},
+            timeout=15.0,
+        )
+        if resp.status_code == 200:
+            text = resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
+            # Extract number from response
+            import re
+            m = re.search(r'(\d+\.?\d*)', text)
+            if m:
+                score = float(m.group(1))
+                return min(10.0, max(0.0, score))
+    except Exception as e:
+        logger.warning(f"DOPI scoring failed for '{title[:40]}': {e}")
+
+    return 6.0  # Default if scoring fails
 
 
 def _resolve_hn_urls():

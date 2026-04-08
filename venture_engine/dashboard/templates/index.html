@@ -447,6 +447,9 @@ html.dark .toggle-track::after { transform:translateX(16px); }
   .mobile-drawer-overlay.open { display:block; }
   .mobile-drawer .drawer-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
   .mobile-drawer .drawer-close { width:28px; height:28px; border:none; background:none; color:var(--sidebar-text); font-size:20px; cursor:pointer; }
+  .drawer-nav-btn { width:100%; display:flex; align-items:center; gap:8px; padding:8px 10px; border:none; background:none; color:var(--sidebar-text); font-size:13px; font-weight:500; cursor:pointer; border-radius:var(--radius); text-align:left; transition:background 0.15s; }
+  .drawer-nav-btn:hover, .drawer-nav-btn.active { background:rgba(255,255,255,0.1); }
+  .drawer-nav-btn.active { color:var(--accent); font-weight:600; }
   .main { margin-left:0; max-width:100vw; padding:8px; overflow-x:hidden; box-sizing:border-box; }
   .main-inner { max-width:100%; overflow-x:hidden; }
   /* Tabs: hidden (moved to sidebar) */
@@ -1859,6 +1862,10 @@ function switchTab(tab, skipHash) {
   currentPage = 0;
   // Update sidebar nav active state
   document.querySelectorAll('.sidebar-nav-item').forEach(b => {
+    b.classList.toggle('active', b.dataset.tab === tab);
+  });
+  // Update mobile drawer nav buttons
+  document.querySelectorAll('.drawer-nav-btn').forEach(b => {
     b.classList.toggle('active', b.dataset.tab === tab);
   });
   // Also update top-tabs if still present (backward compat)
@@ -6489,47 +6496,54 @@ async function loadActivity() {
 
 </script>
 
-<!-- Mobile drawer -->
+<!-- Mobile drawer (mirrors desktop sidebar) -->
 <div class="mobile-drawer-overlay" id="mobileOverlay" onclick="toggleMobileDrawer()"></div>
 <div class="mobile-drawer" id="mobileDrawer">
   <div class="drawer-header">
-    <span style="font-size:14px;font-weight:700;color:var(--sidebar-text);">Filters & Settings</span>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="var(--accent)" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8 12l2 2 4-4"/></svg>
+      <span style="font-size:14px;font-weight:700;color:var(--sidebar-text);">develeap</span>
+    </div>
     <button class="drawer-close" onclick="toggleMobileDrawer()">&times;</button>
   </div>
+
   <div class="drawer-section">
-    <label>Domain</label>
-    <select onchange="document.getElementById('filterDomain').value=this.value;loadVentures();">
-      <option value="">All Domains</option>
-      <option value="DevOps">DevOps</option>
-      <option value="DevSecOps">DevSecOps</option>
-      <option value="MLOps">MLOps</option>
-      <option value="DataOps">DataOps</option>
-      <option value="AIEng">AIEng</option>
-      <option value="SRE">SRE</option>
-    </select>
+    <label>FEED</label>
+    <button class="drawer-nav-btn" data-tab="news" onclick="switchTab('news');toggleMobileDrawer();">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+      News
+    </button>
+    <button class="drawer-nav-btn" data-tab="threads" onclick="switchTab('threads');toggleMobileDrawer();">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      Threads
+    </button>
   </div>
+
   <div class="drawer-section">
-    <label>Status</label>
-    <select onchange="document.getElementById('filterStatus').value=this.value;loadVentures();">
-      <option value="">All Status</option>
-      <option value="backlog">Backlog</option>
-      <option value="watch">Watch</option>
-      <option value="active">Active</option>
-      <option value="parked">Parked</option>
-      <option value="launched">Launched</option>
-    </select>
+    <label>VENTURES</label>
+    <button class="drawer-nav-btn" data-tab="venture" onclick="switchTab('venture');toggleMobileDrawer();">Ideas</button>
+    <button class="drawer-nav-btn" data-tab="stealth" onclick="switchTab('stealth');toggleMobileDrawer();">Clone</button>
+    <button class="drawer-nav-btn" data-tab="flip" onclick="switchTab('flip');toggleMobileDrawer();">Quick Flip</button>
+    <button class="drawer-nav-btn" data-tab="customer" onclick="switchTab('customer');toggleMobileDrawer();">Customers</button>
+    <button class="drawer-nav-btn" data-tab="missing_piece" onclick="switchTab('missing_piece');toggleMobileDrawer();">Missing Piece</button>
+    <button class="drawer-nav-btn" data-tab="training" onclick="switchTab('training');toggleMobileDrawer();">Training</button>
   </div>
+
   <div class="drawer-section">
-    <label>Sort</label>
-    <select onchange="document.getElementById('sortBy').value=this.value;loadVentures();">
-      <option value="score">Score</option>
-      <option value="date">Date</option>
-      <option value="votes">Votes</option>
-    </select>
+    <label>TOOLS</label>
+    <button class="drawer-nav-btn" data-tab="bugs" onclick="switchTab('bugs');toggleMobileDrawer();">Bugs</button>
+    <button class="drawer-nav-btn" data-tab="graph" onclick="switchTab('graph');toggleMobileDrawer();">Graph</button>
+    <button class="drawer-nav-btn" data-tab="slack" onclick="switchTab('slack');toggleMobileDrawer();">Slack</button>
+    <button class="drawer-nav-btn" data-tab="activity" onclick="switchTab('activity');toggleMobileDrawer();">Activity</button>
+    <button class="drawer-nav-btn" data-tab="sim-users" onclick="switchTab('sim-users');toggleMobileDrawer();">Sim Users</button>
   </div>
-  <button class="drawer-btn primary" onclick="openSuggestModal();toggleMobileDrawer();">+ Suggest</button>
-  <button class="drawer-btn outline" onclick="triggerHarvest();toggleMobileDrawer();">Trigger Harvest</button>
-  <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--sidebar-border);">
+
+  <div class="drawer-section" style="margin-top:8px;">
+    <button class="drawer-btn primary" onclick="triggerHarvest();toggleMobileDrawer();">Trigger Harvest</button>
+    <button class="drawer-btn outline" onclick="openSettings();toggleMobileDrawer();">Settings</button>
+  </div>
+
+  <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--sidebar-border);">
     <div style="display:flex;align-items:center;justify-content:space-between;">
       <span style="font-size:11px;color:var(--sidebar-text);opacity:0.6;">Theme</span>
       <div class="theme-toggle" onclick="toggleTheme()" style="display:flex !important;"></div>

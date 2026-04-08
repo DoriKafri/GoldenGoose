@@ -4867,7 +4867,7 @@ def get_live_feed(since: Optional[str] = None, limit: int = 30, db: Session = De
 
 
 @router.get("/api/activity-chart")
-def get_activity_chart(range: str = "1h", db: Session = Depends(get_db_dependency)):
+def get_activity_chart(time_range: str = Query("1h", alias="range"), db: Session = Depends(get_db_dependency)):
     """Return bucketed activity counts for chart display.
     range: 1h (12x5min), 6h (12x30min), 24h (12x2h), 7d (7x1d)"""
     from datetime import datetime, timedelta
@@ -4878,9 +4878,9 @@ def get_activity_chart(range: str = "1h", db: Session = Depends(get_db_dependenc
         "24h": (12, timedelta(hours=2), "%H:%M"),
         "7d":  (7,  timedelta(days=1), "%a"),
     }
-    buckets, step, fmt = configs.get(range, configs["1h"])
+    num_buckets, step, fmt = configs.get(time_range, configs["1h"])
     result = []
-    for i in range(buckets, 0, -1):
+    for i in range(num_buckets, 0, -1):
         t_end = now - step * (i - 1)
         t_start = t_end - step
         slack_c = db.query(func.count(SlackMessage.id)).filter(
@@ -4896,7 +4896,7 @@ def get_activity_chart(range: str = "1h", db: Session = Depends(get_db_dependenc
             "total": slack_c + bug_c + comment_c + annot_c,
             "slack": slack_c, "bugs": bug_c, "comments": comment_c + annot_c,
         })
-    return {"range": range, "buckets": result}
+    return {"range": time_range, "buckets": result}
 
 
 @router.post("/api/simulated-users/update-personas")

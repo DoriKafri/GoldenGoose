@@ -1180,8 +1180,21 @@ html.dark .sl-msg-wrap:hover { background:rgba(255,255,255,.08); }
 .lm-user-name { font-size:11px; color:var(--text2); font-weight:500; max-width:100px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .lm-user-dot { width:8px; height:8px; border-radius:50%; background:#22c55e; flex-shrink:0; }
 .lm-chart { height:80px; display:flex; align-items:flex-end; gap:3px; }
-.lm-chart-bar { flex:1; background:var(--accent); border-radius:3px 3px 0 0; min-height:4px; transition:height .5s; opacity:.7; }
-.lm-chart-bar:last-child { opacity:1; }
+.lm-chart-bar { flex:1; border-radius:3px 3px 0 0; min-height:4px; transition:height .5s; position:relative; display:flex; flex-direction:column; justify-content:flex-end; }
+.lm-chart-bar .lm-bar-seg { width:100%; transition:height .5s; }
+.lm-chart-bar .lm-bar-seg.slack { background:#4A154B; border-radius:3px 3px 0 0; }
+.lm-chart-bar .lm-bar-seg.bugs { background:#8b5cf6; }
+.lm-chart-bar .lm-bar-seg.comments { background:var(--accent); border-radius:0 0 0 0; }
+.lm-chart-bar:hover { opacity:.85; }
+.lm-chart-bar:hover::after { content:attr(data-tip); position:absolute; bottom:calc(100% + 4px); left:50%; transform:translateX(-50%); background:var(--text); color:var(--bg); font-size:10px; padding:2px 6px; border-radius:4px; white-space:nowrap; z-index:5; pointer-events:none; }
+.lm-chart-labels { display:flex; gap:3px; margin-top:4px; }
+.lm-chart-labels span { flex:1; text-align:center; font-size:9px; color:var(--text3); }
+.lm-range-btn { border:none; background:var(--bg2); color:var(--text3); font-size:10px; font-weight:600; font-family:inherit; padding:3px 8px; border-radius:4px; cursor:pointer; transition:all .15s; }
+.lm-range-btn:hover { color:var(--text2); }
+.lm-range-btn.active { background:var(--accent); color:#1a1a1a; }
+.lm-chart-legend { display:flex; gap:10px; margin-top:8px; }
+.lm-chart-legend span { font-size:10px; color:var(--text3); display:flex; align-items:center; gap:3px; }
+.lm-chart-legend span::before { content:''; width:8px; height:8px; border-radius:2px; }
 @media(max-width:768px) {
   .lm-wrap { flex-direction:column; padding:16px; }
   .lm-side { width:100%; }
@@ -6945,12 +6958,22 @@ async function loadLiveMonitor() {
           <div class="lm-users" id="lmUsers"></div>
         </div>
         <div class="lm-card">
-          <div class="lm-card-title">📊 Activity (last 5 min)</div>
-          <div class="lm-chart" id="lmChart"></div>
+          <div class="lm-card-title" style="justify-content:space-between;">
+            <span>📊 Activity</span>
+            <div style="display:flex;gap:4px;" id="lmChartTabs">
+              <button class="lm-range-btn active" onclick="_lmSwitchRange('1h')">1H</button>
+              <button class="lm-range-btn" onclick="_lmSwitchRange('6h')">6H</button>
+              <button class="lm-range-btn" onclick="_lmSwitchRange('24h')">24H</button>
+              <button class="lm-range-btn" onclick="_lmSwitchRange('7d')">7D</button>
+            </div>
+          </div>
+          <div class="lm-chart" id="lmChart" style="height:120px;"></div>
+          <div class="lm-chart-labels" id="lmChartLabels"></div>
         </div>
       </div>
     </div>`;
   await _lmPoll();
+  _lmLoadChart();
   _lmPollTimer = setInterval(_lmPoll, 8000);
   // 1-second ticker to keep timestamps and clock live
   _lmTickTimer = setInterval(_lmTick, 1000);
@@ -7040,18 +7063,55 @@ async function _lmPoll() {
       if (_lmHistory.length > 20) _lmHistory.shift();
     }
 
-    // Sparkline chart
-    const chartEl = document.getElementById('lmChart');
-    if (chartEl && _lmHistory.length > 0) {
-      const max = Math.max(..._lmHistory, 1);
-      chartEl.innerHTML = _lmHistory.map(v =>
-        `<div class="lm-chart-bar" style="height:${Math.max((v/max)*100, 5)}%"></div>`
-      ).join('');
-    }
+    // Refresh activity chart
+    _lmLoadChart();
 
     if (data.server_time) _lmLastTime = data.server_time;
   } catch(e) {
     console.warn('Live feed poll error:', e);
+  }
+}
+
+let _lmChartRange = '1h';
+async function _lmSwitchRange(range) {
+  _lmChartRange = range;
+  document.querySelectorAll('#lmChartTabs .lm-range-btn').forEach(b => {
+    b.classList.toggle('active', b.textContent.trim().toLowerCase() === range);
+  });
+  await _lmLoadChart();
+}
+
+async function _lmLoadChart() {
+  const chartEl = document.getElementById('lmChart');
+  const labelsEl = document.getElementById('lmChartLabels');
+  if (!chartEl) return;
+  try {
+    const resp = await fetch(`${API}/api/activity-chart?range=${_lmChartRange}`);
+    const data = await resp.json();
+    const buckets = data.buckets || [];
+    const max = Math.max(...buckets.map(b => b.total), 1);
+    chartEl.innerHTML = buckets.map(b => {
+      const pct = (b.total / max) * 100;
+      const sH = b.total > 0 ? Math.round((b.slack / b.total) * pct) : 0;
+      const bH = b.total > 0 ? Math.round((b.bugs / b.total) * pct) : 0;
+      const cH = Math.max(pct - sH - bH, 0);
+      return `<div class="lm-chart-bar" data-tip="${b.total} events">
+        <div class="lm-bar-seg slack" style="height:${sH || 0}%"></div>
+        <div class="lm-bar-seg bugs" style="height:${bH || 0}%"></div>
+        <div class="lm-bar-seg comments" style="height:${cH || (b.total === 0 ? 4 : 0)}%"></div>
+      </div>`;
+    }).join('') + `<div class="lm-chart-legend" style="position:absolute;bottom:-20px;left:0;right:0;display:flex;justify-content:center;gap:12px;">
+      <span style="color:var(--text3);font-size:10px;display:flex;align-items:center;gap:3px;"><span style="width:8px;height:8px;border-radius:2px;background:#4A154B;display:inline-block;"></span>Slack</span>
+      <span style="color:var(--text3);font-size:10px;display:flex;align-items:center;gap:3px;"><span style="width:8px;height:8px;border-radius:2px;background:#8b5cf6;display:inline-block;"></span>Bugs</span>
+      <span style="color:var(--text3);font-size:10px;display:flex;align-items:center;gap:3px;"><span style="width:8px;height:8px;border-radius:2px;background:var(--accent);display:inline-block;"></span>Comments</span>
+    </div>`;
+    chartEl.style.position = 'relative';
+    chartEl.style.paddingBottom = '22px';
+    if (labelsEl) {
+      labelsEl.innerHTML = buckets.map(b => `<span>${b.label}</span>`).join('');
+    }
+  } catch(e) {
+    console.warn('Activity chart error:', e);
   }
 }
 

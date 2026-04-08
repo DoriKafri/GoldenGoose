@@ -4866,6 +4866,39 @@ def get_live_feed(since: Optional[str] = None, limit: int = 30, db: Session = De
     }
 
 
+@router.get("/api/activity-chart")
+def get_activity_chart(range: str = "1h", db: Session = Depends(get_db_dependency)):
+    """Return bucketed activity counts for chart display.
+    range: 1h (12x5min), 6h (12x30min), 24h (12x2h), 7d (7x1d)"""
+    from datetime import datetime, timedelta
+    now = datetime.utcnow()
+    configs = {
+        "1h":  (12, timedelta(minutes=5), "%H:%M"),
+        "6h":  (12, timedelta(minutes=30), "%H:%M"),
+        "24h": (12, timedelta(hours=2), "%H:%M"),
+        "7d":  (7,  timedelta(days=1), "%a"),
+    }
+    buckets, step, fmt = configs.get(range, configs["1h"])
+    result = []
+    for i in range(buckets, 0, -1):
+        t_end = now - step * (i - 1)
+        t_start = t_end - step
+        slack_c = db.query(func.count(SlackMessage.id)).filter(
+            SlackMessage.created_at >= t_start, SlackMessage.created_at < t_end).scalar() or 0
+        bug_c = db.query(func.count(Bug.id)).filter(
+            Bug.created_at >= t_start, Bug.created_at < t_end).scalar() or 0
+        comment_c = db.query(func.count(BugComment.id)).filter(
+            BugComment.created_at >= t_start, BugComment.created_at < t_end).scalar() or 0
+        annot_c = db.query(func.count(PageAnnotation.id)).filter(
+            PageAnnotation.created_at >= t_start, PageAnnotation.created_at < t_end).scalar() or 0
+        result.append({
+            "label": t_end.strftime(fmt),
+            "total": slack_c + bug_c + comment_c + annot_c,
+            "slack": slack_c, "bugs": bug_c, "comments": comment_c + annot_c,
+        })
+    return {"range": range, "buckets": result}
+
+
 @router.post("/api/simulated-users/update-personas")
 def trigger_persona_update(db: Session = Depends(get_db_dependency)):
     """Manually trigger thought leader persona updates."""

@@ -11,7 +11,7 @@ from loguru import logger
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
-from venture_engine.db.models import SlackChannel, SlackMessage
+from venture_engine.db.models import SlackChannel, SlackMessage, ThoughtLeader
 
 # ── Team Personas (LinkedIn-inspired) ─────────────────────────────────────
 PERSONAS = {
@@ -106,6 +106,67 @@ PERSONAS = {
         "emoji_style": ["📚", "🎓", "💡", "🧠"],
     },
 }
+
+# ── Thought Leader Slack message templates ───────────────────────────────
+TL_SLACK_MESSAGES = {
+    "general": [
+        "Just published a new post on {domain} — the industry is at an inflection point. Would love the Develeap team's take.",
+        "Seeing a lot of chatter about {topic} this week. This is going to reshape how teams think about {domain}.",
+        "Dropped by to share a signal: three enterprise teams I advise just independently adopted {topic}. That's a pattern.",
+        "Hot take from the outside: your venture intelligence approach is ahead of the curve. Most consultancies are still doing this manually.",
+    ],
+    "engineering": [
+        "Engineering opinion: if your {topic} pipeline takes longer than 10 minutes, you've already lost. Speed compounds.",
+        "I've been benchmarking {topic} solutions — the performance gap between tools is widening. Happy to share data.",
+        "The real cost of {topic} complexity isn't the tooling — it's the cognitive load on your engineers. Simplify aggressively.",
+        "Unpopular opinion: {topic} is being over-engineered. Start with the simplest thing that works.",
+    ],
+    "ai-and-ml": [
+        "The {topic} landscape is shifting weekly. What I was recommending 3 months ago is already outdated.",
+        "Just tested {topic} in a production scenario — the results are better than expected. Thread below.",
+        "Everyone's focused on model size but the real breakthrough is in {topic} efficiency. Smaller, faster, cheaper.",
+        "AI take: {topic} is the sleeper technology of 2026. Most people won't realize until it's everywhere.",
+    ],
+    "devops-knowhow": [
+        "Pro tip from years of {domain} work: always instrument before you optimize. You can't improve what you don't measure.",
+        "The most underrated {domain} skill right now? Understanding cost modeling for {topic}.",
+        "I've seen this pattern at 20+ companies: {topic} adoption follows the same curve. Here's how to skip the painful middle.",
+        "Quick thread on {domain} best practices that saved a team I advise $200k/year.",
+    ],
+    "feature-ideas": [
+        "From a {domain} perspective, the feature I'd most want to see is real-time {topic} correlation across signals.",
+        "Idea from the outside: what if your scoring model weighted {topic} signals differently based on market maturity?",
+    ],
+}
+
+TL_SLACK_TOPICS = [
+    "CI/CD", "platform engineering", "AI agents", "LLM orchestration",
+    "Kubernetes", "observability", "developer experience", "GitOps",
+    "cloud cost optimization", "infrastructure as code", "service mesh",
+    "AI-assisted coding", "vector databases", "RAG pipelines",
+    "container security", "FinOps", "edge computing", "MLOps",
+]
+
+
+def _get_tl_slack_personas(db: Session, count: int = 3) -> list:
+    """Get random thought leaders as Slack participants."""
+    tls = db.query(ThoughtLeader).all()
+    if not tls:
+        return []
+    selected = random.sample(tls, min(count, len(tls)))
+    result = []
+    for tl in selected:
+        email = f"tl_{tl.handle}@simulated.develeap.com"
+        result.append({
+            "email": email,
+            "name": tl.name,
+            "title": f"Thought Leader • {(tl.domains or ['Tech'])[0]}",
+            "domains": tl.domains or ["technology"],
+            "handle": tl.handle or "",
+            "emoji_style": ["💡", "🔥", "📊", "🎯"],
+        })
+    return result
+
 
 # ── Channel definitions ──────────────────────────────────────────────────
 DEFAULT_CHANNELS = [
@@ -567,6 +628,83 @@ def simulate_slack_activity(db: Session) -> dict:
                     from sqlalchemy.orm.attributes import flag_modified
                     flag_modified(rand_msg, "reactions")
                     stats["reactions"] += 1
+
+    # ── Thought Leader participation (1-2 messages per cycle) ──────────
+    tl_personas = _get_tl_slack_personas(db, count=4)
+    stats["tl_messages"] = 0
+    stats["tl_replies"] = 0
+
+    if tl_personas:
+        # 70% chance of TL posting in a channel
+        if random.random() < 0.7:
+            tl_user = random.choice(tl_personas)
+            channel = random.choice(channels)
+            templates = TL_SLACK_MESSAGES.get(channel.name, TL_SLACK_MESSAGES.get("general", []))
+            if templates:
+                template = random.choice(templates)
+                domain = random.choice(tl_user["domains"])
+                topic = random.choice(TL_SLACK_TOPICS)
+                body = template.format(domain=domain, topic=topic)
+
+                msg = SlackMessage(
+                    channel_id=channel.id,
+                    author_email=tl_user["email"],
+                    author_name=tl_user["name"],
+                    body=body,
+                )
+                db.add(msg)
+                db.flush()
+                stats["tl_messages"] += 1
+
+                # 50% chance of a team member replying to TL
+                if random.random() < 0.5:
+                    replier_email = random.choice(list(PERSONAS.keys()))
+                    replier = PERSONAS[replier_email]
+                    reply_templates = [
+                        f"Thanks for sharing, {tl_user['name']}! This is super relevant to what we're building.",
+                        f"@{tl_user['name']} — would love to pick your brain on this. Can we schedule a quick call?",
+                        f"This confirms what we've been seeing internally. Great to have the external validation.",
+                        f"Fascinating perspective. We should incorporate this into our venture scoring model.",
+                        f"Agreed. We're already exploring {topic} — your input would accelerate things.",
+                    ]
+                    reply_msg = SlackMessage(
+                        channel_id=channel.id,
+                        thread_id=msg.id,
+                        author_email=replier_email,
+                        author_name=replier["name"],
+                        body=random.choice(reply_templates),
+                    )
+                    db.add(reply_msg)
+                    stats["tl_replies"] += 1
+
+        # 40% chance of TL replying to existing thread
+        if random.random() < 0.4:
+            tl_user = random.choice(tl_personas)
+            channel = random.choice(channels)
+            existing_msg = db.query(SlackMessage).filter(
+                SlackMessage.channel_id == channel.id,
+                SlackMessage.thread_id.is_(None),
+            ).order_by(func.random()).first()
+
+            if existing_msg:
+                domain = random.choice(tl_user["domains"])
+                topic = random.choice(TL_SLACK_TOPICS)
+                reply_options = [
+                    f"From my experience in {domain}, this is spot on. The key is execution speed.",
+                    f"Adding context: I've seen 5+ teams tackle this. The ones that succeed focus on {topic} first.",
+                    f"Worth noting that {topic} is evolving fast. What works today might not work in 6 months.",
+                    f"This is why I'm bullish on the Develeap approach. You're thinking about {domain} the right way.",
+                    f"Let me connect you with someone from my network who's deep in {topic}. DM me.",
+                ]
+                reply_msg = SlackMessage(
+                    channel_id=channel.id,
+                    thread_id=existing_msg.id,
+                    author_email=tl_user["email"],
+                    author_name=tl_user["name"],
+                    body=random.choice(reply_options),
+                )
+                db.add(reply_msg)
+                stats["tl_replies"] += 1
 
     db.commit()
     return stats

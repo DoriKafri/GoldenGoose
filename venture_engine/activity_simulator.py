@@ -16,7 +16,7 @@ from sqlalchemy import func
 
 from venture_engine.db.models import (
     NewsFeedItem, PageAnnotation, PageAnnotationReply,
-    AnnotationReaction, Bug, BugComment,
+    AnnotationReaction, Bug, BugComment, ThoughtLeader,
 )
 
 # ── Develeap team ──────────────────────────────────────────────────────────
@@ -77,6 +77,56 @@ REPLY_TEMPLATES = [
 ]
 
 REACTION_EMOJIS = ["👍", "🔥", "💡", "🚀", "🎯", "👏", "💪", "⭐", "✅", "🧠"]
+
+# ── Thought Leader comment templates (expert, opinionated, domain-specific) ──
+TL_COMMENT_TEMPLATES = [
+    "This aligns with what I've been saying about {domain} — the industry is finally catching up.",
+    "Interesting approach, but I'd push back on the {domain} assumptions here. The real bottleneck is elsewhere.",
+    "We implemented something similar at {org}. The key insight they're missing is scale-dependent behavior.",
+    "Strong signal. This is the kind of {domain} innovation that compounds over 3-5 years.",
+    "I wrote about this exact problem last month. The solution space is larger than most people realize.",
+    "The {domain} community has been debating this for a while. This data point shifts the conversation.",
+    "Hot take: this approach won't survive contact with production at scale. But the direction is right.",
+    "This is why I keep hammering on {domain} fundamentals. You can't shortcut the hard problems.",
+    "Worth watching. The team behind this has a track record of shipping real solutions.",
+    "Shared this with my network — it's sparking a great discussion about {domain} best practices.",
+    "The market timing is perfect for this. I'm seeing similar signals from multiple sources.",
+    "Counterpoint: the complexity cost here is underestimated. Simplicity wins in {domain}.",
+    "This validates the thesis I presented at KubeCon / re:Invent. The shift is happening faster than expected.",
+    "Three years ago this would have been impossible. The {domain} tooling ecosystem has matured significantly.",
+    "I'd love to see this team's approach applied to the {domain} problems we're seeing in enterprise.",
+]
+
+TL_REPLY_TEMPLATES = [
+    "Great point, {name}. From a {domain} perspective, I'd add that the operational cost is the real story.",
+    "Agreed. This is exactly the kind of cross-pollination between {domain} and practice that drives progress.",
+    "I see it differently — the {domain} angle here is more nuanced than the article suggests.",
+    "This connects to what I've been exploring in my latest work. Happy to share a draft.",
+    "@{name} — have you seen the benchmarks from the CNCF study? They support your observation.",
+    "The {domain} implications go deeper. We should be asking what this means for the next 5 years.",
+]
+
+
+def _get_tl_users(db: Session, limit: int = 5) -> list:
+    """Get thought leaders as simulated users for activity."""
+    tls = db.query(ThoughtLeader).all()
+    if not tls:
+        return []
+    selected = random.sample(tls, min(limit, len(tls)))
+    return [
+        {
+            "name": tl.name,
+            "email": f"tl_{tl.handle}@simulated.develeap.com",
+            "title": f"Thought Leader • {(tl.domains or ['Tech'])[0]}",
+            "is_tl": True,
+            "domains": tl.domains or [],
+            "org": tl.org or "",
+            "handle": tl.handle or "",
+            "avatar_url": tl.avatar_url or "",
+        }
+        for tl in selected
+    ]
+
 
 # ── Bug templates ─────────────────────────────────────────────────────────
 BUG_TEMPLATES = [
@@ -437,6 +487,102 @@ def simulate_activity(db: Session) -> dict:
         )
         db.add(bc)
         stats["bug_comments"] += 1
+
+    # ── 7. Thought Leader article comments (1-3 per cycle) ───────────
+    tl_users = _get_tl_users(db, limit=5)
+    stats["tl_comments"] = 0
+    stats["tl_replies"] = 0
+    stats["tl_reactions"] = 0
+
+    if tl_users:
+        num_tl_comments = random.randint(1, 3)
+        tl_news = db.query(NewsFeedItem).filter(
+            NewsFeedItem.url.isnot(None)
+        ).order_by(NewsFeedItem.published_at.desc().nullslast()).limit(20).all()
+
+        for item in random.sample(tl_news, min(num_tl_comments, len(tl_news))):
+            tl_user = random.choice(tl_users)
+            # Don't double-comment
+            existing = db.query(PageAnnotation).filter(
+                PageAnnotation.url == item.url,
+                PageAnnotation.author_id == tl_user["email"],
+            ).first()
+            if existing:
+                continue
+
+            domain = random.choice(tl_user["domains"]) if tl_user["domains"] else "technology"
+            template = random.choice(TL_COMMENT_TEMPLATES)
+            body = template.format(domain=domain, org=tl_user.get("org", "my team"))
+            ann = PageAnnotation(
+                url=item.url,
+                news_item_id=item.id,
+                selected_text="",
+                prefix_context="",
+                suffix_context="",
+                body=body,
+                author_id=tl_user["email"],
+                author_name=tl_user["name"],
+            )
+            db.add(ann)
+            stats["tl_comments"] += 1
+
+        # ── 8. TL replies to existing comments ───────────────────────
+        num_tl_replies = random.randint(0, 2)
+        if num_tl_replies > 0:
+            recent_anns = db.query(PageAnnotation).order_by(
+                PageAnnotation.created_at.desc()
+            ).limit(20).all()
+
+            for ann in random.sample(recent_anns, min(num_tl_replies, len(recent_anns))):
+                tl_user = random.choice(tl_users)
+                if ann.author_id == tl_user["email"]:
+                    continue
+                existing_reply = db.query(PageAnnotationReply).filter(
+                    PageAnnotationReply.annotation_id == ann.id,
+                    PageAnnotationReply.author_id == tl_user["email"],
+                ).count()
+                if existing_reply > 0:
+                    continue
+
+                domain = random.choice(tl_user["domains"]) if tl_user["domains"] else "technology"
+                template = random.choice(TL_REPLY_TEMPLATES)
+                body = template.format(
+                    name=ann.author_name or "there",
+                    domain=domain,
+                )
+                reply = PageAnnotationReply(
+                    annotation_id=ann.id,
+                    body=body,
+                    author_id=tl_user["email"],
+                    author_name=tl_user["name"],
+                )
+                db.add(reply)
+                stats["tl_replies"] += 1
+
+        # ── 9. TL emoji reactions ────────────────────────────────────
+        num_tl_reactions = random.randint(1, 3)
+        recent_anns = db.query(PageAnnotation).order_by(
+            PageAnnotation.created_at.desc()
+        ).limit(30).all()
+
+        for ann in random.sample(recent_anns, min(num_tl_reactions, len(recent_anns))):
+            tl_user = random.choice(tl_users)
+            emoji = random.choice(REACTION_EMOJIS)
+            existing = db.query(AnnotationReaction).filter(
+                AnnotationReaction.annotation_id == ann.id,
+                AnnotationReaction.author_id == tl_user["email"],
+                AnnotationReaction.emoji == emoji,
+            ).first()
+            if existing:
+                continue
+            reaction = AnnotationReaction(
+                annotation_id=ann.id,
+                emoji=emoji,
+                author_id=tl_user["email"],
+                author_name=tl_user["name"],
+            )
+            db.add(reaction)
+            stats["tl_reactions"] += 1
 
     db.commit()
     return stats

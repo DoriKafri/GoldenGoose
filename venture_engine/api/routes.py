@@ -4158,3 +4158,204 @@ def seed_slack_channels(db: Session = Depends(get_db_dependency)):
     from venture_engine.slack_simulator import seed_channels_and_history
     result = seed_channels_and_history(db)
     return result
+
+
+# ── Simulated Users Dashboard ──────────────────────────────────────────────
+@router.get("/api/simulated-users")
+def get_simulated_users(db: Session = Depends(get_db_dependency)):
+    """Return all simulated users (team + thought leaders) with their activity stats."""
+    from venture_engine.activity_simulator import TEAM
+
+    users = []
+
+    # ── Develeap team members ──
+    for member in TEAM:
+        email = member["email"]
+        comments = db.query(func.count(PageAnnotation.id)).filter(
+            PageAnnotation.author_id == email
+        ).scalar() or 0
+        replies = db.query(func.count(PageAnnotationReply.id)).filter(
+            PageAnnotationReply.author_id == email
+        ).scalar() or 0
+        reactions = db.query(func.count(AnnotationReaction.id)).filter(
+            AnnotationReaction.author_id == email
+        ).scalar() or 0
+        bugs_reported = db.query(func.count(Bug.id)).filter(
+            Bug.reporter_email == email
+        ).scalar() or 0
+        bugs_assigned = db.query(func.count(Bug.id)).filter(
+            Bug.assignee_email == email
+        ).scalar() or 0
+        bug_comments = db.query(func.count(BugComment.id)).filter(
+            BugComment.author_email == email
+        ).scalar() or 0
+        slack_msgs = db.query(func.count(SlackMessage.id)).filter(
+            SlackMessage.author_email == email
+        ).scalar() or 0
+
+        # Last active
+        last_comment = db.query(func.max(PageAnnotation.created_at)).filter(
+            PageAnnotation.author_id == email).scalar()
+        last_slack = db.query(func.max(SlackMessage.created_at)).filter(
+            SlackMessage.author_email == email).scalar()
+        last_active = max(filter(None, [last_comment, last_slack]), default=None)
+
+        users.append({
+            "type": "team",
+            "name": member["name"],
+            "email": email,
+            "title": member["title"],
+            "avatar_url": f"https://api.dicebear.com/7.x/initials/svg?seed={member['name']}",
+            "stats": {
+                "comments": comments,
+                "replies": replies,
+                "reactions": reactions,
+                "bugs_reported": bugs_reported,
+                "bugs_assigned": bugs_assigned,
+                "bug_comments": bug_comments,
+                "slack_messages": slack_msgs,
+                "total_actions": comments + replies + reactions + bugs_reported + bug_comments + slack_msgs,
+            },
+            "last_active": last_active.isoformat() if last_active else None,
+        })
+
+    # ── Thought Leaders ──
+    tls = db.query(ThoughtLeader).all()
+    for tl in tls:
+        tl_email = f"tl_{tl.handle}@simulated.develeap.com"
+        comments = db.query(func.count(PageAnnotation.id)).filter(
+            PageAnnotation.author_id == tl_email
+        ).scalar() or 0
+        replies = db.query(func.count(PageAnnotationReply.id)).filter(
+            PageAnnotationReply.author_id == tl_email
+        ).scalar() or 0
+        reactions = db.query(func.count(AnnotationReaction.id)).filter(
+            AnnotationReaction.author_id == tl_email
+        ).scalar() or 0
+        slack_msgs = db.query(func.count(SlackMessage.id)).filter(
+            SlackMessage.author_email == tl_email
+        ).scalar() or 0
+        # TL signals (venture evaluations)
+        tl_signals = db.query(func.count(TLSignal.id)).filter(
+            TLSignal.thought_leader_id == tl.id
+        ).scalar() or 0
+
+        last_comment = db.query(func.max(PageAnnotation.created_at)).filter(
+            PageAnnotation.author_id == tl_email).scalar()
+        last_slack = db.query(func.max(SlackMessage.created_at)).filter(
+            SlackMessage.author_email == tl_email).scalar()
+        last_signal = db.query(func.max(TLSignal.created_at)).filter(
+            TLSignal.thought_leader_id == tl.id).scalar()
+        last_active = max(filter(None, [last_comment, last_slack, last_signal]), default=None)
+
+        users.append({
+            "type": "thought_leader",
+            "name": tl.name,
+            "email": tl_email,
+            "title": f"{(tl.org or 'Independent')} • {(tl.domains or ['Tech'])[0]}",
+            "handle": tl.handle,
+            "platform": tl.platform,
+            "avatar_url": tl.avatar_url or f"https://api.dicebear.com/7.x/initials/svg?seed={tl.name}",
+            "domains": tl.domains or [],
+            "persona_updated": tl.last_synced_at.isoformat() if tl.last_synced_at else None,
+            "stats": {
+                "comments": comments,
+                "replies": replies,
+                "reactions": reactions,
+                "slack_messages": slack_msgs,
+                "venture_signals": tl_signals,
+                "total_actions": comments + replies + reactions + slack_msgs + tl_signals,
+            },
+            "last_active": last_active.isoformat() if last_active else None,
+        })
+
+    # Sort by total actions descending
+    users.sort(key=lambda u: u["stats"]["total_actions"], reverse=True)
+
+    return {
+        "users": users,
+        "summary": {
+            "total_users": len(users),
+            "team_members": len(TEAM),
+            "thought_leaders": len(tls),
+            "total_actions": sum(u["stats"]["total_actions"] for u in users),
+        },
+    }
+
+
+@router.get("/api/simulated-users/{email}/activity")
+def get_user_activity(email: str, limit: int = 50, db: Session = Depends(get_db_dependency)):
+    """Get detailed activity timeline for a specific simulated user."""
+    events = []
+
+    # Comments
+    comments = db.query(PageAnnotation).filter(
+        PageAnnotation.author_id == email
+    ).order_by(PageAnnotation.created_at.desc()).limit(limit).all()
+    for c in comments:
+        events.append({
+            "type": "comment",
+            "body": c.body[:200] if c.body else "",
+            "url": c.url,
+            "time": c.created_at.isoformat() if c.created_at else None,
+        })
+
+    # Replies
+    replies = db.query(PageAnnotationReply).filter(
+        PageAnnotationReply.author_id == email
+    ).order_by(PageAnnotationReply.created_at.desc()).limit(limit).all()
+    for r in replies:
+        events.append({
+            "type": "reply",
+            "body": r.body[:200] if r.body else "",
+            "time": r.created_at.isoformat() if r.created_at else None,
+        })
+
+    # Slack messages
+    slack_msgs = db.query(SlackMessage).filter(
+        SlackMessage.author_email == email
+    ).order_by(SlackMessage.created_at.desc()).limit(limit).all()
+    for m in slack_msgs:
+        events.append({
+            "type": "slack_message",
+            "body": m.body[:200] if m.body else "",
+            "channel_id": m.channel_id,
+            "is_reply": m.thread_id is not None,
+            "time": m.created_at.isoformat() if m.created_at else None,
+        })
+
+    # Bug reports
+    bugs = db.query(Bug).filter(
+        Bug.reporter_email == email
+    ).order_by(Bug.created_at.desc()).limit(limit).all()
+    for b in bugs:
+        events.append({
+            "type": "bug_report",
+            "body": f"{b.key}: {b.title}",
+            "status": b.status,
+            "priority": b.priority,
+            "time": b.created_at.isoformat() if b.created_at else None,
+        })
+
+    # Bug comments
+    bug_comments = db.query(BugComment).filter(
+        BugComment.author_email == email
+    ).order_by(BugComment.created_at.desc()).limit(limit).all()
+    for bc in bug_comments:
+        events.append({
+            "type": "bug_comment",
+            "body": bc.body[:200] if bc.body else "",
+            "time": bc.created_at.isoformat() if bc.created_at else None,
+        })
+
+    # Sort by time
+    events.sort(key=lambda e: e.get("time", ""), reverse=True)
+    return {"email": email, "events": events[:limit]}
+
+
+@router.post("/api/simulated-users/update-personas")
+def trigger_persona_update(db: Session = Depends(get_db_dependency)):
+    """Manually trigger thought leader persona updates."""
+    from venture_engine.thought_leaders.persona_updater import update_all_personas
+    count = update_all_personas(db)
+    return {"updated": count, "total": db.query(func.count(ThoughtLeader.id)).scalar()}

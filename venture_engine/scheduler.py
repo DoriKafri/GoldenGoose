@@ -95,6 +95,16 @@ def _simulate_user_activity():
     run_slack_simulation()
 
 
+def _update_tl_personas():
+    """Job 7: Weekly update of thought leader personas with latest public thoughts."""
+    logger.info("=== SCHEDULED: TL persona update starting ===")
+    try:
+        from venture_engine.thought_leaders.persona_updater import run_persona_update
+        run_persona_update()
+    except Exception as e:
+        logger.error(f"TL persona update error: {e}")
+
+
 def _weekly_digest():
     """Job 4: Generate and print weekly digest."""
     logger.info("=== SCHEDULED: Weekly digest ===")
@@ -171,6 +181,14 @@ def start_scheduler():
         "interval",
         minutes=30,
         id="simulate_user_activity",
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        _update_tl_personas,
+        "cron",
+        day_of_week="mon",
+        hour=6,
+        id="update_tl_personas",
         replace_existing=True,
     )
     scheduler.start()

@@ -990,6 +990,10 @@ html.dark .toggle-track::after { transform:translateX(16px); }
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
         Activity
       </button>
+      <button class="sidebar-nav-item" data-tab="sim-users" onclick="switchTab('sim-users')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        Sim Users
+      </button>
     </div>
 
     <div class="sidebar-section" id="sidebarFilters">
@@ -1862,7 +1866,7 @@ function switchTab(tab, skipHash) {
     b.classList.toggle('active', b.dataset.tab === tab);
   });
   // Show/hide context-sensitive elements
-  const isVentureTab = !['news','threads','bugs','graph','slack','activity'].includes(tab);
+  const isVentureTab = !['news','threads','bugs','graph','slack','activity','sim-users'].includes(tab);
   document.getElementById('suggestTabBtn').style.display = isVentureTab ? '' : 'none';
   document.getElementById('newsPostBar').style.display = (tab === 'news') ? '' : 'none';
   document.getElementById('ventureSearchBar').style.display = isVentureTab ? '' : 'none';
@@ -1879,12 +1883,15 @@ function switchTab(tab, skipHash) {
   // Show/hide pagination (hidden for news=infinite scroll, and non-list tabs)
   const paginationEl = document.querySelector('.pagination');
   if (paginationEl) paginationEl.style.display = isVentureTab ? 'flex' : 'none';
+  // Hide news post bar for non-news tabs
+  document.getElementById('newsPostBar').style.display = (tab === 'news') ? '' : 'none';
   if (tab === 'threads') { loadThreads(); }
   else if (tab === 'news') { loadNews(); }
   else if (tab === 'bugs') { loadBugs(); }
   else if (tab === 'graph') { loadGraph(); }
   else if (tab === 'slack') { loadSlack(); }
   else if (tab === 'activity') { loadActivity(); }
+  else if (tab === 'sim-users') { loadSimUsers(); }
   else { loadVentures(); }
 }
 
@@ -5897,6 +5904,188 @@ async function _bugCreate() {
     }),
   });
   loadBugs();
+}
+
+
+// ─── Simulated Users Dashboard ──────────────────────────────────
+
+async function loadSimUsers() {
+  const el = document.getElementById('ventureList');
+  el.innerHTML = '<div class="loading">Loading simulated users...</div>';
+  try {
+    const resp = await fetch(API + '/api/simulated-users');
+    const data = await resp.json();
+    const users = data.users || [];
+    const summary = data.summary || {};
+
+    // Stats header
+    var statsHtml = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:16px;">';
+    statsHtml += '<div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px;text-align:center;">';
+    statsHtml += '<div style="font-size:24px;font-weight:700;color:var(--text);">' + (summary.total_users||0) + '</div>';
+    statsHtml += '<div style="font-size:11px;color:var(--text3);margin-top:2px;">Total Users</div></div>';
+    statsHtml += '<div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px;text-align:center;">';
+    statsHtml += '<div style="font-size:24px;font-weight:700;color:#3b82f6;">' + (summary.team_members||0) + '</div>';
+    statsHtml += '<div style="font-size:11px;color:var(--text3);margin-top:2px;">Team Members</div></div>';
+    statsHtml += '<div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px;text-align:center;">';
+    statsHtml += '<div style="font-size:24px;font-weight:700;color:#f59e0b;">' + (summary.thought_leaders||0) + '</div>';
+    statsHtml += '<div style="font-size:11px;color:var(--text3);margin-top:2px;">Thought Leaders</div></div>';
+    statsHtml += '<div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px;text-align:center;">';
+    statsHtml += '<div style="font-size:24px;font-weight:700;color:#22c55e;">' + (summary.total_actions||0) + '</div>';
+    statsHtml += '<div style="font-size:11px;color:var(--text3);margin-top:2px;">Total Actions</div></div>';
+    statsHtml += '</div>';
+
+    // Filter tabs
+    statsHtml += '<div style="display:flex;gap:8px;margin-bottom:16px;">';
+    statsHtml += '<button id="simFilterAll" onclick="_simFilter(\'all\')" style="padding:6px 14px;border-radius:var(--radius-pill);border:1px solid var(--border);background:var(--accent);color:white;font-size:12px;cursor:pointer;">All</button>';
+    statsHtml += '<button id="simFilterTeam" onclick="_simFilter(\'team\')" style="padding:6px 14px;border-radius:var(--radius-pill);border:1px solid var(--border);background:var(--card);color:var(--text);font-size:12px;cursor:pointer;">Team</button>';
+    statsHtml += '<button id="simFilterTL" onclick="_simFilter(\'thought_leader\')" style="padding:6px 14px;border-radius:var(--radius-pill);border:1px solid var(--border);background:var(--card);color:var(--text);font-size:12px;cursor:pointer;">Thought Leaders</button>';
+    statsHtml += '<button onclick="_simUpdatePersonas(this)" style="margin-left:auto;padding:6px 14px;border-radius:var(--radius-pill);border:1px solid var(--border);background:var(--card);color:var(--text);font-size:12px;cursor:pointer;">Update Personas</button>';
+    statsHtml += '</div>';
+
+    // User cards
+    var cardsHtml = '<div id="simUserCards">';
+    for (var i = 0; i < users.length; i++) {
+      var u = users[i];
+      var isTL = u.type === 'thought_leader';
+      var badgeColor = isTL ? '#f59e0b' : '#3b82f6';
+      var badgeText = isTL ? 'TL' : 'Team';
+      var s = u.stats || {};
+
+      cardsHtml += '<div class="sim-user-card" data-user-type="' + u.type + '" style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:8px;cursor:pointer;" onclick="_simShowUserDetail(\'' + u.email.replace(/'/g, "\\'") + '\')">';
+      cardsHtml += '<div style="display:flex;align-items:center;gap:12px;">';
+      cardsHtml += '<img src="' + esc(u.avatar_url || '') + '" style="width:40px;height:40px;border-radius:50%;object-fit:cover;border:2px solid ' + badgeColor + ';" onerror="this.src=\'https://api.dicebear.com/7.x/initials/svg?seed=' + encodeURIComponent(u.name) + '\'">';
+      cardsHtml += '<div style="flex:1;min-width:0;">';
+      cardsHtml += '<div style="display:flex;align-items:center;gap:6px;">';
+      cardsHtml += '<span style="font-weight:600;font-size:14px;">' + esc(u.name) + '</span>';
+      cardsHtml += '<span style="font-size:10px;padding:2px 6px;border-radius:var(--radius-pill);background:' + badgeColor + ';color:white;">' + badgeText + '</span>';
+      if (u.handle) cardsHtml += '<span style="font-size:11px;color:var(--text3);">@' + esc(u.handle) + '</span>';
+      cardsHtml += '</div>';
+      cardsHtml += '<div style="font-size:11px;color:var(--text3);margin-top:2px;">' + esc(u.title) + '</div>';
+      cardsHtml += '</div>';
+      cardsHtml += '<div style="text-align:right;">';
+      cardsHtml += '<div style="font-size:18px;font-weight:700;color:var(--accent);">' + (s.total_actions||0) + '</div>';
+      cardsHtml += '<div style="font-size:10px;color:var(--text3);">actions</div>';
+      cardsHtml += '</div>';
+      cardsHtml += '</div>';
+
+      // Stats bar
+      cardsHtml += '<div style="display:flex;gap:10px;margin-top:8px;flex-wrap:wrap;">';
+      if (s.comments) cardsHtml += '<span style="font-size:10px;color:var(--text3);">💬 ' + s.comments + ' comments</span>';
+      if (s.replies) cardsHtml += '<span style="font-size:10px;color:var(--text3);">↩ ' + s.replies + ' replies</span>';
+      if (s.reactions) cardsHtml += '<span style="font-size:10px;color:var(--text3);">👍 ' + s.reactions + ' reactions</span>';
+      if (s.slack_messages) cardsHtml += '<span style="font-size:10px;color:var(--text3);">📨 ' + s.slack_messages + ' slack</span>';
+      if (s.bugs_reported) cardsHtml += '<span style="font-size:10px;color:var(--text3);">🐛 ' + s.bugs_reported + ' bugs</span>';
+      if (s.venture_signals) cardsHtml += '<span style="font-size:10px;color:var(--text3);">📊 ' + s.venture_signals + ' signals</span>';
+      if (u.last_active) cardsHtml += '<span style="font-size:10px;color:var(--text3);margin-left:auto;">Last: ' + timeAgo(u.last_active) + '</span>';
+      if (u.persona_updated) cardsHtml += '<span style="font-size:10px;color:var(--text3);">Persona: ' + timeAgo(u.persona_updated) + '</span>';
+      cardsHtml += '</div>';
+      cardsHtml += '</div>';
+    }
+    cardsHtml += '</div>';
+
+    el.innerHTML = statsHtml + cardsHtml;
+    window._simUsersData = users;
+  } catch(e) {
+    el.innerHTML = '<div class="loading">Failed to load simulated users: ' + esc(e.message) + '</div>';
+  }
+}
+
+function _simFilter(type) {
+  var cards = document.querySelectorAll('.sim-user-card');
+  cards.forEach(function(card) {
+    if (type === 'all') card.style.display = '';
+    else card.style.display = card.dataset.userType === type ? '' : 'none';
+  });
+  // Update button states
+  ['simFilterAll','simFilterTeam','simFilterTL'].forEach(function(id) {
+    var btn = document.getElementById(id);
+    if (btn) {
+      btn.style.background = 'var(--card)';
+      btn.style.color = 'var(--text)';
+    }
+  });
+  var activeId = type === 'all' ? 'simFilterAll' : type === 'team' ? 'simFilterTeam' : 'simFilterTL';
+  var activeBtn = document.getElementById(activeId);
+  if (activeBtn) {
+    activeBtn.style.background = 'var(--accent)';
+    activeBtn.style.color = 'white';
+  }
+}
+
+async function _simShowUserDetail(email) {
+  try {
+    var resp = await fetch(API + '/api/simulated-users/' + encodeURIComponent(email) + '/activity?limit=30');
+    var data = await resp.json();
+    var events = data.events || [];
+
+    // Find user info
+    var user = (window._simUsersData || []).find(function(u) { return u.email === email; });
+    var userName = user ? user.name : email;
+    var userTitle = user ? user.title : '';
+
+    var html = '<div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:12px;">';
+    html += '<div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">';
+    html += '<button onclick="loadSimUsers()" style="background:none;border:none;color:var(--accent);cursor:pointer;font-size:14px;">&larr; Back</button>';
+    html += '<img src="' + esc(user ? user.avatar_url : '') + '" style="width:36px;height:36px;border-radius:50%;" onerror="this.src=\'https://api.dicebear.com/7.x/initials/svg?seed=' + encodeURIComponent(userName) + '\'">';
+    html += '<div>';
+    html += '<div style="font-weight:600;">' + esc(userName) + '</div>';
+    html += '<div style="font-size:11px;color:var(--text3);">' + esc(userTitle) + '</div>';
+    html += '</div></div>';
+
+    if (user && user.domains && user.domains.length) {
+      html += '<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px;">';
+      user.domains.forEach(function(d) {
+        html += '<span style="font-size:10px;padding:2px 8px;border-radius:var(--radius-pill);background:var(--bg);border:1px solid var(--border);color:var(--text3);">' + esc(d) + '</span>';
+      });
+      html += '</div>';
+    }
+    html += '</div>';
+
+    // Activity timeline
+    html += '<div style="font-weight:600;font-size:13px;margin-bottom:8px;">Activity Timeline</div>';
+
+    if (events.length === 0) {
+      html += '<div style="text-align:center;padding:20px;color:var(--text3);">No activity yet. Activity will appear after the next simulation cycle (every 30 min).</div>';
+    }
+
+    for (var i = 0; i < events.length; i++) {
+      var ev = events[i];
+      var iconMap = {comment:'💬',reply:'↩',slack_message:'📨',bug_report:'🐛',bug_comment:'🔧'};
+      var icon = iconMap[ev.type] || '📝';
+      var typeLabel = ev.type.replace(/_/g, ' ');
+
+      html += '<div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;margin-bottom:6px;">';
+      html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">';
+      html += '<span>' + icon + '</span>';
+      html += '<span style="font-size:11px;font-weight:600;text-transform:capitalize;">' + typeLabel + '</span>';
+      if (ev.time) html += '<span style="font-size:10px;color:var(--text3);margin-left:auto;">' + timeAgo(ev.time) + '</span>';
+      html += '</div>';
+      html += '<div style="font-size:12px;color:var(--text2);line-height:1.4;">' + esc(ev.body || '') + '</div>';
+      html += '</div>';
+    }
+
+    document.getElementById('ventureList').innerHTML = html;
+  } catch(e) {
+    alert('Failed to load user activity: ' + e.message);
+  }
+}
+
+async function _simUpdatePersonas(btn) {
+  btn.disabled = true;
+  btn.textContent = 'Updating...';
+  try {
+    var resp = await fetch(API + '/api/simulated-users/update-personas', {method:'POST'});
+    var data = await resp.json();
+    btn.textContent = 'Updated ' + (data.updated||0) + '/' + (data.total||0);
+    setTimeout(function() {
+      btn.disabled = false;
+      btn.textContent = 'Update Personas';
+      loadSimUsers();
+    }, 3000);
+  } catch(e) {
+    btn.textContent = 'Failed';
+    btn.disabled = false;
+  }
 }
 
 

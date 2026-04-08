@@ -3696,7 +3696,7 @@ def get_graph(
 
     # ── News Items (classified as insight / problem / opportunity) ──
     if not type_filter or "news" in type_filter or "insight" in (type_filter or set()) or "problem" in (type_filter or set()) or "opportunity" in (type_filter or set()):
-        news_items = db.query(NewsFeedItem).limit(200).all()
+        news_items = db.query(NewsFeedItem).order_by(NewsFeedItem.signal_strength.desc().nullslast()).limit(60).all()
         _problem_kw = {"bug", "issue", "fail", "error", "crash", "broken", "problem", "vulnerability", "attack", "breach", "risk", "outage", "incident"}
         _opp_kw = {"opportunity", "launch", "funding", "raised", "growth", "trend", "market", "startup", "release", "new", "announce", "introduce"}
         for n in news_items:
@@ -3721,16 +3721,16 @@ def get_graph(
             if n.venture_ids:
                 for vid in (n.venture_ids if isinstance(n.venture_ids, list) else []):
                     edges.append({"source": f"n_{n.id}", "target": f"v_{vid}", "label": "inspired", "weight": 0.7})
-            # News -> Tag edges
+            # News -> Tag edges (limit to 3 tags per item to keep graph manageable)
             if n.tags:
-                for tag in (n.tags if isinstance(n.tags, list) else []):
+                for tag in (n.tags if isinstance(n.tags, list) else [])[:3]:
                     tag_id = f"tag_{tag.lower().replace(' ', '_')}"
                     edges.append({"source": f"n_{n.id}", "target": tag_id, "label": "tagged", "weight": 0.3})
                     nodes.append({"id": tag_id, "type": "tag", "label": tag, "group": "tag", "size": 3, "meta": {}})
 
     # ── Bugs ──
     if not type_filter or "bug" in type_filter:
-        bugs = db.query(Bug).all()
+        bugs = db.query(Bug).order_by(Bug.created_at.desc().nullslast()).limit(30).all()
         for b in bugs:
             nodes.append({
                 "id": f"bug_{b.id}", "type": "bug", "label": b.key or b.title[:20],

@@ -188,7 +188,7 @@ html.dark .toggle-track::after { transform:translateX(16px); }
 .sl-channel-name { font-size:16px;font-weight:800;color:var(--text); }
 .sl-channel-desc { font-size:11px;color:var(--text3);flex:1; }
 .sl-message-list { overflow-y:auto;flex:1;padding:4px 0; }
-.sl-msg-wrap { position:relative;padding:6px 16px;margin:0 -16px;border-radius:0;transition:background .12s ease; }
+.sl-msg-wrap { position:relative;padding:8px 16px;margin:0 -16px;border-radius:0;transition:background .12s ease;overflow:visible; }
 .sl-msg-wrap:hover { background:#f5f5f5; }
 html.dark .sl-msg-wrap:hover { background:rgba(255,255,255,.08); }
 .sl-msg { display:flex;gap:10px;padding:6px 0; }
@@ -221,7 +221,7 @@ html.dark .sl-msg-wrap:hover { background:rgba(255,255,255,.08); }
 .sl-thread-count { margin-left:6px;color:var(--accent);font-weight:700; }
 .sl-thread-last { color:var(--text3);font-weight:400;flex:1; }
 .sl-thread-arrow { font-size:10px;color:var(--text3);margin-left:4px; }
-.sl-actions { position:absolute;top:-14px;right:12px;display:none;background:var(--card);border:1px solid var(--border);border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,.2);z-index:5;gap:0; }
+.sl-actions { position:absolute;top:2px;right:12px;display:none;background:var(--card);border:1px solid var(--border);border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,.2);z-index:5;gap:0; }
 .sl-msg-wrap:hover .sl-actions { display:flex; }
 .sl-actions button { background:none;border:none;padding:6px 8px;cursor:pointer;color:var(--text3);display:flex;align-items:center;justify-content:center;transition:background .1s,color .1s; }
 .sl-actions button:hover { background:var(--bg2);color:var(--text); }

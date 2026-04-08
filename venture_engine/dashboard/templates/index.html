@@ -206,6 +206,13 @@ html.dark .toggle-track::after { transform:translateX(16px); }
 .sl-rxn { display:inline-flex;align-items:center;gap:3px;font-size:12px;background:var(--bg2);padding:2px 8px;border-radius:16px;border:1px solid var(--border);cursor:pointer;user-select:none; }
 .sl-rxn:hover { border-color:var(--accent);background:rgba(26,115,232,.08); }
 .sl-rxn-count { font-size:11px;color:var(--text3); }
+.sl-rxn.sl-rxn-active { border-color:var(--accent);background:rgba(26,115,232,.12); }
+.sl-rxn.sl-rxn-active .sl-rxn-count { color:var(--accent); }
+.sl-rxn-add-btn { display:inline-flex;align-items:center;gap:2px;font-size:12px;background:var(--bg2);padding:2px 8px;border-radius:16px;border:1px dashed var(--border);cursor:pointer;user-select:none;color:var(--text3);transition:border-color .15s,background .15s; }
+.sl-rxn-add-btn:hover { border-color:var(--accent);background:rgba(26,115,232,.08);color:var(--text); }
+.sl-emoji-picker { position:absolute;z-index:100;background:var(--card);border:1px solid var(--border);border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,.25);padding:10px;display:grid;grid-template-columns:repeat(5,1fr);gap:2px;width:210px; }
+.sl-emoji-picker button { background:none;border:none;font-size:20px;padding:6px;cursor:pointer;border-radius:6px;text-align:center;line-height:1; }
+.sl-emoji-picker button:hover { background:var(--bg2); }
 .sl-thread-bar { display:flex;align-items:center;gap:6px;margin-top:6px;padding:4px 8px;border-radius:8px;cursor:pointer;font-size:12px;color:var(--accent);font-weight:600; }
 .sl-thread-bar:hover { background:rgba(26,115,232,.06); }
 .sl-thread-avatars { display:flex;gap:-4px; }
@@ -2260,9 +2267,16 @@ async function loadThreads() {
 
       const msgsHtml = messages.map((m, i) => {
         const isReply = m.is_reply;
+        const msgId = `thread-msg-${tIdx}-${i}`;
         const quoteHtml = m.quote ? `<div style="border-left:3px solid var(--accent);padding:2px 8px;margin:4px 0 6px;font-size:12px;color:var(--text3);font-style:italic;background:var(--bg2);border-radius:0 4px 4px 0;">"${esc(m.quote.slice(0, 120))}"</div>` : '';
         return `
-        <div class="sl-msg-wrap">
+        <div class="sl-msg-wrap" id="${msgId}">
+          <div class="sl-actions">
+            <button title="Add reaction" onclick="event.stopPropagation();_openEmojiPicker('${msgId}',this)">&#x1F60A;</button>
+            <button title="Share message">&#x2197;&#xFE0F;</button>
+            <button title="Bookmark">&#x1F516;</button>
+            <button title="More actions">&#x22EE;</button>
+          </div>
           <div class="sl-msg${isReply ? ' sl-reply' : ''}">
             <img src="${_threadAvatar(m.author_name, isReply ? 28 : 36)}" alt="" class="sl-avatar">
             <div class="sl-body">
@@ -2272,6 +2286,7 @@ async function loadThreads() {
               </div>
               ${quoteHtml}
               <div class="sl-text">${esc(m.body)}</div>
+              <div class="sl-reactions" id="${msgId}-reactions"></div>
             </div>
           </div>
         </div>`;
@@ -2336,6 +2351,99 @@ async function loadThreads() {
 function _openThread(url, title, newsItemId) {
   // Open the reader overlay for this thread's URL
   openReader(url, title || '', newsItemId || '');
+}
+
+// ── Emoji Reactions for Thread Messages ──
+const _threadReactions = {}; // { msgId: { emoji: count } }
+const _REACTION_EMOJIS = ['👍','👎','❤️','😂','🎉','🚀','👀','🔥','💯','✅','❌','🤔','💪','👏','😍','🙏','⭐','💡','🎯','✨'];
+let _activeEmojiPicker = null;
+
+function _openEmojiPicker(msgId, btn) {
+  _closeEmojiPicker();
+  const picker = document.createElement('div');
+  picker.className = 'sl-emoji-picker';
+  picker.id = 'sl-emoji-picker-active';
+  _REACTION_EMOJIS.forEach(em => {
+    const b = document.createElement('button');
+    b.textContent = em;
+    b.onclick = function(e) { e.stopPropagation(); _addReaction(msgId, em); _closeEmojiPicker(); };
+    picker.appendChild(b);
+  });
+  // Position near the button
+  const wrap = document.getElementById(msgId);
+  if (wrap) {
+    wrap.appendChild(picker);
+    const btnRect = btn.getBoundingClientRect();
+    const wrapRect = wrap.getBoundingClientRect();
+    picker.style.top = (btnRect.bottom - wrapRect.top + 4) + 'px';
+    picker.style.right = '8px';
+  }
+  _activeEmojiPicker = picker;
+  setTimeout(() => document.addEventListener('click', _closeEmojiPickerOutside, true), 0);
+}
+
+function _closeEmojiPicker() {
+  const el = document.getElementById('sl-emoji-picker-active');
+  if (el) el.remove();
+  _activeEmojiPicker = null;
+  document.removeEventListener('click', _closeEmojiPickerOutside, true);
+}
+
+function _closeEmojiPickerOutside(e) {
+  const picker = document.getElementById('sl-emoji-picker-active');
+  if (picker && !picker.contains(e.target)) { _closeEmojiPicker(); }
+}
+
+function _addReaction(msgId, emoji) {
+  if (!_threadReactions[msgId]) _threadReactions[msgId] = {};
+  const rxns = _threadReactions[msgId];
+  if (rxns[emoji]) {
+    // Toggle off
+    delete rxns[emoji];
+  } else {
+    rxns[emoji] = 1;
+  }
+  _renderReactions(msgId);
+}
+
+function _toggleReaction(msgId, emoji) {
+  _addReaction(msgId, emoji);
+}
+
+function _openEmojiPickerFromRow(msgId, btn) {
+  _closeEmojiPicker();
+  const picker = document.createElement('div');
+  picker.className = 'sl-emoji-picker';
+  picker.id = 'sl-emoji-picker-active';
+  _REACTION_EMOJIS.forEach(em => {
+    const b = document.createElement('button');
+    b.textContent = em;
+    b.onclick = function(e) { e.stopPropagation(); _addReaction(msgId, em); _closeEmojiPicker(); };
+    picker.appendChild(b);
+  });
+  const wrap = document.getElementById(msgId);
+  if (wrap) {
+    wrap.appendChild(picker);
+    const btnRect = btn.getBoundingClientRect();
+    const wrapRect = wrap.getBoundingClientRect();
+    picker.style.bottom = (wrapRect.bottom - btnRect.top + 4) + 'px';
+    picker.style.left = (btnRect.left - wrapRect.left) + 'px';
+  }
+  _activeEmojiPicker = picker;
+  setTimeout(() => document.addEventListener('click', _closeEmojiPickerOutside, true), 0);
+}
+
+function _renderReactions(msgId) {
+  const container = document.getElementById(msgId + '-reactions');
+  if (!container) return;
+  const rxns = _threadReactions[msgId] || {};
+  const keys = Object.keys(rxns);
+  if (keys.length === 0) { container.innerHTML = ''; return; }
+  let html = keys.map(em =>
+    `<span class="sl-rxn sl-rxn-active" onclick="_toggleReaction('${msgId}','${em}')">${em} <span class="sl-rxn-count">${rxns[em]}</span></span>`
+  ).join('');
+  html += `<span class="sl-rxn-add-btn" onclick="_openEmojiPickerFromRow('${msgId}',this)">&#x1F60A;+</span>`;
+  container.innerHTML = html;
 }
 
 function _threadUrlLabel(url) {

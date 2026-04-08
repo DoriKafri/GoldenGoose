@@ -853,7 +853,10 @@ html.dark .toggle-track::after { transform:translateX(16px); }
 }
 /* ─── Knowledge Graph ─────────────────────────────── */
 #graphCanvas { width:100%; background:var(--bg); border-radius:var(--radius); }
-#graphCanvas svg { width:100%; height:100%; }
+#graphCanvas svg { width:100%; height:100%; display:block; }
+/* Stretch graph to full available screen */
+.graph-fullscreen { display:flex; flex-direction:column; height:calc(100vh - 56px); margin:-16px; }
+.graph-fullscreen #graphCanvas { flex:1; min-height:0; }
 .graph-tooltip { position:absolute; background:var(--card); border:1px solid var(--border); border-radius:8px; padding:10px 14px; font-size:12px; box-shadow:var(--shadow-lg); pointer-events:none; z-index:999; max-width:250px; }
 .graph-legend { display:flex; gap:12px; padding:8px 16px; font-size:11px; color:var(--text2); flex-wrap:wrap; }
 .graph-legend-item { display:flex; align-items:center; gap:4px; }
@@ -6418,7 +6421,7 @@ async function _simUpdatePersonas(btn) {
 async function loadGraph() {
   const el = document.getElementById('ventureList');
   el.innerHTML = `
-    <div style="display:flex;flex-direction:column;height:calc(100vh - 140px);">
+    <div class="graph-fullscreen">
       <div class="graph-legend">
         <span style="font-weight:700;">Knowledge Graph</span>
         <span class="graph-legend-item"><span class="graph-legend-dot" style="background:#FFB100;border-radius:4px;"></span> Ventures</span>
@@ -6449,15 +6452,19 @@ async function loadGraph() {
 function renderForceGraph(data) {
   const container = document.getElementById('graphCanvas');
   if (!container || typeof d3 === 'undefined') return;
-  container.innerHTML = '';
-  const width = container.clientWidth;
-  const height = container.clientHeight || 600;
+  // Preserve zoom controls
+  const controls = document.getElementById('graphControls');
+  const controlsHtml = controls ? controls.outerHTML : '';
+  container.innerHTML = controlsHtml;
+  const width = container.clientWidth || window.innerWidth - 260;
+  const height = container.clientHeight || (window.innerHeight - 80);
 
   const colorMap = { venture: '#FFB100', thought_leader: '#4ecdc4', insight: '#f59e0b', problem: '#ef4444', opportunity: '#22c55e', tag: '#6b7280', bug: '#8b5cf6' };
 
   const svg = d3.select(container).append('svg')
-    .attr('width', width).attr('height', height)
-    .attr('viewBox', [0, 0, width, height]);
+    .attr('width', '100%').attr('height', '100%')
+    .attr('viewBox', [0, 0, width, height])
+    .attr('preserveAspectRatio', 'xMidYMid meet');
 
   // Defs for image clip paths
   const defs = svg.append('defs');

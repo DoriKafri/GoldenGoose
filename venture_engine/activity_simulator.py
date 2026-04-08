@@ -1107,3 +1107,150 @@ def run_sprint_planning():
             logger.info(f"Sprint planning result: {result}")
     except Exception as e:
         logger.error(f"Sprint planning error: {e}")
+
+
+# ── Auto-Release (every 6 hours) ─────────────────────────────────────────
+_last_release_time = None
+
+RELEASE_MANAGER = {
+    "name": "Maya Levi",
+    "email": "maya@develeap.com",
+    "role": "Product Owner / Release Manager",
+}
+
+
+def auto_release(db: Session) -> dict:
+    """Generate a version release with all bugs fixed since the last release.
+
+    Runs every 6 hours. Collects done/closed bugs updated since last release,
+    bumps the patch version, writes a release entry, and posts to Slack.
+    """
+    global _last_release_time
+    import os
+
+    now = datetime.utcnow()
+
+    # Determine cutoff — either last release time or 6 hours ago
+    cutoff = _last_release_time or (now - timedelta(hours=6))
+
+    # Find bugs that moved to done/closed since cutoff
+    fixed_bugs = db.query(Bug).filter(
+        Bug.status.in_(["done", "closed"]),
+        Bug.updated_at >= cutoff,
+    ).order_by(Bug.priority.asc(), Bug.updated_at.desc()).all()
+
+    if not fixed_bugs:
+        logger.info("Auto-release: no bugs fixed since last release. Skipping.")
+        _last_release_time = now
+        return {"released": False, "reason": "no fixes"}
+
+    # Read current release notes to determine next version
+    notes_path = None
+    for p in [
+        os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "RELEASE_NOTES.md"),
+        os.path.join(os.getcwd(), "RELEASE_NOTES.md"),
+        "/app/RELEASE_NOTES.md",
+    ]:
+        if os.path.isfile(p):
+            notes_path = p
+            break
+
+    if not notes_path:
+        logger.warning("Auto-release: RELEASE_NOTES.md not found.")
+        _last_release_time = now
+        return {"released": False, "reason": "no release notes file"}
+
+    with open(notes_path, "r") as f:
+        content = f.read()
+
+    # Parse current version (e.g., v0.11.0 → bump to v0.11.1)
+    import re
+    version_match = re.search(r"## v(\d+)\.(\d+)\.(\d+)", content)
+    if version_match:
+        major, minor, patch = int(version_match.group(1)), int(version_match.group(2)), int(version_match.group(3))
+        new_version = f"v{major}.{minor}.{patch + 1}"
+    else:
+        new_version = "v0.12.0"
+
+    # Build release entry
+    date_str = now.strftime("%Y-%m-%d %H:%M UTC")
+    bug_lines = []
+    critical_count = high_count = medium_count = low_count = 0
+    for bug in fixed_bugs:
+        prio_emoji = {"critical": "🔴", "high": "🟠", "medium": "🟡", "low": "🟢"}.get(bug.priority, "⚪")
+        type_label = {"bug": "Bug fix", "feature": "Feature", "improvement": "Improvement", "task": "Task"}.get(bug.bug_type, "Fix")
+        bug_lines.append(f"- **{bug.key}** {prio_emoji} {type_label}: {bug.title}")
+        if bug.priority == "critical": critical_count += 1
+        elif bug.priority == "high": high_count += 1
+        elif bug.priority == "medium": medium_count += 1
+        else: low_count += 1
+
+    summary_parts = []
+    if critical_count: summary_parts.append(f"{critical_count} critical")
+    if high_count: summary_parts.append(f"{high_count} high")
+    if medium_count: summary_parts.append(f"{medium_count} medium")
+    if low_count: summary_parts.append(f"{low_count} low")
+    summary = ", ".join(summary_parts)
+
+    release_entry = f"""
+## {new_version} — {date_str}
+
+### Auto-Release — {len(fixed_bugs)} fixes ({summary})
+{chr(10).join(bug_lines)}
+"""
+
+    # Insert after the first ---
+    insert_pos = content.find("\n---\n")
+    if insert_pos >= 0:
+        new_content = content[:insert_pos] + "\n---\n" + release_entry + content[insert_pos + 5:]
+    else:
+        new_content = content + "\n---\n" + release_entry
+
+    with open(notes_path, "w") as f:
+        f.write(new_content)
+
+    # Post release announcement to Slack #general
+    try:
+        from venture_engine.db.models import SlackChannel, SlackMessage
+        channel = db.query(SlackChannel).filter(SlackChannel.name == "general").first()
+        if channel:
+            slack_body = (
+                f"🚀 *Release {new_version}* — {len(fixed_bugs)} fixes shipped!\n"
+                f"Priority breakdown: {summary}\n\n"
+                + "\n".join(f"• {b.key} ({b.priority}): {b.title}" for b in fixed_bugs[:8])
+                + (f"\n... and {len(fixed_bugs) - 8} more" if len(fixed_bugs) > 8 else "")
+                + f"\n\n— {RELEASE_MANAGER['name']}, {RELEASE_MANAGER['role']}"
+            )
+            msg = SlackMessage(
+                channel_id=channel.id,
+                author_email=RELEASE_MANAGER["email"],
+                author_name=RELEASE_MANAGER["name"],
+                body=slack_body,
+            )
+            db.add(msg)
+    except Exception as e:
+        logger.warning(f"Failed to post release to Slack: {e}")
+
+    db.commit()
+    _last_release_time = now
+
+    logger.info(f"Auto-release {new_version}: {len(fixed_bugs)} fixes shipped. Release notes updated.")
+    return {
+        "released": True,
+        "version": new_version,
+        "fixes": len(fixed_bugs),
+        "summary": summary,
+    }
+
+
+def run_auto_release():
+    """Entry point for the 6-hour scheduler job."""
+    from venture_engine.db.session import get_db
+
+    logger.info("=== SCHEDULED: Auto-release starting ===")
+    try:
+        with get_db() as db:
+            result = auto_release(db)
+            logger.info(f"Auto-release result: {result}")
+    except Exception as e:
+        logger.error(f"Auto-release error: {e}")

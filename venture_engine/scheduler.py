@@ -105,6 +105,12 @@ def _run_sprint_planning():
     run_sprint_planning()
 
 
+def _run_auto_release():
+    """Job 9: Auto-release every 6 hours with latest bug fixes."""
+    from venture_engine.activity_simulator import run_auto_release
+    run_auto_release()
+
+
 def _update_tl_personas():
     """Job 7: Weekly update of thought leader personas with latest public thoughts."""
     logger.info("=== SCHEDULED: TL persona update starting ===")
@@ -258,13 +264,20 @@ def start_scheduler():
         id="sprint_planning",
         replace_existing=True,
     )
+    scheduler.add_job(
+        _run_auto_release,
+        "interval",
+        hours=6,
+        id="auto_release",
+        replace_existing=True,
+    )
     scheduler.start()
     logger.info(
         f"Scheduler started (TZ={SCHEDULER_TZ}): harvest every {settings.harvest_interval_hours}h, "
         f"gap check at {settings.gap_check_hour}:00, "
         f"TL sync every {settings.tl_sync_interval_hours}h, "
         f"digest {settings.weekly_digest_day} {settings.weekly_digest_hour}:00, "
-        f"activity sim every 30min, sprint planning every 1h"
+        f"activity sim every 30min, sprint planning every 1h, auto-release every 6h"
     )
 
 

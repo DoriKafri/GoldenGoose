@@ -2,6 +2,15 @@
 
 ---
 
+## v0.12.0 — 2026-04-08
+
+### Auto-Release Pipeline
+- **Automated releases every 6 hours** — Scheduler job collects all done/closed bugs since the last release, bumps the patch version, and generates a release entry
+- **Release notes auto-update** — Each auto-release inserts a new version section into RELEASE_NOTES.md with priority breakdown and individual bug lines
+- **Slack release announcements** — Release Manager (Noa Friedman) posts a release summary to #general with version, bug count, and priority stats
+
+---
+
 ## v0.11.0 — 2026-04-08
 
 ### Sprint Planning & Product Owner

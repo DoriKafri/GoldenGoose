@@ -184,7 +184,9 @@ html.dark .toggle-track::after { transform:translateX(16px); }
 
 /* Slack-style thread UI */
 /* ─── Slack Workspace Layout ─── */
-.sl-workspace { display:flex;height:calc(100vh - 80px);overflow:hidden;border-radius:var(--radius-lg);border:1px solid var(--border);background:var(--card); }
+.main-inner:has(.sl-workspace) { max-width:100%;padding:0; }
+.main:has(.sl-workspace) { padding:0;max-width:100%; }
+.sl-workspace { display:flex;height:calc(100vh - 60px);overflow:hidden;background:var(--card); }
 /* ─── Channel Sidebar ─── */
 .sl-sidebar { width:260px;min-width:220px;background:#1a1a2e;color:#ccc;display:flex;flex-direction:column;border-right:1px solid rgba(255,255,255,.08);flex-shrink:0; }
 html:not(.dark) .sl-sidebar { background:#3F0E40; }

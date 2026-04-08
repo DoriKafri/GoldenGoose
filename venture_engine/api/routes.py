@@ -999,6 +999,18 @@ def list_news(
     db: Session = Depends(get_db_dependency),
 ):
     query = db.query(NewsFeedItem).order_by(NewsFeedItem.published_at.desc().nullslast())
+
+    # ── Per-source score thresholds (arXiv needs ≥ 8.5) ──
+    SOURCE_SCORE_THRESHOLDS = {"arxiv": 8.5}
+    from sqlalchemy import or_, and_
+    threshold_filters = []
+    for src, min_score in SOURCE_SCORE_THRESHOLDS.items():
+        threshold_filters.append(
+            and_(NewsFeedItem.source == src, NewsFeedItem.signal_strength < min_score)
+        )
+    if threshold_filters:
+        query = query.filter(~or_(*threshold_filters))
+
     if source:
         query = query.filter(NewsFeedItem.source == source)
     if q and q.strip():
@@ -3687,10 +3699,36 @@ def score_and_filter_news(min_score: float = Query(5.0), db: Session = Depends(g
 
 @router.post("/api/news/dedup")
 def dedup_news(db: Session = Depends(get_db_dependency)):
-    """Delete duplicate news items, keeping the oldest per URL and per title."""
+    """Delete duplicate news items, keeping the oldest per URL and per title.
+    Reassigns annotations from duplicates to the surviving item before deletion."""
     total_deleted = 0
 
+    def _dedup_group(items_list):
+        """Keep first item, reassign annotations from rest, then delete rest."""
+        nonlocal total_deleted
+        keep = items_list[0]
+        for item in items_list[1:]:
+            # Reassign annotations to the surviving item
+            db.query(PageAnnotation).filter(
+                PageAnnotation.news_item_id == item.id
+            ).update({"news_item_id": keep.id}, synchronize_session=False)
+            db.delete(item)
+            total_deleted += 1
+
     try:
+        # ── Remove arXiv items below threshold ──
+        low_arxiv = db.query(NewsFeedItem).filter(
+            NewsFeedItem.source == "arxiv",
+            NewsFeedItem.signal_strength < 8.5,
+        ).all()
+        for item in low_arxiv:
+            db.query(PageAnnotation).filter(
+                PageAnnotation.news_item_id == item.id
+            ).delete(synchronize_session=False)
+            db.delete(item)
+            total_deleted += 1
+        db.flush()
+
         # Dedup by URL
         dupes = db.query(NewsFeedItem.url, func.count(NewsFeedItem.id).label('cnt')).filter(
             NewsFeedItem.url.isnot(None), NewsFeedItem.url != ''
@@ -3698,9 +3736,7 @@ def dedup_news(db: Session = Depends(get_db_dependency)):
 
         for url, cnt in dupes:
             items = db.query(NewsFeedItem).filter(NewsFeedItem.url == url).order_by(NewsFeedItem.created_at.asc()).all()
-            for item in items[1:]:
-                db.delete(item)
-                total_deleted += 1
+            _dedup_group(items)
 
         db.flush()
 
@@ -3713,9 +3749,7 @@ def dedup_news(db: Session = Depends(get_db_dependency)):
             items = db.query(NewsFeedItem).filter(
                 NewsFeedItem.title == title
             ).order_by(NewsFeedItem.created_at.asc()).all()
-            for item in items[1:]:
-                db.delete(item)
-                total_deleted += 1
+            _dedup_group(items)
 
         db.commit()
     except Exception as e:

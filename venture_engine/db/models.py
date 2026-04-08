@@ -388,9 +388,11 @@ class Bug(Base):
     key = Column(String, unique=True, nullable=False)          # e.g. "BUG-42"
     title = Column(Text, nullable=False)
     description = Column(Text, nullable=True)
-    status = Column(Text, default="open")                       # open, in_progress, review, done, closed
+    status = Column(Text, default="open")                       # open, sprint, in_progress, review, done, closed
     priority = Column(Text, default="medium")                   # critical, high, medium, low
     bug_type = Column(Text, default="bug")                      # bug, feature, task, improvement
+    story_points = Column(Integer, default=3)                   # effort estimate: 1,2,3,5,8,13
+    business_value = Column(Integer, default=5)                 # business value: 1-10
     assignee_email = Column(Text, nullable=True)
     assignee_name = Column(Text, nullable=True)
     reporter_email = Column(Text, nullable=False)

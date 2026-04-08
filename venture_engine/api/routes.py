@@ -3469,6 +3469,8 @@ def _serialize_bug(bug, include_comments=False):
         "assignee_email": bug.assignee_email, "assignee_name": bug.assignee_name,
         "reporter_email": bug.reporter_email, "reporter_name": bug.reporter_name,
         "venture_id": bug.venture_id, "labels": bug.labels or [],
+        "story_points": getattr(bug, 'story_points', None) or 3,
+        "business_value": getattr(bug, 'business_value', None) or 5,
         "created_at": bug.created_at.isoformat() if bug.created_at else None,
         "updated_at": bug.updated_at.isoformat() if bug.updated_at else None,
     }

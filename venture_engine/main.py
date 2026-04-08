@@ -79,6 +79,17 @@ def _add_missing_columns():
                 logger.info("Adding beliefs column to thought_leaders...")
                 db.execute(text("ALTER TABLE thought_leaders ADD COLUMN beliefs JSONB"))
                 db.commit()
+        # Add story_points and business_value to bugs if missing
+        if insp.has_table("bugs"):
+            cols = [c["name"] for c in insp.get_columns("bugs")]
+            if "story_points" not in cols:
+                logger.info("Adding story_points column to bugs...")
+                db.execute(text("ALTER TABLE bugs ADD COLUMN story_points INTEGER DEFAULT 3"))
+                db.commit()
+            if "business_value" not in cols:
+                logger.info("Adding business_value column to bugs...")
+                db.execute(text("ALTER TABLE bugs ADD COLUMN business_value INTEGER DEFAULT 5"))
+                db.commit()
 
 
 def _fix_json_columns():

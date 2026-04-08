@@ -406,7 +406,20 @@ BUG_CAUSE_TEMPLATES = [
     "an incorrect content-type header in the response",
 ]
 
-BUG_STATUS_FLOW = ["open", "in_progress", "review", "done", "closed"]
+BUG_STATUS_FLOW = ["open", "sprint", "in_progress", "review", "done", "closed"]
+
+# ── Story point fibonacci values & business value ranges by priority ──
+FIBONACCI_POINTS = [1, 2, 3, 5, 8, 13]
+PRIORITY_TO_VALUE = {"critical": (8, 10), "high": (6, 9), "medium": (3, 6), "low": (1, 4)}
+PRIORITY_TO_EFFORT = {"critical": (3, 8), "high": (2, 8), "medium": (1, 5), "low": (1, 3)}
+
+# ── Product Owner ──
+PRODUCT_OWNER = {
+    "name": "Maya Levi",
+    "email": "maya@develeap.com",
+    "role": "Product Owner",
+    "avatar": "ML",
+}
 
 
 def _next_bug_key(db: Session) -> str:
@@ -507,6 +520,10 @@ def _generate_bugs_from_closure(db, closed_bug, closer, stats):
         priority = _RANK_TO_PRIORITY.get(new_rank, "medium")
         assignee = _random_user(exclude_email=closer["email"])
 
+        val_range = PRIORITY_TO_VALUE.get(priority, (3, 6))
+        eff_range = PRIORITY_TO_EFFORT.get(priority, (2, 5))
+        sp = random.choice([p for p in FIBONACCI_POINTS if eff_range[0] <= p <= eff_range[1]] or [3])
+        bv = random.randint(val_range[0], val_range[1])
         new_bug = Bug(
             key=_next_bug_key(db),
             title=title,
@@ -520,6 +537,8 @@ def _generate_bugs_from_closure(db, closed_bug, closer, stats):
             assignee_email=assignee["email"],
             assignee_name=assignee["name"],
             labels=[area.replace(" ", "-"), bt, "ralph-loop"],
+            story_points=sp,
+            business_value=bv,
         )
         db.add(new_bug)
         db.flush()
@@ -750,6 +769,12 @@ def simulate_activity(db: Session) -> dict:
             template = random.choice(available)
             reporter = _random_user()
             assignee = _random_user(exclude_email=reporter["email"])
+            # Assign effort (story points) and business value based on priority
+            prio = template["priority"]
+            val_range = PRIORITY_TO_VALUE.get(prio, (3, 6))
+            eff_range = PRIORITY_TO_EFFORT.get(prio, (2, 5))
+            sp = random.choice([p for p in FIBONACCI_POINTS if eff_range[0] <= p <= eff_range[1]] or [3])
+            bv = random.randint(val_range[0], val_range[1])
             bug = Bug(
                 key=_next_bug_key(db),
                 title=template["title"],
@@ -762,6 +787,8 @@ def simulate_activity(db: Session) -> dict:
                 assignee_email=assignee["email"],
                 assignee_name=assignee["name"],
                 labels=template["labels"],
+                story_points=sp,
+                business_value=bv,
             )
             db.add(bug)
             db.flush()
@@ -992,3 +1019,91 @@ def run_activity_simulation():
             )
     except Exception as e:
         logger.error(f"Activity simulation error: {e}")
+
+
+# ── Sprint Planning (Product Owner — hourly) ─────────────────────────────
+_sprint_plan_lock = threading.Lock()
+_sprint_plan_hour = None
+SPRINT_CAPACITY = 10  # max bugs to move to sprint per hour
+
+
+def sprint_planning(db: Session) -> dict:
+    """Product Owner reviews open/backlog bugs and moves top 10 highest-value/lowest-effort to sprint.
+
+    Value/Effort ratio = business_value / story_points (higher = more attractive).
+    Ties broken by priority (critical first).
+    """
+    global _sprint_plan_hour
+    now_ist = datetime.now(IST)
+    current_hour = now_ist.strftime("%Y-%m-%d-%H")
+
+    with _sprint_plan_lock:
+        if _sprint_plan_hour == current_hour:
+            logger.info("Sprint planning already ran this hour, skipping.")
+            return {"moved": 0, "skipped": True}
+        _sprint_plan_hour = current_hour
+
+    # Find all open bugs (candidates for sprint)
+    candidates = db.query(Bug).filter(Bug.status == "open").all()
+
+    if not candidates:
+        logger.info("Sprint planning: no open bugs to evaluate.")
+        return {"moved": 0, "candidates": 0}
+
+    # Backfill story_points/business_value for legacy bugs missing them
+    for bug in candidates:
+        if not bug.story_points or bug.story_points == 0:
+            eff_range = PRIORITY_TO_EFFORT.get(bug.priority, (2, 5))
+            bug.story_points = random.choice([p for p in FIBONACCI_POINTS if eff_range[0] <= p <= eff_range[1]] or [3])
+        if not bug.business_value or bug.business_value == 0:
+            val_range = PRIORITY_TO_VALUE.get(bug.priority, (3, 6))
+            bug.business_value = random.randint(val_range[0], val_range[1])
+
+    # Score each bug: value/effort ratio, with priority as tiebreaker
+    def _score(bug):
+        sp = max(1, bug.story_points or 3)
+        bv = bug.business_value or 5
+        prio_bonus = {0: 2.0, 1: 1.5, 2: 1.0, 3: 0.5}.get(PRIORITY_ORDER.get(bug.priority, 2), 1.0)
+        return (bv / sp) * prio_bonus
+
+    scored = sorted(candidates, key=_score, reverse=True)
+    top = scored[:SPRINT_CAPACITY]
+
+    moved = 0
+    po = PRODUCT_OWNER
+    for bug in top:
+        bug.status = "sprint"
+        bug.updated_at = datetime.utcnow()
+        moved += 1
+
+        # PO leaves a sprint planning comment
+        ratio = round((bug.business_value or 5) / max(1, bug.story_points or 3), 1)
+        comment = BugComment(
+            bug_id=bug.id,
+            author_email=po["email"],
+            author_name=po["name"],
+            body=f"Moving to sprint. Value/effort ratio: {ratio} "
+                 f"(BV={bug.business_value}, SP={bug.story_points}). "
+                 f"Priority: {bug.priority}. This delivers high impact with manageable effort.",
+        )
+        db.add(comment)
+
+    db.commit()
+    logger.info(
+        f"Sprint planning complete: {moved}/{len(candidates)} bugs moved to sprint. "
+        f"PO: {po['name']}."
+    )
+    return {"moved": moved, "candidates": len(candidates), "po": po["name"]}
+
+
+def run_sprint_planning():
+    """Entry point for the hourly scheduler job."""
+    from venture_engine.db.session import get_db
+
+    logger.info("=== SCHEDULED: Sprint planning starting ===")
+    try:
+        with get_db() as db:
+            result = sprint_planning(db)
+            logger.info(f"Sprint planning result: {result}")
+    except Exception as e:
+        logger.error(f"Sprint planning error: {e}")

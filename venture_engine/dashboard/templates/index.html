@@ -856,6 +856,7 @@ html.dark .sl-msg-wrap:hover { background:rgba(255,255,255,.08); }
 .bug-priority.low { background:rgba(107,114,128,0.12); color:#6b7280; }
 .bug-status { display:inline-block; padding:2px 8px; border-radius:var(--radius-pill); font-size:10px; font-weight:700; }
 .bug-status.open { background:rgba(59,130,246,0.12); color:#3b82f6; }
+.bug-status.sprint { background:rgba(255,177,0,0.15); color:#d97706; }
 .bug-status.in_progress { background:rgba(245,158,11,0.12); color:#d97706; }
 .bug-status.review { background:rgba(139,92,246,0.12); color:#8b5cf6; }
 .bug-status.done { background:rgba(34,197,94,0.12); color:#16a34a; }
@@ -6183,7 +6184,9 @@ async function loadBugs() {
 function renderBugList(bugs, stats) {
   const el = document.getElementById('ventureList');
   const typeIcons = {bug:'🐛', feature:'✨', task:'📋', improvement:'🔧'};
-  const statusOrder = ['open','in_progress','review','done','closed'];
+  const statusOrder = ['open','sprint','in_progress','review','done','closed'];
+  const statusLabels = {open:'Open',sprint:'Sprint',in_progress:'In Progress',review:'Review',done:'Done',closed:'Closed'};
+  const statusIcons = {open:'📋',sprint:'🏃',in_progress:'🔨',review:'👀',done:'✅',closed:'🔒'};
 
   // Stats bar
   const statsHtml = `
@@ -6191,7 +6194,7 @@ function renderBugList(bugs, stats) {
       <span style="font-size:16px;font-weight:700;color:var(--text);">Bugs & Tasks</span>
       <span style="font-size:12px;color:var(--text3);">${stats.total || 0} total</span>
       ${Object.entries(stats.by_status || {}).map(([s,c]) =>
-        `<span class="bug-status ${s}" style="font-size:11px;">${s.replace('_',' ')}: ${c}</span>`
+        `<span class="bug-status ${s}" style="font-size:11px;">${(statusLabels[s]||s).replace('_',' ')}: ${c}</span>`
       ).join('')}
       <div style="flex:1;"></div>
       <button onclick="_bugToggleView()" style="padding:4px 12px;border-radius:var(--radius-pill);border:1px solid var(--border);background:var(--bg);color:var(--text2);font-size:11px;font-weight:600;cursor:pointer;">${_bugViewMode === 'board' ? '☰ List' : '▦ Board'}</button>
@@ -6203,18 +6206,26 @@ function renderBugList(bugs, stats) {
     let boardHtml = '<div class="bug-board">';
     for (const status of statusOrder) {
       const col = bugs.filter(b => b.status === status);
-      boardHtml += `<div class="bug-board-col">
-        <div class="bug-board-col-title">${status.replace('_',' ')} (${col.length})</div>
-        ${col.map(b => `
+      const colClass = status === 'sprint' ? ' bug-board-col-sprint' : '';
+      boardHtml += `<div class="bug-board-col${colClass}">
+        <div class="bug-board-col-title">${statusIcons[status]||''} ${statusLabels[status]||status} (${col.length})</div>
+        ${col.map(b => {
+          const sp = b.story_points || '?';
+          const bv = b.business_value || '?';
+          const ratio = (b.story_points && b.business_value) ? (b.business_value / b.story_points).toFixed(1) : '—';
+          return `
           <div class="bug-card" onclick="_bugShowDetail('${b.id}')" style="flex-direction:column;gap:4px;">
             <div style="display:flex;justify-content:space-between;align-items:center;width:100%;">
               <span class="bug-key">${esc(b.key)}</span>
               <span class="bug-priority ${b.priority}">${b.priority}</span>
             </div>
             <div class="bug-title" style="font-size:13px;">${esc(b.title)}</div>
-            <div style="font-size:10px;color:var(--text3);">${b.assignee_name || 'Unassigned'}</div>
-          </div>
-        `).join('')}
+            <div style="display:flex;justify-content:space-between;align-items:center;width:100%;margin-top:2px;">
+              <span style="font-size:10px;color:var(--text3);">${b.assignee_name || 'Unassigned'}</span>
+              <span style="font-size:10px;font-weight:600;color:var(--text2);" title="SP=${sp} BV=${bv} Ratio=${ratio}">🎯${bv} ⏱${sp}</span>
+            </div>
+          </div>`;
+        }).join('')}
       </div>`;
     }
     boardHtml += '</div>';

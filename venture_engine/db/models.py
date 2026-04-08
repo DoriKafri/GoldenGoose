@@ -388,7 +388,7 @@ class Bug(Base):
     key = Column(String, unique=True, nullable=False)          # e.g. "BUG-42"
     title = Column(Text, nullable=False)
     description = Column(Text, nullable=True)
-    status = Column(Text, default="open")                       # open, sprint, in_progress, review, done, closed
+    status = Column(Text, default="open")                       # open, sprint, in_progress, review, done, next_version, closed
     priority = Column(Text, default="medium")                   # critical, high, medium, low
     bug_type = Column(Text, default="bug")                      # bug, feature, task, improvement
     story_points = Column(Integer, default=3)                   # effort estimate: 1,2,3,5,8,13

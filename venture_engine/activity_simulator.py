@@ -406,7 +406,7 @@ BUG_CAUSE_TEMPLATES = [
     "an incorrect content-type header in the response",
 ]
 
-BUG_STATUS_FLOW = ["open", "sprint", "in_progress", "review", "done", "closed"]
+BUG_STATUS_FLOW = ["open", "sprint", "in_progress", "review", "done", "next_version", "closed"]
 
 # ── Story point fibonacci values & business value ranges by priority ──
 FIBONACCI_POINTS = [1, 2, 3, 5, 8, 13]
@@ -1130,13 +1130,9 @@ def auto_release(db: Session) -> dict:
 
     now = datetime.utcnow()
 
-    # Determine cutoff — either last release time or 6 hours ago
-    cutoff = _last_release_time or (now - timedelta(hours=6))
-
-    # Find bugs that moved to done/closed since cutoff
+    # Find bugs queued in next_version column (ready for release)
     fixed_bugs = db.query(Bug).filter(
-        Bug.status.in_(["done", "closed"]),
-        Bug.updated_at >= cutoff,
+        Bug.status == "next_version",
     ).order_by(Bug.priority.asc(), Bug.updated_at.desc()).all()
 
     if not fixed_bugs:
@@ -1230,6 +1226,11 @@ def auto_release(db: Session) -> dict:
             db.add(msg)
     except Exception as e:
         logger.warning(f"Failed to post release to Slack: {e}")
+
+    # Move all released bugs from next_version → closed
+    for bug in fixed_bugs:
+        bug.status = "closed"
+        bug.updated_at = now
 
     db.commit()
     _last_release_time = now

@@ -2,10 +2,20 @@
 
 ---
 
+## v0.13.0 — 2026-04-08
+
+### Next Version Board Column & Release Pipeline
+- **Next Version column** — New "Next Version" Jira board column between Done and Closed with 🚀 icon and indigo highlight border
+- **Version number in column header** — Column dynamically fetches and displays the upcoming release version number (e.g. "Next Version v0.13.1")
+- **Release pipeline integration** — Auto-release now collects bugs from Next Version column (not Done), releases them, and moves them to Closed
+- **Full status flow** — Bugs now flow: Open → Sprint → In Progress → Review → Done → Next Version → Closed
+
+---
+
 ## v0.12.0 — 2026-04-08
 
 ### Auto-Release Pipeline
-- **Automated releases every 6 hours** — Scheduler job collects all done/closed bugs since the last release, bumps the patch version, and generates a release entry
+- **Automated releases every 6 hours** — Scheduler job collects bugs from the Next Version column, bumps the patch version, and generates a release entry
 - **Release notes auto-update** — Each auto-release inserts a new version section into RELEASE_NOTES.md with priority breakdown and individual bug lines
 - **Slack release announcements** — Release Manager (Noa Friedman) posts a release summary to #general with version, bug count, and priority stats
 

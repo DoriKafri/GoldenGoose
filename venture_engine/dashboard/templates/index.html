@@ -860,6 +860,7 @@ html.dark .sl-msg-wrap:hover { background:rgba(255,255,255,.08); }
 .bug-status.in_progress { background:rgba(245,158,11,0.12); color:#d97706; }
 .bug-status.review { background:rgba(139,92,246,0.12); color:#8b5cf6; }
 .bug-status.done { background:rgba(34,197,94,0.12); color:#16a34a; }
+.bug-status.next_version { background:rgba(99,102,241,0.15); color:#6366f1; }
 .bug-status.closed { background:rgba(107,114,128,0.12); color:#6b7280; }
 .bug-type-icon { font-size:16px; }
 .bug-detail { background:var(--card); border:1px solid var(--border); border-radius:var(--radius-lg); padding:24px; margin-bottom:16px; }
@@ -874,6 +875,8 @@ html.dark .sl-msg-wrap:hover { background:rgba(255,255,255,.08); }
 .bug-board { display:flex; gap:12px; overflow-x:auto; padding:8px 0; }
 .bug-board-col { flex:1; min-width:220px; background:var(--bg2); border-radius:var(--radius); padding:8px; }
 .bug-board-col-title { font-size:12px; font-weight:700; color:var(--text2); text-transform:uppercase; padding:8px; margin-bottom:4px; }
+.bug-board-col-nv { border:2px solid rgba(99,102,241,0.4); background:rgba(99,102,241,0.06); }
+.bug-board-col-nv .bug-board-col-title { color:#6366f1; }
 /* ─── Bug-Finding Leaderboard ────────────────────────── */
 .lb-header { text-align:center; margin-bottom:24px; }
 .lb-header h2 { font-size:22px; font-weight:800; color:var(--text); margin-bottom:4px; }
@@ -6184,9 +6187,9 @@ async function loadBugs() {
 function renderBugList(bugs, stats) {
   const el = document.getElementById('ventureList');
   const typeIcons = {bug:'🐛', feature:'✨', task:'📋', improvement:'🔧'};
-  const statusOrder = ['open','sprint','in_progress','review','done','closed'];
-  const statusLabels = {open:'Open',sprint:'Sprint',in_progress:'In Progress',review:'Review',done:'Done',closed:'Closed'};
-  const statusIcons = {open:'📋',sprint:'🏃',in_progress:'🔨',review:'👀',done:'✅',closed:'🔒'};
+  const statusOrder = ['open','sprint','in_progress','review','done','next_version','closed'];
+  const statusLabels = {open:'Open',sprint:'Sprint',in_progress:'In Progress',review:'Review',done:'Done',next_version:'Next Version',closed:'Closed'};
+  const statusIcons = {open:'📋',sprint:'🏃',in_progress:'🔨',review:'👀',done:'✅',next_version:'🚀',closed:'🔒'};
 
   // Stats bar
   const statsHtml = `
@@ -6202,13 +6205,21 @@ function renderBugList(bugs, stats) {
     </div>`;
 
   if (_bugViewMode === 'board') {
+    // Fetch next version number for column header
+    let _nextVersion = '';
+    fetch(`${API}/api/next-version`).then(r=>r.json()).then(d=>{
+      _nextVersion = d.version || '';
+      const nvTitle = document.getElementById('next-version-col-title');
+      if (nvTitle) nvTitle.textContent = `🚀 Next Version ${_nextVersion} (${document.querySelectorAll('.bug-board-col-nv .bug-card').length})`;
+    }).catch(()=>{});
     // Kanban board view
     let boardHtml = '<div class="bug-board">';
     for (const status of statusOrder) {
       const col = bugs.filter(b => b.status === status);
-      const colClass = status === 'sprint' ? ' bug-board-col-sprint' : '';
+      const colClass = status === 'sprint' ? ' bug-board-col-sprint' : (status === 'next_version' ? ' bug-board-col-nv' : '');
+      const titleId = status === 'next_version' ? ' id="next-version-col-title"' : '';
       boardHtml += `<div class="bug-board-col${colClass}">
-        <div class="bug-board-col-title">${statusIcons[status]||''} ${statusLabels[status]||status} (${col.length})</div>
+        <div class="bug-board-col-title"${titleId}>${statusIcons[status]||''} ${statusLabels[status]||status} (${col.length})</div>
         ${col.map(b => {
           const sp = b.story_points || '?';
           const bv = b.business_value || '?';

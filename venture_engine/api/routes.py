@@ -3665,6 +3665,26 @@ def get_release_notes():
     return {"content": "# Release Notes\n\nNo release notes available yet."}
 
 
+@router.get("/api/next-version")
+def get_next_version():
+    """Return the next version number (current patch + 1) for the board column header."""
+    import re
+    candidates = [
+        os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "RELEASE_NOTES.md"),
+        os.path.join(os.getcwd(), "RELEASE_NOTES.md"),
+        "/app/RELEASE_NOTES.md",
+    ]
+    for path in candidates:
+        if os.path.isfile(path):
+            with open(path, "r") as f:
+                content = f.read()
+            match = re.search(r"## v(\d+)\.(\d+)\.(\d+)", content)
+            if match:
+                major, minor, patch = int(match.group(1)), int(match.group(2)), int(match.group(3))
+                return {"version": f"v{major}.{minor}.{patch + 1}"}
+    return {"version": "v0.13.0"}
+
+
 @router.get("/api/graph")
 def get_graph(
     types: Optional[str] = None,

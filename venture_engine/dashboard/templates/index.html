@@ -7031,12 +7031,13 @@ function renderForceGraph(data) {
       ctx.lineWidth = node.type === 'venture' || node.type === 'thought_leader' ? 2 : 1;
       ctx.stroke();
 
-      // Label — always show for ventures/TLs/bugs, show on zoom or hover for others
-      const isMajor = node.type === 'venture' || node.type === 'thought_leader' || node.type === 'bug';
-      const showLabel = isMajor || globalScale > 1.2 || (isHighlighted && !isDimmed);
+      // Label — show based on zoom level: ventures always, others progressively
+      const isMajor = node.type === 'venture' || node.type === 'thought_leader';
+      const isMid = node.type === 'bug' || node.type === 'problem' || node.type === 'opportunity';
+      const showLabel = (isMajor && globalScale > 0.4) || (isMid && globalScale > 0.8) || globalScale > 1.5 || (isHighlighted && !isDimmed);
       if (showLabel) {
-        const label = (node.label || '').slice(0, 28);
-        const fontSize = isMajor ? Math.max(11, 13 / globalScale) : Math.max(9, 11 / globalScale);
+        const label = (node.label || '').slice(0, 22);
+        const fontSize = isMajor ? Math.max(10, 12 / globalScale) : Math.max(8, 10 / globalScale);
         ctx.font = `${isMajor ? '700' : '500'} ${fontSize}px Inter, sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'top';
@@ -7067,11 +7068,11 @@ function renderForceGraph(data) {
     .linkDirectionalParticleWidth(2)
     .linkDirectionalParticleSpeed(0.004)
     .linkDirectionalParticleColor(() => '#FFB100')
-    // Forces — tighter clustering like Logseq
-    .d3Force('charge', d3.forceManyBody().strength(-60))
-    .d3Force('link', d3.forceLink().distance(40).strength(0.3))
-    .d3Force('center', d3.forceCenter(0, 0).strength(0.1))
-    .d3Force('collide', d3.forceCollide().radius(d => d._radius + 8).strength(0.8))
+    // Forces — balanced: clustered but readable
+    .d3Force('charge', d3.forceManyBody().strength(-120))
+    .d3Force('link', d3.forceLink().distance(55).strength(0.2))
+    .d3Force('center', d3.forceCenter(0, 0).strength(0.08))
+    .d3Force('collide', d3.forceCollide().radius(d => d._radius + 14).strength(0.9))
     .warmupTicks(100)
     .cooldownTicks(300)
     .onEngineStop(() => { _graph2d.zoomToFit(400, 40); })

@@ -192,8 +192,8 @@ html.dark .toggle-track::after { transform:translateX(16px); }
 .sl-msg-wrap:hover { background:var(--bg2); }
 .sl-msg { display:flex;gap:10px;padding:6px 0; }
 .sl-reply { padding:4px 0; }
-.sl-avatar { width:36px;height:36px;border-radius:8px;flex-shrink:0; }
-.sl-reply .sl-avatar { width:28px;height:28px; }
+.sl-avatar { width:36px;height:36px;border-radius:50%;flex-shrink:0; }
+.sl-reply .sl-avatar { width:36px;height:36px; }
 .sl-body { flex:1;min-width:0; }
 .sl-meta { display:flex;align-items:baseline;gap:6px; }
 .sl-author { font-size:14px;font-weight:800;color:var(--text);cursor:pointer; }
@@ -2278,7 +2278,7 @@ async function loadThreads() {
             <button title="More actions">&#x22EE;</button>
           </div>
           <div class="sl-msg${isReply ? ' sl-reply' : ''}">
-            <img src="${_threadAvatar(m.author_name, isReply ? 28 : 36)}" alt="" class="sl-avatar">
+            <img src="${_threadAvatar(m.author_name, 36)}" alt="" class="sl-avatar">
             <div class="sl-body">
               <div class="sl-meta">
                 <span class="sl-author">${esc(m.author_name)}</span>

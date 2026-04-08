@@ -4755,6 +4755,117 @@ def get_user_activity(email: str, limit: int = 50, db: Session = Depends(get_db_
     return {"email": email, "events": events[:limit]}
 
 
+@router.get("/api/live-feed")
+def get_live_feed(since: Optional[str] = None, limit: int = 30, db: Session = Depends(get_db_dependency)):
+    """Return a unified live activity feed across all models, sorted by time desc.
+    Optionally pass ?since=ISO_TIMESTAMP to get only newer events."""
+    from datetime import datetime, timedelta
+    events = []
+    cutoff = None
+    if since:
+        try:
+            cutoff = datetime.fromisoformat(since.replace('Z', '+00:00').replace('+00:00', ''))
+        except Exception:
+            cutoff = datetime.utcnow() - timedelta(hours=1)
+
+    # Slack messages
+    q = db.query(SlackMessage).order_by(SlackMessage.created_at.desc())
+    if cutoff:
+        q = q.filter(SlackMessage.created_at > cutoff)
+    for m in q.limit(limit).all():
+        ch = db.query(SlackChannel).filter(SlackChannel.id == m.channel_id).first()
+        events.append({
+            "type": "slack", "icon": "💬", "color": "#4A154B",
+            "user": m.author_name or m.author_email,
+            "action": f"posted in #{ch.name if ch else 'channel'}",
+            "body": (m.body or "")[:120],
+            "time": m.created_at.isoformat() if m.created_at else None,
+        })
+
+    # Bug reports
+    q = db.query(Bug).order_by(Bug.created_at.desc())
+    if cutoff:
+        q = q.filter(Bug.created_at > cutoff)
+    for b in q.limit(limit).all():
+        action_map = {"open": "reported", "sprint": "moved to sprint", "in_progress": "started working on",
+                      "review": "submitted for review", "done": "completed", "next_version": "queued for release",
+                      "closed": "closed"}
+        events.append({
+            "type": "bug", "icon": "🐛", "color": "#8b5cf6",
+            "user": b.reporter_name or b.reporter_email or "Unknown",
+            "action": f"{action_map.get(b.status, 'filed')} {b.key}",
+            "body": (b.title or "")[:120],
+            "time": b.created_at.isoformat() if b.created_at else None,
+            "meta": {"priority": b.priority, "status": b.status},
+        })
+
+    # Bug comments
+    q = db.query(BugComment).order_by(BugComment.created_at.desc())
+    if cutoff:
+        q = q.filter(BugComment.created_at > cutoff)
+    for bc in q.limit(limit).all():
+        bug = db.query(Bug).filter(Bug.id == bc.bug_id).first()
+        events.append({
+            "type": "bug_comment", "icon": "💬", "color": "#6366f1",
+            "user": bc.author_name or bc.author_email or "Unknown",
+            "action": f"commented on {bug.key if bug else 'a bug'}",
+            "body": (bc.body or "")[:120],
+            "time": bc.created_at.isoformat() if bc.created_at else None,
+        })
+
+    # Article comments
+    q = db.query(PageAnnotation).order_by(PageAnnotation.created_at.desc())
+    if cutoff:
+        q = q.filter(PageAnnotation.created_at > cutoff)
+    for a in q.limit(limit).all():
+        events.append({
+            "type": "comment", "icon": "📝", "color": "#f59e0b",
+            "user": a.author_name or a.author_id or "Unknown",
+            "action": "commented on an article",
+            "body": (a.body or "")[:120],
+            "time": a.created_at.isoformat() if a.created_at else None,
+        })
+
+    # Sort all by time desc
+    events.sort(key=lambda e: e.get("time", ""), reverse=True)
+
+    # Active users — who acted in last 2 hours
+    two_hours_ago = datetime.utcnow() - timedelta(hours=2)
+    active_users = set()
+    recent_slacks = db.query(SlackMessage.author_name, SlackMessage.author_email).filter(
+        SlackMessage.created_at > two_hours_ago).all()
+    for name, email in recent_slacks:
+        active_users.add(name or email)
+    recent_bugs = db.query(Bug.reporter_name, Bug.reporter_email).filter(
+        Bug.created_at > two_hours_ago).all()
+    for name, email in recent_bugs:
+        active_users.add(name or email)
+    recent_comments = db.query(PageAnnotation.author_name).filter(
+        PageAnnotation.created_at > two_hours_ago).all()
+    for (name,) in recent_comments:
+        if name:
+            active_users.add(name)
+
+    # Counts
+    total_bugs = db.query(func.count(Bug.id)).scalar() or 0
+    open_bugs = db.query(func.count(Bug.id)).filter(Bug.status.in_(["open", "sprint", "in_progress"])).scalar() or 0
+    total_slack = db.query(func.count(SlackMessage.id)).scalar() or 0
+    total_comments = db.query(func.count(PageAnnotation.id)).scalar() or 0
+
+    return {
+        "events": events[:limit],
+        "active_users": sorted(active_users),
+        "stats": {
+            "total_bugs": total_bugs,
+            "open_bugs": open_bugs,
+            "total_slack": total_slack,
+            "total_comments": total_comments,
+            "active_count": len(active_users),
+        },
+        "server_time": datetime.utcnow().isoformat(),
+    }
+
+
 @router.post("/api/simulated-users/update-personas")
 def trigger_persona_update(db: Session = Depends(get_db_dependency)):
     """Manually trigger thought leader persona updates."""

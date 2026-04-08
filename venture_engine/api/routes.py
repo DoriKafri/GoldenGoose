@@ -3381,6 +3381,7 @@ def get_graph(
                 "group": v.category or "venture",
                 "size": (v.score_total or 5) if hasattr(v, "score_total") else 5,
                 "meta": {"status": v.status if hasattr(v, "status") else "", "domain": v.domain if hasattr(v, "domain") else ""},
+                "image": v.logo_url if hasattr(v, "logo_url") and v.logo_url else None,
             })
             # Venture -> tag (domain) edge
             if hasattr(v, "domain") and v.domain:
@@ -3398,6 +3399,7 @@ def get_graph(
                 "id": f"tl_{tl.id}", "type": "thought_leader", "label": tl.name or tl.handle or "",
                 "group": "thought_leader", "size": max(4, min(12, signal_count * 2)),
                 "meta": {"handle": tl.handle, "platform": tl.platform},
+                "image": tl.avatar_url if hasattr(tl, "avatar_url") and tl.avatar_url else None,
             })
         # TL -> Venture signals
         signals = db.query(TLSignal).all()
@@ -3407,13 +3409,27 @@ def get_graph(
                 "label": s.vote or "signal", "weight": s.confidence or 0.5,
             })
 
-    # ── News Items ──
-    if not type_filter or "news" in type_filter:
+    # ── News Items (classified as insight / problem / opportunity) ──
+    if not type_filter or "news" in type_filter or "insight" in (type_filter or set()) or "problem" in (type_filter or set()) or "opportunity" in (type_filter or set()):
         news_items = db.query(NewsFeedItem).limit(200).all()
+        _problem_kw = {"bug", "issue", "fail", "error", "crash", "broken", "problem", "vulnerability", "attack", "breach", "risk", "outage", "incident"}
+        _opp_kw = {"opportunity", "launch", "funding", "raised", "growth", "trend", "market", "startup", "release", "new", "announce", "introduce"}
         for n in news_items:
+            title_lower = (n.title or "").lower()
+            summary_lower = (n.summary or "").lower()
+            text_combined = title_lower + " " + summary_lower
+            words = set(text_combined.split())
+            problem_score = len(words & _problem_kw)
+            opp_score = len(words & _opp_kw)
+            if problem_score > opp_score:
+                node_type = "problem"
+            elif opp_score > problem_score:
+                node_type = "opportunity"
+            else:
+                node_type = "insight"
             nodes.append({
-                "id": f"n_{n.id}", "type": "news", "label": (n.title or "")[:40],
-                "group": "news", "size": max(2, (n.signal_strength or 3)),
+                "id": f"n_{n.id}", "type": node_type, "label": (n.title or "")[:40],
+                "group": node_type, "size": max(2, (n.signal_strength or 3)),
                 "meta": {"source": n.source, "url": n.url},
             })
             # News -> Venture edges

@@ -366,7 +366,7 @@ html.dark .toggle-track::after { transform:translateX(16px); }
 .copied-toast.show { opacity:1; }
 .status-select { font-family:inherit; font-size:12px; background:var(--bg2); color:var(--text); border:1px solid var(--border); border-radius:var(--radius-pill); padding:4px 10px; }
 .loading { text-align:center; color:var(--text2); padding:60px 20px; font-size:14px; }
-.pagination { display:flex; justify-content:center; gap:8px; padding:20px 0; }
+.pagination { display:none; justify-content:center; gap:8px; padding:20px 0; }
 .pagination button { font-family:inherit; font-size:13px; font-weight:500; padding:6px 16px; background:var(--card); color:var(--text); border:1px solid var(--border); border-radius:var(--radius-pill); cursor:pointer; transition:all 0.15s; box-shadow:var(--shadow); }
 .pagination button:hover:not(:disabled) { border-color:var(--accent); color:var(--accent-hover); }
 .pagination button:disabled { opacity:0.35; cursor:default; }
@@ -1878,7 +1878,7 @@ function switchTab(tab, skipHash) {
   if (!skipHash) updateHash();
   // Show/hide pagination (hidden for news=infinite scroll, and non-list tabs)
   const paginationEl = document.querySelector('.pagination');
-  if (paginationEl) paginationEl.style.display = ['news','threads','bugs','graph','slack','activity'].includes(tab) ? 'none' : '';
+  if (paginationEl) paginationEl.style.display = isVentureTab ? 'flex' : 'none';
   if (tab === 'threads') { loadThreads(); }
   else if (tab === 'news') { loadNews(); }
   else if (tab === 'bugs') { loadBugs(); }
@@ -5908,10 +5908,11 @@ async function loadGraph() {
     <div style="display:flex;flex-direction:column;height:calc(100vh - 140px);">
       <div class="graph-legend">
         <span style="font-weight:700;">Knowledge Graph</span>
-        <span class="graph-legend-item"><span class="graph-legend-dot" style="background:#FFB100;"></span> Ventures</span>
-        <span class="graph-legend-item"><span class="graph-legend-dot" style="background:#4ecdc4;"></span> Thought Leaders</span>
-        <span class="graph-legend-item"><span class="graph-legend-dot" style="background:#95a5a6;"></span> News</span>
-        <span class="graph-legend-item"><span class="graph-legend-dot" style="background:#e74c3c;"></span> Tags</span>
+        <span class="graph-legend-item"><span class="graph-legend-dot" style="background:#FFB100;border-radius:4px;"></span> Ventures</span>
+        <span class="graph-legend-item"><span class="graph-legend-dot" style="background:#4ecdc4;border-radius:50%;"></span> Thought Leaders</span>
+        <span class="graph-legend-item"><span class="graph-legend-dot" style="background:#f59e0b;"></span> Insights</span>
+        <span class="graph-legend-item"><span class="graph-legend-dot" style="background:#ef4444;"></span> Problems</span>
+        <span class="graph-legend-item"><span class="graph-legend-dot" style="background:#22c55e;"></span> Opportunities</span>
         <span class="graph-legend-item"><span class="graph-legend-dot" style="background:#8b5cf6;"></span> Bugs</span>
       </div>
       <div id="graphCanvas" style="flex:1;min-height:0;position:relative;overflow:hidden;"></div>
@@ -5933,11 +5934,14 @@ function renderForceGraph(data) {
   const width = container.clientWidth;
   const height = container.clientHeight || 600;
 
-  const colorMap = { venture: '#FFB100', thought_leader: '#4ecdc4', news: '#95a5a6', tag: '#e74c3c', bug: '#8b5cf6' };
+  const colorMap = { venture: '#FFB100', thought_leader: '#4ecdc4', insight: '#f59e0b', problem: '#ef4444', opportunity: '#22c55e', tag: '#6b7280', bug: '#8b5cf6' };
 
   const svg = d3.select(container).append('svg')
     .attr('width', width).attr('height', height)
     .attr('viewBox', [0, 0, width, height]);
+
+  // Defs for image clip paths
+  const defs = svg.append('defs');
 
   // Zoom
   const g = svg.append('g');
@@ -5951,17 +5955,21 @@ function renderForceGraph(data) {
     .force('link', d3.forceLink(data.edges).id(d => d.id).distance(80).strength(0.3))
     .force('charge', d3.forceManyBody().strength(-120))
     .force('center', d3.forceCenter(width / 2, height / 2))
-    .force('collide', d3.forceCollide().radius(d => (d.size || 4) + 8));
+    .force('collide', d3.forceCollide().radius(d => _nodeR(d) + 8));
+
+  function _nodeR(d) {
+    if (d.type === 'venture') return 16;
+    if (d.type === 'thought_leader') return 14;
+    return Math.max(3, Math.min(12, (d.size || 4)));
+  }
 
   const link = g.append('g').selectAll('line')
     .data(data.edges).join('line')
     .attr('stroke', '#ccc').attr('stroke-opacity', 0.4).attr('stroke-width', d => Math.max(0.5, (d.weight || 0.5) * 1.5));
 
-  const node = g.append('g').selectAll('circle')
-    .data(data.nodes).join('circle')
-    .attr('r', d => Math.max(3, Math.min(16, (d.size || 4))))
-    .attr('fill', d => colorMap[d.type] || '#999')
-    .attr('stroke', '#fff').attr('stroke-width', 1.5)
+  // Create node groups (g elements) instead of just circles
+  const nodeGroup = g.append('g').selectAll('g')
+    .data(data.nodes).join('g')
     .style('cursor', 'pointer')
     .call(d3.drag()
       .on('start', (e, d) => { if (!e.active) simulation.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; })
@@ -5969,25 +5977,68 @@ function renderForceGraph(data) {
       .on('end', (e, d) => { if (!e.active) simulation.alphaTarget(0); d.fx = null; d.fy = null; })
     );
 
+  // For each node, add clip path and render circle or image
+  nodeGroup.each(function(d, i) {
+    const el = d3.select(this);
+    const r = _nodeR(d);
+    const hasImage = d.image && (d.type === 'venture' || d.type === 'thought_leader');
+
+    if (hasImage) {
+      // Create clip path for this node
+      const clipId = 'clip-' + i;
+      if (d.type === 'thought_leader') {
+        // Circle clip for TL avatars
+        defs.append('clipPath').attr('id', clipId)
+          .append('circle').attr('r', r);
+      } else {
+        // Rounded rect clip for venture logos
+        defs.append('clipPath').attr('id', clipId)
+          .append('rect').attr('x', -r).attr('y', -r).attr('width', r*2).attr('height', r*2).attr('rx', 4);
+      }
+
+      // Background circle/rect with color
+      if (d.type === 'thought_leader') {
+        el.append('circle').attr('r', r).attr('fill', colorMap[d.type]).attr('stroke', '#fff').attr('stroke-width', 2);
+      } else {
+        el.append('rect').attr('x', -r).attr('y', -r).attr('width', r*2).attr('height', r*2).attr('rx', 4)
+          .attr('fill', colorMap[d.type]).attr('stroke', '#fff').attr('stroke-width', 2);
+      }
+
+      // Image clipped
+      el.append('image')
+        .attr('xlink:href', d.image)
+        .attr('x', -r).attr('y', -r).attr('width', r*2).attr('height', r*2)
+        .attr('clip-path', 'url(#' + clipId + ')')
+        .attr('preserveAspectRatio', 'xMidYMid slice')
+        .on('error', function() { d3.select(this).remove(); });
+    } else {
+      // Regular colored circle
+      el.append('circle').attr('r', r)
+        .attr('fill', colorMap[d.type] || '#999')
+        .attr('stroke', '#fff').attr('stroke-width', 1.5);
+    }
+  });
+
   // Labels (only for larger nodes)
   const label = g.append('g').selectAll('text')
-    .data(data.nodes.filter(d => (d.size || 4) >= 4)).join('text')
-    .text(d => (d.label || '').slice(0, 18))
+    .data(data.nodes.filter(d => _nodeR(d) >= 4)).join('text')
+    .text(d => (d.label || '').slice(0, 22))
     .attr('font-size', 9).attr('fill', 'var(--text2)')
-    .attr('text-anchor', 'middle').attr('dy', d => (d.size || 4) + 12)
+    .attr('text-anchor', 'middle').attr('dy', d => _nodeR(d) + 12)
     .style('pointer-events', 'none');
 
-  node.on('mouseover', (e, d) => {
+  nodeGroup.on('mouseover', (e, d) => {
+    const typeLabel = {venture:'Venture',thought_leader:'Thought Leader',insight:'Insight',problem:'Problem',opportunity:'Opportunity',bug:'Bug',tag:'Tag'}[d.type] || d.type;
     tooltip.style('display', 'block')
-      .html(`<strong>${esc(d.label)}</strong><br><span style="color:var(--text3);font-size:10px;">${d.type}${d.meta && d.meta.status ? ' · ' + d.meta.status : ''}</span>`)
+      .html('<strong>' + esc(d.label) + '</strong><br><span style="color:var(--text3);font-size:10px;">' + typeLabel + (d.meta && d.meta.status ? ' \u00b7 ' + d.meta.status : '') + '</span>')
       .style('left', (e.offsetX + 15) + 'px').style('top', (e.offsetY - 10) + 'px');
-  }).on('mouseout', () => tooltip.style('display', 'none'));
+  }).on('mouseout', function() { tooltip.style('display', 'none'); });
 
-  simulation.on('tick', () => {
-    link.attr('x1', d => d.source.x).attr('y1', d => d.source.y)
-        .attr('x2', d => d.target.x).attr('y2', d => d.target.y);
-    node.attr('cx', d => d.x).attr('cy', d => d.y);
-    label.attr('x', d => d.x).attr('y', d => d.y);
+  simulation.on('tick', function() {
+    link.attr('x1', function(d){return d.source.x;}).attr('y1', function(d){return d.source.y;})
+        .attr('x2', function(d){return d.target.x;}).attr('y2', function(d){return d.target.y;});
+    nodeGroup.attr('transform', function(d){ return 'translate(' + d.x + ',' + d.y + ')'; });
+    label.attr('x', function(d){return d.x;}).attr('y', function(d){return d.y;});
   });
 }
 
@@ -6130,7 +6181,7 @@ async function loadActivity() {
     const events = [];
 
     // Bug activities
-    (bugResp.bugs||bugResp||[]).forEach(bug => {
+    (bugResp.items||bugResp.bugs||bugResp||[]).forEach(bug => {
       events.push({type:'bug', subtype: bug.status==='open'?'created':'updated', title: bug.key+': '+bug.title, user: bug.reporter_name||bug.reporter_email, time: bug.updated_at||bug.created_at, icon:'🐛', color:'#ef4444', detail: `Status: ${bug.status} · Priority: ${bug.priority}`});
       (bug.comments||[]).forEach(c => {
         events.push({type:'bug_comment', title: 'Commented on '+bug.key, user: c.author_name||c.author_email, time: c.created_at, icon:'💬', color:'#8b5cf6', detail: c.body?.slice(0,120)});
@@ -6146,10 +6197,10 @@ async function loadActivity() {
     const recent = events.slice(0, 100);
 
     // Stats cards
-    const bugCount = (bugResp.bugs||bugResp||[]).length;
-    const openBugs = (bugResp.bugs||bugResp||[]).filter(b=>b.status==='open').length;
-    const inProgress = (bugResp.bugs||bugResp||[]).filter(b=>b.status==='in_progress').length;
-    const doneBugs = (bugResp.bugs||bugResp||[]).filter(b=>b.status==='done'||b.status==='closed').length;
+    const bugCount = (bugResp.items||bugResp.bugs||bugResp||[]).length;
+    const openBugs = (bugResp.items||bugResp.bugs||bugResp||[]).filter(b=>b.status==='open').length;
+    const inProgress = (bugResp.items||bugResp.bugs||bugResp||[]).filter(b=>b.status==='in_progress').length;
+    const doneBugs = (bugResp.items||bugResp.bugs||bugResp||[]).filter(b=>b.status==='done'||b.status==='closed').length;
 
     const statsHtml = `
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:16px;">

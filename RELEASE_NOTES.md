@@ -2,6 +2,19 @@
 
 ---
 
+## v0.10.0 — 2026-04-08
+
+### True 3D Knowledge Graph
+- **Always-visible labels** — Every node now shows a readable pill-shaped label (title + color border) at all zoom levels, not just on hover
+- **True 3D depth** — Stronger charge force (-250) and angled camera position spread nodes across all three axes for genuine 3D navigation
+- **Rich lighting** — 5-light setup: ambient + 2 directional + 2 colored point lights for realistic shading and depth perception
+- **Glow ring halos** — Ventures and thought leaders get a translucent ring halo for visual prominence
+- **Particle flow** — Strong-weight edges show animated directional particles (gold) indicating signal flow
+- **MeshStandard materials** — Metalness and roughness on spheres for realistic 3D surface rendering
+- **Browser compatibility** — roundRect polyfill for older browsers
+
+---
+
 ## v0.9.0 — 2026-04-08
 
 ### Media Previews & Thread Interactions

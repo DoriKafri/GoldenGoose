@@ -224,13 +224,20 @@ def _backfill_news_from_signals():
 
 
 def _score_dopi_relevance(title: str, summary: str) -> float:
-    """Score an article's DOPI relevance (0-10) using Gemini.
+    """Score an article's DOPI relevance (0-10) using Gemini (rate-limited).
 
     Evaluates whether the article contains actionable problems/opportunities
     for a DevOps/AI engineering consultancy to build ventures around.
     Returns a float 0-10. Articles scoring < 5 are filtered from the feed.
     """
     import os
+    # Check Gemini rate limit before calling
+    try:
+        from venture_engine.discussion_engine import _gemini_rate_check
+        if not _gemini_rate_check():
+            return 6.0  # Default pass-through when rate limited
+    except ImportError:
+        pass
     _gkey = os.environ.get("GOOGLE_GEMINI_API_KEY", "")
     if not _gkey:
         return 6.0  # Default pass-through if no API key
@@ -323,6 +330,65 @@ def _resolve_hn_urls():
             logger.info(f"Auto-resolved {resolved}/{len(items)} HN news URLs to original articles")
 
 
+def _seed_bugs_if_empty():
+    """Seed bugs & feature requests if the table is empty."""
+    import random as _rnd
+    from venture_engine.db.models import Bug, BugComment
+    from venture_engine.activity_simulator import BUG_TEMPLATES, TEAM, _next_bug_key
+
+    with get_db() as db:
+        count = db.query(Bug).count()
+        if count > 0:
+            logger.info(f"Bugs table already has {count} items, skipping seed")
+            return
+
+        logger.info("Bugs table empty — seeding initial bugs & feature requests...")
+        created = 0
+        for template in BUG_TEMPLATES[:15]:  # Seed first 15 templates
+            reporter = _rnd.choice(TEAM)
+            assignee = _rnd.choice([u for u in TEAM if u["email"] != reporter["email"]])
+            status = _rnd.choice(["open", "open", "open", "in_progress", "in_progress", "review"])
+            bug = Bug(
+                key=_next_bug_key(db),
+                title=template["title"],
+                description=template["description"],
+                priority=template["priority"],
+                bug_type=template["bug_type"],
+                status=status,
+                reporter_email=reporter["email"],
+                reporter_name=reporter["name"],
+                assignee_email=assignee["email"],
+                assignee_name=assignee["name"],
+                labels=template["labels"],
+            )
+            db.add(bug)
+            db.flush()
+
+            # Add 1-2 initial comments
+            for _ in range(_rnd.randint(1, 2)):
+                commenter = _rnd.choice(TEAM)
+                comment_options = [
+                    f"Investigating now. Looks like it could be related to the last deploy.",
+                    f"I can reproduce this. Steps: open the affected page, wait 3s, check console.",
+                    f"Picking this up. Will have a PR ready by end of day.",
+                    f"Bumping priority — received another report from a client about this.",
+                    f"Added a workaround in the wiki. Working on a proper fix for next sprint.",
+                    f"Root cause identified — it's a race condition in the async handler.",
+                    f"PR #{_rnd.randint(140, 300)} submitted for review.",
+                ]
+                bc = BugComment(
+                    bug_id=bug.id,
+                    author_email=commenter["email"],
+                    author_name=commenter["name"],
+                    body=_rnd.choice(comment_options),
+                )
+                db.add(bc)
+            created += 1
+
+        db.commit()
+        logger.info(f"Seeded {created} bugs & feature requests")
+
+
 @app.on_event("startup")
 def on_startup():
     logger.info("Creating database tables...")
@@ -348,6 +414,8 @@ def on_startup():
     from venture_engine.slack_simulator import seed_channels_and_history
     with get_db() as db:
         seed_channels_and_history(db)
+    logger.info("Seeding bugs & feature requests...")
+    _seed_bugs_if_empty()
     logger.info("Running initial activity simulation...")
     from venture_engine.activity_simulator import simulate_activity
     with get_db() as db:

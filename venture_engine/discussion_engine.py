@@ -14,7 +14,8 @@ import os
 import re
 import json
 import random
-from datetime import datetime, timedelta
+import threading
+from datetime import datetime, date, timedelta
 from loguru import logger
 from sqlalchemy.orm import Session
 
@@ -182,9 +183,44 @@ TL_BELIEF_TEMPLATES = {
 }
 
 
+# ── Gemini Free Tier Rate Limiter ─────────────────────────────────────────
+# Gemini 2.0 Flash Lite free tier: 30 RPM, 1500 RPD.
+# We cap at 100 calls/day to stay safely within limits and save budget.
+_gemini_rate_lock = threading.Lock()
+_gemini_daily_count = 0
+_gemini_daily_date = None
+GEMINI_DAILY_LIMIT = 100  # conservative cap (free tier allows 1500)
+
+
+def gemini_calls_remaining() -> int:
+    """Return how many Gemini calls are left today."""
+    global _gemini_daily_count, _gemini_daily_date
+    today = date.today()
+    if _gemini_daily_date != today:
+        return GEMINI_DAILY_LIMIT
+    return max(0, GEMINI_DAILY_LIMIT - _gemini_daily_count)
+
+
+def _gemini_rate_check() -> bool:
+    """Check and increment the daily Gemini call counter. Returns True if allowed."""
+    global _gemini_daily_count, _gemini_daily_date
+    with _gemini_rate_lock:
+        today = date.today()
+        if _gemini_daily_date != today:
+            _gemini_daily_count = 0
+            _gemini_daily_date = today
+        if _gemini_daily_count >= GEMINI_DAILY_LIMIT:
+            logger.warning(f"Gemini daily limit reached ({GEMINI_DAILY_LIMIT} calls). Skipping.")
+            return False
+        _gemini_daily_count += 1
+        return True
+
+
 def _call_gemini(prompt: str, max_tokens: int = 1500, temperature: float = 0.8) -> str:
-    """Call Gemini API for discussion generation."""
+    """Call Gemini API for discussion generation (rate-limited)."""
     import httpx
+    if not _gemini_rate_check():
+        return ""
     _gkey = os.environ.get("GOOGLE_GEMINI_API_KEY", "")
     if not _gkey:
         return ""
@@ -199,6 +235,9 @@ def _call_gemini(prompt: str, max_tokens: int = 1500, temperature: float = 0.8) 
         )
         if resp.status_code == 200:
             return resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
+        elif resp.status_code == 429:
+            logger.warning("Gemini rate limit hit (429). Backing off.")
+            return ""
     except Exception as e:
         logger.warning(f"Gemini call failed: {e}")
     return ""

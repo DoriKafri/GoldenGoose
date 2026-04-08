@@ -2135,8 +2135,16 @@ def _get_transcript_text(video_id: str) -> str:
 
 
 def _gemini_generate(prompt: str) -> Optional[str]:
-    """Call Google Gemini API to generate text. Returns None on failure."""
+    """Call Google Gemini API to generate text (rate-limited). Returns None on failure."""
     import os as _os
+    # Check global Gemini rate limit
+    try:
+        from venture_engine.discussion_engine import _gemini_rate_check, gemini_calls_remaining
+        if not _gemini_rate_check():
+            logger.warning(f"Gemini daily limit reached. {gemini_calls_remaining()} calls remaining.")
+            return None
+    except ImportError:
+        pass
     _gkey = settings.google_gemini_api_key or _os.environ.get("GOOGLE_GEMINI_API_KEY", "")
     if not _gkey:
         logger.warning("Gemini API key not set, skipping generation")
@@ -4159,6 +4167,26 @@ def seed_slack_channels(db: Session = Depends(get_db_dependency)):
     from venture_engine.slack_simulator import seed_channels_and_history
     result = seed_channels_and_history(db)
     return result
+
+
+# ── Gemini Rate Limit Status ──────────────────────────────────────────────
+@router.get("/api/gemini-status")
+def gemini_status():
+    """Return Gemini API usage stats for the day."""
+    try:
+        from venture_engine.discussion_engine import (
+            gemini_calls_remaining, _gemini_daily_count, _gemini_daily_date, GEMINI_DAILY_LIMIT
+        )
+        from venture_engine.activity_simulator import _activity_multiplier
+        return {
+            "daily_limit": GEMINI_DAILY_LIMIT,
+            "calls_today": _gemini_daily_count,
+            "remaining": gemini_calls_remaining(),
+            "date": str(_gemini_daily_date),
+            "activity_multiplier": round(_activity_multiplier(), 2),
+        }
+    except Exception as e:
+        return {"error": str(e)}
 
 
 # ── Simulated Users Dashboard ──────────────────────────────────────────────

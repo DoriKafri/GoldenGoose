@@ -2,20 +2,75 @@
 24/7 Activity Simulator — generates realistic user activity from Develeap team members
 and thought leaders using AI-generated expert discussions.
 
-Runs as a scheduled job every 30 minutes, producing:
+Runs as a scheduled job every 30 minutes, producing activity that mimics human behavior:
+- More active during Israel working hours (9-18 IST / 6-15 UTC)
+- Medium activity in evenings (18-23 IST / 15-20 UTC)
+- Low activity at night (23-6 IST / 20-3 UTC)
+- Reduced on weekends (but not zero)
+
+Each cycle generates:
 - AI-generated expert discussion threads on news articles
 - Article comments & replies on news feed items
 - Emoji reactions on existing annotations
-- New bug reports
+- New bug reports & feature requests
 - Bug status transitions (simulating dev workflow)
 - Bug comments (investigation updates, PR links, etc.)
 - Thought leader participation with domain expertise
 """
 import random
 from datetime import datetime, timedelta
+import pytz
 from loguru import logger
 from sqlalchemy.orm import Session
 from sqlalchemy import func
+
+# ── Time-aware activity scaling ──────────────────────────────────────────
+IST = pytz.timezone("Asia/Jerusalem")
+
+
+def _activity_multiplier() -> float:
+    """Return a 0.0–1.0 multiplier based on current Israel time.
+
+    Working hours (Sun-Thu 9-18):  1.0
+    Evenings (18-23):              0.4
+    Night (23-6):                  0.1
+    Weekends (Fri-Sat):            0.25 during day, 0.1 at night
+    """
+    now_ist = datetime.now(IST)
+    hour = now_ist.hour
+    weekday = now_ist.weekday()  # 0=Mon ... 4=Fri, 5=Sat, 6=Sun
+
+    # Israel work week: Sun(6)–Thu(3)
+    is_workday = weekday in (6, 0, 1, 2, 3)  # Sun–Thu
+    is_weekend = not is_workday  # Fri–Sat
+
+    if is_weekend:
+        if 9 <= hour < 22:
+            return 0.25
+        return 0.1
+
+    # Workday
+    if 9 <= hour < 18:
+        return 1.0
+    elif 18 <= hour < 23:
+        return 0.4
+    elif 6 <= hour < 9:
+        return 0.3
+    else:  # 23-6
+        return 0.1
+
+
+def _scaled_randint(low: int, high: int) -> int:
+    """Random int scaled by time-of-day multiplier. Always returns at least 0."""
+    mult = _activity_multiplier()
+    scaled_high = max(0, int(high * mult))
+    scaled_low = max(0, min(low, scaled_high))
+    return random.randint(scaled_low, scaled_high)
+
+
+def _should_run(base_probability: float) -> bool:
+    """Probability check scaled by time-of-day."""
+    return random.random() < (base_probability * _activity_multiplier())
 
 from venture_engine.db.models import (
     NewsFeedItem, PageAnnotation, PageAnnotationReply,
@@ -223,6 +278,61 @@ BUG_TEMPLATES = [
         "description": "The score dimension breakdown tooltip overflows on screens < 400px. Need to reposition or convert to a bottom sheet on mobile.",
         "priority": "low", "bug_type": "bug", "labels": ["frontend", "mobile", "ux"],
     },
+    {
+        "title": "Add multi-tenant workspace support",
+        "description": "Clients want isolated workspaces per team/org. Need tenant separation at the DB level (schema-per-tenant or row-level security).",
+        "priority": "high", "bug_type": "feature", "labels": ["enterprise", "multi-tenant", "backend"],
+    },
+    {
+        "title": "News feed auto-refresh not working in background tabs",
+        "description": "When the tab is backgrounded, the polling interval stops. Users come back to stale data. Need to check visibility API and refresh on focus.",
+        "priority": "low", "bug_type": "bug", "labels": ["frontend", "polling", "ux"],
+    },
+    {
+        "title": "Add email digest with top ventures of the week",
+        "description": "Weekly email summarizing top-scored ventures, new signals, and TL discussions. Use SendGrid or SES with HTML template.",
+        "priority": "medium", "bug_type": "feature", "labels": ["email", "notifications", "reporting"],
+    },
+    {
+        "title": "Graph edge labels missing for tech-gap connections",
+        "description": "Edges connecting ventures to their tech gaps show no labels. Need to render the gap type (blocked, monitoring, resolved) on the edge.",
+        "priority": "low", "bug_type": "improvement", "labels": ["graph", "frontend", "tech-gaps"],
+    },
+    {
+        "title": "API rate limiting for external consumers",
+        "description": "No rate limiting on public API endpoints. A single client can overwhelm the server. Need token bucket or sliding window implementation.",
+        "priority": "high", "bug_type": "feature", "labels": ["api", "security", "backend"],
+    },
+    {
+        "title": "Mobile pull-to-refresh on news feed",
+        "description": "Users expect swipe-down-to-refresh on mobile. Currently need to tap reload button. Implement touch gesture handler.",
+        "priority": "low", "bug_type": "feature", "labels": ["mobile", "ux", "frontend"],
+    },
+    {
+        "title": "Stale venture scores not auto-refreshing",
+        "description": "Ventures scored more than 30 days ago still show old scores. Need a background re-scoring job for stale entries.",
+        "priority": "medium", "bug_type": "bug", "labels": ["scoring", "scheduler", "ventures"],
+    },
+    {
+        "title": "Add venture tagging and custom labels",
+        "description": "Users want to tag ventures with custom labels (e.g., 'Q3-priority', 'client-X'). Need a many-to-many tag system.",
+        "priority": "medium", "bug_type": "feature", "labels": ["ventures", "ux", "backend"],
+    },
+    {
+        "title": "Annotation anchoring fails on dynamically loaded content",
+        "description": "SPAs that lazy-load content cause annotation selectors to fail. Need MutationObserver-based retry for anchor resolution.",
+        "priority": "high", "bug_type": "bug", "labels": ["annotations", "frontend", "proxy"],
+    },
+    {
+        "title": "Add activity heatmap to dashboard",
+        "description": "GitHub-style contribution heatmap showing team activity over time. Would help visualize engagement patterns and quiet periods.",
+        "priority": "low", "bug_type": "feature", "labels": ["dashboard", "analytics", "frontend"],
+    },
+    {
+        "title": "Slack bot not responding to @mentions",
+        "description": "The Slack integration receives webhooks but doesn't respond when the bot is @mentioned. Need to handle app_mention events.",
+        "priority": "medium", "bug_type": "bug", "labels": ["slack", "integration", "bot"],
+    },
 ]
 
 BUG_COMMENT_TEMPLATES = [
@@ -291,8 +401,11 @@ def simulate_activity(db: Session) -> dict:
         "ai_discussions": 0, "tl_comments": 0, "tl_replies": 0, "tl_reactions": 0,
     }
 
-    # ── 0. AI-generated expert discussion thread (40% chance per cycle) ──
-    if random.random() < 0.4:
+    mult = _activity_multiplier()
+    logger.info(f"Activity multiplier: {mult:.2f} (IST: {datetime.now(IST).strftime('%H:%M %a')})")
+
+    # ── 0. AI-generated expert discussion thread (40% base chance, scaled) ──
+    if _should_run(0.4):
         try:
             from venture_engine.discussion_engine import generate_discussion_thread, TEAM_BELIEFS
 
@@ -387,7 +500,7 @@ def simulate_activity(db: Session) -> dict:
         NewsFeedItem.url.isnot(None)
     ).order_by(func.random()).limit(10).all()
 
-    num_comments = random.randint(1, 3)
+    num_comments = _scaled_randint(0, 3)
     for item in news_items[:num_comments]:
         user = _random_user()
         # Don't double-comment (same user, same article)
@@ -413,7 +526,7 @@ def simulate_activity(db: Session) -> dict:
         stats["comments"] += 1
 
     # ── 2. Replies to existing comments ───────────────────────────────
-    num_replies = random.randint(0, 2)
+    num_replies = _scaled_randint(0, 2)
     if num_replies > 0:
         recent_anns = db.query(PageAnnotation).order_by(
             PageAnnotation.created_at.desc()
@@ -442,7 +555,7 @@ def simulate_activity(db: Session) -> dict:
             stats["replies"] += 1
 
     # ── 3. Emoji reactions ────────────────────────────────────────────
-    num_reactions = random.randint(1, 4)
+    num_reactions = _scaled_randint(0, 4)
     recent_anns = db.query(PageAnnotation).order_by(
         PageAnnotation.created_at.desc()
     ).limit(30).all()
@@ -467,8 +580,8 @@ def simulate_activity(db: Session) -> dict:
         db.add(reaction)
         stats["reactions"] += 1
 
-    # ── 4. New bug report (40% chance per cycle) ──────────────────────
-    if random.random() < 0.4:
+    # ── 4. New bug report (40% base chance, scaled by time) ────────────
+    if _should_run(0.4):
         # Pick a template not already used (by title)
         existing_titles = {b.title for b in db.query(Bug.title).all()}
         available = [t for t in BUG_TEMPLATES if t["title"] not in existing_titles]
@@ -504,7 +617,7 @@ def simulate_activity(db: Session) -> dict:
             stats["bugs_created"] += 1
 
     # ── 5. Bug status transitions ─────────────────────────────────────
-    num_transitions = random.randint(1, 3)
+    num_transitions = _scaled_randint(0, 3)
     open_bugs = db.query(Bug).filter(
         Bug.status.notin_(["done", "closed"])
     ).order_by(func.random()).limit(num_transitions).all()
@@ -546,7 +659,7 @@ def simulate_activity(db: Session) -> dict:
         stats["bugs_transitioned"] += 1
 
     # ── 6. Bug comments on existing bugs ──────────────────────────────
-    num_bug_comments = random.randint(1, 2)
+    num_bug_comments = _scaled_randint(0, 2)
     active_bugs = db.query(Bug).filter(
         Bug.status.in_(["open", "in_progress", "review"])
     ).order_by(func.random()).limit(num_bug_comments).all()
@@ -590,7 +703,7 @@ def simulate_activity(db: Session) -> dict:
     stats["tl_reactions"] = 0
 
     if tl_users:
-        num_tl_comments = random.randint(1, 3)
+        num_tl_comments = _scaled_randint(0, 3)
         tl_news = db.query(NewsFeedItem).filter(
             NewsFeedItem.url.isnot(None)
         ).order_by(NewsFeedItem.published_at.desc().nullslast()).limit(20).all()
@@ -622,7 +735,7 @@ def simulate_activity(db: Session) -> dict:
             stats["tl_comments"] += 1
 
         # ── 8. TL replies to existing comments ───────────────────────
-        num_tl_replies = random.randint(0, 2)
+        num_tl_replies = _scaled_randint(0, 2)
         if num_tl_replies > 0:
             recent_anns = db.query(PageAnnotation).order_by(
                 PageAnnotation.created_at.desc()
@@ -655,7 +768,7 @@ def simulate_activity(db: Session) -> dict:
                 stats["tl_replies"] += 1
 
         # ── 9. TL emoji reactions ────────────────────────────────────
-        num_tl_reactions = random.randint(1, 3)
+        num_tl_reactions = _scaled_randint(0, 3)
         recent_anns = db.query(PageAnnotation).order_by(
             PageAnnotation.created_at.desc()
         ).limit(30).all()

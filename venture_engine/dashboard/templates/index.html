@@ -172,6 +172,14 @@ html.dark .toggle-track::after { transform:translateX(16px); }
 .share-copied { font-size:11px; color:#16a34a; font-weight:600; animation:fadeIn 0.2s; }
 @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
 
+/* Typing indicator */
+.typing-indicator { padding:4px 0 2px 0; min-height:18px; }
+.typing-dots span { display:inline-block; animation:typingBounce 1.4s infinite ease-in-out; font-weight:bold; font-size:14px; color:var(--accent); }
+.typing-dots span:nth-child(1) { animation-delay:0s; }
+.typing-dots span:nth-child(2) { animation-delay:0.2s; }
+.typing-dots span:nth-child(3) { animation-delay:0.4s; }
+@keyframes typingBounce { 0%,60%,100%{transform:translateY(0);opacity:.4} 30%{transform:translateY(-4px);opacity:1} }
+
 /* Margin opportunity pricing table */
 .margin-opp-section { background:linear-gradient(135deg, var(--bg2), var(--bg)) !important; }
 .clone-target-banner { display:flex; align-items:center; gap:12px; padding:12px 14px; margin-bottom:12px; border-radius:var(--radius); background:rgba(14,165,233,0.08); border:1px solid rgba(14,165,233,0.2); }
@@ -4432,7 +4440,26 @@ function toggleReplyForm(annId) {
   const form = document.getElementById('replyForm_' + annId);
   form.style.display = form.style.display === 'none' ? 'flex' : 'none';
   if (form.style.display === 'flex') {
-    document.getElementById('replyInput_' + annId).focus();
+    var inp = document.getElementById('replyInput_' + annId);
+    inp.focus();
+    // Add typing indicator listener
+    if (!inp._typingBound) {
+      inp._typingBound = true;
+      var typingEl = null;
+      inp.addEventListener('input', function() {
+        if (inp.value.trim().length > 0 && !typingEl) {
+          typingEl = document.createElement('div');
+          typingEl.className = 'typing-indicator';
+          typingEl.innerHTML = '<span class="typing-dots"><span>.</span><span>.</span><span>.</span></span> <span style="font-size:10px;color:var(--text3);font-style:italic;">' + esc(anonName||'You') + ' is writing...</span>';
+          inp.parentElement.insertBefore(typingEl, inp.parentElement.firstChild);
+        } else if (inp.value.trim().length === 0 && typingEl) {
+          typingEl.remove(); typingEl = null;
+        }
+      });
+      inp.addEventListener('blur', function() {
+        setTimeout(function() { if (typingEl) { typingEl.remove(); typingEl = null; } }, 500);
+      });
+    }
   }
 }
 
@@ -4440,6 +4467,12 @@ async function submitReply(annId) {
   const input = document.getElementById('replyInput_' + annId);
   const body = input.value.trim();
   if (!body) return;
+  // Remove typing indicator
+  var ti = input.parentElement.querySelector('.typing-indicator');
+  if (ti) ti.remove();
+  // Show sending state
+  var btn = input.nextElementSibling;
+  if (btn) { btn.textContent = 'Sending...'; btn.disabled = true; }
   try {
     await fetch(`${API}/api/page-annotations/${annId}/replies`, {
       method: 'POST',
@@ -4447,8 +4480,12 @@ async function submitReply(annId) {
       body: JSON.stringify({ body, author_id: anonId, author_name: anonName }),
     });
     input.value = '';
+    if (btn) { btn.textContent = 'Reply'; btn.disabled = false; }
     loadReaderAnnotations();
-  } catch(e) { alert('Failed to reply: ' + e.message); }
+  } catch(e) {
+    if (btn) { btn.textContent = 'Reply'; btn.disabled = false; }
+    alert('Failed to reply: ' + e.message);
+  }
 }
 
 async function _annDeleteReader(annId) {
@@ -5191,7 +5228,7 @@ async function loadHarvestInfo(){try{const res=await fetch(`${API}/api/harvest/l
 function updatePagination(){const tp=Math.ceil(totalVentures/PAGE_SIZE);document.getElementById('prevBtn').disabled=currentPage===0;document.getElementById('nextBtn').disabled=currentPage>=tp-1;document.getElementById('pageInfo').textContent=totalVentures>0?`Page ${currentPage+1} of ${tp} (${totalVentures} ventures)`:'';}
 function prevPage(){if(currentPage>0){currentPage--;currentTab==='news'?loadNews():loadVentures();}}
 function nextPage(){currentPage++;currentTab==='news'?loadNews():loadVentures();}
-function timeAgo(iso){if(!iso)return'';const d=iso.endsWith('Z')||iso.includes('+')?iso:iso+'Z';const s=Math.floor((Date.now()-new Date(d).getTime())/1000);if(s<60)return'just now';if(s<3600)return Math.floor(s/60)+'m ago';if(s<86400)return Math.floor(s/3600)+'h ago';return Math.floor(s/86400)+'d ago';}
+function timeAgo(iso){if(!iso)return'';var d=iso.endsWith('Z')||iso.includes('+')?iso:iso+'Z';var dt=new Date(d);var s=Math.floor((Date.now()-dt.getTime())/1000);if(s<60)return'just now';if(s<3600)return Math.floor(s/60)+'m ago';var now=new Date();var isToday=dt.toDateString()===now.toDateString();var yesterday=new Date(now);yesterday.setDate(yesterday.getDate()-1);var isYesterday=dt.toDateString()===yesterday.toDateString();var time=dt.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});if(isToday)return'Today '+time;if(isYesterday)return'Yesterday '+time;var opts={month:'short',day:'numeric'};if(dt.getFullYear()!==now.getFullYear())opts.year='numeric';return dt.toLocaleDateString([],opts)+' '+time;}
 function esc(s){const el=document.createElement('span');el.textContent=s||'';return el.innerHTML;}
 function parseSkills(s){try{const arr=typeof s==='string'?JSON.parse(s):s;return arr.map(sk=>'<span class="stat-skill">'+esc(sk)+'</span>').join('');}catch(e){return esc(s);}}
 
@@ -6171,7 +6208,13 @@ async function loadGraph() {
         <span class="graph-legend-item"><span class="graph-legend-dot" style="background:#22c55e;"></span> Opportunities</span>
         <span class="graph-legend-item"><span class="graph-legend-dot" style="background:#8b5cf6;"></span> Bugs</span>
       </div>
-      <div id="graphCanvas" style="flex:1;min-height:0;position:relative;overflow:hidden;"></div>
+      <div id="graphCanvas" style="flex:1;min-height:0;position:relative;overflow:hidden;">
+        <div id="graphControls" style="position:absolute;top:10px;right:10px;z-index:10;display:flex;flex-direction:column;gap:4px;">
+          <button onclick="_graphZoom(1.3)" style="width:32px;height:32px;border-radius:var(--radius);border:1px solid var(--border);background:var(--card);color:var(--text);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:var(--shadow);">+</button>
+          <button onclick="_graphZoom(0.7)" style="width:32px;height:32px;border-radius:var(--radius);border:1px solid var(--border);background:var(--card);color:var(--text);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:var(--shadow);">-</button>
+          <button onclick="_graphReset()" style="width:32px;height:32px;border-radius:var(--radius);border:1px solid var(--border);background:var(--card);color:var(--text);font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:var(--shadow);" title="Reset view">&#8634;</button>
+        </div>
+      </div>
     </div>
   `;
   try {
@@ -6201,17 +6244,28 @@ function renderForceGraph(data) {
 
   // Zoom
   const g = svg.append('g');
-  svg.call(d3.zoom().scaleExtent([0.1, 4]).on('zoom', (e) => g.attr('transform', e.transform)));
+  const zoomBehavior = d3.zoom().scaleExtent([0.1, 6]).on('zoom', function(e) { g.attr('transform', e.transform); });
+  svg.call(zoomBehavior);
+
+  // Store zoom for button controls
+  window._graphSvg = svg;
+  window._graphZoomBehavior = zoomBehavior;
+  window._graphZoom = function(factor) {
+    window._graphSvg.transition().duration(300).call(window._graphZoomBehavior.scaleBy, factor);
+  };
+  window._graphReset = function() {
+    window._graphSvg.transition().duration(500).call(window._graphZoomBehavior.transform, d3.zoomIdentity);
+  };
 
   // Tooltip
   const tooltip = d3.select(container).append('div')
     .attr('class', 'graph-tooltip').style('display', 'none');
 
   const simulation = d3.forceSimulation(data.nodes)
-    .force('link', d3.forceLink(data.edges).id(d => d.id).distance(80).strength(0.3))
-    .force('charge', d3.forceManyBody().strength(-120))
+    .force('link', d3.forceLink(data.edges).id(d => d.id).distance(140).strength(0.2))
+    .force('charge', d3.forceManyBody().strength(-250))
     .force('center', d3.forceCenter(width / 2, height / 2))
-    .force('collide', d3.forceCollide().radius(d => _nodeR(d) + 8));
+    .force('collide', d3.forceCollide().radius(d => _nodeR(d) + 20));
 
   function _nodeR(d) {
     if (d.type === 'venture') return 16;

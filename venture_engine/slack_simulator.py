@@ -516,23 +516,35 @@ REACTION_EMOJIS = ["👍", "🔥", "💡", "🚀", "🎯", "👏", "💪", "⭐"
 
 
 def simulate_slack_activity(db: Session) -> dict:
-    """Generate one round of ongoing Slack activity across channels."""
+    """Generate one round of ongoing Slack activity across channels.
+
+    Activity is scaled by time-of-day (Israel time) to mimic human patterns.
+    """
+    from venture_engine.activity_simulator import _activity_multiplier, _should_run, _scaled_randint
+
     stats = {"messages": 0, "replies": 0, "reactions": 0}
+    mult = _activity_multiplier()
+
+    # During very quiet hours, skip Slack entirely sometimes
+    if mult < 0.15 and random.random() > 0.3:
+        logger.info(f"Slack sim skipped (quiet hours, mult={mult:.2f})")
+        return stats
 
     channels = db.query(SlackChannel).all()
     if not channels:
         return stats
 
-    # Pick 2-4 channels to have activity
-    active_channels = random.sample(channels, min(random.randint(2, 4), len(channels)))
+    # Pick 1-4 channels scaled by activity level
+    num_channels = _scaled_randint(1, 4)
+    active_channels = random.sample(channels, min(num_channels or 1, len(channels)))
 
     for channel in active_channels:
         templates = ONGOING_MESSAGES.get(channel.name, ONGOING_MESSAGES.get("general", []))
         if not templates:
             continue
 
-        # 60% chance of a new top-level message
-        if random.random() < 0.6:
+        # 60% base chance of a new top-level message (scaled)
+        if _should_run(0.6):
             template = random.choice(templates)
             # Pick a user whose role fits
             if "all" in template.get("role_fit", []):
@@ -554,8 +566,8 @@ def simulate_slack_activity(db: Session) -> dict:
             db.flush()
             stats["messages"] += 1
 
-            # 40% chance of an immediate reply
-            if random.random() < 0.4:
+            # 40% base chance of an immediate reply (scaled)
+            if _should_run(0.4):
                 replier_email = random.choice([e for e in PERSONAS.keys() if e != user_email])
                 replier = PERSONAS[replier_email]
                 reply_templates = [
@@ -576,8 +588,8 @@ def simulate_slack_activity(db: Session) -> dict:
                 db.add(reply_msg)
                 stats["replies"] += 1
 
-        # Reply to an existing thread (50% chance)
-        if random.random() < 0.5:
+        # Reply to an existing thread (50% base, scaled)
+        if _should_run(0.5):
             existing_msg = db.query(SlackMessage).filter(
                 SlackMessage.channel_id == channel.id,
                 SlackMessage.thread_id.is_(None),
@@ -604,8 +616,8 @@ def simulate_slack_activity(db: Session) -> dict:
                 db.add(reply_msg)
                 stats["replies"] += 1
 
-        # React to messages (70% chance)
-        if random.random() < 0.7:
+        # React to messages (70% base, scaled)
+        if _should_run(0.7):
             rand_msg = db.query(SlackMessage).filter(
                 SlackMessage.channel_id == channel.id
             ).order_by(func.random()).first()
@@ -629,9 +641,9 @@ def simulate_slack_activity(db: Session) -> dict:
                     flag_modified(rand_msg, "reactions")
                     stats["reactions"] += 1
 
-    # ── AI-generated expert discussion (30% chance per cycle) ──────────
+    # ── AI-generated expert discussion (30% base, scaled) ──────────
     stats["ai_discussions"] = 0
-    if random.random() < 0.3:
+    if _should_run(0.3):
         try:
             from venture_engine.discussion_engine import generate_slack_discussion, TEAM_BELIEFS
 
@@ -712,8 +724,8 @@ def simulate_slack_activity(db: Session) -> dict:
     stats["tl_replies"] = 0
 
     if tl_personas:
-        # 70% chance of TL posting in a channel
-        if random.random() < 0.7:
+        # 70% base chance of TL posting (scaled)
+        if _should_run(0.7):
             tl_user = random.choice(tl_personas)
             channel = random.choice(channels)
             templates = TL_SLACK_MESSAGES.get(channel.name, TL_SLACK_MESSAGES.get("general", []))
@@ -733,8 +745,8 @@ def simulate_slack_activity(db: Session) -> dict:
                 db.flush()
                 stats["tl_messages"] += 1
 
-                # 50% chance of a team member replying to TL
-                if random.random() < 0.5:
+                # 50% base chance of a team member replying to TL (scaled)
+                if _should_run(0.5):
                     replier_email = random.choice(list(PERSONAS.keys()))
                     replier = PERSONAS[replier_email]
                     reply_templates = [
@@ -754,8 +766,8 @@ def simulate_slack_activity(db: Session) -> dict:
                     db.add(reply_msg)
                     stats["tl_replies"] += 1
 
-        # 40% chance of TL replying to existing thread
-        if random.random() < 0.4:
+        # 40% base chance of TL replying (scaled)
+        if _should_run(0.4):
             tl_user = random.choice(tl_personas)
             channel = random.choice(channels)
             existing_msg = db.query(SlackMessage).filter(

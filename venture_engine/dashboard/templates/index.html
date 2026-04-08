@@ -8,8 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://d3js.org/d3.v7.min.js"></script>
-<script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
-<script src="https://unpkg.com/3d-force-graph@1.73.4/dist/3d-force-graph.min.js"></script>
+<script src="https://unpkg.com/force-graph@1.43.5/dist/force-graph.min.js"></script>
 <style>
 :root {
   --bg: #ffffff;
@@ -968,12 +967,37 @@ html.dark .sl-msg-wrap:hover { background:rgba(255,255,255,.08); }
 #graphCanvas { width:100%; background:var(--bg); border-radius:var(--radius); }
 #graphCanvas svg { width:100%; height:100%; display:block; }
 /* Stretch graph to full available screen */
-.graph-fullscreen { display:flex; flex-direction:column; height:calc(100vh - 56px); margin:-16px; }
-.graph-fullscreen #graphCanvas { flex:1; min-height:0; }
-.graph-tooltip { position:absolute; background:var(--card); border:1px solid var(--border); border-radius:8px; padding:10px 14px; font-size:12px; box-shadow:var(--shadow-lg); pointer-events:none; z-index:999; max-width:250px; }
-.graph-legend { display:flex; gap:12px; padding:8px 16px; font-size:11px; color:var(--text2); flex-wrap:wrap; }
+.graph-fullscreen { display:flex; height:calc(100vh - 56px); margin:-16px; overflow:hidden; }
+.graph-canvas-wrap { flex:1; min-width:0; position:relative; background:var(--bg2); }
+.graph-canvas-wrap canvas { display:block; }
+.graph-legend { display:flex; gap:10px; padding:6px 14px; font-size:11px; color:var(--text2); flex-wrap:wrap; position:absolute; bottom:12px; left:12px; z-index:10; background:rgba(30,30,30,.85); backdrop-filter:blur(8px); border-radius:10px; border:1px solid var(--border); }
 .graph-legend-item { display:flex; align-items:center; gap:4px; }
 .graph-legend-dot { width:10px; height:10px; border-radius:50%; }
+/* ── File/Page View Panel ── */
+.graph-file-panel { width:380px; min-width:320px; border-left:1px solid var(--border); background:var(--card); display:flex; flex-direction:column; overflow:hidden; }
+.graph-file-header { display:flex; align-items:center; gap:8px; padding:14px 16px; border-bottom:1px solid var(--border); flex-shrink:0; }
+.graph-file-icon { font-size:18px; }
+.graph-file-title { font-size:15px; font-weight:800; color:var(--text); flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.graph-file-type { font-size:11px; padding:2px 8px; border-radius:var(--radius-pill); font-weight:600; }
+.graph-file-close { background:none; border:none; color:var(--text3); font-size:18px; cursor:pointer; padding:4px 8px; border-radius:6px; }
+.graph-file-close:hover { background:var(--bg2); color:var(--text); }
+.graph-file-body { flex:1; overflow-y:auto; padding:16px; }
+.graph-file-meta { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:14px; }
+.graph-file-meta-item { font-size:12px; padding:3px 10px; border-radius:var(--radius-pill); background:var(--bg2); color:var(--text2); }
+.graph-file-section { margin-bottom:16px; }
+.graph-file-section-title { font-size:12px; font-weight:700; color:var(--text3); text-transform:uppercase; letter-spacing:.5px; margin-bottom:8px; }
+.graph-file-content { font-size:14px; line-height:1.6; color:var(--text); }
+.graph-file-links { list-style:none; padding:0; margin:0; }
+.graph-file-links li { padding:6px 10px; border-radius:6px; font-size:13px; cursor:pointer; color:var(--accent); display:flex; align-items:center; gap:6px; }
+.graph-file-links li:hover { background:var(--bg2); }
+.graph-file-links li::before { content:''; width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+.graph-file-empty { display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; color:var(--text3); gap:8px; }
+.graph-file-empty-icon { font-size:40px; opacity:.4; }
+.graph-file-empty-text { font-size:13px; }
+.graph-search { position:absolute; top:12px; left:12px; z-index:10; display:flex; gap:6px; align-items:center; }
+.graph-search input { padding:6px 12px; border-radius:var(--radius-pill); border:1px solid var(--border); background:var(--card); color:var(--text); font-size:12px; width:200px; font-family:inherit; }
+.graph-search input:focus { outline:none; border-color:var(--accent); }
+@media(max-width:768px) { .graph-file-panel { display:none; } }
 .ann-compose-submit { background:linear-gradient(135deg,#f59e0b,#d97706); color:#fff; }
 @media(max-width:768px) {
   .reader-body { flex-direction:column; }
@@ -6803,9 +6827,10 @@ async function _simUpdatePersonas(btn) {
 }
 
 
-// ─── Knowledge Graph (3D Force Graph) ──────────────────────────────────
+// ─── Knowledge Graph (2D Logseq-style) ──────────────────────────────────
 
-let _graph3d = null;
+let _graph2d = null;
+let _graphData = null;
 
 // ── Release Notes View ──
 async function loadReleaseNotes() {
@@ -6850,20 +6875,24 @@ async function loadGraph() {
   const el = document.getElementById('ventureList');
   el.innerHTML = `
     <div class="graph-fullscreen">
-      <div class="graph-legend" style="position:absolute;top:10px;left:10px;z-index:10;background:rgba(30,30,30,.85);backdrop-filter:blur(8px);padding:8px 14px;border-radius:10px;border:1px solid var(--border);">
-        <span style="font-weight:700;">3D Knowledge Graph</span>
-        <span class="graph-legend-item"><span class="graph-legend-dot" style="background:#FFB100;border-radius:4px;"></span> Ventures</span>
-        <span class="graph-legend-item"><span class="graph-legend-dot" style="background:#4ecdc4;border-radius:50%;"></span> Thought Leaders</span>
-        <span class="graph-legend-item"><span class="graph-legend-dot" style="background:#f59e0b;"></span> Insights</span>
-        <span class="graph-legend-item"><span class="graph-legend-dot" style="background:#ef4444;"></span> Problems</span>
-        <span class="graph-legend-item"><span class="graph-legend-dot" style="background:#22c55e;"></span> Opportunities</span>
-        <span class="graph-legend-item"><span class="graph-legend-dot" style="background:#8b5cf6;"></span> Bugs</span>
+      <div class="graph-canvas-wrap">
+        <div class="graph-search">
+          <input type="text" id="graphSearchInput" placeholder="Search nodes..." oninput="_graphFilter(this.value)">
+        </div>
+        <div id="graphCanvas" style="width:100%;height:100%;"></div>
+        <div class="graph-legend">
+          <span class="graph-legend-item"><span class="graph-legend-dot" style="background:#FFB100;"></span> Ventures</span>
+          <span class="graph-legend-item"><span class="graph-legend-dot" style="background:#4ecdc4;"></span> Thought Leaders</span>
+          <span class="graph-legend-item"><span class="graph-legend-dot" style="background:#f59e0b;"></span> Insights</span>
+          <span class="graph-legend-item"><span class="graph-legend-dot" style="background:#ef4444;"></span> Problems</span>
+          <span class="graph-legend-item"><span class="graph-legend-dot" style="background:#22c55e;"></span> Opportunities</span>
+          <span class="graph-legend-item"><span class="graph-legend-dot" style="background:#8b5cf6;"></span> Bugs</span>
+        </div>
       </div>
-      <div id="graphCanvas" style="flex:1;min-height:0;position:relative;overflow:hidden;">
-        <div id="graphControls" style="position:absolute;top:10px;right:10px;z-index:10;display:flex;flex-direction:column;gap:4px;">
-          <button onclick="_graphZoom(1.3)" style="width:32px;height:32px;border-radius:var(--radius);border:1px solid var(--border);background:var(--card);color:var(--text);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:var(--shadow);">+</button>
-          <button onclick="_graphZoom(0.7)" style="width:32px;height:32px;border-radius:var(--radius);border:1px solid var(--border);background:var(--card);color:var(--text);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:var(--shadow);">-</button>
-          <button onclick="_graphReset()" style="width:32px;height:32px;border-radius:var(--radius);border:1px solid var(--border);background:var(--card);color:var(--text);font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:var(--shadow);" title="Reset view">&#8634;</button>
+      <div class="graph-file-panel" id="graphFilePanel">
+        <div class="graph-file-empty">
+          <div class="graph-file-empty-icon">&#128196;</div>
+          <div class="graph-file-empty-text">Click a node to view details</div>
         </div>
       </div>
     </div>
@@ -6871,11 +6900,8 @@ async function loadGraph() {
   try {
     const resp = await fetch(`${API}/api/graph`);
     const data = await resp.json();
-    // Client-side cap to keep 3D graph performant
-    const MAX_NODES = 200;
-    const MAX_EDGES = 600;
+    const MAX_NODES = 200, MAX_EDGES = 600;
     if (data.nodes && data.nodes.length > MAX_NODES) {
-      // Prioritize: ventures > thought_leaders > bugs > news/tags
       const priority = { venture: 0, thought_leader: 1, bug: 2, problem: 3, opportunity: 4, insight: 5, tag: 6 };
       data.nodes.sort((a, b) => (priority[a.type] ?? 9) - (priority[b.type] ?? 9));
       data.nodes = data.nodes.slice(0, MAX_NODES);
@@ -6886,6 +6912,7 @@ async function loadGraph() {
       data.edges.sort((a, b) => (b.weight || 0) - (a.weight || 0));
       data.edges = data.edges.slice(0, MAX_EDGES);
     }
+    _graphData = data;
     renderForceGraph(data);
   } catch(e) {
     console.error('Graph load error:', e);
@@ -6895,9 +6922,8 @@ async function loadGraph() {
 
 function renderForceGraph(data) {
   const container = document.getElementById('graphCanvas');
-  if (!container || typeof ForceGraph3D === 'undefined') {
-    // Fallback: if 3D lib not loaded, show message
-    container.innerHTML = '<div class="loading">Loading 3D engine...</div>';
+  if (!container || typeof ForceGraph === 'undefined') {
+    container.innerHTML = '<div class="loading">Loading graph engine...</div>';
     return;
   }
 
@@ -6905,234 +6931,249 @@ function renderForceGraph(data) {
     venture: '#FFB100', thought_leader: '#4ecdc4', insight: '#f59e0b',
     problem: '#ef4444', opportunity: '#22c55e', tag: '#6b7280', bug: '#8b5cf6'
   };
+  const typeLabels = {venture:'Venture',thought_leader:'Thought Leader',insight:'Insight',problem:'Problem',opportunity:'Opportunity',bug:'Bug',tag:'Tag'};
+  const typeIcons = {venture:'💡',thought_leader:'🧠',insight:'📰',problem:'⚠️',opportunity:'🚀',bug:'🐛',tag:'🏷️'};
 
-  function _nodeSize(d) {
+  function _nodeRadius(d) {
     if (d.type === 'venture') return 8;
     if (d.type === 'thought_leader') return 7;
     if (d.type === 'bug') return 5;
-    return Math.max(2, Math.min(6, (d.size || 3)));
+    if (d.type === 'tag') return 4;
+    return 5;
   }
 
-  // Build graph data — 3d-force-graph wants { nodes: [...], links: [...] }
+  // Build link map for connection counts
+  const linkCounts = {};
+  (data.edges || []).forEach(e => {
+    linkCounts[e.source] = (linkCounts[e.source] || 0) + 1;
+    linkCounts[e.target] = (linkCounts[e.target] || 0) + 1;
+  });
+
   const graphData = {
     nodes: data.nodes.map(n => ({
       ...n,
       color: colorMap[n.type] || '#999',
-      val: _nodeSize(n),
+      _radius: _nodeRadius(n) + Math.min(4, (linkCounts[n.id] || 0) * 0.5),
+      _connections: linkCounts[n.id] || 0,
     })),
     links: (data.edges || []).map(e => ({
       source: e.source,
       target: e.target,
       weight: e.weight || 0.5,
+      label: e.label || '',
     }))
   };
 
-  // Clean up previous graph instance
-  if (_graph3d) {
-    _graph3d._destructor && _graph3d._destructor();
-    _graph3d = null;
+  if (_graph2d) {
+    _graph2d._destructor && _graph2d._destructor();
+    _graph2d = null;
   }
-  // Clear container but keep controls
-  const controlsEl = document.getElementById('graphControls');
-  const controlsHtml = controlsEl ? controlsEl.outerHTML : '';
   container.innerHTML = '';
 
   const isDark = document.documentElement.classList.contains('dark');
-  const bgColor = isDark ? '#0a1f24' : '#f0f2f5';
+  const bgColor = isDark ? '#0f1419' : '#fafbfc';
+  let _highlightNode = null;
+  let _hoverNode = null;
+  const _neighborSet = new Set();
+  const _linkSet = new Set();
 
-  _graph3d = ForceGraph3D()(container)
-    .graphData(graphData)
-    .width(container.clientWidth || window.innerWidth - 260)
-    .height(container.clientHeight || window.innerHeight - 80)
-    .backgroundColor(bgColor)
-    .showNavInfo(false)
-    .enableNodeDrag(true)
-    .enableNavigationControls(true)
-    // Node styling
-    .nodeVal(d => d.val)
-    .nodeColor(d => d.color)
-    .nodeOpacity(0.95)
-    .nodeResolution(20)
-    .nodeLabel(d => {
-      const typeLabel = {venture:'Venture',thought_leader:'Thought Leader',insight:'Insight',problem:'Problem',opportunity:'Opportunity',bug:'Bug',tag:'Tag'}[d.type] || d.type;
-      return `<div style="background:rgba(20,20,20,.92);padding:8px 12px;border-radius:8px;font-size:13px;color:#fff;border:1px solid ${d.color};max-width:260px;backdrop-filter:blur(8px);">
-        <strong style="color:${d.color};">${esc(d.label||'')}</strong><br>
-        <span style="color:#bbb;font-size:11px;">${typeLabel}${d.meta && d.meta.status ? ' · ' + d.meta.status : ''}</span>
-      </div>`;
-    })
-    // Link styling
-    .linkWidth(d => Math.max(0.4, (d.weight || 0.5) * 1.2))
-    .linkOpacity(0.15)
-    .linkColor(() => isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.15)')
-    .linkDirectionalParticles(d => d.weight > 0.6 ? 2 : 0)
-    .linkDirectionalParticleWidth(1.5)
-    .linkDirectionalParticleSpeed(0.005)
-    .linkDirectionalParticleColor(() => '#FFB100')
-    // Text labels on ALL nodes — always visible
-    .nodeThreeObject(d => {
-      const group = new THREE.Group();
-
-      // === Sphere ===
-      const radius = d.type === 'venture' ? 4.5 : d.type === 'thought_leader' ? 4 : d.type === 'bug' ? 3 : d.type === 'tag' ? 2 : 3;
-      const geometry = new THREE.SphereGeometry(radius, 20, 20);
-      const material = new THREE.MeshStandardMaterial({
-        color: new THREE.Color(d.color),
-        emissive: new THREE.Color(d.color),
-        emissiveIntensity: 0.35,
-        metalness: 0.3,
-        roughness: 0.4,
-        transparent: true,
-        opacity: 0.92,
-      });
-      const sphere = new THREE.Mesh(geometry, material);
-      group.add(sphere);
-
-      // === Glow ring for ventures and TLs ===
-      if (d.type === 'venture' || d.type === 'thought_leader') {
-        const ringGeo = new THREE.RingGeometry(radius * 1.3, radius * 1.6, 32);
-        const ringMat = new THREE.MeshBasicMaterial({
-          color: new THREE.Color(d.color),
-          transparent: true,
-          opacity: 0.2,
-          side: THREE.DoubleSide,
-        });
-        const ring = new THREE.Mesh(ringGeo, ringMat);
-        group.add(ring);
-      }
-
-      // === Always-visible label ===
-      const label = (d.label || '').slice(0, 28);
-      if (label) {
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        const fontSize = d.type === 'venture' || d.type === 'thought_leader' ? 52 : d.type === 'tag' ? 36 : 42;
-        const fontWeight = d.type === 'venture' || d.type === 'thought_leader' ? '700' : '500';
-        ctx.font = `${fontWeight} ${fontSize}px Inter, -apple-system, sans-serif`;
-        const textWidth = ctx.measureText(label).width;
-        const pad = 20;
-        canvas.width = textWidth + pad * 2;
-        canvas.height = fontSize + pad;
-
-        // Background pill (with roundRect fallback)
-        function _pill(cx, x, y, w, h, r) {
-          cx.beginPath();
-          if (cx.roundRect) { cx.roundRect(x, y, w, h, r); }
-          else { cx.moveTo(x+r,y);cx.lineTo(x+w-r,y);cx.quadraticCurveTo(x+w,y,x+w,y+r);cx.lineTo(x+w,y+h-r);cx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);cx.lineTo(x+r,y+h);cx.quadraticCurveTo(x,y+h,x,y+h-r);cx.lineTo(x,y+r);cx.quadraticCurveTo(x,y,x+r,y);cx.closePath(); }
+  function _updateHighlight(node) {
+    _neighborSet.clear();
+    _linkSet.clear();
+    if (node) {
+      graphData.links.forEach(l => {
+        const sid = typeof l.source === 'object' ? l.source.id : l.source;
+        const tid = typeof l.target === 'object' ? l.target.id : l.target;
+        if (sid === node.id || tid === node.id) {
+          _neighborSet.add(sid);
+          _neighborSet.add(tid);
+          _linkSet.add(l);
         }
-        ctx.fillStyle = isDark ? 'rgba(10,31,36,0.85)' : 'rgba(255,255,255,0.9)';
-        const rr = canvas.height / 2;
-        _pill(ctx, 0, 0, canvas.width, canvas.height, rr);
+      });
+      _neighborSet.add(node.id);
+    }
+  }
+
+  _graph2d = ForceGraph()(container)
+    .graphData(graphData)
+    .width(container.clientWidth || 800)
+    .height(container.clientHeight || 600)
+    .backgroundColor(bgColor)
+    .enableNodeDrag(true)
+    .enableZoomInteraction(true)
+    .enablePanInteraction(true)
+    // Nodes
+    .nodeRelSize(1)
+    .nodeVal(d => d._radius * d._radius)
+    .nodeCanvasObject((node, ctx, globalScale) => {
+      const r = node._radius;
+      const isHighlighted = _hoverNode && (_hoverNode.id === node.id || _neighborSet.has(node.id));
+      const isDimmed = _hoverNode && !isHighlighted;
+      const alpha = isDimmed ? 0.15 : 1;
+
+      // Glow for highlighted
+      if (isHighlighted && _hoverNode.id === node.id) {
+        ctx.beginPath();
+        ctx.arc(node.x, node.y, r + 6, 0, 2 * Math.PI);
+        ctx.fillStyle = node.color + '30';
         ctx.fill();
+      }
 
-        // Border
-        ctx.strokeStyle = d.color;
-        ctx.lineWidth = 2;
-        _pill(ctx, 1, 1, canvas.width - 2, canvas.height - 2, rr);
-        ctx.stroke();
+      // Circle
+      ctx.beginPath();
+      ctx.arc(node.x, node.y, r, 0, 2 * Math.PI);
+      ctx.fillStyle = node.color;
+      ctx.globalAlpha = alpha;
+      ctx.fill();
 
-        // Text
-        ctx.font = `${fontWeight} ${fontSize}px Inter, -apple-system, sans-serif`;
-        ctx.fillStyle = isDark ? '#e5e5e5' : '#1a1a1a';
+      // Border
+      ctx.strokeStyle = isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.15)';
+      ctx.lineWidth = node.type === 'venture' || node.type === 'thought_leader' ? 2 : 1;
+      ctx.stroke();
+
+      // Label — show always for big nodes, on hover for small
+      const showLabel = r >= 5 || globalScale > 1.5 || (isHighlighted && !isDimmed);
+      if (showLabel) {
+        const label = (node.label || '').slice(0, 24);
+        const fontSize = Math.max(10, 12 / globalScale);
+        ctx.font = `600 ${fontSize}px Inter, sans-serif`;
         ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(label, canvas.width / 2, canvas.height / 2);
-
-        const texture = new THREE.CanvasTexture(canvas);
-        texture.needsUpdate = true;
-        const spriteMat = new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false });
-        const sprite = new THREE.Sprite(spriteMat);
-        const sc = d.type === 'tag' ? 0.14 : 0.2;
-        sprite.scale.set(canvas.width * sc / 10, canvas.height * sc / 10, 1);
-        sprite.position.set(0, radius + 4, 0);
-        group.add(sprite);
+        ctx.textBaseline = 'top';
+        ctx.fillStyle = isDark ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.85)';
+        ctx.globalAlpha = isDimmed ? 0.1 : 0.9;
+        ctx.fillText(label, node.x, node.y + r + 3);
       }
-
-      // === Logo image for ventures/TLs ===
-      if (d.image && (d.type === 'venture' || d.type === 'thought_leader')) {
-        const imgLoader = new THREE.TextureLoader();
-        imgLoader.crossOrigin = 'anonymous';
-        imgLoader.load(d.image, function(tex) {
-          const imgMat = new THREE.SpriteMaterial({ map: tex, transparent: true });
-          const imgSprite = new THREE.Sprite(imgMat);
-          const sz = radius * 1.6;
-          imgSprite.scale.set(sz, sz, 1);
-          imgSprite.position.set(0, 0, radius * 0.6);
-          group.add(imgSprite);
-        }, undefined, function() {});
-      }
-
-      return group;
+      ctx.globalAlpha = 1;
     })
-    .nodeThreeObjectExtend(false)
-    // Forces — strong 3D spread
-    .d3Force('charge', d3.forceManyBody().strength(-250))
-    .d3Force('link', d3.forceLink().distance(60).strength(0.1))
+    .nodeCanvasObjectMode(() => 'replace')
+    // Links
+    .linkWidth(d => _linkSet.has(d) ? 2 : Math.max(0.5, (d.weight || 0.5) * 1.5))
+    .linkColor(d => {
+      if (_linkSet.has(d)) return isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.4)';
+      if (_hoverNode) return isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)';
+      return isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)';
+    })
+    .linkDirectionalParticles(d => d.weight > 0.6 ? 2 : 0)
+    .linkDirectionalParticleWidth(2)
+    .linkDirectionalParticleSpeed(0.004)
+    .linkDirectionalParticleColor(() => '#FFB100')
+    // Forces
+    .d3Force('charge', d3.forceManyBody().strength(-180))
+    .d3Force('link', d3.forceLink().distance(70).strength(0.15))
     .d3Force('center', d3.forceCenter(0, 0).strength(0.05))
-    // Warmup for quick settling
-    .warmupTicks(60)
+    .d3Force('collide', d3.forceCollide().radius(d => d._radius + 4).strength(0.7))
+    .warmupTicks(80)
     .cooldownTicks(200)
-    // Click to focus
-    .onNodeClick(d => {
-      const dist = 80;
-      _graph3d.cameraPosition(
-        { x: d.x + dist, y: d.y + dist * 0.6, z: d.z + dist },
-        { x: d.x, y: d.y, z: d.z },
-        1000
-      );
+    // Interactions
+    .onNodeHover(node => {
+      _hoverNode = node;
+      _updateHighlight(node);
+      container.style.cursor = node ? 'pointer' : 'default';
+    })
+    .onNodeClick(node => {
+      _highlightNode = node;
+      _graphShowFile(node);
+      // Center on node
+      _graph2d.centerAt(node.x, node.y, 600);
+      _graph2d.zoom(3, 600);
     });
 
-  // Rich 3D lighting
-  const scene = _graph3d.scene();
-  scene.add(new THREE.AmbientLight(0xffffff, 0.5));
-  const dirLight1 = new THREE.DirectionalLight(0xffffff, 0.9);
-  dirLight1.position.set(300, 500, 300);
-  scene.add(dirLight1);
-  const dirLight2 = new THREE.DirectionalLight(0x4ecdc4, 0.3);
-  dirLight2.position.set(-300, -200, 200);
-  scene.add(dirLight2);
-  const pointLight1 = new THREE.PointLight(0xFFB100, 0.6, 800);
-  pointLight1.position.set(0, 400, 0);
-  scene.add(pointLight1);
-  const pointLight2 = new THREE.PointLight(0x8b5cf6, 0.4, 600);
-  pointLight2.position.set(-300, -300, 300);
-  scene.add(pointLight2);
-
-  // Set initial camera for immersive 3D view
-  setTimeout(() => {
-    _graph3d.cameraPosition({ x: 200, y: 150, z: 350 }, { x: 0, y: 0, z: 0 }, 0);
-  }, 100);
-
-  // Re-add controls overlay
-  const controlsDiv = document.createElement('div');
-  controlsDiv.innerHTML = controlsHtml;
-  if (controlsDiv.firstElementChild) container.appendChild(controlsDiv.firstElementChild);
-
-  // Zoom button controls
-  window._graphZoom = function(factor) {
-    if (!_graph3d) return;
-    const cam = _graph3d.camera();
-    const pos = cam.position;
-    const dist = pos.length();
-    const newDist = dist / factor;
-    const scale = newDist / dist;
-    _graph3d.cameraPosition(
-      { x: pos.x * scale, y: pos.y * scale, z: pos.z * scale },
-      { x: 0, y: 0, z: 0 },
-      400
-    );
-  };
-  window._graphReset = function() {
-    if (!_graph3d) return;
-    _graph3d.cameraPosition({ x: 200, y: 150, z: 350 }, { x: 0, y: 0, z: 0 }, 800);
-  };
-
-  // Handle resize
+  // Resize
   const resizeObs = new ResizeObserver(() => {
-    if (_graph3d && container.clientWidth && container.clientHeight) {
-      _graph3d.width(container.clientWidth).height(container.clientHeight);
+    if (_graph2d && container.clientWidth && container.clientHeight) {
+      _graph2d.width(container.clientWidth).height(container.clientHeight);
     }
   });
   resizeObs.observe(container);
+}
+
+// ── File/Page View Panel ──
+function _graphShowFile(node) {
+  const panel = document.getElementById('graphFilePanel');
+  if (!panel || !node) return;
+
+  const typeLabels = {venture:'Venture',thought_leader:'Thought Leader',insight:'Insight',problem:'Problem',opportunity:'Opportunity',bug:'Bug',tag:'Tag'};
+  const typeIcons = {venture:'💡',thought_leader:'🧠',insight:'📰',problem:'⚠️',opportunity:'🚀',bug:'🐛',tag:'🏷️'};
+  const colorMap = {venture:'#FFB100',thought_leader:'#4ecdc4',insight:'#f59e0b',problem:'#ef4444',opportunity:'#22c55e',tag:'#6b7280',bug:'#8b5cf6'};
+
+  // Find connected nodes
+  const connections = [];
+  if (_graphData) {
+    const edges = _graphData.edges || [];
+    const nodeMap = {};
+    (_graphData.nodes || []).forEach(n => nodeMap[n.id] = n);
+    edges.forEach(e => {
+      if (e.source === node.id && nodeMap[e.target]) {
+        connections.push({ node: nodeMap[e.target], label: e.label, dir: 'out' });
+      } else if (e.target === node.id && nodeMap[e.source]) {
+        connections.push({ node: nodeMap[e.source], label: e.label, dir: 'in' });
+      }
+    });
+  }
+
+  const meta = node.meta || {};
+  let metaHtml = '';
+  if (meta.status) metaHtml += `<span class="graph-file-meta-item">Status: ${esc(meta.status)}</span>`;
+  if (meta.priority) metaHtml += `<span class="graph-file-meta-item">Priority: ${esc(meta.priority)}</span>`;
+  if (meta.domain) metaHtml += `<span class="graph-file-meta-item">Domain: ${esc(meta.domain)}</span>`;
+  if (meta.platform) metaHtml += `<span class="graph-file-meta-item">Platform: ${esc(meta.platform)}</span>`;
+  if (meta.handle) metaHtml += `<span class="graph-file-meta-item">${esc(meta.handle)}</span>`;
+  if (meta.source) metaHtml += `<span class="graph-file-meta-item">Source: ${esc(meta.source)}</span>`;
+
+  const linksHtml = connections.map(c => {
+    const col = colorMap[c.node.type] || '#999';
+    const arrow = c.dir === 'out' ? '→' : '←';
+    return `<li onclick="_graphNavigateNode('${c.node.id}')" style="--dot-color:${col};"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${col};margin-right:4px;"></span>${arrow} ${esc(c.node.label || c.node.id)} <span style="color:var(--text3);font-size:11px;">${esc(c.label || '')}</span></li>`;
+  }).join('');
+
+  let contentHtml = '';
+  if (meta.title) contentHtml += `<div class="graph-file-section"><div class="graph-file-section-title">Description</div><div class="graph-file-content">${esc(meta.title)}</div></div>`;
+  if (meta.url) contentHtml += `<div class="graph-file-section"><div class="graph-file-section-title">Source</div><div class="graph-file-content"><a href="${esc(meta.url)}" target="_blank" style="color:var(--accent);word-break:break-all;">${esc(meta.url)}</a></div></div>`;
+
+  panel.innerHTML = `
+    <div class="graph-file-header">
+      <span class="graph-file-icon">${typeIcons[node.type] || '📄'}</span>
+      <span class="graph-file-title">${esc(node.label || node.id)}</span>
+      <span class="graph-file-type" style="background:${colorMap[node.type]||'#999'}22;color:${colorMap[node.type]||'#999'};">${typeLabels[node.type] || node.type}</span>
+      <button class="graph-file-close" onclick="_graphCloseFile()">&times;</button>
+    </div>
+    <div class="graph-file-body">
+      ${metaHtml ? `<div class="graph-file-meta">${metaHtml}</div>` : ''}
+      ${contentHtml}
+      <div class="graph-file-section">
+        <div class="graph-file-section-title">Connections (${connections.length})</div>
+        ${connections.length ? `<ul class="graph-file-links">${linksHtml}</ul>` : '<div style="font-size:13px;color:var(--text3);">No connections</div>'}
+      </div>
+    </div>`;
+}
+
+function _graphCloseFile() {
+  const panel = document.getElementById('graphFilePanel');
+  if (panel) panel.innerHTML = `<div class="graph-file-empty"><div class="graph-file-empty-icon">&#128196;</div><div class="graph-file-empty-text">Click a node to view details</div></div>`;
+}
+
+function _graphNavigateNode(nodeId) {
+  if (!_graph2d || !_graphData) return;
+  const node = _graphData.nodes.find(n => n.id === nodeId);
+  if (!node) return;
+  // Find the live node in the graph
+  const gd = _graph2d.graphData();
+  const liveNode = gd.nodes.find(n => n.id === nodeId);
+  if (liveNode) {
+    _graphShowFile(liveNode);
+    _graph2d.centerAt(liveNode.x, liveNode.y, 600);
+    _graph2d.zoom(3, 600);
+  }
+}
+
+function _graphFilter(query) {
+  if (!_graph2d || !_graphData) return;
+  const q = (query || '').toLowerCase().trim();
+  const gd = _graph2d.graphData();
+  gd.nodes.forEach(n => {
+    n._filtered = q && !(n.label || '').toLowerCase().includes(q) && !(n.type || '').toLowerCase().includes(q);
+  });
+  _graph2d.nodeCanvasObject(_graph2d.nodeCanvasObject()); // force re-render
 }
 
 

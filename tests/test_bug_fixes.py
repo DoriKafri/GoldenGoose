@@ -390,3 +390,82 @@ class TestClosedCRsSlackChannel:
         assert len(msgs) >= 1
         assert "BUG-99" in msgs[0].body
         assert "Fix login timeout" in msgs[0].body
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Bug-fix hourly rate limiter (max 10/hour, highest severity first)
+# ═══════════════════════════════════════════════════════════════════
+
+class TestBugFixRateLimit:
+    """Bug fixes should be capped at 10/hour and prioritized by severity."""
+
+    def test_priority_order_defined(self):
+        """PRIORITY_ORDER should rank critical > high > medium > low."""
+        from venture_engine.activity_simulator import PRIORITY_ORDER
+        assert PRIORITY_ORDER["critical"] < PRIORITY_ORDER["high"]
+        assert PRIORITY_ORDER["high"] < PRIORITY_ORDER["medium"]
+        assert PRIORITY_ORDER["medium"] < PRIORITY_ORDER["low"]
+
+    def test_hourly_limit_is_10(self):
+        """BUG_FIX_HOURLY_LIMIT should be 10."""
+        from venture_engine.activity_simulator import BUG_FIX_HOURLY_LIMIT
+        assert BUG_FIX_HOURLY_LIMIT == 10
+
+    def test_slots_remaining_decreases(self):
+        """After recording fixes, slots_remaining should decrease."""
+        from venture_engine.activity_simulator import (
+            _bug_fix_slots_remaining, _record_bug_fix,
+            _bug_fix_lock, BUG_FIX_HOURLY_LIMIT,
+        )
+        import venture_engine.activity_simulator as sim
+
+        # Reset counter for test
+        with _bug_fix_lock:
+            sim._bug_fix_count = 0
+            sim._bug_fix_hour = None
+
+        initial = _bug_fix_slots_remaining()
+        assert initial == BUG_FIX_HOURLY_LIMIT
+
+        _record_bug_fix(3)
+        assert _bug_fix_slots_remaining() == BUG_FIX_HOURLY_LIMIT - 3
+
+    def test_slots_cannot_go_negative(self):
+        """Slots remaining should never be negative."""
+        from venture_engine.activity_simulator import (
+            _bug_fix_slots_remaining, _record_bug_fix, _bug_fix_lock,
+        )
+        import venture_engine.activity_simulator as sim
+
+        with _bug_fix_lock:
+            sim._bug_fix_count = 0
+            sim._bug_fix_hour = None
+
+        _record_bug_fix(15)  # exceed limit
+        assert _bug_fix_slots_remaining() == 0
+
+    def test_fix_rate_endpoint_exists(self):
+        """GET /api/bugs/fix-rate should be registered."""
+        from venture_engine.api.routes import router
+        paths = [route.path for route in router.routes]
+        assert "/api/bugs/fix-rate" in paths
+
+    def test_bugs_sorted_by_severity(self, db):
+        """When transitioning bugs, critical bugs should be fixed before low ones."""
+        bugs = [
+            Bug(key="SORT-1", title="Low bug", priority="low", status="open",
+                bug_type="bug", reporter_email="t@test.com", reporter_name="Test"),
+            Bug(key="SORT-2", title="Critical bug", priority="critical", status="open",
+                bug_type="bug", reporter_email="t@test.com", reporter_name="Test"),
+            Bug(key="SORT-3", title="High bug", priority="high", status="open",
+                bug_type="bug", reporter_email="t@test.com", reporter_name="Test"),
+        ]
+        for b in bugs:
+            db.add(b)
+        db.flush()
+
+        from venture_engine.activity_simulator import PRIORITY_ORDER
+        sorted_bugs = sorted(bugs, key=lambda b: PRIORITY_ORDER.get(b.priority, 99))
+        assert sorted_bugs[0].priority == "critical"
+        assert sorted_bugs[1].priority == "high"
+        assert sorted_bugs[2].priority == "low"

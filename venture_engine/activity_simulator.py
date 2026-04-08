@@ -72,6 +72,43 @@ def _should_run(base_probability: float) -> bool:
     """Probability check scaled by time-of-day."""
     return random.random() < (base_probability * _activity_multiplier())
 
+
+# ── Hourly bug-fix rate limiter ───────────────────────────────────────────
+import threading
+
+_bug_fix_lock = threading.Lock()
+_bug_fix_count = 0
+_bug_fix_hour = None
+BUG_FIX_HOURLY_LIMIT = 10
+
+# Priority ordering: critical first, then high, medium, low
+PRIORITY_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3}
+
+
+def _bug_fix_slots_remaining() -> int:
+    """Return how many bug fixes remain in the current hour."""
+    global _bug_fix_count, _bug_fix_hour
+    now_ist = datetime.now(IST)
+    current_hour = now_ist.strftime("%Y-%m-%d-%H")
+    with _bug_fix_lock:
+        if _bug_fix_hour != current_hour:
+            _bug_fix_hour = current_hour
+            _bug_fix_count = 0
+        return max(0, BUG_FIX_HOURLY_LIMIT - _bug_fix_count)
+
+
+def _record_bug_fix(n: int = 1):
+    """Record n bug fixes in the current hour."""
+    global _bug_fix_count, _bug_fix_hour
+    now_ist = datetime.now(IST)
+    current_hour = now_ist.strftime("%Y-%m-%d-%H")
+    with _bug_fix_lock:
+        if _bug_fix_hour != current_hour:
+            _bug_fix_hour = current_hour
+            _bug_fix_count = 0
+        _bug_fix_count += n
+
+
 from venture_engine.db.models import (
     NewsFeedItem, PageAnnotation, PageAnnotationReply,
     AnnotationReaction, Bug, BugComment, ThoughtLeader,
@@ -727,11 +764,17 @@ def simulate_activity(db: Session) -> dict:
             db.add(init_comment)
             stats["bugs_created"] += 1
 
-    # ── 5. Bug status transitions ─────────────────────────────────────
-    num_transitions = _scaled_randint(0, 3)
-    open_bugs = db.query(Bug).filter(
+    # ── 5. Bug status transitions (max 10/hour, highest severity first) ──
+    slots = _bug_fix_slots_remaining()
+    num_transitions = min(_scaled_randint(1, 3), slots)
+    if num_transitions <= 0:
+        logger.info(f"Bug fix hourly limit reached ({BUG_FIX_HOURLY_LIMIT}/hr). Skipping transitions.")
+    open_bugs_all = db.query(Bug).filter(
         Bug.status.notin_(["done", "closed"])
-    ).order_by(func.random()).limit(num_transitions).all()
+    ).all()
+    # Sort by severity: critical → high → medium → low
+    open_bugs_all.sort(key=lambda b: PRIORITY_ORDER.get(b.priority, 99))
+    open_bugs = open_bugs_all[:num_transitions]
 
     for bug in open_bugs:
         try:
@@ -768,6 +811,7 @@ def simulate_activity(db: Session) -> dict:
         )
         db.add(bc)
         stats["bugs_transitioned"] += 1
+        _record_bug_fix()
 
         # ── Post to #closed-crs and generate 3 new bugs on closure ──
         if new_status in ("done", "closed"):

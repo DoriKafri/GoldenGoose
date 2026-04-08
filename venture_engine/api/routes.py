@@ -3501,6 +3501,22 @@ def bug_stats(db: Session = Depends(get_db_dependency)):
     return {"by_status": status_counts, "by_priority": priority_counts, "total": sum(status_counts.values())}
 
 
+@router.get("/api/bugs/fix-rate")
+def bug_fix_rate():
+    """Current bug-fix rate limiter status."""
+    from venture_engine.activity_simulator import (
+        _bug_fix_slots_remaining, BUG_FIX_HOURLY_LIMIT,
+        _bug_fix_count, _bug_fix_hour, PRIORITY_ORDER,
+    )
+    return {
+        "hourly_limit": BUG_FIX_HOURLY_LIMIT,
+        "fixes_this_hour": _bug_fix_count,
+        "slots_remaining": _bug_fix_slots_remaining(),
+        "current_hour": _bug_fix_hour,
+        "priority_order": ["critical", "high", "medium", "low"],
+    }
+
+
 @router.get("/api/bugs/leaderboard")
 def bug_finding_leaderboard(db: Session = Depends(get_db_dependency)):
     """Simulated user leaderboard — who finds the most verified bugs.
@@ -3550,7 +3566,7 @@ def update_bug(bug_id: str, req: UpdateBugRequest, db: Session = Depends(get_db_
             setattr(bug, field, val)
     bug.updated_at = datetime.utcnow()
 
-    # Auto-post to #closed-crs when status transitions to done/closed
+    # Auto-post to #closed-crs and ralph loop when status transitions to done/closed
     new_status = bug.status
     if new_status in ("done", "closed") and old_status not in ("done", "closed"):
         try:
@@ -3558,6 +3574,14 @@ def update_bug(bug_id: str, req: UpdateBugRequest, db: Session = Depends(get_db_
             post_closed_cr(db, bug)
         except Exception as e:
             logger.warning(f"Failed to post closed CR: {e}")
+        # Ralph loop: generate 3 new bugs from each closure
+        try:
+            from venture_engine.activity_simulator import _generate_bugs_from_closure
+            closer = {"email": bug.assignee_email or bug.reporter_email,
+                       "name": bug.assignee_name or bug.reporter_name or "System"}
+            _generate_bugs_from_closure(db, bug, closer, {})
+        except Exception as e:
+            logger.warning(f"Ralph loop failed: {e}")
 
     db.commit()
     db.refresh(bug)

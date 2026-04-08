@@ -4,7 +4,8 @@
 
 ## v0.10.0 — 2026-04-08
 
-### True 3D Knowledge Graph
+### True 3D Knowledge Graph & Release Notes
+- **Release Notes page** — Accessible from the sidebar menu; renders full version history with styled markdown (gold version headers, accent bullet dots, bold feature names)
 - **Always-visible labels** — Every node now shows a readable pill-shaped label (title + color border) at all zoom levels, not just on hover
 - **True 3D depth** — Stronger charge force (-250) and angled camera position spread nodes across all three axes for genuine 3D navigation
 - **Rich lighting** — 5-light setup: ambient + 2 directional + 2 colored point lights for realistic shading and depth perception

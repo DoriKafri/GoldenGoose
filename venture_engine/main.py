@@ -65,6 +65,13 @@ def _add_missing_columns():
                 logger.info("Adding image_url column to news_feed...")
                 db.execute(text("ALTER TABLE news_feed ADD COLUMN image_url TEXT"))
                 db.commit()
+        # Add beliefs to thought_leaders if missing
+        if insp.has_table("thought_leaders"):
+            cols = [c["name"] for c in insp.get_columns("thought_leaders")]
+            if "beliefs" not in cols:
+                logger.info("Adding beliefs column to thought_leaders...")
+                db.execute(text("ALTER TABLE thought_leaders ADD COLUMN beliefs JSONB"))
+                db.commit()
 
 
 def _fix_json_columns():

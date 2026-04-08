@@ -1,12 +1,15 @@
 """
-24/7 Activity Simulator — generates realistic user activity from Develeap team members.
+24/7 Activity Simulator — generates realistic user activity from Develeap team members
+and thought leaders using AI-generated expert discussions.
 
 Runs as a scheduled job every 30 minutes, producing:
+- AI-generated expert discussion threads on news articles
 - Article comments & replies on news feed items
 - Emoji reactions on existing annotations
 - New bug reports
 - Bug status transitions (simulating dev workflow)
 - Bug comments (investigation updates, PR links, etc.)
+- Thought leader participation with domain expertise
 """
 import random
 from datetime import datetime, timedelta
@@ -285,7 +288,99 @@ def simulate_activity(db: Session) -> dict:
     stats = {
         "comments": 0, "replies": 0, "reactions": 0,
         "bugs_created": 0, "bugs_transitioned": 0, "bug_comments": 0,
+        "ai_discussions": 0, "tl_comments": 0, "tl_replies": 0, "tl_reactions": 0,
     }
+
+    # ── 0. AI-generated expert discussion thread (40% chance per cycle) ──
+    if random.random() < 0.4:
+        try:
+            from venture_engine.discussion_engine import generate_discussion_thread, TEAM_BELIEFS
+
+            # Pick a recent news article
+            disc_article = db.query(NewsFeedItem).filter(
+                NewsFeedItem.url.isnot(None),
+                NewsFeedItem.title.isnot(None),
+            ).order_by(NewsFeedItem.published_at.desc().nullslast()).limit(15).all()
+
+            if disc_article:
+                article = random.choice(disc_article[:10])
+
+                # Check if article already has an AI discussion (> 3 comments)
+                existing_count = db.query(func.count(PageAnnotation.id)).filter(
+                    PageAnnotation.url == article.url,
+                ).scalar() or 0
+
+                if existing_count < 4:
+                    # Build participant list: 2-3 team + 1-2 TLs
+                    team_participants = []
+                    team_sample = random.sample(TEAM, min(3, len(TEAM)))
+                    for t in team_sample:
+                        tb = TEAM_BELIEFS.get(t["email"], {})
+                        team_participants.append({
+                            "name": t["name"],
+                            "email": t["email"],
+                            "domains": [b["topic"] for b in tb.get("beliefs", [])[:2]] or ["DevOps"],
+                            "beliefs": tb.get("beliefs", []),
+                            "social_traits": tb.get("social_traits", "Professional and helpful."),
+                        })
+
+                    # Add 1-2 TLs
+                    tl_participants = _get_tl_users(db, limit=2)
+                    for tl_user in tl_participants:
+                        # Load TL beliefs from DB
+                        tl_obj = db.query(ThoughtLeader).filter(
+                            ThoughtLeader.handle == tl_user.get("handle", "")
+                        ).first()
+                        tl_beliefs = (tl_obj.beliefs if tl_obj and tl_obj.beliefs else [])
+                        team_participants.append({
+                            "name": tl_user["name"],
+                            "email": tl_user["email"],
+                            "domains": tl_user.get("domains", ["DevOps"]),
+                            "beliefs": tl_beliefs,
+                            "social_traits": f"Industry thought leader. Speaks with authority about {', '.join(tl_user.get('domains', ['tech'])[:2])}.",
+                        })
+
+                    messages = generate_discussion_thread(
+                        topic=article.title or "",
+                        article_title=article.title or "",
+                        article_summary=article.summary or "",
+                        participants=team_participants,
+                    )
+
+                    if messages and len(messages) >= 2:
+                        # Create the first message as a PageAnnotation
+                        first = messages[0]
+                        ann = PageAnnotation(
+                            url=article.url,
+                            news_item_id=article.id,
+                            selected_text="",
+                            prefix_context="",
+                            suffix_context="",
+                            body=first.get("body", ""),
+                            author_id=first.get("author_email", team_sample[0]["email"]),
+                            author_name=first.get("author_name", team_sample[0]["name"]),
+                        )
+                        db.add(ann)
+                        db.flush()
+
+                        # Create replies
+                        base_time = datetime.utcnow()
+                        for i, msg in enumerate(messages[1:], 1):
+                            reply = PageAnnotationReply(
+                                annotation_id=ann.id,
+                                body=msg.get("body", ""),
+                                author_id=msg.get("author_email", ""),
+                                author_name=msg.get("author_name", ""),
+                                created_at=base_time + timedelta(minutes=random.randint(1, 5) * i),
+                            )
+                            db.add(reply)
+
+                        stats["ai_discussions"] += 1
+                        stats["comments"] += 1
+                        stats["replies"] += len(messages) - 1
+                        logger.info(f"AI discussion: {len(messages)} messages on '{article.title[:50]}'")
+        except Exception as e:
+            logger.warning(f"AI discussion generation failed: {e}")
 
     # ── 1. Article comments ───────────────────────────────────────────
     news_items = db.query(NewsFeedItem).filter(

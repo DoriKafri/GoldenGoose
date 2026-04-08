@@ -1,4 +1,5 @@
 import json
+import random
 from datetime import datetime
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Header, Request, Query
@@ -4200,12 +4201,17 @@ def get_simulated_users(db: Session = Depends(get_db_dependency)):
             SlackMessage.author_email == email).scalar()
         last_active = max(filter(None, [last_comment, last_slack]), default=None)
 
+        # Get team member beliefs
+        from venture_engine.discussion_engine import TEAM_BELIEFS
+        team_beliefs = TEAM_BELIEFS.get(email, {}).get("beliefs", [])
+
         users.append({
             "type": "team",
             "name": member["name"],
             "email": email,
             "title": member["title"],
             "avatar_url": f"https://api.dicebear.com/7.x/initials/svg?seed={member['name']}",
+            "beliefs": team_beliefs,
             "stats": {
                 "comments": comments,
                 "replies": replies,
@@ -4257,6 +4263,7 @@ def get_simulated_users(db: Session = Depends(get_db_dependency)):
             "platform": tl.platform,
             "avatar_url": tl.avatar_url or f"https://api.dicebear.com/7.x/initials/svg?seed={tl.name}",
             "domains": tl.domains or [],
+            "beliefs": tl.beliefs or [],
             "persona_updated": tl.last_synced_at.isoformat() if tl.last_synced_at else None,
             "stats": {
                 "comments": comments,
@@ -4359,3 +4366,116 @@ def trigger_persona_update(db: Session = Depends(get_db_dependency)):
     from venture_engine.thought_leaders.persona_updater import update_all_personas
     count = update_all_personas(db)
     return {"updated": count, "total": db.query(func.count(ThoughtLeader.id)).scalar()}
+
+
+@router.post("/api/simulated-users/seed-beliefs")
+def seed_beliefs(db: Session = Depends(get_db_dependency)):
+    """Generate beliefs for all thought leaders that don't have them yet."""
+    from venture_engine.discussion_engine import seed_all_beliefs
+    count = seed_all_beliefs(db)
+    total = db.query(func.count(ThoughtLeader.id)).scalar()
+    return {"seeded": count, "total": total}
+
+
+@router.post("/api/simulated-users/generate-news")
+def generate_tl_news(db: Session = Depends(get_db_dependency)):
+    """Generate news items from TL perspectives, reinforcing or evolving their beliefs."""
+    from venture_engine.discussion_engine import _call_gemini, TEAM_BELIEFS
+    import json as _json
+    import re as _re
+
+    # Pick 2-3 TLs and 1-2 team members to post news
+    tls = db.query(ThoughtLeader).filter(ThoughtLeader.beliefs.isnot(None)).order_by(func.random()).limit(3).all()
+    from venture_engine.activity_simulator import TEAM
+    team_sample = random.sample(TEAM, min(2, len(TEAM)))
+
+    all_posters = []
+    for tl in tls:
+        all_posters.append({
+            "name": tl.name, "handle": tl.handle,
+            "email": f"tl_{tl.handle}@simulated.develeap.com",
+            "beliefs": tl.beliefs or [], "domains": tl.domains or ["DevOps"],
+        })
+    for t in team_sample:
+        tb = TEAM_BELIEFS.get(t["email"], {})
+        all_posters.append({
+            "name": t["name"], "handle": t["email"].split("@")[0],
+            "email": t["email"],
+            "beliefs": tb.get("beliefs", []), "domains": [b["topic"] for b in tb.get("beliefs", [])[:2]] or ["DevOps"],
+        })
+
+    created = 0
+    for poster in all_posters:
+        if not poster["beliefs"]:
+            continue
+        belief = random.choice(poster["beliefs"])
+        evolve = random.random() < 0.2  # 20% chance of evolving belief
+
+        prompt = f"""Generate a fresh, original news/insight item that {poster['name']} (@{poster['handle']}) would share.
+
+Their belief on {belief.get('topic', 'tech')}: "{belief.get('stance', '')}"
+Their domains: {', '.join(poster['domains'][:3])}
+{'This time, they are EVOLVING their view — they now see things differently due to new evidence.' if evolve else 'They are REINFORCING this belief with new evidence or developments.'}
+
+Generate a JSON object:
+{{"title": "A compelling headline (max 80 chars, like a tweet or blog post title)",
+ "summary": "2-3 sentence summary with specific details, data points, or observations. Written from {poster['name']}'s perspective as if they're sharing an insight.",
+ "source": "insight",
+ "tags": ["tag1", "tag2"]}}
+
+Rules:
+- Make the title catchy and specific, not generic
+- The summary should read like a real industry insight, not an AI-generated article
+- Include a specific claim, data point, or observation
+- If evolving: explain what changed their mind
+- Tags should be relevant domain tags
+
+Return ONLY the JSON object."""
+
+        result = _call_gemini(prompt, max_tokens=500, temperature=0.8)
+        if not result:
+            continue
+
+        try:
+            result = _re.sub(r'^```json?\s*', '', result.strip())
+            result = _re.sub(r'\s*```$', '', result.strip())
+            item_data = _json.loads(result)
+
+            # Check for duplicate titles
+            existing = db.query(NewsFeedItem).filter(
+                NewsFeedItem.title == item_data.get("title", "")
+            ).first()
+            if existing:
+                continue
+
+            news_item = NewsFeedItem(
+                title=item_data.get("title", ""),
+                summary=item_data.get("summary", ""),
+                source=item_data.get("source", "insight"),
+                source_name=f"{poster['name']}'s Insight",
+                author=poster["name"],
+                signal_strength=round(random.uniform(7.0, 9.5), 1),
+                tags=item_data.get("tags", []),
+                published_at=datetime.utcnow(),
+            )
+            db.add(news_item)
+            db.flush()
+
+            # Add initial comment from the poster
+            ann = PageAnnotation(
+                url=f"insight://{news_item.id}",
+                news_item_id=news_item.id,
+                selected_text="",
+                prefix_context="",
+                suffix_context="",
+                body=("I've been rethinking my stance on this. " if evolve else "This reinforces what I've been saying. ") + belief.get("stance", ""),
+                author_id=poster["email"],
+                author_name=poster["name"],
+            )
+            db.add(ann)
+            created += 1
+        except Exception as e:
+            logger.warning(f"News generation failed for {poster['name']}: {e}")
+
+    db.commit()
+    return {"created": created}

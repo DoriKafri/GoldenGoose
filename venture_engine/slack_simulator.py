@@ -629,6 +629,83 @@ def simulate_slack_activity(db: Session) -> dict:
                     flag_modified(rand_msg, "reactions")
                     stats["reactions"] += 1
 
+    # ── AI-generated expert discussion (30% chance per cycle) ──────────
+    stats["ai_discussions"] = 0
+    if random.random() < 0.3:
+        try:
+            from venture_engine.discussion_engine import generate_slack_discussion, TEAM_BELIEFS
+
+            # Pick a channel for the discussion
+            disc_channel = random.choice([c for c in channels if c.name in
+                ("engineering", "ai-and-ml", "devops-knowhow", "feature-ideas", "general")])
+
+            # Build participants: 2-3 team + 1-2 TLs
+            from venture_engine.slack_simulator import PERSONAS as _PERSONAS
+            team_emails = random.sample(list(_PERSONAS.keys()), min(3, len(_PERSONAS)))
+            participants = []
+            for email in team_emails:
+                p = _PERSONAS[email]
+                tb = TEAM_BELIEFS.get(email, {})
+                participants.append({
+                    "name": p["name"],
+                    "email": email,
+                    "title": p["title"],
+                    "domains": p.get("expertise", ["DevOps"])[:3],
+                    "beliefs": tb.get("beliefs", []),
+                    "social_traits": tb.get("social_traits", p.get("style", "Professional.")),
+                })
+
+            # Add 1-2 TLs
+            tl_slack = _get_tl_slack_personas(db, count=2)
+            for tl_user in tl_slack:
+                tl_obj = db.query(ThoughtLeader).filter(
+                    ThoughtLeader.handle == tl_user.get("handle", "")
+                ).first()
+                tl_beliefs = (tl_obj.beliefs if tl_obj and tl_obj.beliefs else [])
+                participants.append({
+                    "name": tl_user["name"],
+                    "email": tl_user["email"],
+                    "title": tl_user.get("title", "Thought Leader"),
+                    "domains": tl_user.get("domains", ["DevOps"]),
+                    "beliefs": tl_beliefs,
+                    "social_traits": f"Industry expert. {', '.join(tl_user.get('domains', ['tech'])[:2])} specialist.",
+                })
+
+            messages = generate_slack_discussion(
+                channel_name=disc_channel.name,
+                participants=participants,
+            )
+
+            if messages and len(messages) >= 3:
+                # Create first message
+                first = messages[0]
+                top_msg = SlackMessage(
+                    channel_id=disc_channel.id,
+                    author_email=first.get("author_email", team_emails[0]),
+                    author_name=first.get("author_name", ""),
+                    body=first.get("body", ""),
+                )
+                db.add(top_msg)
+                db.flush()
+
+                # Create replies in thread
+                for msg in messages[1:]:
+                    reply = SlackMessage(
+                        channel_id=disc_channel.id,
+                        thread_id=top_msg.id,
+                        author_email=msg.get("author_email", ""),
+                        author_name=msg.get("author_name", ""),
+                        body=msg.get("body", ""),
+                    )
+                    db.add(reply)
+
+                stats["ai_discussions"] += 1
+                stats["messages"] += 1
+                stats["replies"] += len(messages) - 1
+                logger.info(f"AI Slack discussion: {len(messages)} messages in #{disc_channel.name}")
+        except Exception as e:
+            logger.warning(f"AI Slack discussion failed: {e}")
+
     # ── Thought Leader participation (1-2 messages per cycle) ──────────
     tl_personas = _get_tl_slack_personas(db, count=4)
     stats["tl_messages"] = 0

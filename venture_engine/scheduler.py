@@ -105,6 +105,25 @@ def _update_tl_personas():
         logger.error(f"TL persona update error: {e}")
 
 
+def _generate_tl_news():
+    """Job 8: Generate news items from TL perspectives (daily)."""
+    logger.info("=== SCHEDULED: TL news generation starting ===")
+    try:
+        from venture_engine.discussion_engine import _call_gemini, TEAM_BELIEFS, seed_all_beliefs
+        from venture_engine.db.session import get_db
+        # Seed beliefs if needed
+        with get_db() as db:
+            seed_all_beliefs(db)
+        # Generate news via the API endpoint logic
+        import httpx
+        try:
+            httpx.post("http://localhost:8000/api/simulated-users/generate-news", timeout=60.0)
+        except Exception:
+            pass  # Will work when called internally
+    except Exception as e:
+        logger.error(f"TL news generation error: {e}")
+
+
 def _weekly_digest():
     """Job 4: Generate and print weekly digest."""
     logger.info("=== SCHEDULED: Weekly digest ===")

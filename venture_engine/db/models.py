@@ -114,6 +114,7 @@ class ThoughtLeader(Base):
     avatar_url = Column(Text, nullable=True)
     org = Column(Text, nullable=True)  # Organization name
     org_logo_url = Column(Text, nullable=True)
+    beliefs = Column(JSON, nullable=True)  # [{topic, stance, conviction}] — core beliefs about the future
     last_synced_at = Column(DateTime)
 
     signals = relationship("TLSignal", back_populates="thought_leader")

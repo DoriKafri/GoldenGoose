@@ -4383,6 +4383,7 @@ def generate_tl_news(db: Session = Depends(get_db_dependency)):
     from venture_engine.discussion_engine import _call_gemini, TEAM_BELIEFS
     import json as _json
     import re as _re
+    errors = []
 
     # Pick 2-3 TLs and 1-2 team members to post news
     tls = db.query(ThoughtLeader).filter(ThoughtLeader.beliefs.isnot(None)).order_by(func.random()).limit(3).all()
@@ -4475,7 +4476,8 @@ Return ONLY the JSON object."""
             db.add(ann)
             created += 1
         except Exception as e:
+            errors.append(f"{poster['name']}: {str(e)}")
             logger.warning(f"News generation failed for {poster['name']}: {e}")
 
     db.commit()
-    return {"created": created}
+    return {"created": created, "errors": errors}

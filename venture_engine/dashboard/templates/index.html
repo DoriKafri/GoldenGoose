@@ -2247,89 +2247,48 @@ async function loadThreads() {
       return `${months[d.getMonth()]} ${day}${suffix} at ${h12}:${m} ${ampm}`;
     }
 
-    // ── Slack-style Threads view: continuous message feed ──
-    // Each thread shows as a Slack-style message block with channel context
+    // ── Slack-style Threads view: all messages expanded ──
     const threadsHtml = threads.map((t, tIdx) => {
       const title = (t.news_item && t.news_item.title) ? esc(t.news_item.title) : _threadUrlLabel(t.url);
       const _niId = t.news_item ? t.news_item.id : '';
       const _safeTitle = title.replace(/'/g, "\\'").replace(/"/g, '&quot;');
 
-      // First message (the annotation starter)
-      const firstAuthor = t.participants && t.participants[0] ? t.participants[0].author_name : 'Anon';
-      const firstTime = t.first_time || t.latest_time || '';
-      const firstBody = t.first_annotation_body || '';
+      // Use full messages array from API
+      const messages = t.messages || [];
+      const totalMsgs = messages.length;
 
-      // Build thread messages — first annotation + all visible replies
-      const allMsgs = [];
-      // Main annotation
-      allMsgs.push({
-        author: firstAuthor,
-        time: firstTime,
-        body: firstBody,
-        isFirst: true,
-      });
-
-      // Add replies from participants (simulate from available data)
-      if (t.participants && t.participants.length > 1) {
-        for (let i = 1; i < Math.min(t.participants.length, 6); i++) {
-          const p = t.participants[i];
-          allMsgs.push({
-            author: p.author_name || 'Anon',
-            time: t.latest_time || '',
-            body: '',  // We don't have individual reply bodies in thread summary
-          });
-        }
-      }
-
-      // If we have latest_body and it's different from first
-      if (t.latest_body && t.latest_body !== firstBody && t.latest_author) {
-        // Replace the last dummy entry or add
-        if (allMsgs.length > 1) {
-          allMsgs[allMsgs.length - 1] = {
-            author: t.latest_author,
-            time: t.latest_time,
-            body: t.latest_body,
-          };
-        } else {
-          allMsgs.push({
-            author: t.latest_author,
-            time: t.latest_time,
-            body: t.latest_body,
-          });
-        }
-      }
-
-      // Only show messages that have body content
-      const visibleMsgs = allMsgs.filter(m => m.body);
-
-      const msgsHtml = visibleMsgs.map((m, i) => `
+      const msgsHtml = messages.map((m, i) => {
+        const isReply = m.is_reply;
+        const quoteHtml = m.quote ? `<div style="border-left:3px solid var(--accent);padding:2px 8px;margin:4px 0 6px;font-size:12px;color:var(--text3);font-style:italic;background:var(--bg2);border-radius:0 4px 4px 0;">"${esc(m.quote.slice(0, 120))}"</div>` : '';
+        return `
         <div class="sl-msg-wrap">
-          <div class="sl-msg${i > 0 ? ' sl-reply' : ''}">
-            <img src="${_threadAvatar(m.author, i > 0 ? 28 : 36)}" alt="" class="sl-avatar">
+          <div class="sl-msg${isReply ? ' sl-reply' : ''}">
+            <img src="${_threadAvatar(m.author_name, isReply ? 28 : 36)}" alt="" class="sl-avatar">
             <div class="sl-body">
               <div class="sl-meta">
-                <span class="sl-author">${esc(m.author)}</span>
-                <span class="sl-time">${_threadFullDate(m.time)}</span>
+                <span class="sl-author">${esc(m.author_name)}</span>
+                <span class="sl-time">${_threadFullDate(m.created_at)}</span>
               </div>
+              ${quoteHtml}
               <div class="sl-text">${esc(m.body)}</div>
             </div>
           </div>
-        </div>
-      `).join('');
+        </div>`;
+      }).join('');
 
-      const totalReplies = (t.annotation_count || 0) + (t.reply_count || 0) - 1;
+      // Reply count for header
+      const replyCount = totalMsgs > 1 ? totalMsgs - 1 : 0;
 
       return `
-        <div style="margin-bottom:2px;border-bottom:1px solid var(--border);padding:12px 16px;cursor:pointer;" onclick="_openThread('${esc(t.url)}','${_safeTitle}','${_niId}')">
-          <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;font-size:12px;color:var(--text3);">
+        <div style="margin-bottom:2px;border-bottom:1px solid var(--border);padding:12px 16px;">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;font-size:12px;color:var(--text3);cursor:pointer;" onclick="_openThread('${esc(t.url)}','${_safeTitle}','${_niId}')">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
             <span style="color:var(--accent);font-weight:600;">${title}</span>
             ${t.news_item ? '<span style="color:var(--text3);">·</span><span>' + _threadDomain(t.url) + '</span>' : ''}
-            ${totalReplies > 0 ? '<span style="margin-left:auto;color:var(--text3);">' + totalReplies + ' repl' + (totalReplies === 1 ? 'y' : 'ies') + '</span>' : ''}
+            ${replyCount > 0 ? '<span style="margin-left:auto;color:var(--text3);">' + replyCount + ' repl' + (replyCount === 1 ? 'y' : 'ies') + '</span>' : ''}
             <span style="font-weight:600;color:var(--accent);font-size:11px;">New</span>
           </div>
           ${msgsHtml}
-          ${totalReplies > visibleMsgs.length ? '<div style="font-size:12px;color:var(--accent);font-weight:600;margin-top:4px;padding-left:46px;">View full thread →</div>' : ''}
         </div>
       `;
     }).join('');

@@ -3005,6 +3005,29 @@ def list_annotation_threads(db: Session = Depends(get_db_dependency)):
                     "image_url": ni.image_url,
                 }
 
+        # Build full message list for expanded thread view
+        all_messages = []
+        for ann in url_anns:
+            all_messages.append({
+                "id": ann.id,
+                "author_name": ann.author_name or "Anon",
+                "author_id": ann.author_id,
+                "body": ann.body or "",
+                "quote": ann.selected_text or "",
+                "created_at": ann.created_at.isoformat() if ann.created_at else None,
+                "is_reply": False,
+            })
+            for reply in (ann.replies or []):
+                all_messages.append({
+                    "id": reply.id,
+                    "author_name": reply.author_name or "Anon",
+                    "author_id": reply.author_id,
+                    "body": reply.body or "",
+                    "created_at": reply.created_at.isoformat() if reply.created_at else None,
+                    "is_reply": True,
+                    "parent_id": ann.id,
+                })
+
         threads.append({
             "url": url,
             "news_item": news_item,
@@ -3020,6 +3043,7 @@ def list_annotation_threads(db: Session = Depends(get_db_dependency)):
             "latest_body": (latest_body or "")[:200],
             "first_annotation_body": (url_anns[0].body if url_anns else "")[:200],
             "first_annotation_quote": (url_anns[0].selected_text or "")[:150] if url_anns else "",
+            "messages": all_messages,
         })
 
     # Sort by latest_time descending (most recent activity first)

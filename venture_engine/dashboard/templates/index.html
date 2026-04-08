@@ -6823,81 +6823,126 @@ function renderForceGraph(data) {
   const controlsHtml = controlsEl ? controlsEl.outerHTML : '';
   container.innerHTML = '';
 
+  const isDark = document.documentElement.classList.contains('dark');
+  const bgColor = isDark ? '#0a1f24' : '#f0f2f5';
+
   _graph3d = ForceGraph3D()(container)
     .graphData(graphData)
     .width(container.clientWidth || window.innerWidth - 260)
     .height(container.clientHeight || window.innerHeight - 80)
-    .backgroundColor('rgba(0,0,0,0)')
+    .backgroundColor(bgColor)
     .showNavInfo(false)
+    .enableNodeDrag(true)
+    .enableNavigationControls(true)
     // Node styling
     .nodeVal(d => d.val)
     .nodeColor(d => d.color)
-    .nodeOpacity(0.92)
-    .nodeResolution(16)
+    .nodeOpacity(0.95)
+    .nodeResolution(20)
     .nodeLabel(d => {
       const typeLabel = {venture:'Venture',thought_leader:'Thought Leader',insight:'Insight',problem:'Problem',opportunity:'Opportunity',bug:'Bug',tag:'Tag'}[d.type] || d.type;
-      return `<div style="background:rgba(30,30,30,.9);padding:6px 10px;border-radius:6px;font-size:12px;color:#fff;border:1px solid rgba(255,255,255,.15);max-width:220px;">
-        <strong>${esc(d.label||'')}</strong><br>
-        <span style="color:#aaa;font-size:10px;">${typeLabel}${d.meta && d.meta.status ? ' · ' + d.meta.status : ''}</span>
+      return `<div style="background:rgba(20,20,20,.92);padding:8px 12px;border-radius:8px;font-size:13px;color:#fff;border:1px solid ${d.color};max-width:260px;backdrop-filter:blur(8px);">
+        <strong style="color:${d.color};">${esc(d.label||'')}</strong><br>
+        <span style="color:#bbb;font-size:11px;">${typeLabel}${d.meta && d.meta.status ? ' · ' + d.meta.status : ''}</span>
       </div>`;
     })
     // Link styling
-    .linkWidth(d => Math.max(0.3, (d.weight || 0.5) * 0.8))
-    .linkOpacity(0.25)
-    .linkColor(() => '#888')
-    // Text labels on nodes
+    .linkWidth(d => Math.max(0.4, (d.weight || 0.5) * 1.2))
+    .linkOpacity(0.15)
+    .linkColor(() => isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.15)')
+    .linkDirectionalParticles(d => d.weight > 0.6 ? 2 : 0)
+    .linkDirectionalParticleWidth(1.5)
+    .linkDirectionalParticleSpeed(0.005)
+    .linkDirectionalParticleColor(() => '#FFB100')
+    // Text labels on ALL nodes — always visible
     .nodeThreeObject(d => {
-      if (d.type === 'tag' || _nodeSize(d) < 3) return undefined;
-
       const group = new THREE.Group();
 
-      // Sprite label
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-      const label = (d.label || '').slice(0, 24);
-      const fontSize = 48;
-      ctx.font = `600 ${fontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
-      const textWidth = ctx.measureText(label).width;
-      canvas.width = textWidth + 24;
-      canvas.height = fontSize + 16;
-      ctx.font = `600 ${fontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
-      ctx.fillStyle = '#ffffff';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(label, canvas.width / 2, canvas.height / 2);
-
-      const texture = new THREE.CanvasTexture(canvas);
-      texture.needsUpdate = true;
-      const spriteMat = new THREE.SpriteMaterial({ map: texture, transparent: true, opacity: 0.85 });
-      const sprite = new THREE.Sprite(spriteMat);
-      const scaleFactor = 0.18;
-      sprite.scale.set(canvas.width * scaleFactor / 10, canvas.height * scaleFactor / 10, 1);
-      sprite.position.set(0, _nodeSize(d) + 3, 0);
-      group.add(sprite);
-
-      // Glowing sphere
-      const geometry = new THREE.SphereGeometry(_nodeSize(d) * 0.55, 16, 16);
-      const material = new THREE.MeshPhongMaterial({
+      // === Sphere ===
+      const radius = d.type === 'venture' ? 4.5 : d.type === 'thought_leader' ? 4 : d.type === 'bug' ? 3 : d.type === 'tag' ? 2 : 3;
+      const geometry = new THREE.SphereGeometry(radius, 20, 20);
+      const material = new THREE.MeshStandardMaterial({
         color: new THREE.Color(d.color),
         emissive: new THREE.Color(d.color),
-        emissiveIntensity: 0.4,
+        emissiveIntensity: 0.35,
+        metalness: 0.3,
+        roughness: 0.4,
         transparent: true,
-        opacity: 0.9,
-        shininess: 100,
+        opacity: 0.92,
       });
       const sphere = new THREE.Mesh(geometry, material);
       group.add(sphere);
 
-      // Image texture for ventures and TLs
+      // === Glow ring for ventures and TLs ===
+      if (d.type === 'venture' || d.type === 'thought_leader') {
+        const ringGeo = new THREE.RingGeometry(radius * 1.3, radius * 1.6, 32);
+        const ringMat = new THREE.MeshBasicMaterial({
+          color: new THREE.Color(d.color),
+          transparent: true,
+          opacity: 0.2,
+          side: THREE.DoubleSide,
+        });
+        const ring = new THREE.Mesh(ringGeo, ringMat);
+        group.add(ring);
+      }
+
+      // === Always-visible label ===
+      const label = (d.label || '').slice(0, 28);
+      if (label) {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        const fontSize = d.type === 'venture' || d.type === 'thought_leader' ? 52 : d.type === 'tag' ? 36 : 42;
+        const fontWeight = d.type === 'venture' || d.type === 'thought_leader' ? '700' : '500';
+        ctx.font = `${fontWeight} ${fontSize}px Inter, -apple-system, sans-serif`;
+        const textWidth = ctx.measureText(label).width;
+        const pad = 20;
+        canvas.width = textWidth + pad * 2;
+        canvas.height = fontSize + pad;
+
+        // Background pill (with roundRect fallback)
+        function _pill(cx, x, y, w, h, r) {
+          cx.beginPath();
+          if (cx.roundRect) { cx.roundRect(x, y, w, h, r); }
+          else { cx.moveTo(x+r,y);cx.lineTo(x+w-r,y);cx.quadraticCurveTo(x+w,y,x+w,y+r);cx.lineTo(x+w,y+h-r);cx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);cx.lineTo(x+r,y+h);cx.quadraticCurveTo(x,y+h,x,y+h-r);cx.lineTo(x,y+r);cx.quadraticCurveTo(x,y,x+r,y);cx.closePath(); }
+        }
+        ctx.fillStyle = isDark ? 'rgba(10,31,36,0.85)' : 'rgba(255,255,255,0.9)';
+        const rr = canvas.height / 2;
+        _pill(ctx, 0, 0, canvas.width, canvas.height, rr);
+        ctx.fill();
+
+        // Border
+        ctx.strokeStyle = d.color;
+        ctx.lineWidth = 2;
+        _pill(ctx, 1, 1, canvas.width - 2, canvas.height - 2, rr);
+        ctx.stroke();
+
+        // Text
+        ctx.font = `${fontWeight} ${fontSize}px Inter, -apple-system, sans-serif`;
+        ctx.fillStyle = isDark ? '#e5e5e5' : '#1a1a1a';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(label, canvas.width / 2, canvas.height / 2);
+
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.needsUpdate = true;
+        const spriteMat = new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false });
+        const sprite = new THREE.Sprite(spriteMat);
+        const sc = d.type === 'tag' ? 0.14 : 0.2;
+        sprite.scale.set(canvas.width * sc / 10, canvas.height * sc / 10, 1);
+        sprite.position.set(0, radius + 4, 0);
+        group.add(sprite);
+      }
+
+      // === Logo image for ventures/TLs ===
       if (d.image && (d.type === 'venture' || d.type === 'thought_leader')) {
         const imgLoader = new THREE.TextureLoader();
         imgLoader.crossOrigin = 'anonymous';
         imgLoader.load(d.image, function(tex) {
           const imgMat = new THREE.SpriteMaterial({ map: tex, transparent: true });
           const imgSprite = new THREE.Sprite(imgMat);
-          const sz = _nodeSize(d) * 1.2;
+          const sz = radius * 1.6;
           imgSprite.scale.set(sz, sz, 1);
-          imgSprite.position.set(0, 0, _nodeSize(d) * 0.6);
+          imgSprite.position.set(0, 0, radius * 0.6);
           group.add(imgSprite);
         }, undefined, function() {});
       }
@@ -6905,29 +6950,43 @@ function renderForceGraph(data) {
       return group;
     })
     .nodeThreeObjectExtend(false)
-    // Forces
-    .d3Force('charge', d3.forceManyBody().strength(-120))
-    .d3Force('link', d3.forceLink().distance(80).strength(0.15))
+    // Forces — strong 3D spread
+    .d3Force('charge', d3.forceManyBody().strength(-250))
+    .d3Force('link', d3.forceLink().distance(60).strength(0.1))
+    .d3Force('center', d3.forceCenter(0, 0).strength(0.05))
+    // Warmup for quick settling
+    .warmupTicks(60)
+    .cooldownTicks(200)
     // Click to focus
     .onNodeClick(d => {
-      const dist = 120;
-      const pos = d;
+      const dist = 80;
       _graph3d.cameraPosition(
-        { x: pos.x + dist, y: pos.y + dist / 2, z: pos.z + dist },
-        { x: pos.x, y: pos.y, z: pos.z },
-        1200
+        { x: d.x + dist, y: d.y + dist * 0.6, z: d.z + dist },
+        { x: d.x, y: d.y, z: d.z },
+        1000
       );
     });
 
-  // Add lights for better 3D appearance
+  // Rich 3D lighting
   const scene = _graph3d.scene();
-  scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-  const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-  dirLight.position.set(200, 400, 200);
-  scene.add(dirLight);
-  const pointLight = new THREE.PointLight(0x4ecdc4, 0.5, 1000);
-  pointLight.position.set(-200, 300, -200);
-  scene.add(pointLight);
+  scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+  const dirLight1 = new THREE.DirectionalLight(0xffffff, 0.9);
+  dirLight1.position.set(300, 500, 300);
+  scene.add(dirLight1);
+  const dirLight2 = new THREE.DirectionalLight(0x4ecdc4, 0.3);
+  dirLight2.position.set(-300, -200, 200);
+  scene.add(dirLight2);
+  const pointLight1 = new THREE.PointLight(0xFFB100, 0.6, 800);
+  pointLight1.position.set(0, 400, 0);
+  scene.add(pointLight1);
+  const pointLight2 = new THREE.PointLight(0x8b5cf6, 0.4, 600);
+  pointLight2.position.set(-300, -300, 300);
+  scene.add(pointLight2);
+
+  // Set initial camera for immersive 3D view
+  setTimeout(() => {
+    _graph3d.cameraPosition({ x: 200, y: 150, z: 350 }, { x: 0, y: 0, z: 0 }, 0);
+  }, 100);
 
   // Re-add controls overlay
   const controlsDiv = document.createElement('div');
@@ -6950,7 +7009,7 @@ function renderForceGraph(data) {
   };
   window._graphReset = function() {
     if (!_graph3d) return;
-    _graph3d.cameraPosition({ x: 0, y: 0, z: 600 }, { x: 0, y: 0, z: 0 }, 800);
+    _graph3d.cameraPosition({ x: 200, y: 150, z: 350 }, { x: 0, y: 0, z: 0 }, 800);
   };
 
   // Handle resize

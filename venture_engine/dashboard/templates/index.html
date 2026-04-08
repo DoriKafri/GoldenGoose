@@ -242,6 +242,9 @@ html.dark .toggle-track::after { transform:translateX(16px); }
 .sl-thread-composer-toolbar button:hover { background:var(--bg2);color:var(--text); }
 .sl-thread-also-send { display:flex;align-items:center;gap:6px;margin-top:8px;font-size:12px;color:var(--text3); }
 .sl-thread-also-send input { accent-color:var(--accent); }
+.sl-thread-reply-input:empty::before { content:attr(data-placeholder);color:var(--text3);pointer-events:none; }
+.sl-thread-reply-input:focus { outline:none; }
+.sl-thread-composer-box:focus-within { border-color:var(--accent); }
 @media(max-width:768px) { .sl-thread-side { width:100%;min-width:0;max-width:100%;position:absolute;top:0;left:0;right:0;bottom:0;z-index:20; } }
 
 /* Margin opportunity pricing table */
@@ -2289,6 +2292,31 @@ async function loadThreads() {
             <span style="font-weight:600;color:var(--accent);font-size:11px;">New</span>
           </div>
           ${msgsHtml}
+          <div class="sl-thread-composer" style="margin-top:8px;">
+            <div class="sl-thread-composer-box" style="display:flex;align-items:flex-start;gap:8px;">
+              <img src="${_threadAvatar('You', 28)}" alt="" style="width:28px;height:28px;border-radius:6px;flex-shrink:0;margin-top:2px;">
+              <div style="flex:1;min-width:0;">
+                <div contenteditable="true" class="sl-thread-reply-input" data-thread-idx="${tIdx}" style="min-height:20px;outline:none;font-size:13px;color:var(--text);line-height:1.5;padding:2px 0;" data-placeholder="Reply..."></div>
+              </div>
+            </div>
+            <div class="sl-thread-composer-toolbar" style="margin-top:2px;">
+              <button title="Attach" style="background:none;border:none;color:var(--text3);font-size:16px;cursor:pointer;padding:4px 6px;border-radius:4px;">+</button>
+              <button title="Bold" style="background:none;border:none;color:var(--text3);font-size:14px;cursor:pointer;padding:4px 6px;border-radius:4px;font-weight:700;">B</button>
+              <button title="Italic" style="background:none;border:none;color:var(--text3);font-size:14px;cursor:pointer;padding:4px 6px;border-radius:4px;font-style:italic;">I</button>
+              <button title="Strikethrough" style="background:none;border:none;color:var(--text3);font-size:14px;cursor:pointer;padding:4px 6px;border-radius:4px;text-decoration:line-through;">S</button>
+              <button title="Link" style="background:none;border:none;color:var(--text3);font-size:14px;cursor:pointer;padding:4px 6px;border-radius:4px;">&#x1F517;</button>
+              <button title="Ordered list" style="background:none;border:none;color:var(--text3);font-size:14px;cursor:pointer;padding:4px 6px;border-radius:4px;">1.</button>
+              <button title="Bulleted list" style="background:none;border:none;color:var(--text3);font-size:14px;cursor:pointer;padding:4px 6px;border-radius:4px;">&#x2022;</button>
+              <button title="Code" style="background:none;border:none;color:var(--text3);font-size:13px;cursor:pointer;padding:4px 6px;border-radius:4px;font-family:monospace;">&lt;/&gt;</button>
+              <button title="Code block" style="background:none;border:none;color:var(--text3);font-size:13px;cursor:pointer;padding:4px 6px;border-radius:4px;font-family:monospace;">[]</button>
+              <span style="flex:1;"></span>
+              <button title="Emoji" style="background:none;border:none;color:var(--text3);font-size:16px;cursor:pointer;padding:4px 6px;border-radius:4px;">&#x263A;</button>
+              <button title="Mention" style="background:none;border:none;color:var(--text3);font-size:16px;cursor:pointer;padding:4px 6px;border-radius:4px;">@</button>
+              <button title="Record" style="background:none;border:none;color:var(--text3);font-size:16px;cursor:pointer;padding:4px 6px;border-radius:4px;">&#x1F3A4;</button>
+              <button title="Shortcuts" style="background:none;border:none;color:var(--text3);font-size:16px;cursor:pointer;padding:4px 6px;border-radius:4px;">&#x26A1;</button>
+              <button title="Send" style="background:none;border:none;color:var(--accent);font-size:18px;cursor:pointer;padding:4px 8px;border-radius:4px;opacity:0.5;">&#x27A4;</button>
+            </div>
+          </div>
         </div>
       `;
     }).join('');

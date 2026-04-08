@@ -6756,8 +6756,24 @@ async function loadGraph() {
   try {
     const resp = await fetch(`${API}/api/graph`);
     const data = await resp.json();
+    // Client-side cap to keep 3D graph performant
+    const MAX_NODES = 200;
+    const MAX_EDGES = 600;
+    if (data.nodes && data.nodes.length > MAX_NODES) {
+      // Prioritize: ventures > thought_leaders > bugs > news/tags
+      const priority = { venture: 0, thought_leader: 1, bug: 2, problem: 3, opportunity: 4, insight: 5, tag: 6 };
+      data.nodes.sort((a, b) => (priority[a.type] ?? 9) - (priority[b.type] ?? 9));
+      data.nodes = data.nodes.slice(0, MAX_NODES);
+      const keepIds = new Set(data.nodes.map(n => n.id));
+      data.edges = (data.edges || []).filter(e => keepIds.has(e.source) && keepIds.has(e.target));
+    }
+    if (data.edges && data.edges.length > MAX_EDGES) {
+      data.edges.sort((a, b) => (b.weight || 0) - (a.weight || 0));
+      data.edges = data.edges.slice(0, MAX_EDGES);
+    }
     renderForceGraph(data);
   } catch(e) {
+    console.error('Graph load error:', e);
     el.innerHTML = '<div class="loading">Failed to load graph data.</div>';
   }
 }

@@ -2233,9 +2233,7 @@ async function loadThreads() {
       return;
     }
 
-    function _threadAvatar(name, size) {
-      return `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(name||'?')}&radius=50&backgroundColor=1264A3&textColor=ffffff&size=${size||36}`;
-    }
+    function _threadAvatar(name, size) { return _avatar(name, size); }
 
     function _threadFullDate(dateStr) {
       if (!dateStr) return '';
@@ -5410,6 +5408,19 @@ function prevPage(){if(currentPage>0){currentPage--;currentTab==='news'?loadNews
 function nextPage(){currentPage++;currentTab==='news'?loadNews():loadVentures();}
 function timeAgo(iso){if(!iso)return'';var d=iso.endsWith('Z')||iso.includes('+')?iso:iso+'Z';var dt=new Date(d);var s=Math.floor((Date.now()-dt.getTime())/1000);if(s<60)return'just now';if(s<3600)return Math.floor(s/60)+'m ago';var now=new Date();var isToday=dt.toDateString()===now.toDateString();var yesterday=new Date(now);yesterday.setDate(yesterday.getDate()-1);var isYesterday=dt.toDateString()===yesterday.toDateString();var time=dt.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});if(isToday)return'Today '+time;if(isYesterday)return'Yesterday '+time;var opts={month:'short',day:'numeric'};if(dt.getFullYear()!==now.getFullYear())opts.year='numeric';return dt.toLocaleDateString([],opts)+' '+time;}
 function esc(s){const el=document.createElement('span');el.textContent=s||'';return el.innerHTML;}
+
+// Global avatar with deterministic color per name
+const _AVATAR_COLORS = ['1264A3','0B7A3E','9B2335','6B3FA0','C75C00','2D6980','8C4A9E','1A7F5A','B44D12','3A5FCD','D4451E','5B8C3E','A0522D','4A708B','8B1A4A','2E8B57','CD6839','4169E1','B22222','008080'];
+function _avatarColor(name) {
+  let hash = 0;
+  for (let i = 0; i < (name||'').length; i++) hash = ((hash << 5) - hash) + name.charCodeAt(i);
+  return _AVATAR_COLORS[Math.abs(hash) % _AVATAR_COLORS.length];
+}
+function _avatar(name, size) {
+  const s = size || 36;
+  const c = _avatarColor(name);
+  return `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(name||'?')}&radius=50&backgroundColor=${c}&textColor=ffffff&size=${s}`;
+}
 function parseSkills(s){try{const arr=typeof s==='string'?JSON.parse(s):s;return arr.map(sk=>'<span class="stat-skill">'+esc(sk)+'</span>').join('');}catch(e){return esc(s);}}
 
 // Submit Modal
@@ -6156,10 +6167,7 @@ async function loadLeaderboard() {
   }
 }
 
-function _lbAvatar(name, size) {
-  const seed = encodeURIComponent(name || 'unknown');
-  return `https://api.dicebear.com/7.x/initials/svg?seed=${seed}&size=${size || 64}&backgroundColor=FFB100,05323C,007EB9,07e5d3,b87fc7,9A48FE&backgroundType=gradientLinear`;
-}
+function _lbAvatar(name, size) { return _avatar(name, size || 64); }
 
 function renderLeaderboard(data) {
   const el = document.getElementById('ventureList');
@@ -6791,9 +6799,7 @@ function _renderSlackChannel(data, channelId) {
   const msgs = data.messages || [];
   _slackChannelData = { channel: ch, messages: msgs };
 
-  function _slackAvatar(name, size) {
-    return `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(name||'?')}&radius=50&backgroundColor=1264A3&textColor=ffffff&size=${size||36}`;
-  }
+  function _slackAvatar(name, size) { return _avatar(name, size); }
 
   function _slackFullDate(dateStr) {
     if (!dateStr) return '';
@@ -6892,9 +6898,7 @@ function _openSlackThread(msgIdx) {
   const ch = _slackChannelData.channel;
   const replies = msg.replies || [];
 
-  function _slackAvatar(name, size) {
-    return `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(name||'?')}&radius=50&backgroundColor=1264A3&textColor=ffffff&size=${size||36}`;
-  }
+  function _slackAvatar(name, size) { return _avatar(name, size); }
 
   function _slackFullDate(dateStr) {
     if (!dateStr) return '';
@@ -7072,7 +7076,7 @@ async function loadActivity() {
     const maxAct = topUsers.length ? topUsers[0][1] : 1;
     const teamHtml = topUsers.map(([name,count]) => {
       const pct = Math.round(count/maxAct*100);
-      const avatar = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(name)}&radius=50&size=24`;
+      const avatar = _avatar(name, 24);
       return `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;">
         <img src="${avatar}" style="width:24px;height:24px;border-radius:50%;">
         <span style="font-size:12px;font-weight:600;color:var(--text);min-width:120px;">${esc(name)}</span>
@@ -7083,7 +7087,7 @@ async function loadActivity() {
 
     // Timeline
     const timelineHtml = recent.map(e => {
-      const avatar = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(e.user||'?')}&radius=50&size=24`;
+      const avatar = _avatar(e.user||'?', 24);
       return `<div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);">
         <div style="font-size:16px;width:24px;text-align:center;flex-shrink:0;">${e.icon}</div>
         <img src="${avatar}" style="width:24px;height:24px;border-radius:50%;flex-shrink:0;">

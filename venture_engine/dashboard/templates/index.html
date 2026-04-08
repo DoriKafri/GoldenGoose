@@ -2206,7 +2206,9 @@ function renderNewsFeed(items) {
   el.innerHTML = items.map(item => {
     try {
     const _srcLogo = sourceLogos[item.source] || (item.url ? 'https://www.google.com/s2/favicons?domain='+_hostname(item.url)+'&sz=64' : null);
-    const icon = _srcLogo ? '<img src="'+_srcLogo+'" alt="" style="width:28px;height:28px;border-radius:6px;object-fit:contain;" onerror="this.outerHTML=\''+(sourceIcons[item.source]||'\uD83D\uDCF0')+'\'">' : (sourceIcons[item.source] || '\uD83D\uDCF0');
+    const icon = _srcLogo
+      ? '<img src="'+esc(_srcLogo)+'" alt="" style="width:28px;height:28px;border-radius:6px;object-fit:contain;" onerror="this.style.display=\'none\'">'
+      : (sourceIcons[item.source] || '\uD83D\uDCF0');
     const tags = (item.tags||[]).map(t => `<span class="domain-badge" style="font-size:9px;padding:1px 6px;">${esc(t)}</span>`).join(' ');
     const strength = item.signal_strength ? `<span class="score-badge ${item.signal_strength >= 8 ? 'score-high' : item.signal_strength >= 5 ? 'score-mid' : 'score-low'}" style="font-size:11px;min-width:24px;">${item.signal_strength.toFixed(1)}</span>` : '';
     const ventures = (item.linked_ventures||[]).map(v => {
@@ -5988,7 +5990,7 @@ function _renderSlackChannel(data, channelId) {
     const avatar = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(msg.author_name||'?')}&radius=50&size=32`;
     const repliesHtml = (msg.replies||[]).map(r => {
       const rAvatar = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(r.author_name||'?')}&radius=50&size=24`;
-      const rRxn = (r.reactions||[]).map(rx => `<span style="font-size:11px;background:var(--bg2);padding:1px 4px;border-radius:8px;">${rx.emoji}${rx.users?rx.users.length>1?' '+rx.users.length:''}</span>`).join(' ');
+      const rRxn = (r.reactions||[]).map(function(rx){ const cnt = (rx.users||[]).length; return '<span style="font-size:11px;background:var(--bg2);padding:1px 4px;border-radius:8px;">'+rx.emoji+(cnt>1?' '+cnt:'')+'</span>'; }).join(' ');
       return `<div style="display:flex;gap:8px;padding:6px 0;border-top:1px solid var(--border);">
         <img src="${rAvatar}" alt="" style="width:24px;height:24px;border-radius:50%;flex-shrink:0;margin-top:2px;">
         <div style="flex:1;min-width:0;">
@@ -6003,7 +6005,7 @@ function _renderSlackChannel(data, channelId) {
     }).join('');
 
     const rxnHtml = (msg.reactions||[]).map(rx =>
-      `<span style="display:inline-flex;align-items:center;gap:2px;font-size:11px;background:var(--bg2);padding:2px 6px;border-radius:10px;border:1px solid var(--border);">${rx.emoji}${rx.users?rx.users.length>1?' <span style="font-size:10px;color:var(--text3);">'+rx.users.length+'</span>':''}</span>`
+      '<span style="display:inline-flex;align-items:center;gap:2px;font-size:11px;background:var(--bg2);padding:2px 6px;border-radius:10px;border:1px solid var(--border);">'+rx.emoji+((rx.users||[]).length>1?' <span style="font-size:10px;color:var(--text3);">'+(rx.users||[]).length+'</span>':'')+'</span>'
     ).join(' ');
 
     return `<div style="padding:12px 0;border-bottom:1px solid var(--border);">

@@ -7,6 +7,7 @@
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 128 128'%3E%3Crect width='128' height='128' rx='24' fill='%23ffffff'/%3E%3Cpath d='M68 22C91 22 108 39 108 62C108 85 91 102 68 102V22Z' fill='%2305323C'/%3E%3Crect x='22' y='68' width='38' height='34' rx='3' fill='%2305323C'/%3E%3Ccircle cx='41' cy='41' r='19' fill='%23FFB100'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://d3js.org/d3.v7.min.js"></script>
 <style>
 :root {
   --bg: #ffffff;
@@ -724,6 +725,43 @@ html.dark .toggle-track::after { transform:translateX(16px); }
 .ann-video-thumb-sm .ann-video-thumb-play svg { width:14px !important; height:14px !important; }
 .sprite-spacer { width:100%; }
 .ann-compose-cancel { background:var(--bg2); color:var(--text2); }
+/* ─── Bug Tracking ─────────────────────────────── */
+.bug-card { background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:14px 16px; margin-bottom:8px; cursor:pointer; transition:border-color 0.15s; display:flex; align-items:flex-start; gap:12px; }
+.bug-card:hover { border-color:var(--accent); }
+.bug-key { font-size:11px; font-weight:700; color:var(--text3); font-variant-numeric:tabular-nums; min-width:60px; }
+.bug-title { font-size:14px; font-weight:600; color:var(--text); }
+.bug-meta { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; align-items:center; }
+.bug-priority { display:inline-block; padding:2px 8px; border-radius:var(--radius-pill); font-size:10px; font-weight:700; text-transform:uppercase; }
+.bug-priority.critical { background:rgba(239,68,68,0.15); color:#ef4444; }
+.bug-priority.high { background:rgba(245,158,11,0.15); color:#d97706; }
+.bug-priority.medium { background:rgba(59,130,246,0.15); color:#3b82f6; }
+.bug-priority.low { background:rgba(107,114,128,0.12); color:#6b7280; }
+.bug-status { display:inline-block; padding:2px 8px; border-radius:var(--radius-pill); font-size:10px; font-weight:700; }
+.bug-status.open { background:rgba(59,130,246,0.12); color:#3b82f6; }
+.bug-status.in_progress { background:rgba(245,158,11,0.12); color:#d97706; }
+.bug-status.review { background:rgba(139,92,246,0.12); color:#8b5cf6; }
+.bug-status.done { background:rgba(34,197,94,0.12); color:#16a34a; }
+.bug-status.closed { background:rgba(107,114,128,0.12); color:#6b7280; }
+.bug-type-icon { font-size:16px; }
+.bug-detail { background:var(--card); border:1px solid var(--border); border-radius:var(--radius-lg); padding:24px; margin-bottom:16px; }
+.bug-detail h2 { font-size:18px; font-weight:700; margin-bottom:12px; }
+.bug-detail-meta { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:16px; }
+.bug-description { font-size:14px; line-height:1.6; color:var(--text); margin-bottom:20px; white-space:pre-wrap; }
+.bug-comments { border-top:1px solid var(--border); padding-top:16px; }
+.bug-comment { padding:10px 0; border-bottom:1px solid var(--border); }
+.bug-comment-author { font-size:12px; font-weight:600; color:var(--text); }
+.bug-comment-time { font-size:10px; color:var(--text3); }
+.bug-comment-body { font-size:13px; color:var(--text); line-height:1.5; margin-top:4px; }
+.bug-board { display:flex; gap:12px; overflow-x:auto; padding:8px 0; }
+.bug-board-col { flex:1; min-width:220px; background:var(--bg2); border-radius:var(--radius); padding:8px; }
+.bug-board-col-title { font-size:12px; font-weight:700; color:var(--text2); text-transform:uppercase; padding:8px; margin-bottom:4px; }
+/* ─── Knowledge Graph ─────────────────────────────── */
+#graphCanvas { width:100%; background:var(--bg); border-radius:var(--radius); }
+#graphCanvas svg { width:100%; height:100%; }
+.graph-tooltip { position:absolute; background:var(--card); border:1px solid var(--border); border-radius:8px; padding:10px 14px; font-size:12px; box-shadow:var(--shadow-lg); pointer-events:none; z-index:999; max-width:250px; }
+.graph-legend { display:flex; gap:12px; padding:8px 16px; font-size:11px; color:var(--text2); flex-wrap:wrap; }
+.graph-legend-item { display:flex; align-items:center; gap:4px; }
+.graph-legend-dot { width:10px; height:10px; border-radius:50%; }
 .ann-compose-submit { background:linear-gradient(135deg,#f59e0b,#d97706); color:#fff; }
 @media(max-width:768px) {
   .reader-body { flex-direction:column; }
@@ -900,6 +938,17 @@ html.dark .toggle-track::after { transform:translateX(16px); }
       <button class="sidebar-nav-item" data-tab="training" onclick="switchTab('training')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>
         Training
+      </button>
+      <div class="sidebar-nav-divider"></div>
+      <span class="sidebar-nav-label">Tools</span>
+      <button class="sidebar-nav-item" data-tab="bugs" onclick="switchTab('bugs')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+        Bugs
+        <span class="nav-badge" id="bugsBadge" style="display:none;">0</span>
+      </button>
+      <button class="sidebar-nav-item" data-tab="graph" onclick="switchTab('graph')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/><circle cx="18" cy="6" r="3"/><line x1="8.5" y1="7.5" x2="15.5" y2="16.5"/><line x1="8.5" y1="6" x2="15.5" y2="6"/></svg>
+        Graph
       </button>
     </div>
 
@@ -1773,7 +1822,7 @@ function switchTab(tab, skipHash) {
     b.classList.toggle('active', b.dataset.tab === tab);
   });
   // Show/hide context-sensitive elements
-  const isVentureTab = !['news','threads'].includes(tab);
+  const isVentureTab = !['news','threads','bugs','graph'].includes(tab);
   document.getElementById('suggestTabBtn').style.display = isVentureTab ? '' : 'none';
   document.getElementById('newsPostBar').style.display = (tab === 'news') ? '' : 'none';
   document.getElementById('ventureSearchBar').style.display = isVentureTab ? '' : 'none';
@@ -1789,6 +1838,8 @@ function switchTab(tab, skipHash) {
   if (!skipHash) updateHash();
   if (tab === 'threads') { loadThreads(); }
   else if (tab === 'news') { loadNews(); }
+  else if (tab === 'bugs') { loadBugs(); }
+  else if (tab === 'graph') { loadGraph(); }
   else { loadVentures(); }
 }
 
@@ -5464,6 +5515,308 @@ window.addEventListener('resize', updateTabScrollHint);
 setTimeout(updateTabScrollHint, 100);
 
 // Read hash on page load for deep linking
+// ─── Bug Tracking ───────────────────────────────────────────────
+let _bugViewMode = 'list'; // 'list' or 'board'
+
+async function loadBugs() {
+  const el = document.getElementById('ventureList');
+  el.innerHTML = '<div class="loading">Loading bugs...</div>';
+  try {
+    const [bugsRes, statsRes] = await Promise.all([
+      fetch(`${API}/api/bugs?limit=100`),
+      fetch(`${API}/api/bugs/stats`),
+    ]);
+    const bugsData = await bugsRes.json();
+    const stats = await statsRes.json();
+    renderBugList(bugsData.items, stats);
+  } catch(e) {
+    el.innerHTML = '<div class="loading">Failed to load bugs.</div>';
+  }
+}
+
+function renderBugList(bugs, stats) {
+  const el = document.getElementById('ventureList');
+  const typeIcons = {bug:'🐛', feature:'✨', task:'📋', improvement:'🔧'};
+  const statusOrder = ['open','in_progress','review','done','closed'];
+
+  // Stats bar
+  const statsHtml = `
+    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center;">
+      <span style="font-size:16px;font-weight:700;color:var(--text);">Bugs & Tasks</span>
+      <span style="font-size:12px;color:var(--text3);">${stats.total || 0} total</span>
+      ${Object.entries(stats.by_status || {}).map(([s,c]) =>
+        `<span class="bug-status ${s}" style="font-size:11px;">${s.replace('_',' ')}: ${c}</span>`
+      ).join('')}
+      <div style="flex:1;"></div>
+      <button onclick="_bugToggleView()" style="padding:4px 12px;border-radius:var(--radius-pill);border:1px solid var(--border);background:var(--bg);color:var(--text2);font-size:11px;font-weight:600;cursor:pointer;">${_bugViewMode === 'board' ? '☰ List' : '▦ Board'}</button>
+      <button onclick="_bugShowCreate()" style="padding:4px 14px;border-radius:var(--radius-pill);background:var(--accent);color:#1a1a1a;border:none;font-size:11px;font-weight:700;cursor:pointer;">+ New Bug</button>
+    </div>`;
+
+  if (_bugViewMode === 'board') {
+    // Kanban board view
+    let boardHtml = '<div class="bug-board">';
+    for (const status of statusOrder) {
+      const col = bugs.filter(b => b.status === status);
+      boardHtml += `<div class="bug-board-col">
+        <div class="bug-board-col-title">${status.replace('_',' ')} (${col.length})</div>
+        ${col.map(b => `
+          <div class="bug-card" onclick="_bugShowDetail('${b.id}')" style="flex-direction:column;gap:4px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;width:100%;">
+              <span class="bug-key">${esc(b.key)}</span>
+              <span class="bug-priority ${b.priority}">${b.priority}</span>
+            </div>
+            <div class="bug-title" style="font-size:13px;">${esc(b.title)}</div>
+            <div style="font-size:10px;color:var(--text3);">${b.assignee_name || 'Unassigned'}</div>
+          </div>
+        `).join('')}
+      </div>`;
+    }
+    boardHtml += '</div>';
+    el.innerHTML = statsHtml + boardHtml;
+  } else {
+    // List view
+    el.innerHTML = statsHtml + bugs.map(b => `
+      <div class="bug-card" onclick="_bugShowDetail('${b.id}')">
+        <span class="bug-type-icon">${typeIcons[b.bug_type] || '🐛'}</span>
+        <div style="flex:1;min-width:0;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span class="bug-key">${esc(b.key)}</span>
+            <span class="bug-title">${esc(b.title)}</span>
+          </div>
+          <div class="bug-meta">
+            <span class="bug-priority ${b.priority}">${b.priority}</span>
+            <span class="bug-status ${b.status}">${b.status.replace('_',' ')}</span>
+            ${b.labels ? b.labels.map(l => '<span style="font-size:10px;padding:1px 6px;border-radius:var(--radius-pill);background:var(--bg2);color:var(--text2);">'+esc(l)+'</span>').join('') : ''}
+            <span style="font-size:10px;color:var(--text3);">→ ${esc(b.assignee_name || 'Unassigned')}</span>
+            <span style="font-size:10px;color:var(--text3);">by ${esc(b.reporter_name || 'Unknown')}</span>
+            <span style="font-size:10px;color:var(--text3);">${timeAgo(b.created_at)}</span>
+          </div>
+        </div>
+      </div>
+    `).join('');
+  }
+}
+
+function _bugToggleView() {
+  _bugViewMode = _bugViewMode === 'list' ? 'board' : 'list';
+  loadBugs();
+}
+
+async function _bugShowDetail(bugId) {
+  const el = document.getElementById('ventureList');
+  el.innerHTML = '<div class="loading">Loading...</div>';
+  try {
+    const resp = await fetch(`${API}/api/bugs/${bugId}`);
+    const bug = await resp.json();
+    const typeIcons = {bug:'🐛', feature:'✨', task:'📋', improvement:'🔧'};
+    const statuses = ['open','in_progress','review','done','closed'];
+    el.innerHTML = `
+      <div style="margin-bottom:12px;">
+        <button onclick="loadBugs()" style="padding:4px 12px;border-radius:var(--radius-pill);border:1px solid var(--border);background:var(--bg);color:var(--text2);font-size:11px;cursor:pointer;">← Back to list</button>
+      </div>
+      <div class="bug-detail">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+          <span style="font-size:20px;">${typeIcons[bug.bug_type] || '🐛'}</span>
+          <span class="bug-key" style="font-size:14px;">${esc(bug.key)}</span>
+          <span class="bug-priority ${bug.priority}">${bug.priority}</span>
+        </div>
+        <h2>${esc(bug.title)}</h2>
+        <div class="bug-detail-meta">
+          <span>Status:</span>
+          <select id="bugStatusSelect" onchange="_bugUpdateStatus('${bug.id}', this.value)" style="padding:4px 8px;border-radius:6px;border:1px solid var(--border);font-size:12px;background:var(--bg);color:var(--text);">
+            ${statuses.map(s => `<option value="${s}" ${s === bug.status ? 'selected' : ''}>${s.replace('_',' ')}</option>`).join('')}
+          </select>
+          <span style="color:var(--text3);">|</span>
+          <span style="font-size:12px;color:var(--text2);">Assignee: <strong>${esc(bug.assignee_name || 'Unassigned')}</strong></span>
+          <span style="color:var(--text3);">|</span>
+          <span style="font-size:12px;color:var(--text2);">Reporter: <strong>${esc(bug.reporter_name || 'Unknown')}</strong></span>
+          <span style="color:var(--text3);">|</span>
+          <span style="font-size:12px;color:var(--text3);">${timeAgo(bug.created_at)}</span>
+        </div>
+        ${bug.labels && bug.labels.length ? '<div style="margin-bottom:12px;">' + bug.labels.map(l => '<span style="font-size:11px;padding:2px 8px;border-radius:var(--radius-pill);background:var(--bg2);color:var(--text2);margin-right:4px;">'+esc(l)+'</span>').join('') + '</div>' : ''}
+        <div class="bug-description">${esc(bug.description || 'No description.')}</div>
+        <div class="bug-comments">
+          <div style="font-size:14px;font-weight:700;margin-bottom:12px;">Comments (${(bug.comments || []).length})</div>
+          ${(bug.comments || []).map(c => `
+            <div class="bug-comment">
+              <span class="bug-comment-author">${esc(c.author_name || 'Anon')}</span>
+              <span class="bug-comment-time"> · ${timeAgo(c.created_at)}</span>
+              <div class="bug-comment-body">${esc(c.body)}</div>
+            </div>
+          `).join('')}
+          <div style="margin-top:12px;display:flex;gap:8px;">
+            <input id="bugCommentInput" placeholder="Add a comment..." style="flex:1;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:12px;background:var(--bg);color:var(--text);">
+            <button onclick="_bugAddComment('${bug.id}')" style="padding:6px 16px;border-radius:8px;background:var(--accent);color:#1a1a1a;border:none;font-size:12px;font-weight:700;cursor:pointer;">Post</button>
+          </div>
+        </div>
+      </div>
+    `;
+  } catch(e) {
+    el.innerHTML = '<div class="loading">Failed to load bug details.</div>';
+  }
+}
+
+async function _bugUpdateStatus(bugId, newStatus) {
+  await fetch(`${API}/api/bugs/${bugId}`, {
+    method: 'PATCH', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({status: newStatus}),
+  });
+}
+
+async function _bugAddComment(bugId) {
+  const input = document.getElementById('bugCommentInput');
+  const body = input.value.trim();
+  if (!body) return;
+  await fetch(`${API}/api/bugs/${bugId}/comments`, {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({body, author_name: 'You', author_email: 'user@develeap.com'}),
+  });
+  _bugShowDetail(bugId);
+}
+
+function _bugShowCreate() {
+  const el = document.getElementById('ventureList');
+  const priorities = ['low','medium','high','critical'];
+  const types = ['bug','feature','task','improvement'];
+  const users = ['Kobi Avshalom','Gilad Neiger','Saar Cohen','Efi Shimon','Omri Spector','Shoshi Revivo','Eran Levy','Tom Ronen','Boris Tsigelman','Idan Korkidi'];
+  el.innerHTML = `
+    <div style="margin-bottom:12px;">
+      <button onclick="loadBugs()" style="padding:4px 12px;border-radius:var(--radius-pill);border:1px solid var(--border);background:var(--bg);color:var(--text2);font-size:11px;cursor:pointer;">← Back to list</button>
+    </div>
+    <div class="bug-detail">
+      <h2 style="margin-bottom:16px;">Create New Bug</h2>
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        <input id="newBugTitle" placeholder="Title" style="padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:var(--bg);color:var(--text);">
+        <textarea id="newBugDesc" placeholder="Description..." rows="4" style="padding:10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--bg);color:var(--text);resize:vertical;"></textarea>
+        <div style="display:flex;gap:12px;">
+          <select id="newBugPriority" style="padding:8px;border:1px solid var(--border);border-radius:8px;font-size:12px;background:var(--bg);color:var(--text);">
+            ${priorities.map(p => `<option value="${p}" ${p==='medium'?'selected':''}>${p}</option>`).join('')}
+          </select>
+          <select id="newBugType" style="padding:8px;border:1px solid var(--border);border-radius:8px;font-size:12px;background:var(--bg);color:var(--text);">
+            ${types.map(t => `<option value="${t}">${t}</option>`).join('')}
+          </select>
+          <select id="newBugAssignee" style="padding:8px;border:1px solid var(--border);border-radius:8px;font-size:12px;background:var(--bg);color:var(--text);">
+            <option value="">Unassigned</option>
+            ${users.map(u => `<option value="${u}">${u}</option>`).join('')}
+          </select>
+        </div>
+        <button onclick="_bugCreate()" style="padding:10px 24px;border-radius:8px;background:var(--accent);color:#1a1a1a;border:none;font-size:14px;font-weight:700;cursor:pointer;align-self:flex-start;">Create Bug</button>
+      </div>
+    </div>
+  `;
+}
+
+async function _bugCreate() {
+  const title = document.getElementById('newBugTitle').value.trim();
+  if (!title) return;
+  const assigneeName = document.getElementById('newBugAssignee').value;
+  const assigneeEmail = assigneeName ? assigneeName.split(' ')[0].toLowerCase() + '@develeap.com' : '';
+  await fetch(`${API}/api/bugs`, {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({
+      title, description: document.getElementById('newBugDesc').value,
+      priority: document.getElementById('newBugPriority').value,
+      bug_type: document.getElementById('newBugType').value,
+      assignee_name: assigneeName, assignee_email: assigneeEmail,
+      reporter_name: 'You', reporter_email: 'user@develeap.com',
+    }),
+  });
+  loadBugs();
+}
+
+
+// ─── Knowledge Graph (d3-force) ──────────────────────────────────
+
+async function loadGraph() {
+  const el = document.getElementById('ventureList');
+  el.innerHTML = `
+    <div style="display:flex;flex-direction:column;height:calc(100vh - 140px);">
+      <div class="graph-legend">
+        <span style="font-weight:700;">Knowledge Graph</span>
+        <span class="graph-legend-item"><span class="graph-legend-dot" style="background:#FFB100;"></span> Ventures</span>
+        <span class="graph-legend-item"><span class="graph-legend-dot" style="background:#4ecdc4;"></span> Thought Leaders</span>
+        <span class="graph-legend-item"><span class="graph-legend-dot" style="background:#95a5a6;"></span> News</span>
+        <span class="graph-legend-item"><span class="graph-legend-dot" style="background:#e74c3c;"></span> Tags</span>
+        <span class="graph-legend-item"><span class="graph-legend-dot" style="background:#8b5cf6;"></span> Bugs</span>
+      </div>
+      <div id="graphCanvas" style="flex:1;min-height:0;position:relative;overflow:hidden;"></div>
+    </div>
+  `;
+  try {
+    const resp = await fetch(`${API}/api/graph`);
+    const data = await resp.json();
+    renderForceGraph(data);
+  } catch(e) {
+    el.innerHTML = '<div class="loading">Failed to load graph data.</div>';
+  }
+}
+
+function renderForceGraph(data) {
+  const container = document.getElementById('graphCanvas');
+  if (!container || typeof d3 === 'undefined') return;
+  container.innerHTML = '';
+  const width = container.clientWidth;
+  const height = container.clientHeight || 600;
+
+  const colorMap = { venture: '#FFB100', thought_leader: '#4ecdc4', news: '#95a5a6', tag: '#e74c3c', bug: '#8b5cf6' };
+
+  const svg = d3.select(container).append('svg')
+    .attr('width', width).attr('height', height)
+    .attr('viewBox', [0, 0, width, height]);
+
+  // Zoom
+  const g = svg.append('g');
+  svg.call(d3.zoom().scaleExtent([0.1, 4]).on('zoom', (e) => g.attr('transform', e.transform)));
+
+  // Tooltip
+  const tooltip = d3.select(container).append('div')
+    .attr('class', 'graph-tooltip').style('display', 'none');
+
+  const simulation = d3.forceSimulation(data.nodes)
+    .force('link', d3.forceLink(data.edges).id(d => d.id).distance(80).strength(0.3))
+    .force('charge', d3.forceManyBody().strength(-120))
+    .force('center', d3.forceCenter(width / 2, height / 2))
+    .force('collide', d3.forceCollide().radius(d => (d.size || 4) + 8));
+
+  const link = g.append('g').selectAll('line')
+    .data(data.edges).join('line')
+    .attr('stroke', '#ccc').attr('stroke-opacity', 0.4).attr('stroke-width', d => Math.max(0.5, (d.weight || 0.5) * 1.5));
+
+  const node = g.append('g').selectAll('circle')
+    .data(data.nodes).join('circle')
+    .attr('r', d => Math.max(3, Math.min(16, (d.size || 4))))
+    .attr('fill', d => colorMap[d.type] || '#999')
+    .attr('stroke', '#fff').attr('stroke-width', 1.5)
+    .style('cursor', 'pointer')
+    .call(d3.drag()
+      .on('start', (e, d) => { if (!e.active) simulation.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; })
+      .on('drag', (e, d) => { d.fx = e.x; d.fy = e.y; })
+      .on('end', (e, d) => { if (!e.active) simulation.alphaTarget(0); d.fx = null; d.fy = null; })
+    );
+
+  // Labels (only for larger nodes)
+  const label = g.append('g').selectAll('text')
+    .data(data.nodes.filter(d => (d.size || 4) >= 4)).join('text')
+    .text(d => (d.label || '').slice(0, 18))
+    .attr('font-size', 9).attr('fill', 'var(--text2)')
+    .attr('text-anchor', 'middle').attr('dy', d => (d.size || 4) + 12)
+    .style('pointer-events', 'none');
+
+  node.on('mouseover', (e, d) => {
+    tooltip.style('display', 'block')
+      .html(`<strong>${esc(d.label)}</strong><br><span style="color:var(--text3);font-size:10px;">${d.type}${d.meta && d.meta.status ? ' · ' + d.meta.status : ''}</span>`)
+      .style('left', (e.offsetX + 15) + 'px').style('top', (e.offsetY - 10) + 'px');
+  }).on('mouseout', () => tooltip.style('display', 'none'));
+
+  simulation.on('tick', () => {
+    link.attr('x1', d => d.source.x).attr('y1', d => d.source.y)
+        .attr('x2', d => d.target.x).attr('y2', d => d.target.y);
+    node.attr('cx', d => d.x).attr('cy', d => d.y);
+    label.attr('x', d => d.x).attr('y', d => d.y);
+  });
+}
+
+
 if (location.hash) {
   readHash();
 } else {

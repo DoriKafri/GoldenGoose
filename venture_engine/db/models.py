@@ -377,3 +377,56 @@ class ArticleInsightsCache(Base):
     url = Column(Text, nullable=False)
     data = Column(JSON, nullable=False)  # {"highlights": [...]}
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class Bug(Base):
+    __tablename__ = "bugs"
+
+    id = Column(String, primary_key=True, default=new_uuid)
+    key = Column(String, unique=True, nullable=False)          # e.g. "BUG-42"
+    title = Column(Text, nullable=False)
+    description = Column(Text, nullable=True)
+    status = Column(Text, default="open")                       # open, in_progress, review, done, closed
+    priority = Column(Text, default="medium")                   # critical, high, medium, low
+    bug_type = Column(Text, default="bug")                      # bug, feature, task, improvement
+    assignee_email = Column(Text, nullable=True)
+    assignee_name = Column(Text, nullable=True)
+    reporter_email = Column(Text, nullable=False)
+    reporter_name = Column(Text, nullable=True)
+    venture_id = Column(String, ForeignKey("ventures.id"), nullable=True)
+    labels = Column(JSON, nullable=True)                        # ["ui", "backend", "urgent"]
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    comments = relationship("BugComment", back_populates="bug", cascade="all, delete-orphan")
+
+
+class BugComment(Base):
+    __tablename__ = "bug_comments"
+
+    id = Column(String, primary_key=True, default=new_uuid)
+    bug_id = Column(String, ForeignKey("bugs.id"), nullable=False)
+    author_email = Column(Text, nullable=True)
+    author_name = Column(Text, nullable=True)
+    body = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    bug = relationship("Bug", back_populates="comments")
+
+
+class GraphEdge(Base):
+    __tablename__ = "graph_edges"
+
+    id = Column(String, primary_key=True, default=new_uuid)
+    source_type = Column(Text, nullable=False)   # venture, thought_leader, news, tag, bug
+    source_id = Column(Text, nullable=False)
+    target_type = Column(Text, nullable=False)
+    target_id = Column(Text, nullable=False)
+    relation = Column(Text, default="related_to")  # inspired_by, blocks, related_to, depends_on, mentions
+    weight = Column(Float, default=1.0)
+    created_by = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("source_type", "source_id", "target_type", "target_id", "relation", name="uq_graph_edge"),
+    )

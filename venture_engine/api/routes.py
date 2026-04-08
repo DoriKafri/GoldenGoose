@@ -17,6 +17,7 @@ from venture_engine.db.models import (
     Venture, VentureScore, Vote, Comment, ThoughtLeader,
     TLSignal, HarvestRun, TechGap, Annotation, OfficeHoursReview,
     NewsFeedItem, PageAnnotation, PageAnnotationReply, AnnotationReaction,
+    Bug, BugComment, GraphEdge,
 )
 
 router = APIRouter()
@@ -3179,6 +3180,458 @@ def ralph_loop_endpoint(req: RalphLoopRequest, db: Session = Depends(get_db_depe
 
 
 # ─── News Post (add URL) ────────────────────────────────────────
+
+# ─── Bug Tracking System ────────────────────────────────────────
+
+class CreateBugRequest(BaseModel):
+    title: str
+    description: str = ""
+    priority: str = "medium"
+    bug_type: str = "bug"
+    assignee_email: Optional[str] = None
+    assignee_name: str = ""
+    reporter_email: str = ""
+    reporter_name: str = ""
+    venture_id: Optional[str] = None
+    labels: Optional[list] = None
+
+class UpdateBugRequest(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    priority: Optional[str] = None
+    bug_type: Optional[str] = None
+    assignee_email: Optional[str] = None
+    assignee_name: Optional[str] = None
+    status: Optional[str] = None
+    labels: Optional[list] = None
+
+class BugCommentRequest(BaseModel):
+    author_email: str = ""
+    author_name: str = ""
+    body: str
+
+
+def _next_bug_key(db: Session) -> str:
+    from sqlalchemy import func as _fn
+    count = db.query(_fn.count(Bug.id)).scalar() or 0
+    return f"BUG-{count + 1}"
+
+
+def _serialize_bug(bug, include_comments=False):
+    d = {
+        "id": bug.id, "key": bug.key, "title": bug.title, "description": bug.description,
+        "status": bug.status, "priority": bug.priority, "bug_type": bug.bug_type,
+        "assignee_email": bug.assignee_email, "assignee_name": bug.assignee_name,
+        "reporter_email": bug.reporter_email, "reporter_name": bug.reporter_name,
+        "venture_id": bug.venture_id, "labels": bug.labels or [],
+        "created_at": bug.created_at.isoformat() if bug.created_at else None,
+        "updated_at": bug.updated_at.isoformat() if bug.updated_at else None,
+    }
+    if include_comments:
+        d["comments"] = [
+            {"id": c.id, "author_email": c.author_email, "author_name": c.author_name,
+             "body": c.body, "created_at": c.created_at.isoformat() if c.created_at else None}
+            for c in (bug.comments or [])
+        ]
+    return d
+
+
+@router.get("/api/bugs")
+def list_bugs(
+    status: Optional[str] = None, priority: Optional[str] = None,
+    assignee_email: Optional[str] = None, venture_id: Optional[str] = None,
+    sort: str = "-created_at", limit: int = 50, offset: int = 0,
+    db: Session = Depends(get_db_dependency),
+):
+    q = db.query(Bug)
+    if status: q = q.filter(Bug.status == status)
+    if priority: q = q.filter(Bug.priority == priority)
+    if assignee_email: q = q.filter(Bug.assignee_email == assignee_email)
+    if venture_id: q = q.filter(Bug.venture_id == venture_id)
+    total = q.count()
+    if sort.startswith("-"):
+        col = getattr(Bug, sort[1:], Bug.created_at)
+        q = q.order_by(col.desc())
+    else:
+        col = getattr(Bug, sort, Bug.created_at)
+        q = q.order_by(col.asc())
+    bugs = q.offset(offset).limit(limit).all()
+    return {"items": [_serialize_bug(b) for b in bugs], "total": total}
+
+
+@router.post("/api/bugs")
+def create_bug(req: CreateBugRequest, db: Session = Depends(get_db_dependency)):
+    bug = Bug(
+        key=_next_bug_key(db), title=req.title, description=req.description,
+        priority=req.priority, bug_type=req.bug_type,
+        assignee_email=req.assignee_email, assignee_name=req.assignee_name,
+        reporter_email=req.reporter_email, reporter_name=req.reporter_name,
+        venture_id=req.venture_id, labels=req.labels,
+    )
+    db.add(bug)
+    db.commit()
+    db.refresh(bug)
+    return _serialize_bug(bug)
+
+
+@router.get("/api/bugs/stats")
+def bug_stats(db: Session = Depends(get_db_dependency)):
+    from sqlalchemy import func as _fn
+    status_counts = dict(db.query(Bug.status, _fn.count(Bug.id)).group_by(Bug.status).all())
+    priority_counts = dict(db.query(Bug.priority, _fn.count(Bug.id)).group_by(Bug.priority).all())
+    return {"by_status": status_counts, "by_priority": priority_counts, "total": sum(status_counts.values())}
+
+
+@router.get("/api/bugs/{bug_id}")
+def get_bug(bug_id: str, db: Session = Depends(get_db_dependency)):
+    bug = db.query(Bug).filter(Bug.id == bug_id).first()
+    if not bug:
+        raise HTTPException(404, "Bug not found")
+    return _serialize_bug(bug, include_comments=True)
+
+
+@router.patch("/api/bugs/{bug_id}")
+def update_bug(bug_id: str, req: UpdateBugRequest, db: Session = Depends(get_db_dependency)):
+    bug = db.query(Bug).filter(Bug.id == bug_id).first()
+    if not bug:
+        raise HTTPException(404, "Bug not found")
+    for field in ["title", "description", "priority", "bug_type", "assignee_email", "assignee_name", "status", "labels"]:
+        val = getattr(req, field, None)
+        if val is not None:
+            setattr(bug, field, val)
+    bug.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(bug)
+    return _serialize_bug(bug)
+
+
+@router.delete("/api/bugs/{bug_id}")
+def delete_bug(bug_id: str, db: Session = Depends(get_db_dependency)):
+    bug = db.query(Bug).filter(Bug.id == bug_id).first()
+    if not bug:
+        raise HTTPException(404, "Bug not found")
+    db.delete(bug)
+    db.commit()
+    return {"status": "deleted", "id": bug_id}
+
+
+@router.post("/api/bugs/{bug_id}/comments")
+def add_bug_comment(bug_id: str, req: BugCommentRequest, db: Session = Depends(get_db_dependency)):
+    bug = db.query(Bug).filter(Bug.id == bug_id).first()
+    if not bug:
+        raise HTTPException(404, "Bug not found")
+    comment = BugComment(bug_id=bug_id, author_email=req.author_email, author_name=req.author_name, body=req.body)
+    db.add(comment)
+    db.commit()
+    return {"id": comment.id, "body": comment.body, "author_name": comment.author_name,
+            "created_at": comment.created_at.isoformat() if comment.created_at else None}
+
+
+# ─── Knowledge Graph ────────────────────────────────────────────
+
+@router.get("/api/graph")
+def get_graph(
+    types: Optional[str] = None,
+    db: Session = Depends(get_db_dependency),
+):
+    """Return nodes and edges for the knowledge graph visualization."""
+    nodes = []
+    edges = []
+    type_filter = set(types.split(",")) if types else None
+
+    # ── Ventures ──
+    if not type_filter or "venture" in type_filter:
+        ventures = db.query(Venture).all()
+        for v in ventures:
+            nodes.append({
+                "id": f"v_{v.id}", "type": "venture", "label": v.title or "",
+                "group": v.category or "venture",
+                "size": (v.score_total or 5) if hasattr(v, "score_total") else 5,
+                "meta": {"status": v.status if hasattr(v, "status") else "", "domain": v.domain if hasattr(v, "domain") else ""},
+            })
+            # Venture -> tag (domain) edge
+            if hasattr(v, "domain") and v.domain:
+                tag_id = f"tag_{v.domain.lower().replace(' ', '_')}"
+                edges.append({"source": f"v_{v.id}", "target": tag_id, "label": "domain", "weight": 0.5})
+                # Add tag node if not exists (dedup later)
+                nodes.append({"id": tag_id, "type": "tag", "label": v.domain, "group": "tag", "size": 3, "meta": {}})
+
+    # ── Thought Leaders ──
+    if not type_filter or "thought_leader" in type_filter:
+        tls = db.query(ThoughtLeader).all()
+        for tl in tls:
+            signal_count = db.query(TLSignal).filter(TLSignal.thought_leader_id == tl.id).count()
+            nodes.append({
+                "id": f"tl_{tl.id}", "type": "thought_leader", "label": tl.name or tl.handle or "",
+                "group": "thought_leader", "size": max(4, min(12, signal_count * 2)),
+                "meta": {"handle": tl.handle, "platform": tl.platform},
+            })
+        # TL -> Venture signals
+        signals = db.query(TLSignal).all()
+        for s in signals:
+            edges.append({
+                "source": f"tl_{s.thought_leader_id}", "target": f"v_{s.venture_id}",
+                "label": s.vote or "signal", "weight": s.confidence or 0.5,
+            })
+
+    # ── News Items ──
+    if not type_filter or "news" in type_filter:
+        news_items = db.query(NewsFeedItem).limit(200).all()
+        for n in news_items:
+            nodes.append({
+                "id": f"n_{n.id}", "type": "news", "label": (n.title or "")[:40],
+                "group": "news", "size": max(2, (n.signal_strength or 3)),
+                "meta": {"source": n.source, "url": n.url},
+            })
+            # News -> Venture edges
+            if n.venture_ids:
+                for vid in (n.venture_ids if isinstance(n.venture_ids, list) else []):
+                    edges.append({"source": f"n_{n.id}", "target": f"v_{vid}", "label": "inspired", "weight": 0.7})
+            # News -> Tag edges
+            if n.tags:
+                for tag in (n.tags if isinstance(n.tags, list) else []):
+                    tag_id = f"tag_{tag.lower().replace(' ', '_')}"
+                    edges.append({"source": f"n_{n.id}", "target": tag_id, "label": "tagged", "weight": 0.3})
+                    nodes.append({"id": tag_id, "type": "tag", "label": tag, "group": "tag", "size": 3, "meta": {}})
+
+    # ── Bugs ──
+    if not type_filter or "bug" in type_filter:
+        bugs = db.query(Bug).all()
+        for b in bugs:
+            nodes.append({
+                "id": f"bug_{b.id}", "type": "bug", "label": b.key or b.title[:20],
+                "group": "bug", "size": 4,
+                "meta": {"status": b.status, "priority": b.priority, "title": b.title},
+            })
+            if b.venture_id:
+                edges.append({"source": f"bug_{b.id}", "target": f"v_{b.venture_id}", "label": "affects", "weight": 0.8})
+
+    # ── Manual edges ──
+    manual_edges = db.query(GraphEdge).all()
+    for e in manual_edges:
+        edges.append({
+            "source": f"{e.source_type}_{e.source_id}" if not e.source_id.startswith(e.source_type) else e.source_id,
+            "target": f"{e.target_type}_{e.target_id}" if not e.target_id.startswith(e.target_type) else e.target_id,
+            "label": e.relation, "weight": e.weight or 1.0,
+        })
+
+    # Deduplicate nodes by id
+    seen = set()
+    unique_nodes = []
+    for n in nodes:
+        if n["id"] not in seen:
+            seen.add(n["id"])
+            unique_nodes.append(n)
+
+    # Filter edges to only include nodes that exist
+    node_ids = {n["id"] for n in unique_nodes}
+    valid_edges = [e for e in edges if e["source"] in node_ids and e["target"] in node_ids]
+
+    return {"nodes": unique_nodes, "edges": valid_edges}
+
+
+@router.post("/api/graph/edges")
+def create_graph_edge(
+    source_type: str = Query(...), source_id: str = Query(...),
+    target_type: str = Query(...), target_id: str = Query(...),
+    relation: str = Query("related_to"),
+    db: Session = Depends(get_db_dependency),
+):
+    edge = GraphEdge(source_type=source_type, source_id=source_id,
+                     target_type=target_type, target_id=target_id, relation=relation)
+    db.add(edge)
+    db.commit()
+    return {"id": edge.id, "status": "created"}
+
+
+@router.delete("/api/graph/edges/{edge_id}")
+def delete_graph_edge(edge_id: str, db: Session = Depends(get_db_dependency)):
+    edge = db.query(GraphEdge).filter(GraphEdge.id == edge_id).first()
+    if not edge:
+        raise HTTPException(404, "Edge not found")
+    db.delete(edge)
+    db.commit()
+    return {"status": "deleted"}
+
+
+# ─── Seed Simulated Develeap Users & Data ────────────────────────
+
+@router.post("/api/seed-develeap")
+def seed_develeap_data(db: Session = Depends(get_db_dependency)):
+    """Seed 10 Develeap users with simulated posts, comments, and bugs."""
+    users = [
+        {"name": "Kobi Avshalom", "email": "kobi@develeap.com", "title": "CTO"},
+        {"name": "Gilad Neiger", "email": "gilad@develeap.com", "title": "VP Engineering"},
+        {"name": "Saar Cohen", "email": "saar@develeap.com", "title": "VP Product"},
+        {"name": "Efi Shimon", "email": "efi@develeap.com", "title": "VP Operations"},
+        {"name": "Omri Spector", "email": "omri@develeap.com", "title": "Founder & CTO"},
+        {"name": "Shoshi Revivo", "email": "shoshi@develeap.com", "title": "Senior DevOps Group Leader"},
+        {"name": "Eran Levy", "email": "eran@develeap.com", "title": "DevOps Team Lead"},
+        {"name": "Tom Ronen", "email": "tom@develeap.com", "title": "DevOps Team Lead"},
+        {"name": "Boris Tsigelman", "email": "boris@develeap.com", "title": "DevOps Team Lead"},
+        {"name": "Idan Korkidi", "email": "idan@develeap.com", "title": "Head of Education"},
+    ]
+
+    # Simulated articles from develeap.com domain
+    articles = [
+        {"title": "Why Every DevOps Team Needs a Platform Engineering Strategy", "url": "https://www.develeap.com/platform-engineering-strategy/",
+         "summary": "Platform engineering is the next evolution of DevOps. Teams that build internal developer platforms see 30% faster deployment cycles.",
+         "author": "Kobi Avshalom", "tags": ["platform engineering", "DevOps", "developer experience"]},
+        {"title": "Kubernetes Cost Optimization: A Practical Guide", "url": "https://www.develeap.com/k8s-cost-optimization/",
+         "summary": "Most organizations overspend on Kubernetes by 40-60%. Here are proven strategies to right-size your clusters without sacrificing reliability.",
+         "author": "Omri Spector", "tags": ["Kubernetes", "cloud costs", "FinOps"]},
+        {"title": "The Rise of AI-Powered CI/CD Pipelines", "url": "https://www.develeap.com/ai-cicd-pipelines/",
+         "summary": "AI is transforming how we build, test, and deploy software. Intelligent pipelines can predict failures and auto-remediate issues.",
+         "author": "Gilad Neiger", "tags": ["AI", "CI/CD", "automation"]},
+        {"title": "GitOps vs ClickOps: Why Declarative Infrastructure Wins", "url": "https://www.develeap.com/gitops-vs-clickops/",
+         "summary": "Moving from manual infrastructure management to GitOps reduces configuration drift by 90% and improves audit compliance.",
+         "author": "Tom Ronen", "tags": ["GitOps", "infrastructure", "IaC"]},
+        {"title": "Securing Your Supply Chain: From Code to Container", "url": "https://www.develeap.com/supply-chain-security/",
+         "summary": "Software supply chain attacks increased 742% in the past three years. SBOM generation and image signing are now table stakes.",
+         "author": "Boris Tsigelman", "tags": ["security", "supply chain", "containers"]},
+        {"title": "Observability 2.0: Beyond Logs, Metrics, and Traces", "url": "https://www.develeap.com/observability-2/",
+         "summary": "The three pillars of observability are necessary but not sufficient. Context-aware observability with AI correlation is the next frontier.",
+         "author": "Shoshi Revivo", "tags": ["observability", "monitoring", "AI"]},
+        {"title": "DevOps Bootcamp: How We Train 200+ Engineers Per Year", "url": "https://www.develeap.com/devops-bootcamp-insights/",
+         "summary": "Our bootcamp model combines hands-on labs with real-world projects. Graduates deploy to production within their first week.",
+         "author": "Idan Korkidi", "tags": ["education", "DevOps", "bootcamp"]},
+        {"title": "Multi-Cloud Strategy: Avoiding Vendor Lock-In", "url": "https://www.develeap.com/multi-cloud-strategy/",
+         "summary": "True multi-cloud isn't about using every provider — it's about portable abstractions and smart workload placement.",
+         "author": "Saar Cohen", "tags": ["multi-cloud", "architecture", "strategy"]},
+        {"title": "Internal Developer Portals: Backstage vs Port vs Cortex", "url": "https://www.develeap.com/developer-portals-comparison/",
+         "summary": "We evaluated the top 3 IDP solutions across 50 enterprise clients. Here's what actually works in production.",
+         "author": "Efi Shimon", "tags": ["developer portals", "Backstage", "platform engineering"]},
+        {"title": "Terraform at Scale: Lessons from Managing 10,000+ Resources", "url": "https://www.develeap.com/terraform-at-scale/",
+         "summary": "State management, module design, and blast radius control are the three pillars of large-scale Terraform adoption.",
+         "author": "Eran Levy", "tags": ["Terraform", "IaC", "infrastructure"]},
+    ]
+
+    # Create news feed items (articles)
+    created_articles = []
+    for art in articles:
+        existing = db.query(NewsFeedItem).filter(NewsFeedItem.url == art["url"]).first()
+        if existing:
+            created_articles.append(existing)
+            continue
+        item = NewsFeedItem(
+            title=art["title"], url=art["url"], summary=art["summary"],
+            source="blog", source_name="Develeap Blog", author=art["author"],
+            tags=art["tags"], signal_strength=round(6 + 4 * __import__("random").random(), 1),
+        )
+        db.add(item)
+        db.flush()
+        created_articles.append(item)
+
+    # Simulated cross-comments between users
+    import random
+    comment_templates = [
+        "Great insight {author}! This aligns with what we're seeing at enterprise clients.",
+        "We should integrate this into our next bootcamp module. @{author} let's sync.",
+        "This is exactly the pain point our clients in the fintech space are facing.",
+        "Strong take. I'd add that observability is critical for this to work at scale.",
+        "Shared this with my team — very relevant to our current project.",
+        "The ROI numbers here match our experience. Impressive data.",
+        "This deserves a deeper dive in our next tech talk. Who's in?",
+        "Interesting perspective. How does this compare to the approach we used at {company}?",
+        "The security implications here are huge. We need to flag this for our CISO clients.",
+        "Love the practical angle. Too many articles in this space are theoretical.",
+    ]
+
+    for art_item in created_articles:
+        # 2-4 comments per article from random users (not the author)
+        art_author = next((u for u in users if u["name"] == art_item.author), None)
+        commenters = [u for u in users if u["name"] != art_item.author]
+        random.shuffle(commenters)
+        for commenter in commenters[:random.randint(2, 4)]:
+            # Check if comment already exists
+            existing_ann = db.query(PageAnnotation).filter(
+                PageAnnotation.url == art_item.url,
+                PageAnnotation.author_email == commenter["email"]
+            ).first()
+            if existing_ann:
+                continue
+            template = random.choice(comment_templates)
+            body = template.format(author=art_item.author or "team", company="our enterprise clients")
+            ann = PageAnnotation(
+                url=art_item.url, news_item_id=art_item.id,
+                selected_text="", prefix_context="", suffix_context="",
+                body=body, author_id=commenter["email"],
+                author_email=commenter["email"], author_name=commenter["name"],
+            )
+            db.add(ann)
+
+    # Simulated bugs
+    bug_data = [
+        {"title": "Dashboard loading slow on mobile devices", "description": "The venture list takes 5+ seconds to render on iPhone 14. Need to optimize DOM rendering and reduce payload size.", "priority": "high", "bug_type": "bug",
+         "reporter": users[0], "assignee": users[1], "labels": ["performance", "mobile", "frontend"], "status": "in_progress"},
+        {"title": "News feed pagination breaks after filter change", "description": "When switching source filter, the page offset doesn't reset to 0, showing empty results.", "priority": "medium", "bug_type": "bug",
+         "reporter": users[2], "assignee": users[6], "labels": ["pagination", "frontend"], "status": "done"},
+        {"title": "Add dark mode support", "description": "Users have requested dark mode. CSS variables are already set up in :root, need to implement the toggle and persist preference.", "priority": "medium", "bug_type": "feature",
+         "reporter": users[3], "assignee": users[7], "labels": ["UI", "feature", "dark-mode"], "status": "open"},
+        {"title": "Gemini API rate limiting not handled gracefully", "description": "When Gemini returns 429, the UI shows a generic error. Should show a retry message and auto-retry after delay.", "priority": "high", "bug_type": "bug",
+         "reporter": users[4], "assignee": users[1], "labels": ["API", "error-handling", "Gemini"], "status": "review"},
+        {"title": "Implement webhook notifications for new signals", "description": "When a thought leader signals on a venture, notify the venture owner via Slack webhook.", "priority": "low", "bug_type": "feature",
+         "reporter": users[5], "assignee": users[8], "labels": ["notifications", "Slack", "webhooks"], "status": "open"},
+        {"title": "Storyboard thumbnails failing for private YouTube videos", "description": "The frame extraction endpoint returns 404 for private/unlisted videos. Need to handle gracefully with a fallback placeholder.", "priority": "medium", "bug_type": "bug",
+         "reporter": users[6], "assignee": users[5], "labels": ["YouTube", "thumbnails"], "status": "in_progress"},
+        {"title": "Add venture comparison view", "description": "Allow users to select 2-3 ventures and see them side-by-side with scores, tech gaps, and signals compared.", "priority": "medium", "bug_type": "feature",
+         "reporter": users[7], "assignee": users[2], "labels": ["ventures", "comparison", "UI"], "status": "open"},
+        {"title": "Annotation highlight anchoring breaks on re-proxied pages", "description": "When an article page changes its HTML structure, existing annotation anchors fail to resolve. Need fuzzy matching improvement.", "priority": "critical", "bug_type": "bug",
+         "reporter": users[8], "assignee": users[0], "labels": ["annotations", "proxy", "anchoring"], "status": "in_progress"},
+        {"title": "Export venture data to CSV/PDF", "description": "Product team needs the ability to export venture details including scores, signals, and tech gaps.", "priority": "low", "bug_type": "task",
+         "reporter": users[9], "assignee": users[3], "labels": ["export", "reporting"], "status": "open"},
+        {"title": "DOPI analysis timeout for 3hr+ videos", "description": "The Gemini transcript analysis times out for very long videos. Need to chunk the transcript and merge results.", "priority": "high", "bug_type": "bug",
+         "reporter": users[1], "assignee": users[4], "labels": ["Gemini", "DOPI", "performance"], "status": "open"},
+        {"title": "Search indexing for news articles", "description": "Full-text search across news articles, annotations, and venture descriptions. Consider PostgreSQL tsvector or Elasticsearch.", "priority": "medium", "bug_type": "improvement",
+         "reporter": users[0], "assignee": users[6], "labels": ["search", "backend"], "status": "open"},
+        {"title": "Graph view performance with 500+ nodes", "description": "d3-force simulation becomes janky with large datasets. Need WebGL renderer or node clustering.", "priority": "medium", "bug_type": "improvement",
+         "reporter": users[2], "assignee": users[1], "labels": ["graph", "performance", "d3"], "status": "open"},
+    ]
+
+    bug_comments_data = [
+        "I can reproduce this consistently. Here are the steps...",
+        "Assigned to me. Will investigate today.",
+        "Root cause found — it's a race condition in the async handler.",
+        "PR submitted: #142. Ready for review.",
+        "Tested on staging. Fix looks good. Moving to review.",
+        "This is related to the issue @{name} reported last week.",
+        "Bumping priority — this affects 3 enterprise clients.",
+        "Can we add a regression test for this?",
+        "Fix deployed to production. Monitoring for 24h before closing.",
+        "Confirmed fixed. Closing.",
+    ]
+
+    for bd in bug_data:
+        existing = db.query(Bug).filter(Bug.title == bd["title"]).first()
+        if existing:
+            continue
+        bug = Bug(
+            key=_next_bug_key(db), title=bd["title"], description=bd["description"],
+            priority=bd["priority"], bug_type=bd["bug_type"], status=bd["status"],
+            reporter_email=bd["reporter"]["email"], reporter_name=bd["reporter"]["name"],
+            assignee_email=bd["assignee"]["email"], assignee_name=bd["assignee"]["name"],
+            labels=bd["labels"],
+        )
+        db.add(bug)
+        db.flush()
+        # Add 2-3 comments per bug
+        comment_users = [u for u in users if u["email"] != bd["reporter"]["email"]]
+        random.shuffle(comment_users)
+        for j, cu in enumerate(comment_users[:random.randint(2, 3)]):
+            bc = BugComment(
+                bug_id=bug.id, author_email=cu["email"], author_name=cu["name"],
+                body=random.choice(bug_comments_data).format(name=bd["reporter"]["name"]),
+            )
+            db.add(bc)
+
+    db.commit()
+    return {
+        "status": "seeded",
+        "articles": len(created_articles),
+        "bugs": len(bug_data),
+        "users": len(users),
+    }
+
 
 class NewsPostRequest(BaseModel):
     url: Optional[str] = None

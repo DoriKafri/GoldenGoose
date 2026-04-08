@@ -6916,11 +6916,13 @@ async function loadReleaseNotes() {
 }
 
 // ── Live Monitor ──
-let _lmTimer = null;
+let _lmPollTimer = null;
+let _lmTickTimer = null;
 let _lmLastTime = null;
-let _lmHistory = []; // event counts per poll for sparkline
+let _lmHistory = [];
 async function loadLiveMonitor() {
-  if (_lmTimer) { clearInterval(_lmTimer); _lmTimer = null; }
+  if (_lmPollTimer) { clearInterval(_lmPollTimer); _lmPollTimer = null; }
+  if (_lmTickTimer) { clearInterval(_lmTickTimer); _lmTickTimer = null; }
   _lmLastTime = null;
   _lmHistory = [];
   const el = document.getElementById('ventureList');
@@ -6949,31 +6951,40 @@ async function loadLiveMonitor() {
       </div>
     </div>`;
   await _lmPoll();
-  _lmTimer = setInterval(_lmPoll, 8000);
+  _lmPollTimer = setInterval(_lmPoll, 8000);
+  // 1-second ticker to keep timestamps and clock live
+  _lmTickTimer = setInterval(_lmTick, 1000);
 }
 
 function _lmTimeAgo(iso) {
   if (!iso) return '';
   const d = new Date(iso + 'Z');
   const s = Math.floor((Date.now() - d.getTime()) / 1000);
-  if (s < 10) return 'just now';
+  if (s < 5) return 'just now';
   if (s < 60) return s + 's ago';
   if (s < 3600) return Math.floor(s/60) + 'm ago';
   if (s < 86400) return Math.floor(s/3600) + 'h ago';
   return Math.floor(s/86400) + 'd ago';
 }
 
+function _lmTick() {
+  if (currentTab !== 'live') { if (_lmTickTimer) { clearInterval(_lmTickTimer); _lmTickTimer = null; } return; }
+  // Update clock every second
+  const clock = document.getElementById('lmClock');
+  if (clock) clock.textContent = new Date().toLocaleTimeString();
+  // Update all event timestamps live
+  document.querySelectorAll('.lm-ev-time[data-ts]').forEach(el => {
+    el.textContent = _lmTimeAgo(el.dataset.ts);
+  });
+}
+
 async function _lmPoll() {
-  if (currentTab !== 'live') { if (_lmTimer) { clearInterval(_lmTimer); _lmTimer = null; } return; }
+  if (currentTab !== 'live') { if (_lmPollTimer) { clearInterval(_lmPollTimer); _lmPollTimer = null; } return; }
   try {
     let url = `${API}/api/live-feed?limit=40`;
     if (_lmLastTime) url += `&since=${encodeURIComponent(_lmLastTime)}`;
     const resp = await fetch(url);
     const data = await resp.json();
-
-    // Update clock
-    const clock = document.getElementById('lmClock');
-    if (clock) clock.textContent = new Date().toLocaleTimeString();
 
     // Stats
     const st = data.stats || {};
@@ -7016,17 +7027,15 @@ async function _lmPoll() {
               <div><span class="lm-ev-user">${esc(ev.user||'System')}</span> <span class="lm-ev-action">${esc(ev.action||'')}</span></div>
               ${ev.body ? `<div class="lm-ev-detail">${esc(ev.body)}</div>` : ''}
             </div>
-            <div class="lm-ev-time">${_lmTimeAgo(ev.time)}</div>
+            <div class="lm-ev-time" data-ts="${ev.time||''}">${_lmTimeAgo(ev.time)}</div>
           </div>`).join('');
         if (isFirst) {
           feedEl.innerHTML = newHtml;
-        } else if (events.length > 0) {
+        } else {
           feedEl.insertAdjacentHTML('afterbegin', newHtml);
-          // Keep max 60 items
           while (feedEl.children.length > 60) feedEl.removeChild(feedEl.lastChild);
         }
       }
-      // Track for sparkline
       _lmHistory.push(events.length);
       if (_lmHistory.length > 20) _lmHistory.shift();
     }

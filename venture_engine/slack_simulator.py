@@ -176,6 +176,7 @@ DEFAULT_CHANNELS = [
     {"name": "feature-ideas", "description": "Feature proposals, product ideas, and brainstorming"},
     {"name": "devops-knowhow", "description": "Tips, tricks, configs, and DevOps best practices"},
     {"name": "ai-and-ml", "description": "AI/ML trends, LLM experiments, and agent architectures"},
+    {"name": "closed-crs", "description": "Closed change requests — automated feed of resolved bugs, features, and improvements"},
     {"name": "random", "description": "Off-topic, memes, and water cooler chat"},
 ]
 
@@ -815,3 +816,52 @@ def run_slack_simulation():
             )
     except Exception as e:
         logger.error(f"Slack simulation error: {e}")
+
+
+def post_closed_cr(db, bug) -> bool:
+    """Post a closed CR (bug/feature/improvement) to the #closed-crs Slack channel.
+
+    Called when a bug transitions to 'closed' or 'done' status.
+    Returns True if posted successfully.
+    """
+    channel = db.query(SlackChannel).filter(SlackChannel.name == "closed-crs").first()
+    if not channel:
+        logger.warning("Cannot post closed CR: #closed-crs channel not found")
+        return False
+
+    type_emoji = {
+        "bug": "\U0001f41b",       # 🐛
+        "feature": "\u2728",       # ✨
+        "improvement": "\U0001f527",  # 🔧
+        "task": "\u2705",          # ✅
+    }
+    emoji = type_emoji.get(bug.bug_type, "\U0001f4cb")  # 📋
+
+    priority_badge = {
+        "critical": "\U0001f534 CRITICAL",
+        "high": "\U0001f7e0 HIGH",
+        "medium": "\U0001f7e1 MEDIUM",
+        "low": "\U0001f7e2 LOW",
+    }
+    badge = priority_badge.get(bug.priority, bug.priority or "")
+
+    body = (
+        f"{emoji} *{bug.key}* — {bug.title}\n"
+        f"Type: {bug.bug_type} | Priority: {badge}\n"
+        f"Reporter: {bug.reporter_name or bug.reporter_email} | "
+        f"Assignee: {bug.assignee_name or bug.assignee_email or 'Unassigned'}\n"
+        f"Status: {bug.status}"
+    )
+    if bug.description:
+        body += f"\n> {bug.description[:200]}"
+
+    msg = SlackMessage(
+        channel_id=channel.id,
+        author_email="system@develeap.com",
+        author_name="CR Bot",
+        body=body,
+    )
+    db.add(msg)
+    db.flush()
+    logger.info(f"Posted closed CR {bug.key} to #closed-crs")
+    return True

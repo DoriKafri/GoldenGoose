@@ -384,6 +384,117 @@ def _random_user(exclude_email: str = None):
     return random.choice(pool)
 
 
+# ── Bug-finding leaderboard scoring ──────────────────────────────────────
+BUG_POINTS = {"bug": 10, "feature": 5, "improvement": 5, "task": 3}
+
+
+# ── Dynamic bug generation templates (ralph loop: closure → new bugs) ────
+RALPH_BUG_TEMPLATES = {
+    "bug": [
+        "Regression in {area} after {fix_title} fix — {symptom}",
+        "Edge case not covered by {fix_title}: {symptom}",
+        "{area} flaky test after fixing {fix_title}",
+        "Performance regression in {area} post-fix — {symptom}",
+    ],
+    "feature": [
+        "Follow-up: extend {area} to support {extension}",
+        "Users requesting {extension} after {fix_title} shipped",
+        "Add monitoring/alerting for the {area} changes",
+    ],
+    "improvement": [
+        "Refactor {area} — tech debt exposed during {fix_title} fix",
+        "Add better error messages for {area}",
+        "Document the {area} changes from {fix_title}",
+    ],
+}
+
+RALPH_SYMPTOMS = [
+    "null pointer on specific input patterns",
+    "timeout under high concurrency",
+    "memory usage spikes during batch processing",
+    "incorrect state after rapid consecutive calls",
+    "UI flicker on low-end mobile devices",
+    "cache invalidation not triggered properly",
+    "wrong timezone in exported timestamps",
+    "rate limiter too aggressive for legitimate use",
+]
+
+RALPH_EXTENSIONS = [
+    "bulk operations",
+    "webhook notifications",
+    "CSV export",
+    "dark mode",
+    "mobile responsive layout",
+    "API pagination cursors",
+    "search filters",
+    "audit logging",
+    "role-based permissions",
+]
+
+RALPH_AREAS = [
+    "news feed", "venture scoring", "graph rendering", "annotation system",
+    "Slack integration", "bug tracker", "export pipeline", "scheduler",
+    "thought leader simulation", "activity heatmap", "user dashboard",
+]
+
+
+def _generate_bugs_from_closure(db, closed_bug, closer, stats):
+    """Ralph loop: closing a bug reveals 3 new ones (regression, follow-up, improvement).
+
+    The user who closed the bug is credited as reporter for the new discoveries.
+    Points: bug=10, feature=5, improvement=5, task=3.
+    """
+    area = random.choice(RALPH_AREAS)
+    fix_title = closed_bug.title[:40]
+
+    new_bug_types = random.sample(["bug", "feature", "improvement"], k=3)
+
+    for bt in new_bug_types:
+        templates = RALPH_BUG_TEMPLATES.get(bt, RALPH_BUG_TEMPLATES["improvement"])
+        template = random.choice(templates)
+
+        symptom = random.choice(RALPH_SYMPTOMS)
+        extension = random.choice(RALPH_EXTENSIONS)
+        title = template.format(area=area, fix_title=fix_title, symptom=symptom, extension=extension)
+
+        priority = random.choice(["low", "medium", "medium", "high"])
+        assignee = _random_user(exclude_email=closer["email"])
+
+        new_bug = Bug(
+            key=_next_bug_key(db),
+            title=title,
+            description=f"Discovered during resolution of {closed_bug.key} ({closed_bug.title}). "
+                        f"The fix exposed this {bt} in the {area} component.",
+            priority=priority,
+            bug_type=bt,
+            status="open",
+            reporter_email=closer["email"],
+            reporter_name=closer["name"],
+            assignee_email=assignee["email"],
+            assignee_name=assignee["name"],
+            labels=[area.replace(" ", "-"), bt, "ralph-loop"],
+        )
+        db.add(new_bug)
+        db.flush()
+
+        # Initial discovery comment
+        points = BUG_POINTS.get(bt, 3)
+        bc = BugComment(
+            bug_id=new_bug.id,
+            author_email=closer["email"],
+            author_name=closer["name"],
+            body=f"Found this while closing {closed_bug.key}. "
+                 f"The {area} area needs attention. (+{points} pts)",
+        )
+        db.add(bc)
+        stats["bugs_created"] = stats.get("bugs_created", 0) + 1
+
+    logger.info(
+        f"Ralph loop: {closer['name']} closed {closed_bug.key}, "
+        f"discovered 3 new items in {area}"
+    )
+
+
 def simulate_activity(db: Session) -> dict:
     """Run one cycle of simulated 24/7 activity.
 
@@ -645,7 +756,7 @@ def simulate_activity(db: Session) -> dict:
         transition_msgs = {
             "in_progress": f"Picking this up now. Moving from {old_status} → {new_status}.",
             "review": f"Fix ready. PR #{random.randint(140, 999)} submitted. Moving to review.",
-            "done": f"QA verified on staging. Merging to main. ✅",
+            "done": f"QA verified on staging. Merging to main. \u2705",
             "closed": f"Deployed and stable in production for {random.randint(24, 72)}h. Closing.",
         }
         body = transition_msgs.get(new_status, f"Status updated: {old_status} → {new_status}")
@@ -657,6 +768,17 @@ def simulate_activity(db: Session) -> dict:
         )
         db.add(bc)
         stats["bugs_transitioned"] += 1
+
+        # ── Post to #closed-crs and generate 3 new bugs on closure ──
+        if new_status in ("done", "closed"):
+            try:
+                from venture_engine.slack_simulator import post_closed_cr
+                post_closed_cr(db, bug)
+            except Exception as e:
+                logger.warning(f"Failed to post closed CR: {e}")
+
+            # Ralph loop: closing a bug reveals 3 new ones (the closer finds them)
+            _generate_bugs_from_closure(db, bug, actor, stats)
 
     # ── 6. Bug comments on existing bugs ──────────────────────────────
     num_bug_comments = _scaled_randint(0, 2)

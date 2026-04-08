@@ -1,6 +1,6 @@
 import json
 import random
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Header, Request, Query
 from fastapi.responses import HTMLResponse, Response
@@ -397,6 +397,146 @@ def list_ventures(
     return {"total": total, "ventures": results}
 
 
+# ─── Venture Export (BUG-14) ─────────────────────────────────────
+@router.get("/api/ventures/export/json")
+def export_ventures_json(
+    domain: Optional[str] = None,
+    category: str = Query("venture"),
+    status: Optional[str] = None,
+    db: Session = Depends(get_db_dependency),
+):
+    """Export all ventures as JSON array (filterable)."""
+    q = db.query(Venture).filter(Venture.category == category)
+    if domain:
+        q = q.filter(Venture.domain == domain)
+    if status:
+        q = q.filter(Venture.status == status)
+    q = q.order_by(Venture.score_total.desc().nullslast())
+    ventures = q.all()
+
+    export_fields = [
+        "id", "title", "slogan", "summary", "problem", "proposed_solution",
+        "target_buyer", "domain", "category", "status", "score_total",
+        "source_url", "source_type", "target_acquirer", "target_product",
+        "acquisition_price", "clone_time_estimate", "achilles_heel",
+        "clone_advantage", "our_price", "margin_analysis", "tags",
+        "created_at", "last_scored_at",
+    ]
+    result = []
+    for v in ventures:
+        row = {}
+        for f in export_fields:
+            val = getattr(v, f, None)
+            if isinstance(val, datetime):
+                val = val.isoformat()
+            row[f] = val
+        result.append(row)
+    return result
+
+
+@router.get("/api/ventures/export/csv")
+def export_ventures_csv(
+    domain: Optional[str] = None,
+    category: str = Query("venture"),
+    db: Session = Depends(get_db_dependency),
+):
+    """Export all ventures as CSV file."""
+    import csv
+    import io
+
+    q = db.query(Venture).filter(Venture.category == category)
+    if domain:
+        q = q.filter(Venture.domain == domain)
+    q = q.order_by(Venture.score_total.desc().nullslast())
+    ventures = q.all()
+
+    fields = [
+        "title", "domain", "category", "status", "score_total",
+        "summary", "problem", "proposed_solution", "target_buyer",
+        "source_url", "target_acquirer", "our_price", "tags", "created_at",
+    ]
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=fields)
+    writer.writeheader()
+    for v in ventures:
+        row = {}
+        for f in fields:
+            val = getattr(v, f, None)
+            if isinstance(val, datetime):
+                val = val.isoformat()
+            elif isinstance(val, (list, dict)):
+                val = json.dumps(val)
+            row[f] = val or ""
+        writer.writerow(row)
+
+    return Response(
+        content=output.getvalue(),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=ventures_export.csv"},
+    )
+
+
+# ─── Venture Comparison (BUG-26) ────────────────────────────────
+@router.get("/api/ventures/compare")
+def compare_ventures(
+    ids: str = Query(..., description="Comma-separated venture IDs"),
+    db: Session = Depends(get_db_dependency),
+):
+    """Compare 2-3 ventures side-by-side with score breakdowns."""
+    venture_ids = [vid.strip() for vid in ids.split(",") if vid.strip()]
+    if len(venture_ids) < 2:
+        raise HTTPException(400, "Provide at least 2 venture IDs to compare")
+    if len(venture_ids) > 5:
+        raise HTTPException(400, "Maximum 5 ventures for comparison")
+
+    ventures_data = []
+    for vid in venture_ids:
+        v = db.query(Venture).filter(Venture.id == vid).first()
+        if not v:
+            raise HTTPException(404, f"Venture {vid} not found")
+
+        # Get latest score breakdown
+        score_breakdown = {}
+        if v.scores:
+            latest = v.scores[0]
+            score_breakdown = {
+                "monetization": latest.monetization,
+                "cashout_ease": latest.cashout_ease,
+                "dark_factory_fit": latest.dark_factory_fit,
+                "tech_readiness": latest.tech_readiness,
+                "tl_score": latest.tl_score,
+                "oh_score": latest.oh_score,
+                "eng_score": latest.eng_score,
+                "design_score": latest.design_score,
+            }
+
+        # Get vote counts
+        from venture_engine.db.models import Vote
+        upvotes = db.query(Vote).filter(Vote.venture_id == vid, Vote.vote == "up").count()
+        downvotes = db.query(Vote).filter(Vote.venture_id == vid, Vote.vote == "down").count()
+
+        ventures_data.append({
+            "id": v.id,
+            "title": v.title,
+            "slogan": v.slogan,
+            "summary": v.summary,
+            "problem": v.problem,
+            "proposed_solution": v.proposed_solution,
+            "target_buyer": v.target_buyer,
+            "domain": v.domain,
+            "status": v.status,
+            "score_total": v.score_total,
+            "score_breakdown": score_breakdown,
+            "votes": {"up": upvotes, "down": downvotes},
+            "target_acquirer": v.target_acquirer,
+            "our_price": v.our_price,
+            "tags": v.tags or [],
+            "created_at": v.created_at.isoformat() if v.created_at else None,
+        })
+
+    return {"ventures": ventures_data}
+
+
 @router.get("/api/ventures/{venture_id}")
 def get_venture(venture_id: str, db: Session = Depends(get_db_dependency)):
     v = db.query(Venture).filter(Venture.id == venture_id).first()
@@ -569,6 +709,43 @@ class CommentRequest(BaseModel):
     author_name: str = ""
     body: str
     parent_comment_id: Optional[str] = None
+
+
+# ─── Venture Tags (BUG-27) ───────────────────────────────────────
+class TagRequest(BaseModel):
+    tag: str
+
+
+@router.post("/api/ventures/{venture_id}/tags")
+def add_venture_tag(venture_id: str, req: TagRequest, db: Session = Depends(get_db_dependency)):
+    """Add a tag to a venture."""
+    v = db.query(Venture).filter(Venture.id == venture_id).first()
+    if not v:
+        raise HTTPException(404, "Venture not found")
+    tags = v.tags or []
+    if req.tag not in tags:
+        tags.append(req.tag)
+        v.tags = tags
+        from sqlalchemy.orm.attributes import flag_modified
+        flag_modified(v, "tags")
+        db.flush()
+    return {"id": v.id, "tags": v.tags}
+
+
+@router.delete("/api/ventures/{venture_id}/tags/{tag}")
+def remove_venture_tag(venture_id: str, tag: str, db: Session = Depends(get_db_dependency)):
+    """Remove a tag from a venture."""
+    v = db.query(Venture).filter(Venture.id == venture_id).first()
+    if not v:
+        raise HTTPException(404, "Venture not found")
+    tags = v.tags or []
+    if tag in tags:
+        tags.remove(tag)
+        v.tags = tags
+        from sqlalchemy.orm.attributes import flag_modified
+        flag_modified(v, "tags")
+        db.flush()
+    return {"id": v.id, "tags": v.tags}
 
 
 @router.post("/api/ventures/{venture_id}/comment")
@@ -4167,6 +4344,120 @@ def seed_slack_channels(db: Session = Depends(get_db_dependency)):
     from venture_engine.slack_simulator import seed_channels_and_history
     result = seed_channels_and_history(db)
     return result
+
+
+# ── Bug-Finding Leaderboard ───────────────────────────────────────────────
+@router.get("/api/bugs/leaderboard")
+def bug_finding_leaderboard(db: Session = Depends(get_db_dependency)):
+    """Simulated user leaderboard — who finds the most verified bugs.
+
+    Points: bug=10, feature_request=5, improvement=5, task=3.
+    """
+    from sqlalchemy import func as _fn
+
+    POINTS = {"bug": 10, "feature": 5, "improvement": 5, "task": 3}
+
+    # Get all bugs grouped by reporter
+    reporters = (
+        db.query(
+            Bug.reporter_email,
+            Bug.reporter_name,
+            Bug.bug_type,
+            _fn.count(Bug.id).label("count"),
+        )
+        .group_by(Bug.reporter_email, Bug.reporter_name, Bug.bug_type)
+        .all()
+    )
+
+    # Aggregate points per reporter
+    scores = {}
+    for email, name, bug_type, count in reporters:
+        if not email:
+            continue
+        if email not in scores:
+            scores[email] = {
+                "email": email,
+                "name": name or email,
+                "total_points": 0,
+                "bugs": 0,
+                "features": 0,
+                "improvements": 0,
+                "tasks": 0,
+                "total_items": 0,
+            }
+        pts = POINTS.get(bug_type, 3) * count
+        scores[email]["total_points"] += pts
+        scores[email]["total_items"] += count
+        if bug_type == "bug":
+            scores[email]["bugs"] += count
+        elif bug_type == "feature":
+            scores[email]["features"] += count
+        elif bug_type == "improvement":
+            scores[email]["improvements"] += count
+        else:
+            scores[email]["tasks"] += count
+
+    # Sort by total points descending
+    leaderboard = sorted(scores.values(), key=lambda x: x["total_points"], reverse=True)
+
+    # Add rank
+    for i, entry in enumerate(leaderboard, 1):
+        entry["rank"] = i
+
+    return {"leaderboard": leaderboard, "total_participants": len(leaderboard)}
+
+
+# ── Activity Heatmap (BUG-24) ─────────────────────────────────────────────
+@router.get("/api/activity/heatmap")
+def activity_heatmap(days: int = Query(90, ge=7, le=365), db: Session = Depends(get_db_dependency)):
+    """Return day-by-day activity counts for the heatmap (GitHub-style)."""
+    from sqlalchemy import func as _fn, cast, Date
+    from datetime import date as _date
+
+    cutoff = datetime.utcnow() - timedelta(days=days)
+
+    # Count annotations per day
+    ann_counts = dict(
+        db.query(
+            cast(PageAnnotation.created_at, Date).label("day"),
+            _fn.count(PageAnnotation.id),
+        )
+        .filter(PageAnnotation.created_at >= cutoff)
+        .group_by("day")
+        .all()
+    )
+
+    # Count bug comments per day
+    bug_counts = dict(
+        db.query(
+            cast(BugComment.created_at, Date).label("day"),
+            _fn.count(BugComment.id),
+        )
+        .filter(BugComment.created_at >= cutoff)
+        .group_by("day")
+        .all()
+    )
+
+    # Count Slack messages per day
+    slack_counts = dict(
+        db.query(
+            cast(SlackMessage.created_at, Date).label("day"),
+            _fn.count(SlackMessage.id),
+        )
+        .filter(SlackMessage.created_at >= cutoff)
+        .group_by("day")
+        .all()
+    )
+
+    # Merge all counts into a daily timeline
+    result = []
+    today = _date.today()
+    for i in range(days):
+        d = today - timedelta(days=days - 1 - i)
+        count = ann_counts.get(d, 0) + bug_counts.get(d, 0) + slack_counts.get(d, 0)
+        result.append({"date": d.isoformat(), "count": count})
+
+    return {"days": result, "total_days": days}
 
 
 # ── Gemini Rate Limit Status ──────────────────────────────────────────────

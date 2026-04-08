@@ -50,11 +50,12 @@ class Venture(Base):
     # Potential acquirers list
     potential_acquirers = Column(JSON, nullable=True)   # [{name, domain, logo_url, relevance, est_price}]
     domain = Column(Text)
-    category = Column(Text, default="venture")  # 'venture' | 'training'
-    status = Column(Text, default="backlog")
-    created_at = Column(DateTime, default=datetime.utcnow)
+    category = Column(Text, default="venture", index=True)  # 'venture' | 'training'
+    status = Column(Text, default="backlog", index=True)
+    tags = Column(JSON, nullable=True)  # ["ai", "devops", "q3-priority"]
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
     last_scored_at = Column(DateTime)
-    score_total = Column(Float)
+    score_total = Column(Float, index=True)
 
     scores = relationship("VentureScore", back_populates="venture", order_by="VentureScore.scored_at.desc()")
     tech_gaps = relationship("TechGap", back_populates="venture")

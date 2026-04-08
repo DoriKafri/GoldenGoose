@@ -65,6 +65,13 @@ def _add_missing_columns():
                 logger.info("Adding image_url column to news_feed...")
                 db.execute(text("ALTER TABLE news_feed ADD COLUMN image_url TEXT"))
                 db.commit()
+        # Add tags to ventures if missing
+        if insp.has_table("ventures"):
+            cols = [c["name"] for c in insp.get_columns("ventures")]
+            if "tags" not in cols:
+                logger.info("Adding tags column to ventures...")
+                db.execute(text("ALTER TABLE ventures ADD COLUMN tags JSONB"))
+                db.commit()
         # Add beliefs to thought_leaders if missing
         if insp.has_table("thought_leaders"):
             cols = [c["name"] for c in insp.get_columns("thought_leaders")]

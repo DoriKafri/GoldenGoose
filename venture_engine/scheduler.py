@@ -2,6 +2,10 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from loguru import logger
 from venture_engine.config import settings
 from venture_engine.db.session import get_db
+import pytz
+
+# Israel Standard Time — all cron jobs fire at IST, not UTC
+SCHEDULER_TZ = pytz.timezone("Asia/Jerusalem")
 
 
 def _harvest_and_score():
@@ -153,11 +157,38 @@ def _weekly_digest():
         logger.error(f"Weekly digest error: {e}")
 
 
-scheduler = BackgroundScheduler()
+scheduler = BackgroundScheduler(timezone=SCHEDULER_TZ)
+
+
+def get_scheduler_timezone() -> str:
+    """Return the scheduler's configured timezone name."""
+    return str(SCHEDULER_TZ)
+
+
+def get_job_config(job_id: str) -> dict:
+    """Return config metadata for a scheduled job (for tests & monitoring)."""
+    configs = {
+        "weekly_digest": {
+            "timezone": str(SCHEDULER_TZ),
+            "day_of_week": settings.weekly_digest_day,
+            "hour": settings.weekly_digest_hour,
+        },
+        "training_harvest": {
+            "timezone": str(SCHEDULER_TZ),
+            "day_of_week": "sun",
+            "hour": 10,
+        },
+        "update_tl_personas": {
+            "timezone": str(SCHEDULER_TZ),
+            "day_of_week": "mon",
+            "hour": 6,
+        },
+    }
+    return configs.get(job_id)
 
 
 def start_scheduler():
-    """Configure and start all scheduled jobs."""
+    """Configure and start all scheduled jobs (all cron jobs fire at IST)."""
     scheduler.add_job(
         _harvest_and_score,
         "interval",
@@ -169,6 +200,7 @@ def start_scheduler():
         _check_tech_gaps,
         "cron",
         hour=settings.gap_check_hour,
+        timezone=SCHEDULER_TZ,
         id="check_tech_gaps",
         replace_existing=True,
     )
@@ -184,6 +216,7 @@ def start_scheduler():
         "cron",
         day_of_week="sun",
         hour=10,
+        timezone=SCHEDULER_TZ,
         id="training_harvest",
         replace_existing=True,
     )
@@ -192,6 +225,7 @@ def start_scheduler():
         "cron",
         day_of_week=settings.weekly_digest_day,
         hour=settings.weekly_digest_hour,
+        timezone=SCHEDULER_TZ,
         id="weekly_digest",
         replace_existing=True,
     )
@@ -207,12 +241,13 @@ def start_scheduler():
         "cron",
         day_of_week="mon",
         hour=6,
+        timezone=SCHEDULER_TZ,
         id="update_tl_personas",
         replace_existing=True,
     )
     scheduler.start()
     logger.info(
-        f"Scheduler started: harvest every {settings.harvest_interval_hours}h, "
+        f"Scheduler started (TZ={SCHEDULER_TZ}): harvest every {settings.harvest_interval_hours}h, "
         f"gap check at {settings.gap_check_hour}:00, "
         f"TL sync every {settings.tl_sync_interval_hours}h, "
         f"digest {settings.weekly_digest_day} {settings.weekly_digest_hour}:00, "

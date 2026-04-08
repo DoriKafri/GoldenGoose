@@ -146,6 +146,53 @@ def generate_ventures_from_cluster(theme: dict) -> list[dict]:
 # 3. Duplicate detection
 # ---------------------------------------------------------------------------
 
+def _normalize_title(title: str) -> set:
+    """Normalize a title to a set of lowercase keywords for comparison."""
+    import re
+    # Remove punctuation, lowercase, split into words
+    words = re.sub(r"[^a-zA-Z0-9\s]", " ", title.lower()).split()
+    # Remove short stop words
+    stop = {"a", "an", "the", "of", "in", "on", "for", "and", "or", "to", "is", "it", "by", "at", "with"}
+    return set(w for w in words if w not in stop and len(w) > 1)
+
+
+def is_title_duplicate(db: Session, title: str) -> Tuple[bool, Optional[str]]:
+    """Fast, deterministic title-similarity dedup (no LLM call needed).
+
+    Compares the new title against existing venture titles using Jaccard
+    word overlap. If overlap >= 60%, it's considered a duplicate.
+
+    Returns:
+        (is_duplicate, matching_venture_id_or_None)
+    """
+    existing = db.query(Venture.id, Venture.title).all()
+    if not existing:
+        return False, None
+
+    new_words = _normalize_title(title)
+    if not new_words:
+        return False, None
+
+    for v in existing:
+        existing_words = _normalize_title(v.title or "")
+        if not existing_words:
+            continue
+
+        # Jaccard similarity
+        intersection = new_words & existing_words
+        union = new_words | existing_words
+        similarity = len(intersection) / len(union) if union else 0
+
+        if similarity >= 0.6:
+            logger.info(
+                f"Title dedup: '{title}' matches '{v.title}' "
+                f"(similarity={similarity:.2f})"
+            )
+            return True, v.id
+
+    return False, None
+
+
 def is_duplicate(db: Session, title: str, summary: str) -> Tuple[bool, Optional[str]]:
     """Check whether a proposed venture duplicates an existing one.
 

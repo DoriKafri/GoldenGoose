@@ -3546,7 +3546,7 @@ def seed_develeap_data(db: Session = Depends(get_db_dependency)):
             # Check if comment already exists
             existing_ann = db.query(PageAnnotation).filter(
                 PageAnnotation.url == art_item.url,
-                PageAnnotation.author_email == commenter["email"]
+                PageAnnotation.author_id == commenter["email"]
             ).first()
             if existing_ann:
                 continue
@@ -3556,7 +3556,7 @@ def seed_develeap_data(db: Session = Depends(get_db_dependency)):
                 url=art_item.url, news_item_id=art_item.id,
                 selected_text="", prefix_context="", suffix_context="",
                 body=body, author_id=commenter["email"],
-                author_email=commenter["email"], author_name=commenter["name"],
+                author_name=commenter["name"],
             )
             db.add(ann)
 

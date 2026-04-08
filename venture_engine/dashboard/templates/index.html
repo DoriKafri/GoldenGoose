@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://d3js.org/d3.v7.min.js"></script>
+<script src="https://unpkg.com/3d-force-graph@1.73.4/dist/3d-force-graph.min.js"></script>
 <style>
 :root {
   --bg: #ffffff;
@@ -6440,14 +6441,16 @@ async function _simUpdatePersonas(btn) {
 }
 
 
-// ─── Knowledge Graph (d3-force) ──────────────────────────────────
+// ─── Knowledge Graph (3D Force Graph) ──────────────────────────────────
+
+let _graph3d = null;
 
 async function loadGraph() {
   const el = document.getElementById('ventureList');
   el.innerHTML = `
     <div class="graph-fullscreen">
-      <div class="graph-legend">
-        <span style="font-weight:700;">Knowledge Graph</span>
+      <div class="graph-legend" style="position:absolute;top:10px;left:10px;z-index:10;background:rgba(30,30,30,.85);backdrop-filter:blur(8px);padding:8px 14px;border-radius:10px;border:1px solid var(--border);">
+        <span style="font-weight:700;">3D Knowledge Graph</span>
         <span class="graph-legend-item"><span class="graph-legend-dot" style="background:#FFB100;border-radius:4px;"></span> Ventures</span>
         <span class="graph-legend-item"><span class="graph-legend-dot" style="background:#4ecdc4;border-radius:50%;"></span> Thought Leaders</span>
         <span class="graph-legend-item"><span class="graph-legend-dot" style="background:#f59e0b;"></span> Insights</span>
@@ -6475,132 +6478,185 @@ async function loadGraph() {
 
 function renderForceGraph(data) {
   const container = document.getElementById('graphCanvas');
-  if (!container || typeof d3 === 'undefined') return;
-  // Preserve zoom controls
-  const controls = document.getElementById('graphControls');
-  const controlsHtml = controls ? controls.outerHTML : '';
-  container.innerHTML = controlsHtml;
-  const width = container.clientWidth || window.innerWidth - 260;
-  const height = container.clientHeight || (window.innerHeight - 80);
-
-  const colorMap = { venture: '#FFB100', thought_leader: '#4ecdc4', insight: '#f59e0b', problem: '#ef4444', opportunity: '#22c55e', tag: '#6b7280', bug: '#8b5cf6' };
-
-  const svg = d3.select(container).append('svg')
-    .attr('width', '100%').attr('height', '100%')
-    .attr('viewBox', [0, 0, width, height])
-    .attr('preserveAspectRatio', 'xMidYMid meet');
-
-  // Defs for image clip paths
-  const defs = svg.append('defs');
-
-  // Zoom
-  const g = svg.append('g');
-  const zoomBehavior = d3.zoom().scaleExtent([0.1, 6]).on('zoom', function(e) { g.attr('transform', e.transform); });
-  svg.call(zoomBehavior);
-
-  // Store zoom for button controls
-  window._graphSvg = svg;
-  window._graphZoomBehavior = zoomBehavior;
-  window._graphZoom = function(factor) {
-    window._graphSvg.transition().duration(300).call(window._graphZoomBehavior.scaleBy, factor);
-  };
-  window._graphReset = function() {
-    window._graphSvg.transition().duration(500).call(window._graphZoomBehavior.transform, d3.zoomIdentity);
-  };
-
-  // Tooltip
-  const tooltip = d3.select(container).append('div')
-    .attr('class', 'graph-tooltip').style('display', 'none');
-
-  const simulation = d3.forceSimulation(data.nodes)
-    .force('link', d3.forceLink(data.edges).id(d => d.id).distance(140).strength(0.2))
-    .force('charge', d3.forceManyBody().strength(-250))
-    .force('center', d3.forceCenter(width / 2, height / 2))
-    .force('collide', d3.forceCollide().radius(d => _nodeR(d) + 20));
-
-  function _nodeR(d) {
-    if (d.type === 'venture') return 16;
-    if (d.type === 'thought_leader') return 14;
-    return Math.max(3, Math.min(12, (d.size || 4)));
+  if (!container || typeof ForceGraph3D === 'undefined') {
+    // Fallback: if 3D lib not loaded, show message
+    container.innerHTML = '<div class="loading">Loading 3D engine...</div>';
+    return;
   }
 
-  const link = g.append('g').selectAll('line')
-    .data(data.edges).join('line')
-    .attr('stroke', '#ccc').attr('stroke-opacity', 0.4).attr('stroke-width', d => Math.max(0.5, (d.weight || 0.5) * 1.5));
+  const colorMap = {
+    venture: '#FFB100', thought_leader: '#4ecdc4', insight: '#f59e0b',
+    problem: '#ef4444', opportunity: '#22c55e', tag: '#6b7280', bug: '#8b5cf6'
+  };
 
-  // Create node groups (g elements) instead of just circles
-  const nodeGroup = g.append('g').selectAll('g')
-    .data(data.nodes).join('g')
-    .style('cursor', 'pointer')
-    .call(d3.drag()
-      .on('start', (e, d) => { if (!e.active) simulation.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; })
-      .on('drag', (e, d) => { d.fx = e.x; d.fy = e.y; })
-      .on('end', (e, d) => { if (!e.active) simulation.alphaTarget(0); d.fx = null; d.fy = null; })
+  function _nodeSize(d) {
+    if (d.type === 'venture') return 8;
+    if (d.type === 'thought_leader') return 7;
+    if (d.type === 'bug') return 5;
+    return Math.max(2, Math.min(6, (d.size || 3)));
+  }
+
+  // Build graph data — 3d-force-graph wants { nodes: [...], links: [...] }
+  const graphData = {
+    nodes: data.nodes.map(n => ({
+      ...n,
+      color: colorMap[n.type] || '#999',
+      val: _nodeSize(n),
+    })),
+    links: (data.edges || []).map(e => ({
+      source: e.source,
+      target: e.target,
+      weight: e.weight || 0.5,
+    }))
+  };
+
+  // Clean up previous graph instance
+  if (_graph3d) {
+    _graph3d._destructor && _graph3d._destructor();
+    _graph3d = null;
+  }
+  // Clear container but keep controls
+  const controlsEl = document.getElementById('graphControls');
+  const controlsHtml = controlsEl ? controlsEl.outerHTML : '';
+  container.innerHTML = '';
+
+  _graph3d = ForceGraph3D()(container)
+    .graphData(graphData)
+    .width(container.clientWidth || window.innerWidth - 260)
+    .height(container.clientHeight || window.innerHeight - 80)
+    .backgroundColor('rgba(0,0,0,0)')
+    .showNavInfo(false)
+    // Node styling
+    .nodeVal(d => d.val)
+    .nodeColor(d => d.color)
+    .nodeOpacity(0.92)
+    .nodeResolution(16)
+    .nodeLabel(d => {
+      const typeLabel = {venture:'Venture',thought_leader:'Thought Leader',insight:'Insight',problem:'Problem',opportunity:'Opportunity',bug:'Bug',tag:'Tag'}[d.type] || d.type;
+      return `<div style="background:rgba(30,30,30,.9);padding:6px 10px;border-radius:6px;font-size:12px;color:#fff;border:1px solid rgba(255,255,255,.15);max-width:220px;">
+        <strong>${esc(d.label||'')}</strong><br>
+        <span style="color:#aaa;font-size:10px;">${typeLabel}${d.meta && d.meta.status ? ' · ' + d.meta.status : ''}</span>
+      </div>`;
+    })
+    // Link styling
+    .linkWidth(d => Math.max(0.3, (d.weight || 0.5) * 0.8))
+    .linkOpacity(0.25)
+    .linkColor(() => '#888')
+    // Text labels on nodes
+    .nodeThreeObject(d => {
+      if (d.type === 'tag' || _nodeSize(d) < 3) return undefined;
+
+      const group = new THREE.Group();
+
+      // Sprite label
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      const label = (d.label || '').slice(0, 24);
+      const fontSize = 48;
+      ctx.font = `600 ${fontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+      const textWidth = ctx.measureText(label).width;
+      canvas.width = textWidth + 24;
+      canvas.height = fontSize + 16;
+      ctx.font = `600 ${fontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+      ctx.fillStyle = '#ffffff';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(label, canvas.width / 2, canvas.height / 2);
+
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.needsUpdate = true;
+      const spriteMat = new THREE.SpriteMaterial({ map: texture, transparent: true, opacity: 0.85 });
+      const sprite = new THREE.Sprite(spriteMat);
+      const scaleFactor = 0.18;
+      sprite.scale.set(canvas.width * scaleFactor / 10, canvas.height * scaleFactor / 10, 1);
+      sprite.position.set(0, _nodeSize(d) + 3, 0);
+      group.add(sprite);
+
+      // Glowing sphere
+      const geometry = new THREE.SphereGeometry(_nodeSize(d) * 0.55, 16, 16);
+      const material = new THREE.MeshPhongMaterial({
+        color: new THREE.Color(d.color),
+        emissive: new THREE.Color(d.color),
+        emissiveIntensity: 0.4,
+        transparent: true,
+        opacity: 0.9,
+        shininess: 100,
+      });
+      const sphere = new THREE.Mesh(geometry, material);
+      group.add(sphere);
+
+      // Image texture for ventures and TLs
+      if (d.image && (d.type === 'venture' || d.type === 'thought_leader')) {
+        const imgLoader = new THREE.TextureLoader();
+        imgLoader.crossOrigin = 'anonymous';
+        imgLoader.load(d.image, function(tex) {
+          const imgMat = new THREE.SpriteMaterial({ map: tex, transparent: true });
+          const imgSprite = new THREE.Sprite(imgMat);
+          const sz = _nodeSize(d) * 1.2;
+          imgSprite.scale.set(sz, sz, 1);
+          imgSprite.position.set(0, 0, _nodeSize(d) * 0.6);
+          group.add(imgSprite);
+        }, undefined, function() {});
+      }
+
+      return group;
+    })
+    .nodeThreeObjectExtend(false)
+    // Forces
+    .d3Force('charge', d3.forceManyBody().strength(-120))
+    .d3Force('link', d3.forceLink().distance(80).strength(0.15))
+    // Click to focus
+    .onNodeClick(d => {
+      const dist = 120;
+      const pos = d;
+      _graph3d.cameraPosition(
+        { x: pos.x + dist, y: pos.y + dist / 2, z: pos.z + dist },
+        { x: pos.x, y: pos.y, z: pos.z },
+        1200
+      );
+    });
+
+  // Add lights for better 3D appearance
+  const scene = _graph3d.scene();
+  scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+  const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+  dirLight.position.set(200, 400, 200);
+  scene.add(dirLight);
+  const pointLight = new THREE.PointLight(0x4ecdc4, 0.5, 1000);
+  pointLight.position.set(-200, 300, -200);
+  scene.add(pointLight);
+
+  // Re-add controls overlay
+  const controlsDiv = document.createElement('div');
+  controlsDiv.innerHTML = controlsHtml;
+  if (controlsDiv.firstElementChild) container.appendChild(controlsDiv.firstElementChild);
+
+  // Zoom button controls
+  window._graphZoom = function(factor) {
+    if (!_graph3d) return;
+    const cam = _graph3d.camera();
+    const pos = cam.position;
+    const dist = pos.length();
+    const newDist = dist / factor;
+    const scale = newDist / dist;
+    _graph3d.cameraPosition(
+      { x: pos.x * scale, y: pos.y * scale, z: pos.z * scale },
+      { x: 0, y: 0, z: 0 },
+      400
     );
+  };
+  window._graphReset = function() {
+    if (!_graph3d) return;
+    _graph3d.cameraPosition({ x: 0, y: 0, z: 600 }, { x: 0, y: 0, z: 0 }, 800);
+  };
 
-  // For each node, add clip path and render circle or image
-  nodeGroup.each(function(d, i) {
-    const el = d3.select(this);
-    const r = _nodeR(d);
-    const hasImage = d.image && (d.type === 'venture' || d.type === 'thought_leader');
-
-    if (hasImage) {
-      // Create clip path for this node
-      const clipId = 'clip-' + i;
-      if (d.type === 'thought_leader') {
-        // Circle clip for TL avatars
-        defs.append('clipPath').attr('id', clipId)
-          .append('circle').attr('r', r);
-      } else {
-        // Rounded rect clip for venture logos
-        defs.append('clipPath').attr('id', clipId)
-          .append('rect').attr('x', -r).attr('y', -r).attr('width', r*2).attr('height', r*2).attr('rx', 4);
-      }
-
-      // Background circle/rect with color
-      if (d.type === 'thought_leader') {
-        el.append('circle').attr('r', r).attr('fill', colorMap[d.type]).attr('stroke', '#fff').attr('stroke-width', 2);
-      } else {
-        el.append('rect').attr('x', -r).attr('y', -r).attr('width', r*2).attr('height', r*2).attr('rx', 4)
-          .attr('fill', colorMap[d.type]).attr('stroke', '#fff').attr('stroke-width', 2);
-      }
-
-      // Image clipped
-      el.append('image')
-        .attr('xlink:href', d.image)
-        .attr('x', -r).attr('y', -r).attr('width', r*2).attr('height', r*2)
-        .attr('clip-path', 'url(#' + clipId + ')')
-        .attr('preserveAspectRatio', 'xMidYMid slice')
-        .on('error', function() { d3.select(this).remove(); });
-    } else {
-      // Regular colored circle
-      el.append('circle').attr('r', r)
-        .attr('fill', colorMap[d.type] || '#999')
-        .attr('stroke', '#fff').attr('stroke-width', 1.5);
+  // Handle resize
+  const resizeObs = new ResizeObserver(() => {
+    if (_graph3d && container.clientWidth && container.clientHeight) {
+      _graph3d.width(container.clientWidth).height(container.clientHeight);
     }
   });
-
-  // Labels (only for larger nodes)
-  const label = g.append('g').selectAll('text')
-    .data(data.nodes.filter(d => _nodeR(d) >= 4)).join('text')
-    .text(d => (d.label || '').slice(0, 22))
-    .attr('font-size', 9).attr('fill', 'var(--text2)')
-    .attr('text-anchor', 'middle').attr('dy', d => _nodeR(d) + 12)
-    .style('pointer-events', 'none');
-
-  nodeGroup.on('mouseover', (e, d) => {
-    const typeLabel = {venture:'Venture',thought_leader:'Thought Leader',insight:'Insight',problem:'Problem',opportunity:'Opportunity',bug:'Bug',tag:'Tag'}[d.type] || d.type;
-    tooltip.style('display', 'block')
-      .html('<strong>' + esc(d.label) + '</strong><br><span style="color:var(--text3);font-size:10px;">' + typeLabel + (d.meta && d.meta.status ? ' \u00b7 ' + d.meta.status : '') + '</span>')
-      .style('left', (e.offsetX + 15) + 'px').style('top', (e.offsetY - 10) + 'px');
-  }).on('mouseout', function() { tooltip.style('display', 'none'); });
-
-  simulation.on('tick', function() {
-    link.attr('x1', function(d){return d.source.x;}).attr('y1', function(d){return d.source.y;})
-        .attr('x2', function(d){return d.target.x;}).attr('y2', function(d){return d.target.y;});
-    nodeGroup.attr('transform', function(d){ return 'translate(' + d.x + ',' + d.y + ')'; });
-    label.attr('x', function(d){return d.x;}).attr('y', function(d){return d.y;});
-  });
+  resizeObs.observe(container);
 }
 
 

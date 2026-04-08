@@ -481,12 +481,18 @@ def _generate_bugs_from_closure(db, closed_bug, closer, stats):
     """Ralph loop: closing a bug reveals 3 new ones (regression, follow-up, improvement).
 
     The user who closed the bug is credited as reporter for the new discoveries.
-    Points: bug=10, feature=5, improvement=5, task=3.
+    New bugs inherit same severity or higher than the closed bug.
+    Points: bug=10, feature=5, improvement=5, task=3 × severity multiplier.
     """
     area = random.choice(RALPH_AREAS)
     fix_title = closed_bug.title[:40]
 
     new_bug_types = random.sample(["bug", "feature", "improvement"], k=3)
+
+    # New bugs get same severity or higher — never lower than the closed bug
+    _PRIORITY_RANK = {"critical": 0, "high": 1, "medium": 2, "low": 3}
+    _RANK_TO_PRIORITY = {0: "critical", 1: "high", 2: "medium", 3: "low"}
+    closed_rank = _PRIORITY_RANK.get(closed_bug.priority, 2)  # default medium
 
     for bt in new_bug_types:
         templates = RALPH_BUG_TEMPLATES.get(bt, RALPH_BUG_TEMPLATES["improvement"])
@@ -496,7 +502,9 @@ def _generate_bugs_from_closure(db, closed_bug, closer, stats):
         extension = random.choice(RALPH_EXTENSIONS)
         title = template.format(area=area, fix_title=fix_title, symptom=symptom, extension=extension)
 
-        priority = random.choice(["low", "medium", "medium", "high"])
+        # Pick same severity or escalate (never lower than closed bug)
+        new_rank = random.choice([max(0, closed_rank - 1), closed_rank, closed_rank])
+        priority = _RANK_TO_PRIORITY.get(new_rank, "medium")
         assignee = _random_user(exclude_email=closer["email"])
 
         new_bug = Bug(
@@ -516,13 +524,16 @@ def _generate_bugs_from_closure(db, closed_bug, closer, stats):
         db.add(new_bug)
         db.flush()
 
-        # Initial discovery comment
-        points = BUG_POINTS.get(bt, 3)
+        # Initial discovery comment — points include severity multiplier
+        base_pts = BUG_POINTS.get(bt, 3)
+        sev_mult = SEVERITY_MULT.get(priority, 1.0)
+        points = int(base_pts * sev_mult)
         bc = BugComment(
             bug_id=new_bug.id,
             author_email=closer["email"],
             author_name=closer["name"],
             body=f"Found this while closing {closed_bug.key}. "
+                 f"Severity: {priority} ({sev_mult}x). "
                  f"The {area} area needs attention. (+{points} pts)",
         )
         db.add(bc)

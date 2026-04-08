@@ -765,7 +765,39 @@ html.dark .toggle-track::after { transform:translateX(16px); }
 .ann-compose-submit { background:linear-gradient(135deg,#f59e0b,#d97706); color:#fff; }
 @media(max-width:768px) {
   .reader-body { flex-direction:column; }
-  .reader-sidebar { width:100%; height:45%; border-left:none; border-top:1px solid var(--border); }
+  .reader-sidebar { width:100%; height:auto; max-height:160px; border-left:none; border-top:1px solid var(--border); flex-shrink:0; }
+  .reader-sidebar-header { padding:6px 12px; font-size:11px; }
+  .reader-sidebar-list { flex:none; display:flex; flex-direction:row; overflow-x:auto; overflow-y:hidden; padding:6px 8px; gap:8px; scroll-snap-type:x mandatory; -webkit-overflow-scrolling:touch; }
+  .reader-sidebar-list::-webkit-scrollbar { height:3px; }
+  .reader-sidebar-list::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
+  .reader-ann-card { flex:0 0 220px; scroll-snap-align:start; margin-bottom:0; padding:8px 10px; font-size:12px; }
+  .reader-ann-quote { font-size:10px; margin-bottom:4px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  .reader-ann-body { font-size:11px; line-height:1.4; margin-bottom:4px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  .reader-ann-meta { font-size:9px; }
+  .reader-ann-actions { margin-top:4px; }
+  .reader-ann-actions button { font-size:9px; padding:1px 6px; }
+  .ann-reactions { gap:3px; margin-top:4px; }
+  .ann-reaction-btn { padding:1px 6px; font-size:10px; }
+  .reader-replies { display:none; }
+  .reader-reply-input { display:none; }
+  .ann-video-thumb { margin-bottom:4px; }
+  .ann-video-thumb-sm { max-width:180px; }
+  .ann-timestamp { font-size:10px; padding:1px 6px; margin-bottom:4px; }
+  /* YouTube controls compact on mobile */
+  .yt-controls { padding:6px 10px; gap:6px; }
+  .yt-mark-btn { padding:6px 10px; font-size:11px; }
+  .yt-hint { display:none; }
+}
+/* Landscape on mobile: sidebar on right like desktop */
+@media(max-width:768px) and (orientation:landscape) {
+  .reader-body { flex-direction:row; }
+  .reader-sidebar { width:260px; height:auto; max-height:none; border-top:none; border-left:1px solid var(--border); }
+  .reader-sidebar-list { flex-direction:column; overflow-x:hidden; overflow-y:auto; flex:1; scroll-snap-type:none; }
+  .reader-ann-card { flex:none; width:auto; }
+  .reader-ann-quote { display:block; -webkit-line-clamp:unset; }
+  .reader-ann-body { display:block; -webkit-line-clamp:unset; }
+  .reader-replies { display:block; }
+  .reader-reply-input { display:flex; }
 }
 /* ─── Settings Panel ──────────────────────────────────────────────── */
 .settings-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:500; }

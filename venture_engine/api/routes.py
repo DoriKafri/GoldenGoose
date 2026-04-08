@@ -3520,30 +3520,39 @@ def bug_fix_rate():
 @router.get("/api/bugs/leaderboard")
 def bug_finding_leaderboard(db: Session = Depends(get_db_dependency)):
     """Simulated user leaderboard — who finds the most verified bugs.
-    Points: bug=10, feature=5, improvement=5, task=3.
+    Base points by type: bug=10, feature=5, improvement=5, task=3.
+    Severity multiplier: critical=3x, high=2x, medium=1x, low=0.5x.
     """
-    from sqlalchemy import func as _fn
-    POINTS = {"bug": 10, "feature": 5, "improvement": 5, "task": 3}
-    reporters = (
-        db.query(Bug.reporter_email, Bug.reporter_name, Bug.bug_type, _fn.count(Bug.id).label("count"))
-        .group_by(Bug.reporter_email, Bug.reporter_name, Bug.bug_type).all()
-    )
+    BASE_POINTS = {"bug": 10, "feature": 5, "improvement": 5, "task": 3}
+    SEVERITY_MULT = {"critical": 3.0, "high": 2.0, "medium": 1.0, "low": 0.5}
+
+    all_bugs = db.query(Bug).all()
     scores = {}
-    for email, name, bug_type, count in reporters:
+    for bug in all_bugs:
+        email = bug.reporter_email
         if not email:
             continue
         if email not in scores:
-            scores[email] = {"email": email, "name": name or email, "total_points": 0,
+            scores[email] = {"email": email, "name": bug.reporter_name or email, "total_points": 0,
                              "bugs": 0, "features": 0, "improvements": 0, "tasks": 0, "total_items": 0}
-        pts = POINTS.get(bug_type, 3) * count
+        base = BASE_POINTS.get(bug.bug_type, 3)
+        mult = SEVERITY_MULT.get(bug.priority, 1.0)
+        pts = int(base * mult)
         scores[email]["total_points"] += pts
-        scores[email]["total_items"] += count
-        key = {"bug": "bugs", "feature": "features", "improvement": "improvements"}.get(bug_type, "tasks")
-        scores[email][key] += count
+        scores[email]["total_items"] += 1
+        key = {"bug": "bugs", "feature": "features", "improvement": "improvements"}.get(bug.bug_type, "tasks")
+        scores[email][key] += 1
     leaderboard = sorted(scores.values(), key=lambda x: x["total_points"], reverse=True)
     for i, entry in enumerate(leaderboard, 1):
         entry["rank"] = i
-    return {"leaderboard": leaderboard, "total_participants": len(leaderboard)}
+    return {
+        "leaderboard": leaderboard,
+        "total_participants": len(leaderboard),
+        "scoring": {
+            "base_points": BASE_POINTS,
+            "severity_multipliers": SEVERITY_MULT,
+        },
+    }
 
 
 @router.get("/api/bugs/{bug_id}")

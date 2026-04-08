@@ -422,7 +422,9 @@ def _random_user(exclude_email: str = None):
 
 
 # ── Bug-finding leaderboard scoring ──────────────────────────────────────
+# Base points by type, multiplied by severity (critical=3x, high=2x, medium=1x, low=0.5x)
 BUG_POINTS = {"bug": 10, "feature": 5, "improvement": 5, "task": 3}
+SEVERITY_MULT = {"critical": 3.0, "high": 2.0, "medium": 1.0, "low": 0.5}
 
 
 # ── Dynamic bug generation templates (ralph loop: closure → new bugs) ────

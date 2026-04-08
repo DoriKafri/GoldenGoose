@@ -3501,6 +3501,35 @@ def bug_stats(db: Session = Depends(get_db_dependency)):
     return {"by_status": status_counts, "by_priority": priority_counts, "total": sum(status_counts.values())}
 
 
+@router.get("/api/bugs/leaderboard")
+def bug_finding_leaderboard(db: Session = Depends(get_db_dependency)):
+    """Simulated user leaderboard — who finds the most verified bugs.
+    Points: bug=10, feature=5, improvement=5, task=3.
+    """
+    from sqlalchemy import func as _fn
+    POINTS = {"bug": 10, "feature": 5, "improvement": 5, "task": 3}
+    reporters = (
+        db.query(Bug.reporter_email, Bug.reporter_name, Bug.bug_type, _fn.count(Bug.id).label("count"))
+        .group_by(Bug.reporter_email, Bug.reporter_name, Bug.bug_type).all()
+    )
+    scores = {}
+    for email, name, bug_type, count in reporters:
+        if not email:
+            continue
+        if email not in scores:
+            scores[email] = {"email": email, "name": name or email, "total_points": 0,
+                             "bugs": 0, "features": 0, "improvements": 0, "tasks": 0, "total_items": 0}
+        pts = POINTS.get(bug_type, 3) * count
+        scores[email]["total_points"] += pts
+        scores[email]["total_items"] += count
+        key = {"bug": "bugs", "feature": "features", "improvement": "improvements"}.get(bug_type, "tasks")
+        scores[email][key] += count
+    leaderboard = sorted(scores.values(), key=lambda x: x["total_points"], reverse=True)
+    for i, entry in enumerate(leaderboard, 1):
+        entry["rank"] = i
+    return {"leaderboard": leaderboard, "total_participants": len(leaderboard)}
+
+
 @router.get("/api/bugs/{bug_id}")
 def get_bug(bug_id: str, db: Session = Depends(get_db_dependency)):
     bug = db.query(Bug).filter(Bug.id == bug_id).first()
@@ -3514,11 +3543,22 @@ def update_bug(bug_id: str, req: UpdateBugRequest, db: Session = Depends(get_db_
     bug = db.query(Bug).filter(Bug.id == bug_id).first()
     if not bug:
         raise HTTPException(404, "Bug not found")
+    old_status = bug.status
     for field in ["title", "description", "priority", "bug_type", "assignee_email", "assignee_name", "status", "labels"]:
         val = getattr(req, field, None)
         if val is not None:
             setattr(bug, field, val)
     bug.updated_at = datetime.utcnow()
+
+    # Auto-post to #closed-crs when status transitions to done/closed
+    new_status = bug.status
+    if new_status in ("done", "closed") and old_status not in ("done", "closed"):
+        try:
+            from venture_engine.slack_simulator import post_closed_cr
+            post_closed_cr(db, bug)
+        except Exception as e:
+            logger.warning(f"Failed to post closed CR: {e}")
+
     db.commit()
     db.refresh(bug)
     return _serialize_bug(bug)
@@ -4344,67 +4384,6 @@ def seed_slack_channels(db: Session = Depends(get_db_dependency)):
     from venture_engine.slack_simulator import seed_channels_and_history
     result = seed_channels_and_history(db)
     return result
-
-
-# ── Bug-Finding Leaderboard ───────────────────────────────────────────────
-@router.get("/api/bugs/leaderboard")
-def bug_finding_leaderboard(db: Session = Depends(get_db_dependency)):
-    """Simulated user leaderboard — who finds the most verified bugs.
-
-    Points: bug=10, feature_request=5, improvement=5, task=3.
-    """
-    from sqlalchemy import func as _fn
-
-    POINTS = {"bug": 10, "feature": 5, "improvement": 5, "task": 3}
-
-    # Get all bugs grouped by reporter
-    reporters = (
-        db.query(
-            Bug.reporter_email,
-            Bug.reporter_name,
-            Bug.bug_type,
-            _fn.count(Bug.id).label("count"),
-        )
-        .group_by(Bug.reporter_email, Bug.reporter_name, Bug.bug_type)
-        .all()
-    )
-
-    # Aggregate points per reporter
-    scores = {}
-    for email, name, bug_type, count in reporters:
-        if not email:
-            continue
-        if email not in scores:
-            scores[email] = {
-                "email": email,
-                "name": name or email,
-                "total_points": 0,
-                "bugs": 0,
-                "features": 0,
-                "improvements": 0,
-                "tasks": 0,
-                "total_items": 0,
-            }
-        pts = POINTS.get(bug_type, 3) * count
-        scores[email]["total_points"] += pts
-        scores[email]["total_items"] += count
-        if bug_type == "bug":
-            scores[email]["bugs"] += count
-        elif bug_type == "feature":
-            scores[email]["features"] += count
-        elif bug_type == "improvement":
-            scores[email]["improvements"] += count
-        else:
-            scores[email]["tasks"] += count
-
-    # Sort by total points descending
-    leaderboard = sorted(scores.values(), key=lambda x: x["total_points"], reverse=True)
-
-    # Add rank
-    for i, entry in enumerate(leaderboard, 1):
-        entry["rank"] = i
-
-    return {"leaderboard": leaderboard, "total_participants": len(leaderboard)}
 
 
 # ── Activity Heatmap (BUG-24) ─────────────────────────────────────────────

@@ -188,8 +188,9 @@ html.dark .toggle-track::after { transform:translateX(16px); }
 .sl-channel-name { font-size:16px;font-weight:800;color:var(--text); }
 .sl-channel-desc { font-size:11px;color:var(--text3);flex:1; }
 .sl-message-list { overflow-y:auto;flex:1;padding:4px 0; }
-.sl-msg-wrap { position:relative;padding:4px 12px;margin:0 -12px;border-radius:0;transition:background .1s; }
-.sl-msg-wrap:hover { background:rgba(255,255,255,.04); }
+.sl-msg-wrap { position:relative;padding:4px 16px;margin:0 -16px;border-radius:0;transition:background .12s ease; }
+.sl-msg-wrap:hover { background:rgba(0,0,0,.04); }
+html.dark .sl-msg-wrap:hover { background:rgba(255,255,255,.06); }
 .sl-msg { display:flex;gap:10px;padding:6px 0; }
 .sl-reply { padding:4px 0; }
 .sl-avatar { width:36px !important;height:36px !important;min-width:36px;min-height:36px;max-width:36px;max-height:36px;border-radius:50% !important;flex-shrink:0;object-fit:cover; }

@@ -186,7 +186,7 @@ html.dark .toggle-track::after { transform:translateX(16px); }
 /* ─── Slack Workspace Layout ─── */
 .main-inner:has(.sl-workspace) { max-width:100% !important;padding:0 !important;margin:0 !important; }
 .main:has(.sl-workspace) { padding:0 !important;max-width:100% !important; }
-.sl-workspace { display:flex;height:100vh;overflow:hidden;background:var(--card);width:100%;position:fixed;top:0;left:var(--sidebar-w);right:0;bottom:0;z-index:10; }
+.sl-workspace { display:flex;height:100vh;overflow:hidden;background:var(--card);width:100vw;position:fixed;top:0;left:0;right:0;bottom:0;z-index:50; }
 /* ─── Channel Sidebar ─── */
 .sl-sidebar { width:260px;min-width:220px;background:#1a1a2e;color:#ccc;display:flex;flex-direction:column;border-right:1px solid rgba(255,255,255,.08);flex-shrink:0; }
 html:not(.dark) .sl-sidebar { background:#3F0E40; }
@@ -7185,6 +7185,7 @@ function _renderSlackWorkspace(channels) {
   el.innerHTML = `<div class="sl-workspace">
     <div class="sl-sidebar">
       <div class="sl-sidebar-header">
+        <button onclick="document.querySelector('.sl-workspace').remove();switchTab('news');" style="background:none;border:none;color:rgba(255,255,255,.6);font-size:16px;cursor:pointer;padding:2px 6px;border-radius:4px;" title="Back to dashboard">&larr;</button>
         <span class="sl-sidebar-workspace">develeap</span>
         <button class="sl-sidebar-compose" title="New message">&#x270E;</button>
       </div>

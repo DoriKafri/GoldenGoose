@@ -2148,7 +2148,7 @@ function readHash() {
     return;
   }
   const ventureId = parts[1];
-  const validTabs = ['news','venture','stealth','flip','customer','missing_piece','training','threads','leaderboard'];
+  const validTabs = ['news','venture','stealth','flip','customer','missing_piece','training','threads','bugs','graph','slack','activity','sim-users','leaderboard','release-notes'];
   if (validTabs.includes(tab)) {
     switchTab(tab, true);
     if (ventureId) setTimeout(() => openDetail(ventureId, true), 300);
@@ -2181,7 +2181,7 @@ window.addEventListener('popstate', (e) => {
     return;
   }
   const ventureId = parts[1];
-  const validTabs = ['news','venture','stealth','flip','customer','missing_piece','training','threads','leaderboard'];
+  const validTabs = ['news','venture','stealth','flip','customer','missing_piece','training','threads','bugs','graph','slack','activity','sim-users','leaderboard','release-notes'];
   if (validTabs.includes(tab) && tab !== currentTab) switchTab(tab, true);
   if (ventureId) openDetail(ventureId, true);
   else closeDetailPanel(true);

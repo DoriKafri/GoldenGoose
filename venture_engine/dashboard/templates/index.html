@@ -188,8 +188,8 @@ html.dark .toggle-track::after { transform:translateX(16px); }
 .sl-channel-name { font-size:16px;font-weight:800;color:var(--text); }
 .sl-channel-desc { font-size:11px;color:var(--text3);flex:1; }
 .sl-message-list { overflow-y:auto;flex:1;padding:4px 0; }
-.sl-msg-wrap { position:relative;padding:4px 12px;margin:0 -12px;border-radius:8px; }
-.sl-msg-wrap:hover { background:var(--bg2); }
+.sl-msg-wrap { position:relative;padding:4px 12px;margin:0 -12px;border-radius:0;transition:background .1s; }
+.sl-msg-wrap:hover { background:rgba(255,255,255,.04); }
 .sl-msg { display:flex;gap:10px;padding:6px 0; }
 .sl-reply { padding:4px 0; }
 .sl-avatar { width:36px !important;height:36px !important;min-width:36px;min-height:36px;max-width:36px;max-height:36px;border-radius:50% !important;flex-shrink:0;object-fit:cover; }
@@ -220,10 +220,13 @@ html.dark .toggle-track::after { transform:translateX(16px); }
 .sl-thread-count { margin-left:6px;color:var(--accent);font-weight:700; }
 .sl-thread-last { color:var(--text3);font-weight:400;flex:1; }
 .sl-thread-arrow { font-size:10px;color:var(--text3);margin-left:4px; }
-.sl-actions { position:absolute;top:2px;right:8px;display:none;background:var(--card);border:1px solid var(--border);border-radius:8px;box-shadow:0 1px 4px rgba(0,0,0,.1);overflow:hidden;z-index:5; }
+.sl-actions { position:absolute;top:-14px;right:12px;display:none;background:var(--card);border:1px solid var(--border);border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,.2);z-index:5;gap:0; }
 .sl-msg-wrap:hover .sl-actions { display:flex; }
-.sl-actions button { background:none;border:none;padding:4px 8px;cursor:pointer;font-size:14px;color:var(--text3); }
+.sl-actions button { background:none;border:none;padding:6px 8px;cursor:pointer;color:var(--text3);display:flex;align-items:center;justify-content:center;transition:background .1s,color .1s; }
 .sl-actions button:hover { background:var(--bg2);color:var(--text); }
+.sl-actions button svg { width:16px;height:16px; }
+.sl-actions button:first-child { border-radius:6px 0 0 6px; }
+.sl-actions button:last-child { border-radius:0 6px 6px 0; }
 /* ─── Slack Thread Side Panel (matches real Slack) ── */
 .sl-split { display:flex;height:100%;overflow:hidden; }
 .sl-split .sl-message-list { flex:1;min-width:0; }
@@ -2272,10 +2275,10 @@ async function loadThreads() {
         return `
         <div class="sl-msg-wrap" id="${msgId}">
           <div class="sl-actions">
-            <button title="Add reaction" onclick="event.stopPropagation();_openEmojiPicker('${msgId}',this)">&#x1F60A;</button>
-            <button title="Share message">&#x2197;&#xFE0F;</button>
-            <button title="Bookmark">&#x1F516;</button>
-            <button title="More actions">&#x22EE;</button>
+            <button title="Add reaction" onclick="event.stopPropagation();_openEmojiPicker('${msgId}',this)"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="10" cy="10" r="8"/><path d="M6.5 11.5c.7 1.4 2 2 3.5 2s2.8-.6 3.5-2" stroke-linecap="round"/><circle cx="7.5" cy="8" r="0.7" fill="currentColor" stroke="none"/><circle cx="12.5" cy="8" r="0.7" fill="currentColor" stroke="none"/></svg></button>
+            <button title="Share message" onclick="event.stopPropagation()"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 7l-5-4v2.5C5 6.5 3 9 3 13c1.5-2.5 4-3.5 7-3.5V12l5-5z"/></svg></button>
+            <button title="Bookmark" onclick="event.stopPropagation()"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3h10v14l-5-3-5 3V3z"/></svg></button>
+            <button title="More actions" onclick="event.stopPropagation()"><svg viewBox="0 0 20 20" fill="currentColor"><circle cx="10" cy="4" r="1.5"/><circle cx="10" cy="10" r="1.5"/><circle cx="10" cy="16" r="1.5"/></svg></button>
           </div>
           <div class="sl-msg${isReply ? ' sl-reply' : ''}">
             <img src="${_threadAvatar(m.author_name, 36)}" alt="" class="sl-avatar">
@@ -6960,12 +6963,12 @@ function _renderSlackChannel(data, channelId) {
       </div>`;
     }
 
-    // Hover action bar
+    // Hover action bar — clean SVG icons matching Slack
     const actionBar = `<div class="sl-actions">
-      <button title="Add reaction" onclick="event.stopPropagation()">&#x263A;</button>
-      <button title="Reply in thread" onclick="event.stopPropagation();_openSlackThread(${idx})">&#x1F4AC;</button>
-      <button title="Bookmark" onclick="event.stopPropagation()">&#x1F516;</button>
-      <button title="More" onclick="event.stopPropagation()">&#x22EF;</button>
+      <button title="Add reaction" onclick="event.stopPropagation()"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="10" cy="10" r="8"/><path d="M6.5 11.5c.7 1.4 2 2 3.5 2s2.8-.6 3.5-2" stroke-linecap="round"/><circle cx="7.5" cy="8" r="0.7" fill="currentColor" stroke="none"/><circle cx="12.5" cy="8" r="0.7" fill="currentColor" stroke="none"/></svg></button>
+      <button title="Reply in thread" onclick="event.stopPropagation();_openSlackThread(${idx})"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 7l-5-4v2.5C5 6.5 3 9 3 13c1.5-2.5 4-3.5 7-3.5V12l5-5z"/></svg></button>
+      <button title="Bookmark" onclick="event.stopPropagation()"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3h10v14l-5-3-5 3V3z"/></svg></button>
+      <button title="More" onclick="event.stopPropagation()"><svg viewBox="0 0 20 20" fill="currentColor"><circle cx="10" cy="4" r="1.5"/><circle cx="10" cy="10" r="1.5"/><circle cx="10" cy="16" r="1.5"/></svg></button>
     </div>`;
 
     return `<div class="sl-msg-wrap">

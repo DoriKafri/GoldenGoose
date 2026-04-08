@@ -1876,6 +1876,9 @@ function switchTab(tab, skipHash) {
   const filtersEl = document.getElementById('sidebarFilters');
   if (filtersEl) filtersEl.style.display = isVentureTab ? '' : 'none';
   if (!skipHash) updateHash();
+  // Show/hide pagination (hidden for news=infinite scroll, and non-list tabs)
+  const paginationEl = document.querySelector('.pagination');
+  if (paginationEl) paginationEl.style.display = ['news','threads','bugs','graph','slack','activity'].includes(tab) ? 'none' : '';
   if (tab === 'threads') { loadThreads(); }
   else if (tab === 'news') { loadNews(); }
   else if (tab === 'bugs') { loadBugs(); }
@@ -2158,28 +2161,99 @@ function _threadSourceIcon(source) {
   return icons[source] || '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;vertical-align:-2px;margin-right:4px;color:var(--accent);"><path d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101"/><path d="M10.172 13.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>';
 }
 
-async function loadNews() {
+let _newsItems = [];
+let _newsLoading = false;
+let _newsHasMore = true;
+let _newsPage = 0;
+const _NEWS_PAGE_SIZE = 20;
+
+async function loadNews(append) {
   // Ensure post bar is visible on News tab
   document.getElementById('newsPostBar').style.display = '';
-  // Show loading state immediately for instant tab feedback
-  document.getElementById('ventureList').innerHTML = '<div class="loading">Loading...</div>';
-  const params = new URLSearchParams({limit: PAGE_SIZE, offset: currentPage * PAGE_SIZE});
+  // Hide pagination for news (infinite scroll)
+  document.querySelector('.pagination').style.display = 'none';
+
+  if (!append) {
+    _newsItems = [];
+    _newsPage = 0;
+    _newsHasMore = true;
+    document.getElementById('ventureList').innerHTML = '<div class="loading">Loading...</div>';
+  }
+  if (_newsLoading || !_newsHasMore) return;
+  _newsLoading = true;
+
+  const params = new URLSearchParams({limit: _NEWS_PAGE_SIZE, offset: _newsPage * _NEWS_PAGE_SIZE});
   const searchEl = document.getElementById('newsSearchInput');
   const sourceEl = document.getElementById('newsSourceFilter');
   if (searchEl && searchEl.value.trim()) params.set('q', searchEl.value.trim());
   if (sourceEl && sourceEl.value) params.set('source', sourceEl.value);
-  const res = await fetch(`${API}/api/news?${params}`);
-  const data = await res.json();
-  totalVentures = data.total;
-  renderNewsFeed(data.items);
-  updatePagination();
+
+  try {
+    const res = await fetch(`${API}/api/news?${params}`);
+    const data = await res.json();
+    totalVentures = data.total;
+
+    if (!append) {
+      _newsItems = data.items;
+      renderNewsFeed(_newsItems);
+    } else {
+      _newsItems = _newsItems.concat(data.items);
+      _appendNewsFeed(data.items);
+    }
+
+    _newsPage++;
+    _newsHasMore = _newsItems.length < data.total && data.items.length > 0;
+
+    // Remove loading spinner if present
+    const spinner = document.getElementById('newsLoadingMore');
+    if (spinner) spinner.remove();
+  } catch(e) {
+    console.error('loadNews error:', e);
+  } finally {
+    _newsLoading = false;
+  }
 }
+
+function _appendNewsFeed(items) {
+  if (!items.length) return;
+  const el = document.getElementById('ventureList');
+  const temp = document.createElement('div');
+  temp.innerHTML = _renderNewsItems(items);
+  while (temp.firstChild) el.appendChild(temp.firstChild);
+  _bindNewsCardClicks();
+}
+
+// Infinite scroll listener
+window.addEventListener('scroll', function() {
+  if (currentTab !== 'news' || _newsLoading || !_newsHasMore) return;
+  const scrollY = window.scrollY || window.pageYOffset;
+  const docHeight = document.documentElement.scrollHeight;
+  const winHeight = window.innerHeight;
+  if (scrollY + winHeight >= docHeight - 400) {
+    // Show loading spinner
+    const el = document.getElementById('ventureList');
+    if (!document.getElementById('newsLoadingMore')) {
+      el.insertAdjacentHTML('beforeend', '<div id="newsLoadingMore" style="text-align:center;padding:20px;"><div class="spinner" style="display:inline-block;width:24px;height:24px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.8s linear infinite;"></div></div>');
+    }
+    loadNews(true);
+  }
+});
 
 function renderNewsFeed(items) {
   const el = document.getElementById('ventureList');
   const oldResolveBar = document.getElementById('hnResolveBar');
   if (oldResolveBar) oldResolveBar.remove();
   if (!items.length) { el.innerHTML = '<div class="loading">No news items yet.</div>'; return; }
+  el.innerHTML = _renderNewsItems(items);
+  _bindNewsCardClicks();
+  _prefetchArticleInsights(items);
+  // Admin: show resolve button if there are HN items
+  if (isAdmin && items.some(i => i.url && i.url.includes('news.ycombinator.com/item'))) {
+    el.insertAdjacentHTML('beforebegin', '<div id="hnResolveBar" style="margin-bottom:8px;text-align:right;"><button onclick="resolveAllHnUrls()" style="padding:4px 14px;border-radius:var(--radius-pill);background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);color:#d97706;font-size:11px;font-weight:600;cursor:pointer;">Resolve HN URLs to Original Articles</button></div>');
+  }
+}
+
+function _renderNewsItems(items) {
   const sourceLogos = {
     hackernews: 'https://news.ycombinator.com/favicon.ico',
     twitter: 'https://abs.twimg.com/favicons/twitter.3.ico',
@@ -2203,7 +2277,7 @@ function renderNewsFeed(items) {
   };
   function _hostname(url) { try { return new URL(url).hostname; } catch(e) { return url; } }
   // _youtubeId is defined globally above
-  el.innerHTML = items.map(item => {
+  return items.map(item => {
     try {
     const _srcLogo = sourceLogos[item.source] || (item.url ? 'https://www.google.com/s2/favicons?domain='+_hostname(item.url)+'&sz=64' : null);
     const icon = _srcLogo
@@ -2319,23 +2393,20 @@ function renderNewsFeed(items) {
     </div>`;
     } catch(err) { console.error('renderNewsFeed item error:', err, item); return ''; }
   }).join('');
-  // Admin: show resolve button if there are HN items
-  if (isAdmin && items.some(i => i.url && i.url.includes('news.ycombinator.com/item'))) {
-    el.insertAdjacentHTML('beforebegin', '<div id="hnResolveBar" style="margin-bottom:8px;text-align:right;"><button onclick="resolveAllHnUrls()" style="padding:4px 14px;border-radius:var(--radius-pill);background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);color:#d97706;font-size:11px;font-weight:600;cursor:pointer;">Resolve HN URLs to Original Articles</button></div>');
-  }
+}
+
+function _bindNewsCardClicks() {
   // Bind click handler via event delegation (avoids quote-escaping issues in onclick)
-  el.querySelectorAll('.news-reader-card').forEach(card => {
+  document.getElementById('ventureList').querySelectorAll('.news-reader-card').forEach(card => {
+    if (card._bound) return;
+    card._bound = true;
     card.addEventListener('click', function(e) {
-      // Don't trigger if clicking a link, button, or input inside the card
-      if (e.target.closest('a, button, input')) return;
+      if (e.target.closest('a, button, input, textarea')) return;
       const url = this.dataset.url;
       if (!url) return;
       openReader(url, this.dataset.title || '', this.dataset.newsId || '');
     });
   });
-
-  // Pre-generate article insights for all non-YouTube articles in background
-  _prefetchArticleInsights(items);
 }
 
 // ── News Annotations (list view) ──

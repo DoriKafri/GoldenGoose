@@ -3661,18 +3661,22 @@ class NewsPostRequest(BaseModel):
 
 @router.post("/api/news/score-and-filter")
 def score_and_filter_news(min_score: float = Query(5.0), db: Session = Depends(get_db_dependency)):
-    """Retroactively score existing news items and remove low-DOPI ones."""
+    """Retroactively score existing news items and remove low-DOPI ones.
+    Uses per-source thresholds: arXiv requires 8.5, others use min_score."""
     from venture_engine.main import _score_dopi_relevance
+
+    SOURCE_THRESHOLDS = {"arxiv": 8.5}
 
     items = db.query(NewsFeedItem).all()
     removed = 0
     scored = 0
     for item in items:
+        threshold = SOURCE_THRESHOLDS.get((item.source or "").lower(), min_score)
         score = _score_dopi_relevance(item.title or "", item.summary or "")
-        if score < min_score:
+        if score < threshold:
             db.delete(item)
             removed += 1
-            logger.info(f"Removed low-DOPI news (score={score}): {(item.title or '')[:60]}")
+            logger.info(f"Removed low-DOPI news (score={score}, threshold={threshold}): {(item.title or '')[:60]}")
         else:
             item.signal_strength = round(score, 1)
             scored += 1
@@ -3683,36 +3687,42 @@ def score_and_filter_news(min_score: float = Query(5.0), db: Session = Depends(g
 
 @router.post("/api/news/dedup")
 def dedup_news(db: Session = Depends(get_db_dependency)):
-    """Delete duplicate news items, keeping the oldest per URL (or per title if no URL)."""
-    from sqlalchemy import func
-
+    """Delete duplicate news items, keeping the oldest per URL and per title."""
     total_deleted = 0
 
-    # Dedup by URL
-    dupes = db.query(NewsFeedItem.url, func.count(NewsFeedItem.id).label('cnt')).filter(
-        NewsFeedItem.url != None, NewsFeedItem.url != ''
-    ).group_by(NewsFeedItem.url).having(func.count(NewsFeedItem.id) > 1).all()
+    try:
+        # Dedup by URL
+        dupes = db.query(NewsFeedItem.url, func.count(NewsFeedItem.id).label('cnt')).filter(
+            NewsFeedItem.url.isnot(None), NewsFeedItem.url != ''
+        ).group_by(NewsFeedItem.url).having(func.count(NewsFeedItem.id) > 1).all()
 
-    for url, cnt in dupes:
-        items = db.query(NewsFeedItem).filter(NewsFeedItem.url == url).order_by(NewsFeedItem.created_at.asc()).all()
-        for item in items[1:]:
-            db.delete(item)
-            total_deleted += 1
+        for url, cnt in dupes:
+            items = db.query(NewsFeedItem).filter(NewsFeedItem.url == url).order_by(NewsFeedItem.created_at.asc()).all()
+            for item in items[1:]:
+                db.delete(item)
+                total_deleted += 1
 
-    # Dedup by title (same title, different URLs = still duplicates)
-    title_dupes = db.query(NewsFeedItem.title, func.count(NewsFeedItem.id).label('cnt')).group_by(
-        NewsFeedItem.title
-    ).having(func.count(NewsFeedItem.id) > 1).all()
+        db.flush()
 
-    for title, cnt in title_dupes:
-        items = db.query(NewsFeedItem).filter(
-            NewsFeedItem.title == title
-        ).order_by(NewsFeedItem.created_at.asc()).all()
-        for item in items[1:]:
-            db.delete(item)
-            total_deleted += 1
+        # Dedup by title (same title, different URLs = still duplicates)
+        title_dupes = db.query(NewsFeedItem.title, func.count(NewsFeedItem.id).label('cnt')).group_by(
+            NewsFeedItem.title
+        ).having(func.count(NewsFeedItem.id) > 1).all()
 
-    db.commit()
+        for title, cnt in title_dupes:
+            items = db.query(NewsFeedItem).filter(
+                NewsFeedItem.title == title
+            ).order_by(NewsFeedItem.created_at.asc()).all()
+            for item in items[1:]:
+                db.delete(item)
+                total_deleted += 1
+
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Dedup error: {e}")
+        raise HTTPException(500, f"Dedup failed: {str(e)}")
+
     remaining = db.query(func.count(NewsFeedItem.id)).scalar()
     return {"deleted": total_deleted, "remaining": remaining}
 

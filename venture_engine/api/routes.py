@@ -3647,6 +3647,22 @@ def add_bug_comment(bug_id: str, req: BugCommentRequest, db: Session = Depends(g
 
 # ─── Knowledge Graph ────────────────────────────────────────────
 
+@router.get("/api/release-notes")
+def get_release_notes():
+    """Return release notes markdown content."""
+    # Try multiple possible locations for the release notes file
+    candidates = [
+        os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "RELEASE_NOTES.md"),
+        os.path.join(os.getcwd(), "RELEASE_NOTES.md"),
+        "/app/RELEASE_NOTES.md",  # Railway container path
+    ]
+    for path in candidates:
+        if os.path.isfile(path):
+            with open(path, "r") as f:
+                return {"content": f.read()}
+    return {"content": "# Release Notes\n\nNo release notes available yet."}
+
+
 @router.get("/api/graph")
 def get_graph(
     types: Optional[str] = None,

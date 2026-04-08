@@ -265,6 +265,16 @@ html.dark .sl-msg-wrap:hover { background:rgba(255,255,255,.08); }
 .sl-media-preview-domain img { width:14px;height:14px;border-radius:2px; }
 .sl-media-preview-title { font-size:13px;font-weight:700;color:var(--text);line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden; }
 .sl-media-preview-desc { font-size:12px;color:var(--text2);line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden; }
+/* ─── Release Notes ─── */
+.rn-content { color:var(--text); }
+.rn-version { font-size:18px;font-weight:800;color:var(--accent);margin:28px 0 4px;padding:14px 0 6px;border-top:1px solid var(--border); }
+.rn-version:first-child { margin-top:0;border-top:none; }
+.rn-subtitle { font-size:14px;font-weight:700;color:var(--text2);margin:4px 0 10px;letter-spacing:0.3px; }
+.rn-list { list-style:none;padding:0;margin:0 0 12px; }
+.rn-list li { position:relative;padding:5px 0 5px 18px;font-size:13px;line-height:1.6;color:var(--text); }
+.rn-list li::before { content:'';position:absolute;left:0;top:13px;width:6px;height:6px;border-radius:50%;background:var(--accent); }
+.rn-list li strong { color:var(--text);font-weight:700; }
+.rn-list li em { font-style:normal;color:var(--text3); }
 .sl-thread-composer-box { border:1px solid var(--border);border-radius:8px;padding:10px 12px;min-height:42px; }
 .sl-thread-composer-placeholder { color:var(--text3);font-size:13px;pointer-events:none; }
 .sl-thread-composer-toolbar { display:flex;align-items:center;gap:2px;padding:6px 12px 4px;border-top:1px solid var(--border);margin-top:6px; }
@@ -1188,6 +1198,7 @@ html.dark .sl-msg-wrap:hover { background:rgba(255,255,255,.08); }
     <button class="sidebar-btn primary" id="suggestTabBtn" onclick="openSuggestModal()">+ Suggest</button>
     <button class="sidebar-btn outline" onclick="triggerHarvest()" id="harvestBtn">Trigger Harvest</button>
     <button class="sidebar-btn outline gear" onclick="openSettings()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg> Settings</button>
+    <button class="sidebar-btn outline" onclick="switchTab('release-notes')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg> Release Notes</button>
     <button class="sidebar-btn outline help" onclick="openHelp()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Help</button>
     <button class="sidebar-btn outline" id="adminToggleBtn" onclick="toggleAdmin()" style="font-size:11px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> <span id="adminToggleLabel">Admin: Off</span></button>
 
@@ -2031,7 +2042,7 @@ function switchTab(tab, skipHash) {
     b.classList.toggle('active', b.dataset.tab === tab);
   });
   // Show/hide context-sensitive elements
-  const isVentureTab = !['news','threads','bugs','graph','slack','activity','sim-users','leaderboard'].includes(tab);
+  const isVentureTab = !['news','threads','bugs','graph','slack','activity','sim-users','leaderboard','release-notes'].includes(tab);
   document.getElementById('suggestTabBtn').style.display = isVentureTab ? '' : 'none';
   document.getElementById('newsPostBar').style.display = (tab === 'news') ? '' : 'none';
   document.getElementById('ventureSearchBar').style.display = isVentureTab ? '' : 'none';
@@ -2058,6 +2069,7 @@ function switchTab(tab, skipHash) {
   else if (tab === 'activity') { loadActivity(); }
   else if (tab === 'sim-users') { loadSimUsers(); }
   else if (tab === 'leaderboard') { loadLeaderboard(); }
+  else if (tab === 'release-notes') { loadReleaseNotes(); }
   else { loadVentures(); }
 }
 
@@ -6731,6 +6743,45 @@ async function _simUpdatePersonas(btn) {
 // ─── Knowledge Graph (3D Force Graph) ──────────────────────────────────
 
 let _graph3d = null;
+
+// ── Release Notes View ──
+async function loadReleaseNotes() {
+  const el = document.getElementById('ventureList');
+  el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text3);"><div class="loader"></div>Loading release notes...</div>';
+  try {
+    const resp = await fetch(`${API}/api/release-notes`);
+    const data = await resp.json();
+    const md = data.content || '';
+
+    // Simple markdown-to-HTML renderer
+    let html = md
+      .replace(/^# (.+)$/gm, '')
+      .replace(/^## (.+)$/gm, '<div class="rn-version">$1</div>')
+      .replace(/^### (.+)$/gm, '<div class="rn-subtitle">$1</div>')
+      .replace(/^---$/gm, '')
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/`(.+?)`/g, '<code style="background:var(--bg3);padding:1px 5px;border-radius:4px;font-size:12px;">$1</code>')
+      .replace(/^- (.+)$/gm, '<li>$1</li>')
+      .replace(/\n/g, '');
+
+    // Wrap consecutive <li> in <ul>
+    html = html.replace(/(<li>.*?<\/li>)+/g, '<ul class="rn-list">$&</ul>');
+
+    el.innerHTML = `
+      <div style="max-width:720px;margin:0 auto;padding:32px 24px;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:24px;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:28px;height:28px;flex-shrink:0;"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+          <div>
+            <h1 style="font-size:22px;font-weight:800;color:var(--text);margin:0;">Release Notes</h1>
+            <p style="font-size:12px;color:var(--text3);margin:2px 0 0;">Develeap Venture Intelligence Engine</p>
+          </div>
+        </div>
+        <div class="rn-content">${html}</div>
+      </div>`;
+  } catch(e) {
+    el.innerHTML = '<div style="text-align:center;padding:40px;color:#ef4444;">Failed to load release notes.</div>';
+  }
+}
 
 async function loadGraph() {
   const el = document.getElementById('ventureList');

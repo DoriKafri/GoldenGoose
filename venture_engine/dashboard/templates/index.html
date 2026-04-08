@@ -7074,127 +7074,40 @@ async function _lmLoadChart() {
     const resp = await fetch(`${API}/api/activity-chart?range=${_lmChartRange}`);
     const data = await resp.json();
     const buckets = data.buckets || [];
-    const W = 280, H = 100, padL = 28, padR = 8, padT = 8, padB = 24;
-    const cw = W - padL - padR, ch = H - padT - padB;
     const n = buckets.length || 1;
-    const max = Math.max(...buckets.map(b => b.total), 3); // min 3 so empty looks reasonable
-    const xStep = cw / (n - 1 || 1);
+    const max = Math.max(...buckets.map(b => b.total), 1);
+    const barW = Math.floor(240 / n);
+    const gap = 4;
+    const chartH = 110;
 
-    // Build area paths for stacked layers: comments(bottom), bugs(mid), slack(top)
-    function makeArea(key, prev) {
-      let top = '', bot = '';
-      for (let i = 0; i < n; i++) {
-        const x = padL + i * xStep;
-        const val = (prev ? prev[i] : 0) + (buckets[i][key] || 0);
-        const y = padT + ch - (val / max) * ch;
-        top += (i === 0 ? 'M' : 'L') + x.toFixed(1) + ',' + y.toFixed(1);
-        if (prev) prev[i] = val; else if (!prev) { /* handled below */ }
-      }
-      // Build cumulative
-      const cumul = [];
-      for (let i = 0; i < n; i++) {
-        cumul[i] = (prev ? prev[i] : 0);
-      }
-      // Recalc with cumulative
-      let topPath = '', botPath = '';
-      const stack = [];
-      for (let i = 0; i < n; i++) {
-        const x = padL + i * xStep;
-        const baseVal = prev ? prev[i] - (buckets[i][key] || 0) : 0;
-        const topVal = prev ? prev[i] : (buckets[i][key] || 0);
-        const yTop = padT + ch - (topVal / max) * ch;
-        const yBot = padT + ch - (baseVal / max) * ch;
-        topPath += (i === 0 ? 'M' : 'L') + x.toFixed(1) + ',' + yTop.toFixed(1);
-        stack.push({ x, yBot });
-      }
-      for (let i = n - 1; i >= 0; i--) {
-        botPath += 'L' + stack[i].x.toFixed(1) + ',' + stack[i].yBot.toFixed(1);
-      }
-      return topPath + botPath + 'Z';
-    }
-
-    // Simple stacked approach
-    const cumul = new Array(n).fill(0);
-    function stackArea(key, color) {
-      let topPts = [], botPts = [];
-      for (let i = 0; i < n; i++) {
-        const x = padL + i * xStep;
-        const base = cumul[i];
-        cumul[i] += (buckets[i][key] || 0);
-        const yTop = padT + ch - (cumul[i] / max) * ch;
-        const yBot = padT + ch - (base / max) * ch;
-        topPts.push(`${x.toFixed(1)},${yTop.toFixed(1)}`);
-        botPts.push(`${x.toFixed(1)},${yBot.toFixed(1)}`);
-      }
-      const d = 'M' + topPts.join('L') + 'L' + botPts.reverse().join('L') + 'Z';
-      return `<path d="${d}" fill="${color}" opacity="0.7"/>`;
-    }
-
-    // Grid lines
-    let grid = '';
-    for (let i = 0; i <= 3; i++) {
-      const y = padT + (ch / 3) * i;
-      const val = Math.round(max - (max / 3) * i);
-      grid += `<line x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" stroke="var(--border)" stroke-width="0.5"/>`;
-      grid += `<text x="${padL - 4}" y="${y + 3}" text-anchor="end" fill="var(--text3)" font-size="8">${val}</text>`;
-    }
-
-    // X labels (show every 2nd or 3rd to avoid crowding)
-    let labels = '';
-    const labelEvery = n <= 7 ? 1 : n <= 12 ? 2 : 3;
+    // Bar chart with stacked segments
+    let bars = '';
     for (let i = 0; i < n; i++) {
-      if (i % labelEvery === 0 || i === n - 1) {
-        const x = padL + i * xStep;
-        labels += `<text x="${x}" y="${H - 2}" text-anchor="middle" fill="var(--text3)" font-size="8">${buckets[i].label}</text>`;
-      }
-    }
-
-    // Dots on top line
-    let dots = '';
-    for (let i = 0; i < n; i++) {
-      const x = padL + i * xStep;
-      const y = padT + ch - (cumul[i] / max) * ch;
-      dots += `<circle cx="${x}" cy="${y}" r="2.5" fill="var(--accent)" stroke="#fff" stroke-width="1"/>`;
-    }
-
-    // Total line on top
-    let topLine = '';
-    for (let i = 0; i < n; i++) {
-      const x = padL + i * xStep;
-      const y = padT + ch - (cumul[i] / max) * ch;
-      topLine += (i === 0 ? 'M' : 'L') + `${x.toFixed(1)},${y.toFixed(1)}`;
-    }
-
-    // Reset cumul and build
-    cumul.fill(0);
-    const areas = stackArea('comments', '#FFB100') + stackArea('bugs', '#8b5cf6') + stackArea('slack', '#4A154B');
-
-    // Top line after stacking
-    let linePath = '';
-    for (let i = 0; i < n; i++) {
-      const x = padL + i * xStep;
-      const y = padT + ch - (cumul[i] / max) * ch;
-      linePath += (i === 0 ? 'M' : 'L') + `${x.toFixed(1)},${y.toFixed(1)}`;
-    }
-    let dotsStr = '';
-    for (let i = 0; i < n; i++) {
-      const x = padL + i * xStep;
-      const y = padT + ch - (cumul[i] / max) * ch;
-      dotsStr += `<circle cx="${x}" cy="${y}" r="2" fill="var(--text2)" stroke="var(--card)" stroke-width="1"/>`;
+      const b = buckets[i];
+      const totalH = Math.max((b.total / max) * (chartH - 20), b.total > 0 ? 6 : 2);
+      const sH = b.total > 0 ? Math.max((b.slack / b.total) * totalH, b.slack > 0 ? 3 : 0) : 0;
+      const bH = b.total > 0 ? Math.max((b.bugs / b.total) * totalH, b.bugs > 0 ? 3 : 0) : 0;
+      const cH = b.total > 0 ? Math.max(totalH - sH - bH, b.comments > 0 ? 3 : 0) : 0;
+      bars += `<div style="display:flex;flex-direction:column;align-items:center;gap:2px;flex:1;min-width:0;">
+        <div style="width:100%;height:${chartH - 20}px;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;">
+          <div style="width:${Math.min(barW, 28)}px;display:flex;flex-direction:column;justify-content:flex-end;height:100%;" title="${b.total} events (${b.slack} slack, ${b.bugs} bugs, ${b.comments} comments)">
+            ${b.total === 0 ? `<div style="height:2px;background:var(--border);border-radius:2px;width:100%;"></div>` : `
+              ${sH > 0 ? `<div style="height:${sH}px;background:#4A154B;border-radius:3px 3px 0 0;width:100%;"></div>` : ''}
+              ${bH > 0 ? `<div style="height:${bH}px;background:#8b5cf6;width:100%;${sH === 0 ? 'border-radius:3px 3px 0 0;' : ''}"></div>` : ''}
+              ${cH > 0 ? `<div style="height:${cH}px;background:#FFB100;width:100%;${sH === 0 && bH === 0 ? 'border-radius:3px 3px 0 0;' : ''}border-radius:0 0 3px 3px;"></div>` : ''}
+            `}
+          </div>
+        </div>
+        <div style="font-size:8px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;text-align:center;">${b.label}</div>
+      </div>`;
     }
 
     wrap.innerHTML = `
-      <svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block;">
-        ${grid}
-        ${areas}
-        <path d="${linePath}" fill="none" stroke="var(--text3)" stroke-width="1" opacity="0.5"/>
-        ${dotsStr}
-        ${labels}
-      </svg>
-      <div style="display:flex;justify-content:center;gap:12px;margin-top:6px;">
-        <span style="font-size:10px;color:var(--text3);display:flex;align-items:center;gap:4px;"><span style="width:8px;height:8px;border-radius:2px;background:#FFB100;display:inline-block;"></span>Comments</span>
-        <span style="font-size:10px;color:var(--text3);display:flex;align-items:center;gap:4px;"><span style="width:8px;height:8px;border-radius:2px;background:#8b5cf6;display:inline-block;"></span>Bugs</span>
+      <div style="display:flex;align-items:flex-end;gap:${gap}px;padding:8px 4px 0;">${bars}</div>
+      <div style="display:flex;justify-content:center;gap:14px;margin-top:8px;padding-bottom:4px;">
         <span style="font-size:10px;color:var(--text3);display:flex;align-items:center;gap:4px;"><span style="width:8px;height:8px;border-radius:2px;background:#4A154B;display:inline-block;"></span>Slack</span>
+        <span style="font-size:10px;color:var(--text3);display:flex;align-items:center;gap:4px;"><span style="width:8px;height:8px;border-radius:2px;background:#8b5cf6;display:inline-block;"></span>Bugs</span>
+        <span style="font-size:10px;color:var(--text3);display:flex;align-items:center;gap:4px;"><span style="width:8px;height:8px;border-radius:2px;background:#FFB100;display:inline-block;"></span>Comments</span>
       </div>`;
   } catch(e) {
     console.warn('Activity chart error:', e);

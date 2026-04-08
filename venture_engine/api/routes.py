@@ -3000,9 +3000,11 @@ def list_annotation_threads(db: Session = Depends(get_db_dependency)):
                 news_item = {
                     "id": ni.id,
                     "title": ni.title,
+                    "summary": ni.summary,
                     "source": ni.source,
                     "source_name": ni.source_name,
                     "image_url": ni.image_url,
+                    "url": ni.url,
                 }
 
         # Build full message list for expanded thread view

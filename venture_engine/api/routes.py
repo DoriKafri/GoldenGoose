@@ -3704,33 +3704,42 @@ def dedup_news(db: Session = Depends(get_db_dependency)):
     total_deleted = 0
 
     def _delete_news_item_cascade(item):
-        """Delete a news item and all its dependent records (replies, reactions, annotations)."""
-        ann_ids = [a.id for a in db.query(PageAnnotation).filter(
-            PageAnnotation.news_item_id == item.id
-        ).all()]
-        if ann_ids:
-            from venture_engine.db.models import PageAnnotationReply, AnnotationReaction
-            db.query(PageAnnotationReply).filter(
-                PageAnnotationReply.annotation_id.in_(ann_ids)
-            ).delete(synchronize_session=False)
-            db.query(AnnotationReaction).filter(
-                AnnotationReaction.annotation_id.in_(ann_ids)
-            ).delete(synchronize_session=False)
-            db.query(PageAnnotation).filter(
-                PageAnnotation.news_item_id == item.id
-            ).delete(synchronize_session=False)
-        db.delete(item)
+        """Delete a news item and all its dependent records using raw SQL for reliable cascade."""
+        from sqlalchemy import text
+        nid = item.id
+        # 1) Delete replies referencing annotations on this news item
+        db.execute(text(
+            "DELETE FROM page_annotation_replies WHERE annotation_id IN "
+            "(SELECT id FROM page_annotations WHERE news_item_id = :nid)"
+        ), {"nid": nid})
+        # 2) Delete reactions referencing annotations on this news item
+        db.execute(text(
+            "DELETE FROM annotation_reactions WHERE annotation_id IN "
+            "(SELECT id FROM page_annotations WHERE news_item_id = :nid)"
+        ), {"nid": nid})
+        # 3) Delete annotations on this news item
+        db.execute(text(
+            "DELETE FROM page_annotations WHERE news_item_id = :nid"
+        ), {"nid": nid})
+        # 4) Delete the news item itself
+        db.execute(text(
+            "DELETE FROM news_feed WHERE id = :nid"
+        ), {"nid": nid})
 
     def _dedup_group(items_list):
         """Keep first item, reassign annotations from rest, then delete rest."""
         nonlocal total_deleted
+        from sqlalchemy import text
         keep = items_list[0]
         for item in items_list[1:]:
-            # Reassign annotations (and their replies/reactions stay intact)
-            db.query(PageAnnotation).filter(
-                PageAnnotation.news_item_id == item.id
-            ).update({"news_item_id": keep.id}, synchronize_session=False)
-            db.delete(item)
+            # Reassign annotations to surviving item
+            db.execute(text(
+                "UPDATE page_annotations SET news_item_id = :keep_id WHERE news_item_id = :dup_id"
+            ), {"keep_id": keep.id, "dup_id": item.id})
+            # Delete the duplicate news item
+            db.execute(text(
+                "DELETE FROM news_feed WHERE id = :nid"
+            ), {"nid": item.id})
             total_deleted += 1
 
     try:

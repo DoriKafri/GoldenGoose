@@ -2,6 +2,18 @@
 
 ---
 
+## v0.11.0 — 2026-04-08
+
+### Sprint Planning & Product Owner
+- **Sprint column** — New "Sprint" status in the Jira board between Open and In Progress, with runner icon and amber highlight
+- **Product Owner (Maya Levi)** — Automated PO persona that reviews the backlog every hour
+- **Hourly sprint planning** — PO moves top 10 bugs from Open to Sprint based on value/effort ratio (business_value / story_points × priority bonus)
+- **Story points & business value** — Every bug now has Fibonacci story points (1,2,3,5,8,13) for effort and a 1-10 business value score
+- **Bug card indicators** — Board cards show 🎯 (value) and ⏱ (effort) on each bug for quick prioritization
+- **PO comments** — Maya leaves a sprint planning comment on each moved bug explaining the value/effort ratio
+
+---
+
 ## v0.10.0 — 2026-04-08
 
 ### True 3D Knowledge Graph & Release Notes

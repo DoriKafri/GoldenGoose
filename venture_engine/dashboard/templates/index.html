@@ -982,6 +982,14 @@ html.dark .toggle-track::after { transform:translateX(16px); }
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/><circle cx="18" cy="6" r="3"/><line x1="8.5" y1="7.5" x2="15.5" y2="16.5"/><line x1="8.5" y1="6" x2="15.5" y2="6"/></svg>
         Graph
       </button>
+      <button class="sidebar-nav-item" data-tab="slack" onclick="switchTab('slack')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 2a2.5 2.5 0 00-2.5 2.5V9h4.5A2.5 2.5 0 0014.5 2z"/><path d="M9.5 2A2.5 2.5 0 007 4.5V9h4.5V4.5A2.5 2.5 0 009.5 2z" opacity=".5"/><path d="M22 9.5a2.5 2.5 0 00-2.5-2.5H15v4.5a2.5 2.5 0 002.5 2.5H22V9.5z" opacity=".5"/><path d="M2 14.5A2.5 2.5 0 004.5 17H9v-4.5A2.5 2.5 0 006.5 10H2v4.5z" opacity=".5"/></svg>
+        Slack
+      </button>
+      <button class="sidebar-nav-item" data-tab="activity" onclick="switchTab('activity')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        Activity
+      </button>
     </div>
 
     <div class="sidebar-section" id="sidebarFilters">
@@ -1281,7 +1289,7 @@ if (location.hash && location.hash.startsWith('#news/read/')) {
   <!-- annFloatBtn is created dynamically in JS to avoid iframe fallback parsing -->
   <div class="ann-compose" id="annCompose">
     <div style="font-size:11px;color:var(--text2);margin-bottom:6px;font-style:italic;border-left:3px solid #f59e0b;padding-left:8px;" id="annComposeQuote"></div>
-    <textarea id="annComposeBody" placeholder="Write your annotation..."></textarea>
+    <textarea id="annComposeBody" placeholder="Write your annotation..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();submitAnnotation();}"></textarea>
     <div class="ann-compose-actions">
       <button class="ann-compose-cancel" onclick="hideAnnotationCompose()">Cancel</button>
       <button class="ann-compose-submit" onclick="submitAnnotation()">Post</button>
@@ -1854,7 +1862,7 @@ function switchTab(tab, skipHash) {
     b.classList.toggle('active', b.dataset.tab === tab);
   });
   // Show/hide context-sensitive elements
-  const isVentureTab = !['news','threads','bugs','graph'].includes(tab);
+  const isVentureTab = !['news','threads','bugs','graph','slack','activity'].includes(tab);
   document.getElementById('suggestTabBtn').style.display = isVentureTab ? '' : 'none';
   document.getElementById('newsPostBar').style.display = (tab === 'news') ? '' : 'none';
   document.getElementById('ventureSearchBar').style.display = isVentureTab ? '' : 'none';
@@ -1872,6 +1880,8 @@ function switchTab(tab, skipHash) {
   else if (tab === 'news') { loadNews(); }
   else if (tab === 'bugs') { loadBugs(); }
   else if (tab === 'graph') { loadGraph(); }
+  else if (tab === 'slack') { loadSlack(); }
+  else if (tab === 'activity') { loadActivity(); }
   else { loadVentures(); }
 }
 
@@ -2170,6 +2180,21 @@ function renderNewsFeed(items) {
   const oldResolveBar = document.getElementById('hnResolveBar');
   if (oldResolveBar) oldResolveBar.remove();
   if (!items.length) { el.innerHTML = '<div class="loading">No news items yet.</div>'; return; }
+  const sourceLogos = {
+    hackernews: 'https://news.ycombinator.com/favicon.ico',
+    twitter: 'https://abs.twimg.com/favicons/twitter.3.ico',
+    blog: null,
+    arxiv: 'https://arxiv.org/favicon.ico',
+    github: 'https://github.com/favicon.ico',
+    github_trending: 'https://github.com/favicon.ico',
+    conference: null,
+    podcast: null,
+    newsletter: null,
+    youtube: 'https://www.youtube.com/favicon.ico',
+    video: 'https://www.youtube.com/favicon.ico',
+    startup_signal: null,
+    producthunt: 'https://ph-static.imgix.net/ph-favicon-coral.ico',
+  };
   const sourceIcons = {
     hackernews: '\uD83D\uDCD0', twitter: '\uD83D\uDC26', blog: '\u270D\uFE0F', arxiv: '\uD83D\uDCDA',
     github: '\uD83D\uDC19', github_trending: '\uD83D\uDC19', conference: '\uD83C\uDFE4', podcast: '\uD83C\uDFA7', newsletter: '\uD83D\uDCEC',
@@ -2180,7 +2205,8 @@ function renderNewsFeed(items) {
   // _youtubeId is defined globally above
   el.innerHTML = items.map(item => {
     try {
-    const icon = sourceIcons[item.source] || '\uD83D\uDCF0';
+    const _srcLogo = sourceLogos[item.source] || (item.url ? 'https://www.google.com/s2/favicons?domain='+_hostname(item.url)+'&sz=64' : null);
+    const icon = _srcLogo ? '<img src="'+_srcLogo+'" alt="" style="width:28px;height:28px;border-radius:6px;object-fit:contain;" onerror="this.outerHTML=\''+(sourceIcons[item.source]||'\uD83D\uDCF0')+'\'">' : (sourceIcons[item.source] || '\uD83D\uDCF0');
     const tags = (item.tags||[]).map(t => `<span class="domain-badge" style="font-size:9px;padding:1px 6px;">${esc(t)}</span>`).join(' ');
     const strength = item.signal_strength ? `<span class="score-badge ${item.signal_strength >= 8 ? 'score-high' : item.signal_strength >= 5 ? 'score-mid' : 'score-low'}" style="font-size:11px;min-width:24px;">${item.signal_strength.toFixed(1)}</span>` : '';
     const ventures = (item.linked_ventures||[]).map(v => {
@@ -2234,7 +2260,7 @@ function renderNewsFeed(items) {
         </div>
         <div class="news-ann-list" style="display:none;">${annItems}</div>
         <div class="news-comment-form" style="display:none;margin-top:8px;">
-          <textarea placeholder="Write a comment about this article..." style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;resize:vertical;min-height:50px;box-sizing:border-box;"></textarea>
+          <textarea placeholder="Write a comment about this article..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();this.closest('.news-comment-form').querySelector('.ann-compose-submit,button:last-child').click();}" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;resize:vertical;min-height:50px;box-sizing:border-box;"></textarea>
           <div style="display:flex;justify-content:flex-end;gap:6px;margin-top:4px;">
             <button onclick="event.stopPropagation();this.closest('.news-comment-form').style.display='none';" style="padding:4px 12px;border-radius:6px;background:var(--bg2);border:1px solid var(--border);font-size:11px;cursor:pointer;">Cancel</button>
             <button onclick="event.stopPropagation();submitNewsComment('${item.id}','${esc(item.url)}',this)" style="padding:4px 12px;border-radius:6px;background:#f59e0b;color:#fff;border:none;font-size:11px;font-weight:600;cursor:pointer;">Post</button>
@@ -2271,7 +2297,7 @@ function renderNewsFeed(items) {
     return `
     <div class="venture-row news-reader-card" style="cursor:${item.url?'pointer':'default'}; position:relative;" data-url="${esc(item.url||'')}" data-title="${esc(item.title||'')}" data-news-id="${item.id}">
       ${strength}
-      <div style="font-size:22px;flex-shrink:0;width:36px;text-align:center;">${icon}</div>
+      <div style="font-size:22px;flex-shrink:0;width:36px;text-align:center;display:flex;align-items:center;justify-content:center;">${icon}</div>
       <div class="venture-info" style="gap:4px;">
         <div class="venture-title"><strong>${esc(item.title)}</strong></div>
         <div class="venture-summary" style="font-size:12px;color:var(--text2);">${esc(item.summary||'')}</div>
@@ -4258,29 +4284,40 @@ function renderReaderAnnotations() {
       ? `onclick="event.stopPropagation();_ytSeekTo(${ann.timestamp_seconds})"`
       : `onclick="scrollToAnnotation('${ann.id}')" onmouseenter="_highlightMarks('${ann.id}',true)" onmouseleave="_highlightMarks('${ann.id}',false)"`;
 
+    const isMine = ann.author_id === anonId;
+    const replyCount = (ann.replies||[]).length;
+    const rxnHtml = (ann.reactions||[]).map(rx => {
+      const rxMine = rx.users.some(u => u.author_id === anonId);
+      return `<button class="ann-reaction-btn ${rxMine?'mine':''}" onclick="event.stopPropagation();toggleReaction('${ann.id}','${rx.emoji}')" title="${rx.users.map(u=>u.author_name||'Anon').join(', ')}">${rx.emoji} <span class="rxn-count">${rx.count}</span></button>`;
+    }).join('');
+
     return `<div class="reader-ann-card" data-ann-id="${ann.id}" ${cardClick}>
       ${tsBadge}
-      <div class="reader-ann-body">${esc(ann.body)}</div>
-      <div class="reader-ann-meta">
-        <img src="${avatar}" alt="">
-        <span style="font-weight:600;">${esc(ann.author_name||'Anon')}</span>
-        <span>${timeAgo(ann.created_at)}</span>
-      </div>
-      <div class="ann-reactions" onclick="event.stopPropagation()">
-        ${(ann.reactions||[]).map(rx => {
-          const isMine = rx.users.some(u => u.author_id === anonId);
-          return '<button class="ann-reaction-btn '+(isMine?'mine':'')+'" onclick="event.stopPropagation();toggleReaction(\''+ann.id+'\',\''+rx.emoji+'\')" title="'+rx.users.map(u=>u.author_name||'Anon').join(', ')+'">'+rx.emoji+' <span class="rxn-count">'+rx.count+'</span></button>';
-        }).join('')}
-        <button class="ann-reaction-add" onclick="event.stopPropagation();showEmojiPicker(this,'${ann.id}')" title="Add reaction">+</button>
-      </div>
-      <div class="reader-ann-actions">
-        <button onclick="event.stopPropagation();toggleReplyForm('${ann.id}')">Reply</button>
-        ${ann.author_id === anonId ? '<button onclick="event.stopPropagation();deleteAnnotation(\''+ann.id+'\')" style="color:#ef4444;">Delete</button>' : ''}
-      </div>
-      ${replies ? '<div class="reader-replies">' + replies + '</div>' : ''}
-      <div class="reader-reply-input" id="replyForm_${ann.id}" style="display:none;">
-        <input type="text" placeholder="Write a reply..." id="replyInput_${ann.id}" onkeydown="if(event.key==='Enter')submitReply('${ann.id}')">
-        <button onclick="submitReply('${ann.id}')">Reply</button>
+      <div style="display:flex;align-items:flex-start;gap:10px;margin-top:${isVideoAnn?'8':'0'}px;">
+        <img src="${avatar}" alt="" style="width:32px;height:32px;border-radius:50%;flex-shrink:0;margin-top:2px;">
+        <div style="flex:1;min-width:0;">
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span style="font-size:12px;font-weight:700;color:var(--text);">${esc(ann.author_name||'Anon')}</span>
+            <span style="font-size:10px;color:var(--text3);">${timeAgo(ann.created_at)}</span>
+            ${isMine?'<span style="font-size:9px;padding:1px 6px;border-radius:var(--radius-pill);background:rgba(245,158,11,0.12);color:#d97706;font-weight:600;">You</span>':''}
+          </div>
+          <div class="reader-ann-body" id="annBody_${ann.id}" style="margin-top:3px;">${esc(ann.body)}</div>
+          <div style="display:flex;align-items:center;gap:2px;margin-top:6px;flex-wrap:wrap;" onclick="event.stopPropagation()">
+            <button class="ann-reaction-add" onclick="event.stopPropagation();toggleReaction('${ann.id}','👍')" title="Like" style="border:none;font-size:16px;padding:2px 4px;">👍</button>
+            <button class="ann-reaction-add" onclick="event.stopPropagation();toggleReaction('${ann.id}','👎')" title="Dislike" style="border:none;font-size:16px;padding:2px 4px;">👎</button>
+            ${rxnHtml}
+            <button class="ann-reaction-add" onclick="event.stopPropagation();showEmojiPicker(this,'${ann.id}')" title="Add reaction" style="font-size:12px;">+</button>
+            <span style="width:8px;"></span>
+            <button onclick="event.stopPropagation();toggleReplyForm('${ann.id}')" style="background:none;border:none;color:var(--text2);font-size:11px;font-weight:600;cursor:pointer;padding:2px 8px;border-radius:var(--radius-pill);font-family:inherit;" onmouseover="this.style.background='var(--bg2)'" onmouseout="this.style.background='none'">Reply${replyCount?' ('+replyCount+')':''}</button>
+            ${isMine?`<button onclick="event.stopPropagation();_annStartEdit('${ann.id}')" style="background:none;border:none;color:var(--text3);font-size:11px;cursor:pointer;padding:2px 8px;border-radius:var(--radius-pill);font-family:inherit;" onmouseover="this.style.background='var(--bg2)'" onmouseout="this.style.background='none'">Edit</button>
+            <button onclick="event.stopPropagation();_annDeleteReader('${ann.id}')" style="background:none;border:none;color:var(--text3);font-size:11px;cursor:pointer;padding:2px 8px;border-radius:var(--radius-pill);font-family:inherit;" onmouseover="this.style.color='#ef4444';this.style.background='rgba(239,68,68,0.06)'" onmouseout="this.style.color='var(--text3)';this.style.background='none'">Delete</button>`:''}
+          </div>
+          ${replies ? '<div class="reader-replies">' + replies + '</div>' : ''}
+          <div class="reader-reply-input" id="replyForm_${ann.id}" style="display:none;">
+            <input type="text" placeholder="Add a reply..." id="replyInput_${ann.id}" onkeydown="if(event.key==='Enter')submitReply('${ann.id}')" style="flex:1;padding:6px 12px;border:1px solid var(--border);border-radius:20px;font-size:12px;background:var(--bg);color:var(--text);outline:none;" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'">
+            <button onclick="submitReply('${ann.id}')" style="padding:4px 14px;border-radius:20px;border:none;background:var(--accent);color:#fff;font-size:11px;font-weight:600;cursor:pointer;">Reply</button>
+          </div>
+        </div>
       </div>
     </div>`;
   }).join('');
@@ -4327,12 +4364,45 @@ async function submitReply(annId) {
   } catch(e) { alert('Failed to reply: ' + e.message); }
 }
 
-async function deleteAnnotation(annId) {
-  if (!confirm('Delete this annotation?')) return;
+async function _annDeleteReader(annId) {
+  if (!confirm('Delete this comment?')) return;
   try {
-    await fetch(`${API}/api/page-annotations/${annId}?author_id=${encodeURIComponent(anonId)}`, { method: 'DELETE' });
+    const resp = await fetch(`${API}/api/page-annotations/${annId}?author_id=${encodeURIComponent(anonId)}`, { method: 'DELETE' });
+    if (!resp.ok) { const d = await resp.json().catch(()=>({})); alert(d.detail||'Failed to delete'); return; }
     loadReaderAnnotations();
   } catch(e) { alert('Failed to delete: ' + e.message); }
+}
+
+function _annStartEdit(annId) {
+  const bodyEl = document.getElementById('annBody_' + annId);
+  if (!bodyEl) return;
+  const currentText = bodyEl.textContent;
+  bodyEl.innerHTML = `
+    <textarea id="annEditInput_${annId}" style="width:100%;padding:6px 8px;border:1px solid var(--accent);border-radius:8px;font-size:12px;resize:vertical;min-height:40px;box-sizing:border-box;font-family:inherit;background:var(--bg);color:var(--text);">${esc(currentText)}</textarea>
+    <div style="display:flex;gap:6px;margin-top:4px;justify-content:flex-end;">
+      <button onclick="event.stopPropagation();loadReaderAnnotations();" style="padding:3px 12px;border-radius:var(--radius-pill);font-size:10px;border:1px solid var(--border);background:var(--bg);color:var(--text2);cursor:pointer;font-family:inherit;">Cancel</button>
+      <button onclick="event.stopPropagation();_annSaveEdit('${annId}')" style="padding:3px 12px;border-radius:var(--radius-pill);font-size:10px;border:none;background:var(--accent);color:#fff;font-weight:600;cursor:pointer;font-family:inherit;">Save</button>
+    </div>`;
+  const ta = document.getElementById('annEditInput_' + annId);
+  ta.focus();
+  ta.setSelectionRange(ta.value.length, ta.value.length);
+  ta.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); _annSaveEdit(annId); } if (e.key === 'Escape') loadReaderAnnotations(); });
+}
+
+async function _annSaveEdit(annId) {
+  const input = document.getElementById('annEditInput_' + annId);
+  if (!input) return;
+  const body = input.value.trim();
+  if (!body) return;
+  try {
+    const resp = await fetch(`${API}/api/page-annotations/${annId}`, {
+      method: 'PATCH',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ body, author_id: anonId }),
+    });
+    if (!resp.ok) { const d = await resp.json().catch(()=>({})); alert(d.detail||'Failed to save'); return; }
+    loadReaderAnnotations();
+  } catch(e) { alert('Failed to save: ' + e.message); }
 }
 
 async function deleteReply(replyId) {
@@ -5855,6 +5925,255 @@ if (location.hash) {
   switchTab('news', true);
 }
 loadHarvestInfo();
+
+// ─── Slack Tab ──────────────────────────────────────────────────────────
+let _slackCurrentChannel = null;
+
+async function loadSlack() {
+  const el = document.getElementById('ventureList');
+  el.innerHTML = '<div class="loading">Loading Slack channels...</div>';
+  try {
+    const resp = await fetch(`${API}/api/slack/channels`);
+    let channels = await resp.json();
+    if (!channels.length) {
+      // Auto-seed
+      await fetch(`${API}/api/slack/seed`, {method:'POST'});
+      const r2 = await fetch(`${API}/api/slack/channels`);
+      channels = await r2.json();
+    }
+    renderSlackChannels(channels);
+  } catch(e) { el.innerHTML = '<div class="loading">Failed to load Slack.</div>'; }
+}
+
+function renderSlackChannels(channels) {
+  const el = document.getElementById('ventureList');
+  const chList = channels.map(ch => {
+    const latest = ch.latest_message;
+    const preview = latest ? `<div style="font-size:11px;color:var(--text3);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><strong>${esc(latest.author_name||'')}</strong>: ${esc((latest.body||'').slice(0,80))}</div>` : '';
+    return `<div class="venture-row" style="cursor:pointer;" onclick="_slackOpenChannel('${ch.id}','${esc(ch.name)}')">
+      <div style="font-size:22px;flex-shrink:0;width:36px;text-align:center;">#</div>
+      <div class="venture-info" style="gap:2px;">
+        <div class="venture-title"><strong>#${esc(ch.name)}</strong></div>
+        <div style="font-size:11px;color:var(--text2);">${esc(ch.description||'')}</div>
+        ${preview}
+        <div style="font-size:10px;color:var(--text3);margin-top:2px;">${ch.message_count} messages</div>
+      </div>
+    </div>`;
+  }).join('');
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px;padding:12px 0 8px;">
+      <span style="font-size:16px;font-weight:700;color:var(--text);">💬 Team Slack</span>
+      <span style="font-size:11px;color:var(--text3);">Simulated team communication</span>
+    </div>
+    ${chList}`;
+}
+
+async function _slackOpenChannel(channelId, channelName) {
+  _slackCurrentChannel = channelId;
+  const el = document.getElementById('ventureList');
+  el.innerHTML = '<div class="loading">Loading messages...</div>';
+  try {
+    const resp = await fetch(`${API}/api/slack/channels/${channelId}/messages`);
+    const data = await resp.json();
+    _renderSlackChannel(data, channelId);
+  } catch(e) { el.innerHTML = '<div class="loading">Failed to load channel.</div>'; }
+}
+
+function _renderSlackChannel(data, channelId) {
+  const el = document.getElementById('ventureList');
+  const ch = data.channel;
+  const msgs = data.messages || [];
+
+  const msgHtml = msgs.map(msg => {
+    const avatar = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(msg.author_name||'?')}&radius=50&size=32`;
+    const repliesHtml = (msg.replies||[]).map(r => {
+      const rAvatar = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(r.author_name||'?')}&radius=50&size=24`;
+      const rRxn = (r.reactions||[]).map(rx => `<span style="font-size:11px;background:var(--bg2);padding:1px 4px;border-radius:8px;">${rx.emoji}${rx.users?rx.users.length>1?' '+rx.users.length:''}</span>`).join(' ');
+      return `<div style="display:flex;gap:8px;padding:6px 0;border-top:1px solid var(--border);">
+        <img src="${rAvatar}" alt="" style="width:24px;height:24px;border-radius:50%;flex-shrink:0;margin-top:2px;">
+        <div style="flex:1;min-width:0;">
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span style="font-size:11px;font-weight:700;color:var(--text);">${esc(r.author_name||'Anon')}</span>
+            <span style="font-size:9px;color:var(--text3);">${timeAgo(r.created_at)}</span>
+          </div>
+          <div style="font-size:12px;color:var(--text);line-height:1.5;margin-top:1px;white-space:pre-wrap;">${esc(r.body)}</div>
+          ${rRxn?'<div style="margin-top:2px;">'+rRxn+'</div>':''}
+        </div>
+      </div>`;
+    }).join('');
+
+    const rxnHtml = (msg.reactions||[]).map(rx =>
+      `<span style="display:inline-flex;align-items:center;gap:2px;font-size:11px;background:var(--bg2);padding:2px 6px;border-radius:10px;border:1px solid var(--border);">${rx.emoji}${rx.users?rx.users.length>1?' <span style="font-size:10px;color:var(--text3);">'+rx.users.length+'</span>':''}</span>`
+    ).join(' ');
+
+    return `<div style="padding:12px 0;border-bottom:1px solid var(--border);">
+      <div style="display:flex;gap:10px;">
+        <img src="${avatar}" alt="" style="width:36px;height:36px;border-radius:50%;flex-shrink:0;">
+        <div style="flex:1;min-width:0;">
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span style="font-size:13px;font-weight:700;color:var(--text);">${esc(msg.author_name||'Anon')}</span>
+            <span style="font-size:10px;color:var(--text3);">${timeAgo(msg.created_at)}</span>
+          </div>
+          <div style="font-size:13px;color:var(--text);line-height:1.6;margin-top:4px;white-space:pre-wrap;">${_slackFormatBody(msg.body)}</div>
+          ${rxnHtml?'<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;">'+rxnHtml+'</div>':''}
+          ${msg.reply_count?'<div style="margin-top:8px;padding-left:12px;border-left:2px solid var(--accent);">'+repliesHtml+'</div>':''}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px;padding:12px 0 4px;">
+      <button onclick="loadSlack()" style="background:none;border:none;color:var(--accent);font-size:13px;cursor:pointer;font-weight:600;padding:4px 8px;border-radius:var(--radius-pill);font-family:inherit;" onmouseover="this.style.background='var(--bg2)'" onmouseout="this.style.background='none'">← Back</button>
+      <span style="font-size:16px;font-weight:700;color:var(--text);"># ${esc(ch.name)}</span>
+      <span style="font-size:11px;color:var(--text3);">${esc(ch.description||'')}</span>
+    </div>
+    <div style="overflow-y:auto;flex:1;padding:0 4px;">${msgHtml||'<div style="text-align:center;padding:40px;color:var(--text3);">No messages yet</div>'}</div>`;
+}
+
+function _slackFormatBody(text) {
+  // Format code blocks, bold, mentions
+  let s = esc(text);
+  s = s.replace(/```([\s\S]*?)```/g, '<pre style="background:var(--bg2);padding:8px 12px;border-radius:6px;font-size:11px;overflow-x:auto;margin:6px 0;font-family:monospace;">$1</pre>');
+  s = s.replace(/`([^`]+)`/g, '<code style="background:var(--bg2);padding:1px 4px;border-radius:3px;font-size:11px;">$1</code>');
+  s = s.replace(/\*([^*]+)\*/g, '<strong>$1</strong>');
+  s = s.replace(/@(\w+)/g, '<span style="color:var(--accent);font-weight:600;">@$1</span>');
+  return s;
+}
+
+// ─── Activity Monitor Tab ───────────────────────────────────────────────
+async function loadActivity() {
+  const el = document.getElementById('ventureList');
+  el.innerHTML = '<div class="loading">Loading activity feed...</div>';
+  try {
+    // Fetch multiple data sources in parallel
+    const [annResp, bugResp, slackResp] = await Promise.all([
+      fetch(`${API}/api/page-annotations?url=__all__`).then(r=>r.json()).catch(()=>[]),
+      fetch(`${API}/api/bugs`).then(r=>r.json()).catch(()=>[]),
+      fetch(`${API}/api/slack/channels`).then(r=>r.json()).catch(()=>[]),
+    ]);
+
+    // Collect activity events
+    const events = [];
+
+    // Bug activities
+    (bugResp.bugs||bugResp||[]).forEach(bug => {
+      events.push({type:'bug', subtype: bug.status==='open'?'created':'updated', title: bug.key+': '+bug.title, user: bug.reporter_name||bug.reporter_email, time: bug.updated_at||bug.created_at, icon:'🐛', color:'#ef4444', detail: `Status: ${bug.status} · Priority: ${bug.priority}`});
+      (bug.comments||[]).forEach(c => {
+        events.push({type:'bug_comment', title: 'Commented on '+bug.key, user: c.author_name||c.author_email, time: c.created_at, icon:'💬', color:'#8b5cf6', detail: c.body?.slice(0,120)});
+      });
+    });
+
+    // Slack channel stats
+    let totalSlackMsgs = 0;
+    (slackResp||[]).forEach(ch => { totalSlackMsgs += ch.message_count||0; });
+
+    // Sort by time descending
+    events.sort((a,b) => new Date(b.time||0) - new Date(a.time||0));
+    const recent = events.slice(0, 100);
+
+    // Stats cards
+    const bugCount = (bugResp.bugs||bugResp||[]).length;
+    const openBugs = (bugResp.bugs||bugResp||[]).filter(b=>b.status==='open').length;
+    const inProgress = (bugResp.bugs||bugResp||[]).filter(b=>b.status==='in_progress').length;
+    const doneBugs = (bugResp.bugs||bugResp||[]).filter(b=>b.status==='done'||b.status==='closed').length;
+
+    const statsHtml = `
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:16px;">
+        <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px;text-align:center;">
+          <div style="font-size:24px;font-weight:700;color:var(--text);">${bugCount}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px;">Total Bugs</div>
+        </div>
+        <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px;text-align:center;">
+          <div style="font-size:24px;font-weight:700;color:#3b82f6;">${openBugs}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px;">Open</div>
+        </div>
+        <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px;text-align:center;">
+          <div style="font-size:24px;font-weight:700;color:#d97706;">${inProgress}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px;">In Progress</div>
+        </div>
+        <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px;text-align:center;">
+          <div style="font-size:24px;font-weight:700;color:#16a34a;">${doneBugs}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px;">Done/Closed</div>
+        </div>
+        <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px;text-align:center;">
+          <div style="font-size:24px;font-weight:700;color:var(--accent);">${totalSlackMsgs}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px;">Slack Messages</div>
+        </div>
+        <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px;text-align:center;">
+          <div style="font-size:24px;font-weight:700;color:#8b5cf6;">${events.length}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px;">Total Events</div>
+        </div>
+      </div>`;
+
+    // Team member activity breakdown
+    const userMap = {};
+    events.forEach(e => {
+      const u = e.user || 'Unknown';
+      userMap[u] = (userMap[u]||0)+1;
+    });
+    const topUsers = Object.entries(userMap).sort((a,b)=>b[1]-a[1]).slice(0,10);
+    const maxAct = topUsers.length ? topUsers[0][1] : 1;
+    const teamHtml = topUsers.map(([name,count]) => {
+      const pct = Math.round(count/maxAct*100);
+      const avatar = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(name)}&radius=50&size=24`;
+      return `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;">
+        <img src="${avatar}" style="width:24px;height:24px;border-radius:50%;">
+        <span style="font-size:12px;font-weight:600;color:var(--text);min-width:120px;">${esc(name)}</span>
+        <div style="flex:1;height:6px;background:var(--bg2);border-radius:3px;overflow:hidden;"><div style="height:100%;width:${pct}%;background:var(--accent);border-radius:3px;"></div></div>
+        <span style="font-size:11px;color:var(--text3);min-width:30px;text-align:right;">${count}</span>
+      </div>`;
+    }).join('');
+
+    // Timeline
+    const timelineHtml = recent.map(e => {
+      const avatar = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(e.user||'?')}&radius=50&size=24`;
+      return `<div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);">
+        <div style="font-size:16px;width:24px;text-align:center;flex-shrink:0;">${e.icon}</div>
+        <img src="${avatar}" style="width:24px;height:24px;border-radius:50%;flex-shrink:0;">
+        <div style="flex:1;min-width:0;">
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+            <span style="font-size:12px;font-weight:600;color:var(--text);">${esc(e.user||'Unknown')}</span>
+            <span style="font-size:11px;color:var(--text2);">${esc(e.title)}</span>
+            <span style="font-size:10px;color:var(--text3);">${timeAgo(e.time)}</span>
+          </div>
+          ${e.detail?'<div style="font-size:11px;color:var(--text3);margin-top:2px;">'+esc(e.detail)+'</div>':''}
+        </div>
+      </div>`;
+    }).join('');
+
+    el.innerHTML = `
+      <div style="padding:12px 0 8px;">
+        <span style="font-size:16px;font-weight:700;color:var(--text);">📊 Activity Monitor</span>
+        <span style="font-size:11px;color:var(--text3);margin-left:8px;">Simulated 24/7 user activity</span>
+      </div>
+      ${statsHtml}
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+        <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px;">
+          <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:8px;">👥 Team Activity</div>
+          ${teamHtml}
+        </div>
+        <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px;">
+          <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:8px;">⏰ Simulation Info</div>
+          <div style="font-size:12px;color:var(--text2);line-height:1.8;">
+            <div>🔄 Activity runs every <strong>30 minutes</strong></div>
+            <div>💬 1-3 article comments per cycle</div>
+            <div>🔁 0-2 reply threads per cycle</div>
+            <div>👍 1-4 emoji reactions per cycle</div>
+            <div>🐛 ~40% chance of new bug per cycle</div>
+            <div>📝 1-3 bug status transitions per cycle</div>
+            <div>💬 2-4 Slack messages per cycle</div>
+            <div>👥 10 simulated Develeap team members</div>
+          </div>
+        </div>
+      </div>
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px;">
+        <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:8px;">📜 Recent Activity Timeline</div>
+        ${timelineHtml||'<div style="text-align:center;padding:20px;color:var(--text3);">No activity yet. Activity simulation runs every 30 minutes.</div>'}
+      </div>`;
+  } catch(e) { el.innerHTML = '<div class="loading">Failed to load activity: '+e.message+'</div>'; }
+}
+
 </script>
 
 <!-- Mobile drawer -->

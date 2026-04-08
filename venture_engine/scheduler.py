@@ -87,6 +87,14 @@ def _training_harvest():
         logger.error(f"Training harvest error: {e}")
 
 
+def _simulate_user_activity():
+    """Job 6: Simulate 24/7 user activity (comments, reactions, bugs, Slack)."""
+    from venture_engine.activity_simulator import run_activity_simulation
+    from venture_engine.slack_simulator import run_slack_simulation
+    run_activity_simulation()
+    run_slack_simulation()
+
+
 def _weekly_digest():
     """Job 4: Generate and print weekly digest."""
     logger.info("=== SCHEDULED: Weekly digest ===")
@@ -158,12 +166,20 @@ def start_scheduler():
         id="weekly_digest",
         replace_existing=True,
     )
+    scheduler.add_job(
+        _simulate_user_activity,
+        "interval",
+        minutes=30,
+        id="simulate_user_activity",
+        replace_existing=True,
+    )
     scheduler.start()
     logger.info(
         f"Scheduler started: harvest every {settings.harvest_interval_hours}h, "
         f"gap check at {settings.gap_check_hour}:00, "
         f"TL sync every {settings.tl_sync_interval_hours}h, "
-        f"digest {settings.weekly_digest_day} {settings.weekly_digest_hour}:00"
+        f"digest {settings.weekly_digest_day} {settings.weekly_digest_hour}:00, "
+        f"activity sim every 30min"
     )
 
 

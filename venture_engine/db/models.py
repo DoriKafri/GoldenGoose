@@ -414,6 +414,33 @@ class BugComment(Base):
     bug = relationship("Bug", back_populates="comments")
 
 
+class SlackChannel(Base):
+    __tablename__ = "slack_channels"
+
+    id = Column(String, primary_key=True, default=new_uuid)
+    name = Column(String, unique=True, nullable=False)        # e.g. "general", "bugs", "feature-ideas"
+    description = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    messages = relationship("SlackMessage", back_populates="channel",
+                           order_by="SlackMessage.created_at", cascade="all, delete-orphan")
+
+
+class SlackMessage(Base):
+    __tablename__ = "slack_messages"
+
+    id = Column(String, primary_key=True, default=new_uuid)
+    channel_id = Column(String, ForeignKey("slack_channels.id"), nullable=False)
+    thread_id = Column(String, nullable=True)                  # parent message ID for threads
+    author_email = Column(Text, nullable=False)
+    author_name = Column(Text, nullable=True)
+    body = Column(Text, nullable=False)
+    reactions = Column(JSON, nullable=True)                    # [{"emoji": "👍", "users": ["kobi@..."]}]
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    channel = relationship("SlackChannel", back_populates="messages")
+
+
 class GraphEdge(Base):
     __tablename__ = "graph_edges"
 

@@ -191,7 +191,9 @@ def _backfill_news_from_signals():
             title = s.title or "Untitled"
             summary = (s.content or "")[:300]
             dopi_score = _score_dopi_relevance(title, summary)
-            if dopi_score < 5.0:
+            # Higher threshold for arXiv — require strong practical relevance
+            min_score = 8.5 if (s.source or "").lower() in ("arxiv",) else 5.0
+            if dopi_score < min_score:
                 logger.info(f"Filtered low-DOPI article (score={dopi_score}): {title[:60]}")
                 existing_urls.add(s.url)  # don't re-check
                 skipped += 1
@@ -335,7 +337,15 @@ def on_startup():
     _backfill_news_from_signals()
     logger.info("Backfilling image_url for YouTube news items...")
     _backfill_youtube_thumbnails()
+    logger.info("Seeding Slack channels...")
+    from venture_engine.slack_simulator import seed_channels_and_history
+    with get_db() as db:
+        seed_channels_and_history(db)
+    logger.info("Running initial activity simulation...")
+    from venture_engine.activity_simulator import simulate_activity
+    with get_db() as db:
+        simulate_activity(db)
     logger.info("Starting scheduler...")
     from venture_engine.scheduler import start_scheduler
     start_scheduler()
-    logger.info("Venture Intelligence Engine is running. v2.2")
+    logger.info("Venture Intelligence Engine is running. v2.3")

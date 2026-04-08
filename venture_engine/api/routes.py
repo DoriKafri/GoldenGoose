@@ -17,7 +17,7 @@ from venture_engine.db.models import (
     Venture, VentureScore, Vote, Comment, ThoughtLeader,
     TLSignal, HarvestRun, TechGap, Annotation, OfficeHoursReview,
     NewsFeedItem, PageAnnotation, PageAnnotationReply, AnnotationReaction,
-    Bug, BugComment, GraphEdge,
+    Bug, BugComment, GraphEdge, SlackChannel, SlackMessage,
 )
 
 router = APIRouter()
@@ -2871,6 +2871,27 @@ def delete_page_annotation(ann_id: str, author_id: str = Query(...), db: Session
     return {"ok": True}
 
 
+class EditAnnotationRequest(BaseModel):
+    body: str
+    author_id: str
+
+
+@router.patch("/api/page-annotations/{ann_id}")
+def update_page_annotation(ann_id: str, req: EditAnnotationRequest, db: Session = Depends(get_db_dependency)):
+    """Edit a page annotation body (only by its author)."""
+    ann = db.query(PageAnnotation).filter(PageAnnotation.id == ann_id).first()
+    if not ann:
+        raise HTTPException(404, "Annotation not found.")
+    if ann.author_id != req.author_id:
+        raise HTTPException(403, "You can only edit your own annotations.")
+    if not req.body.strip():
+        raise HTTPException(400, "Body cannot be empty.")
+    ann.body = req.body.strip()
+    db.commit()
+    db.refresh(ann)
+    return _serialize_annotation(ann)
+
+
 @router.post("/api/page-annotations/{ann_id}/replies")
 def create_annotation_reply(ann_id: str, req: PageAnnotationReplyRequest, db: Session = Depends(get_db_dependency)):
     """Add a threaded reply to an annotation."""
@@ -3928,4 +3949,128 @@ def post_news_url(req: NewsPostRequest, db: Session = Depends(get_db_dependency)
     else:
         result["venture"] = None
 
+    return result
+
+
+# ─── Slack Simulation Endpoints ──────────────────────────────────────────
+
+class SlackMessageRequest(BaseModel):
+    body: str
+    author_email: str = ""
+    author_name: str = ""
+    thread_id: Optional[str] = None
+
+
+def _serialize_slack_msg(msg):
+    return {
+        "id": msg.id,
+        "channel_id": msg.channel_id,
+        "thread_id": msg.thread_id,
+        "author_email": msg.author_email,
+        "author_name": msg.author_name,
+        "body": msg.body,
+        "reactions": msg.reactions or [],
+        "created_at": msg.created_at.isoformat() if msg.created_at else None,
+    }
+
+
+@router.get("/api/slack/channels")
+def list_slack_channels(db: Session = Depends(get_db_dependency)):
+    """List all Slack channels with latest message preview and unread count."""
+    channels = db.query(SlackChannel).order_by(SlackChannel.name).all()
+    result = []
+    for ch in channels:
+        msg_count = db.query(func.count(SlackMessage.id)).filter(
+            SlackMessage.channel_id == ch.id, SlackMessage.thread_id.is_(None)
+        ).scalar()
+        latest = db.query(SlackMessage).filter(
+            SlackMessage.channel_id == ch.id
+        ).order_by(SlackMessage.created_at.desc()).first()
+        result.append({
+            "id": ch.id,
+            "name": ch.name,
+            "description": ch.description,
+            "message_count": msg_count,
+            "latest_message": _serialize_slack_msg(latest) if latest else None,
+            "created_at": ch.created_at.isoformat() if ch.created_at else None,
+        })
+    return result
+
+
+@router.get("/api/slack/channels/{channel_id}/messages")
+def list_slack_messages(channel_id: str, db: Session = Depends(get_db_dependency)):
+    """List all top-level messages in a channel, with their thread replies."""
+    ch = db.query(SlackChannel).filter(SlackChannel.id == channel_id).first()
+    if not ch:
+        raise HTTPException(404, "Channel not found")
+
+    top_msgs = db.query(SlackMessage).filter(
+        SlackMessage.channel_id == channel_id,
+        SlackMessage.thread_id.is_(None),
+    ).order_by(SlackMessage.created_at.asc()).all()
+
+    result = []
+    for msg in top_msgs:
+        replies = db.query(SlackMessage).filter(
+            SlackMessage.thread_id == msg.id
+        ).order_by(SlackMessage.created_at.asc()).all()
+        m = _serialize_slack_msg(msg)
+        m["replies"] = [_serialize_slack_msg(r) for r in replies]
+        m["reply_count"] = len(replies)
+        result.append(m)
+
+    return {"channel": {"id": ch.id, "name": ch.name, "description": ch.description}, "messages": result}
+
+
+@router.post("/api/slack/channels/{channel_id}/messages")
+def post_slack_message(channel_id: str, req: SlackMessageRequest, db: Session = Depends(get_db_dependency)):
+    """Post a message to a Slack channel (or reply to a thread)."""
+    ch = db.query(SlackChannel).filter(SlackChannel.id == channel_id).first()
+    if not ch:
+        raise HTTPException(404, "Channel not found")
+    msg = SlackMessage(
+        channel_id=channel_id,
+        thread_id=req.thread_id,
+        author_email=req.author_email,
+        author_name=req.author_name,
+        body=req.body,
+    )
+    db.add(msg)
+    db.commit()
+    db.refresh(msg)
+    return _serialize_slack_msg(msg)
+
+
+@router.post("/api/slack/messages/{msg_id}/react")
+def react_slack_message(msg_id: str, emoji: str = Query(...), user_email: str = Query(""), user_name: str = Query(""), db: Session = Depends(get_db_dependency)):
+    """Add/toggle a reaction on a Slack message."""
+    msg = db.query(SlackMessage).filter(SlackMessage.id == msg_id).first()
+    if not msg:
+        raise HTTPException(404, "Message not found")
+    reactions = msg.reactions or []
+    found = False
+    for rxn in reactions:
+        if rxn["emoji"] == emoji:
+            if user_email in rxn.get("users", []):
+                rxn["users"].remove(user_email)
+                if not rxn["users"]:
+                    reactions.remove(rxn)
+            else:
+                rxn.setdefault("users", []).append(user_email)
+            found = True
+            break
+    if not found:
+        reactions.append({"emoji": emoji, "users": [user_email]})
+    msg.reactions = reactions
+    from sqlalchemy.orm.attributes import flag_modified
+    flag_modified(msg, "reactions")
+    db.commit()
+    return _serialize_slack_msg(msg)
+
+
+@router.post("/api/slack/seed")
+def seed_slack_channels(db: Session = Depends(get_db_dependency)):
+    """Seed default Slack channels if they don't exist."""
+    from venture_engine.slack_simulator import seed_channels_and_history
+    result = seed_channels_and_history(db)
     return result

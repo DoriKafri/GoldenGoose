@@ -1178,9 +1178,14 @@ def list_news(
 ):
     query = db.query(NewsFeedItem).order_by(NewsFeedItem.published_at.desc().nullslast())
 
+    # ── Global minimum score: hide items below 5.0 ──
+    from sqlalchemy import or_, and_
+    query = query.filter(
+        or_(NewsFeedItem.signal_strength >= 5.0, NewsFeedItem.signal_strength.is_(None))
+    )
+
     # ── Per-source score thresholds (arXiv needs ≥ 8.5) ──
     SOURCE_SCORE_THRESHOLDS = {"arxiv": 8.5}
-    from sqlalchemy import or_, and_
     threshold_filters = []
     for src, min_score in SOURCE_SCORE_THRESHOLDS.items():
         threshold_filters.append(

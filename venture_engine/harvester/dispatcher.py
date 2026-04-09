@@ -128,13 +128,17 @@ def run_all_sources(db: Session) -> HarvestRun:
             except Exception:
                 pass
 
+            _score = round(strength * 10, 1) if strength <= 1 else round(strength, 1)
+            # Skip low-quality items (score < 5.0)
+            if _score < 5.0:
+                continue
             news_item = NewsFeedItem(
                 title=s.get("title", "Untitled"),
                 url=url,
                 source=source,
                 source_name=SOURCE_NAMES.get(source, source),
                 summary=s.get("content", "")[:300] if s.get("content") else "",
-                signal_strength=round(strength * 10, 1) if strength <= 1 else round(strength, 1),
+                signal_strength=_score,
                 image_url=_img,
                 published_at=datetime.utcnow(),
             )

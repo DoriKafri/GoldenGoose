@@ -408,6 +408,21 @@ def _seed_bugs_if_empty():
         logger.info(f"Seeded {created} bugs & feature requests")
 
 
+def _purge_low_score_news():
+    """Remove news items with signal_strength below 5.0 on startup."""
+    from venture_engine.db.models import NewsFeedItem
+    with get_db() as db:
+        low = db.query(NewsFeedItem).filter(
+            NewsFeedItem.signal_strength.isnot(None),
+            NewsFeedItem.signal_strength < 5.0
+        ).all()
+        if low:
+            for item in low:
+                db.delete(item)
+            db.commit()
+            logger.info(f"Purged {len(low)} news items with score < 5.0")
+
+
 def _seed_releases_from_static():
     """Seed DB releases table from the static RELEASE_NOTES.md so all
     historical versions persist across deploys."""
@@ -487,6 +502,8 @@ def on_startup():
     from venture_engine.activity_simulator import simulate_activity
     with get_db() as db:
         simulate_activity(db)
+    logger.info("Purging low-score news items (< 5.0)...")
+    _purge_low_score_news()
     logger.info("Seeding DB releases from static RELEASE_NOTES.md...")
     _seed_releases_from_static()
     logger.info("Starting scheduler...")

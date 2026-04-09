@@ -1264,8 +1264,6 @@ def auto_release(db: Session) -> dict:
         latest_release = max(all_releases, key=_ver_tuple)
         major, minor, patch = _ver_tuple(latest_release)
         new_version = f"v{major}.{minor}.{patch + 1}"
-        else:
-            new_version = "v0.14.0"
     else:
         new_version = "v0.14.0"
 

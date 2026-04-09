@@ -7145,11 +7145,29 @@ async function loadGraph() {
   try {
     const resp = await fetch(`${API}/api/graph`);
     const data = await resp.json();
-    const MAX_NODES = 200, MAX_EDGES = 600;
+    // Smart node selection: take balanced types so edges connect
+    const MAX_NODES = 150, MAX_EDGES = 400;
     if (data.nodes && data.nodes.length > MAX_NODES) {
-      const priority = { venture: 0, thought_leader: 1, bug: 2, problem: 3, opportunity: 4, insight: 5, tag: 6 };
-      data.nodes.sort((a, b) => (priority[a.type] ?? 9) - (priority[b.type] ?? 9));
-      data.nodes = data.nodes.slice(0, MAX_NODES);
+      // Group by type, take proportional mix
+      const byType = {};
+      data.nodes.forEach(n => { (byType[n.type] = byType[n.type] || []).push(n); });
+      const quotas = { venture: 40, thought_leader: 25, bug: 25, problem: 15, opportunity: 15, insight: 15, tag: 15 };
+      let picked = [];
+      for (const [type, nodes] of Object.entries(byType)) {
+        const q = quotas[type] || 10;
+        picked = picked.concat(nodes.slice(0, q));
+      }
+      // Fill remaining slots with whatever has most connections
+      const pickedIds = new Set(picked.map(n => n.id));
+      const linkCounts = {};
+      (data.edges || []).forEach(e => {
+        linkCounts[e.source] = (linkCounts[e.source] || 0) + 1;
+        linkCounts[e.target] = (linkCounts[e.target] || 0) + 1;
+      });
+      const remaining = data.nodes.filter(n => !pickedIds.has(n.id));
+      remaining.sort((a, b) => (linkCounts[b.id] || 0) - (linkCounts[a.id] || 0));
+      picked = picked.concat(remaining.slice(0, MAX_NODES - picked.length));
+      data.nodes = picked;
       const keepIds = new Set(data.nodes.map(n => n.id));
       data.edges = (data.edges || []).filter(e => keepIds.has(e.source) && keepIds.has(e.target));
     }

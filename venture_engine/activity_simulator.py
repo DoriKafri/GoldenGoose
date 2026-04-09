@@ -112,6 +112,7 @@ def _record_bug_fix(n: int = 1):
 from venture_engine.db.models import (
     NewsFeedItem, PageAnnotation, PageAnnotationReply,
     AnnotationReaction, Bug, BugComment, ThoughtLeader,
+    SlackChannel, SlackMessage,
 )
 
 # ── Develeap team ──────────────────────────────────────────────────────────
@@ -810,7 +811,7 @@ def simulate_activity(db: Session) -> dict:
     if num_transitions <= 0:
         logger.info(f"Bug fix hourly limit reached ({BUG_FIX_HOURLY_LIMIT}/hr). Skipping transitions.")
     open_bugs_all = db.query(Bug).filter(
-        Bug.status.notin_(["done", "closed"])
+        Bug.status.notin_(["open", "done", "next_version", "closed"])
     ).all()
     # Sort by severity: critical → high → medium → low
     open_bugs_all.sort(key=lambda b: PRIORITY_ORDER.get(b.priority, 99))
@@ -821,15 +822,17 @@ def simulate_activity(db: Session) -> dict:
             current_idx = BUG_STATUS_FLOW.index(bug.status)
         except ValueError:
             current_idx = 0
-        if current_idx >= len(BUG_STATUS_FLOW) - 1:
+        # Bugs stop at "done" — sprint planning promotes done → next_version
+        done_idx = BUG_STATUS_FLOW.index("done")
+        if current_idx >= done_idx:
             continue
 
         # Advance by 1 step (sometimes skip review for low-priority)
         next_idx = current_idx + 1
         if bug.priority == "low" and bug.status == "in_progress" and random.random() < 0.3:
-            next_idx = BUG_STATUS_FLOW.index("done")  # skip review
+            next_idx = done_idx  # skip review
 
-        new_status = BUG_STATUS_FLOW[min(next_idx, len(BUG_STATUS_FLOW) - 1)]
+        new_status = BUG_STATUS_FLOW[min(next_idx, done_idx)]
         old_status = bug.status
         bug.status = new_status
         bug.updated_at = datetime.utcnow()
@@ -1028,10 +1031,10 @@ SPRINT_CAPACITY = 10  # max bugs to move to sprint per hour
 
 
 def sprint_planning(db: Session) -> dict:
-    """Product Owner reviews open/backlog bugs and moves top 10 highest-value/lowest-effort to sprint.
+    """Product Owner grooms and plans sprints — max 10 items scored by highest value + lowest effort.
 
-    Value/Effort ratio = business_value / story_points (higher = more attractive).
-    Ties broken by priority (critical first).
+    A new sprint is only created when the current sprint is done (no bugs in sprint/in_progress/review).
+    Value/Effort compound score = (business_value / story_points) × priority_bonus.
     """
     global _sprint_plan_hour
     now_ist = datetime.now(IST)
@@ -1043,12 +1046,32 @@ def sprint_planning(db: Session) -> dict:
             return {"moved": 0, "skipped": True}
         _sprint_plan_hour = current_hour
 
-    # Find all open bugs (candidates for sprint)
+    # ── Check if current sprint is still in progress ──
+    in_flight = db.query(Bug).filter(
+        Bug.status.in_(["sprint", "in_progress", "review"])
+    ).count()
+    if in_flight > 0:
+        logger.info(f"Sprint still in progress ({in_flight} items in sprint/in_progress/review). Waiting for completion.")
+        return {"moved": 0, "in_flight": in_flight, "waiting": True}
+
+    # ── Auto-promote: move all "done" bugs → "next_version" to queue for release ──
+    done_bugs = db.query(Bug).filter(Bug.status == "done").all()
+    promoted = 0
+    for bug in done_bugs:
+        bug.status = "next_version"
+        bug.updated_at = datetime.utcnow()
+        promoted += 1
+    if promoted:
+        logger.info(f"Sprint complete: promoted {promoted} done bugs → next_version for release.")
+
+    # ── Find all open bugs (candidates for new sprint) ──
     candidates = db.query(Bug).filter(Bug.status == "open").all()
 
     if not candidates:
+        if promoted:
+            db.commit()
         logger.info("Sprint planning: no open bugs to evaluate.")
-        return {"moved": 0, "candidates": 0}
+        return {"moved": 0, "candidates": 0, "promoted": promoted}
 
     # Backfill story_points/business_value for legacy bugs missing them
     for bug in candidates:
@@ -1059,7 +1082,7 @@ def sprint_planning(db: Session) -> dict:
             val_range = PRIORITY_TO_VALUE.get(bug.priority, (3, 6))
             bug.business_value = random.randint(val_range[0], val_range[1])
 
-    # Score each bug: value/effort ratio, with priority as tiebreaker
+    # Score each bug: compound of highest value + lowest effort, with priority bonus
     def _score(bug):
         sp = max(1, bug.story_points or 3)
         bv = bug.business_value or 5
@@ -1067,14 +1090,18 @@ def sprint_planning(db: Session) -> dict:
         return (bv / sp) * prio_bonus
 
     scored = sorted(candidates, key=_score, reverse=True)
-    top = scored[:SPRINT_CAPACITY]
+    top = scored[:SPRINT_CAPACITY]  # max 10 items
 
     moved = 0
     po = PRODUCT_OWNER
+    sprint_total_sp = 0
+    sprint_total_bv = 0
     for bug in top:
         bug.status = "sprint"
         bug.updated_at = datetime.utcnow()
         moved += 1
+        sprint_total_sp += (bug.story_points or 3)
+        sprint_total_bv += (bug.business_value or 5)
 
         # PO leaves a sprint planning comment
         ratio = round((bug.business_value or 5) / max(1, bug.story_points or 3), 1)
@@ -1088,12 +1115,33 @@ def sprint_planning(db: Session) -> dict:
         )
         db.add(comment)
 
+    # PO posts sprint summary to Slack #general
+    if moved > 0:
+        try:
+            channel = db.query(SlackChannel).filter(SlackChannel.name == "general").first()
+            if channel:
+                sprint_msg = SlackMessage(
+                    channel_id=channel.id,
+                    author_email=po["email"],
+                    author_name=po["name"],
+                    body=(
+                        f"📋 *New Sprint Planned* — {moved} items groomed and prioritized\n"
+                        f"Total story points: {sprint_total_sp} | Total business value: {sprint_total_bv}\n"
+                        f"Top priority: {top[0].key} ({top[0].priority}) — {top[0].title}\n"
+                        f"Selection criteria: highest value/effort compound score"
+                    ),
+                )
+                db.add(sprint_msg)
+        except Exception as e:
+            logger.warning(f"Failed to post sprint summary to Slack: {e}")
+
     db.commit()
     logger.info(
-        f"Sprint planning complete: {moved}/{len(candidates)} bugs moved to sprint. "
-        f"PO: {po['name']}."
+        f"Sprint planning complete: {moved}/{len(candidates)} bugs moved to sprint "
+        f"(SP={sprint_total_sp}, BV={sprint_total_bv}). "
+        f"Promoted {promoted} done→next_version. PO: {po['name']}."
     )
-    return {"moved": moved, "candidates": len(candidates), "po": po["name"]}
+    return {"moved": moved, "candidates": len(candidates), "promoted": promoted, "po": po["name"]}
 
 
 def run_sprint_planning():

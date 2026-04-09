@@ -7302,9 +7302,50 @@ function renderForceGraph(data) {
     .enableNodeDrag(true)
     .enableZoomInteraction(true)
     .enablePanInteraction(true)
-    // Use built-in node rendering (no custom canvas)
+    // Node rendering with labels
     .nodeRelSize(6)
     .nodeVal(d => d.val)
+    .nodeLabel(d => `${d.label || d.id} (${d.type})`)
+    .nodeCanvasObjectMode(() => 'after')
+    .nodeCanvasObject((node, ctx, globalScale) => {
+      const label = node.label || node.id || '';
+      if (!label) return;
+      const fontSize = 11 / globalScale;
+      // Hide labels when too zoomed out (would be unreadable)
+      if (fontSize > 14) return;
+      ctx.font = `600 ${fontSize}px Sans-Serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      const nodeR = Math.sqrt(node.val || 4) * 3;
+      // Dim label if not highlighted
+      if (_hoverNode && !_neighborSet.has(node.id)) {
+        ctx.fillStyle = 'rgba(255,255,255,0.06)';
+      } else {
+        // Background pill for readability
+        const txt = label.length > 22 ? label.slice(0, 22) + '…' : label;
+        const tw = ctx.measureText(txt).width;
+        const px = 3 / globalScale, py = 1.5 / globalScale;
+        ctx.fillStyle = 'rgba(26,27,46,0.75)';
+        ctx.beginPath();
+        const rx = node.x - tw/2 - px, ry = node.y + nodeR + 2/globalScale;
+        const rw = tw + px*2, rh = fontSize + py*2, cr = 3/globalScale;
+        ctx.moveTo(rx + cr, ry);
+        ctx.lineTo(rx + rw - cr, ry);
+        ctx.quadraticCurveTo(rx + rw, ry, rx + rw, ry + cr);
+        ctx.lineTo(rx + rw, ry + rh - cr);
+        ctx.quadraticCurveTo(rx + rw, ry + rh, rx + rw - cr, ry + rh);
+        ctx.lineTo(rx + cr, ry + rh);
+        ctx.quadraticCurveTo(rx, ry + rh, rx, ry + rh - cr);
+        ctx.lineTo(rx, ry + cr);
+        ctx.quadraticCurveTo(rx, ry, rx + cr, ry);
+        ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,0.9)';
+        ctx.fillText(txt, node.x, ry + py);
+        return;
+      }
+      const txt = label.length > 22 ? label.slice(0, 22) + '…' : label;
+      ctx.fillText(txt, node.x, node.y + nodeR + 2/globalScale);
+    })
     .nodeColor(d => {
       if (_hoverNode) {
         if (d.id === _hoverNode.id) return d.color;
@@ -7313,7 +7354,6 @@ function renderForceGraph(data) {
       }
       return d.color;
     })
-    .nodeLabel(d => `${d.label || d.id} (${d.type})`)
     // Links
     .linkWidth(d => _linkSet.has(d) ? 2.5 : 0.5)
     .linkColor(d => {
@@ -7339,7 +7379,6 @@ function renderForceGraph(data) {
       _hoverNode = node;
       _updateHighlight(node);
       container.style.cursor = node ? 'pointer' : 'default';
-      _graph2d.nodeColor(_graph2d.nodeColor()); // force re-render
     })
     .onNodeClick(node => {
       _graphShowFile(node);

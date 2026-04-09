@@ -1046,15 +1046,7 @@ def sprint_planning(db: Session) -> dict:
             return {"moved": 0, "skipped": True}
         _sprint_plan_hour = current_hour
 
-    # ── Check if current sprint is still in progress ──
-    in_flight = db.query(Bug).filter(
-        Bug.status.in_(["sprint", "in_progress", "review"])
-    ).count()
-    if in_flight > 0:
-        logger.info(f"Sprint still in progress ({in_flight} items in sprint/in_progress/review). Waiting for completion.")
-        return {"moved": 0, "in_flight": in_flight, "waiting": True}
-
-    # ── Auto-promote: move all "done" bugs → "next_version" to queue for release ──
+    # ── Always promote "done" bugs → "next_version" (queued for release) ──
     done_bugs = db.query(Bug).filter(Bug.status == "done").all()
     promoted = 0
     for bug in done_bugs:
@@ -1062,14 +1054,21 @@ def sprint_planning(db: Session) -> dict:
         bug.updated_at = datetime.utcnow()
         promoted += 1
     if promoted:
-        logger.info(f"Sprint complete: promoted {promoted} done bugs → next_version for release.")
+        db.commit()
+        logger.info(f"Promoted {promoted} done bugs → next_version for release.")
+
+    # ── Check if current sprint is still in progress ──
+    in_flight = db.query(Bug).filter(
+        Bug.status.in_(["sprint", "in_progress", "review"])
+    ).count()
+    if in_flight > 0:
+        logger.info(f"Sprint still in progress ({in_flight} items in sprint/in_progress/review). Waiting for completion.")
+        return {"moved": 0, "promoted": promoted, "in_flight": in_flight, "waiting": True}
 
     # ── Find all open bugs (candidates for new sprint) ──
     candidates = db.query(Bug).filter(Bug.status == "open").all()
 
     if not candidates:
-        if promoted:
-            db.commit()
         logger.info("Sprint planning: no open bugs to evaluate.")
         return {"moved": 0, "candidates": 0, "promoted": promoted}
 

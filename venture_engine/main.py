@@ -473,40 +473,34 @@ def _seed_releases_from_static():
 
 @app.on_event("startup")
 def on_startup():
+    def _safe(label, fn):
+        try:
+            logger.info(f"{label}...")
+            fn()
+        except Exception as e:
+            logger.error(f"{label} FAILED (non-fatal): {e}")
+
     logger.info("Creating database tables...")
     Base.metadata.create_all(bind=engine)
-    # Add new columns if missing (safe for existing DBs)
     _add_missing_columns()
-    logger.info("Running JSON column self-heal...")
-    _fix_json_columns()
-    logger.info("Seeding thought leaders...")
-    with get_db() as db:
-        seed_thought_leaders(db)
-    logger.info("Loading settings from DB...")
-    from venture_engine.settings_service import load_cache
-    with get_db() as db:
-        load_cache(db)
-    logger.info("Resolving HN news URLs...")
-    _resolve_hn_urls()
-    logger.info("Backfilling news feed from raw signals...")
-    _backfill_news_from_signals()
-    logger.info("Backfilling image_url for YouTube news items...")
-    _backfill_youtube_thumbnails()
-    logger.info("Seeding Slack channels...")
-    from venture_engine.slack_simulator import seed_channels_and_history
-    with get_db() as db:
-        seed_channels_and_history(db)
-    logger.info("Seeding bugs & feature requests...")
-    _seed_bugs_if_empty()
-    logger.info("Running initial activity simulation...")
-    from venture_engine.activity_simulator import simulate_activity
-    with get_db() as db:
-        simulate_activity(db)
-    logger.info("Purging low-score news items (< 5.0)...")
-    _purge_low_score_news()
-    logger.info("Seeding DB releases from static RELEASE_NOTES.md...")
-    _seed_releases_from_static()
-    logger.info("Starting scheduler...")
-    from venture_engine.scheduler import start_scheduler
-    start_scheduler()
-    logger.info("Venture Intelligence Engine is running. v2.4")
+
+    _safe("JSON column self-heal", _fix_json_columns)
+    _safe("Seeding thought leaders", lambda: [seed_thought_leaders(db) for db in [get_db().__enter__()]][0])
+    _safe("Loading settings", lambda: __import__('venture_engine.settings_service', fromlist=['load_cache']).load_cache(get_db().__enter__()))
+    _safe("Resolving HN news URLs", _resolve_hn_urls)
+    _safe("Backfilling news from signals", _backfill_news_from_signals)
+    _safe("Backfilling YouTube thumbnails", _backfill_youtube_thumbnails)
+    _safe("Seeding Slack channels", lambda: __import__('venture_engine.slack_simulator', fromlist=['seed_channels_and_history']).seed_channels_and_history(get_db().__enter__()))
+    _safe("Seeding bugs", _seed_bugs_if_empty)
+    _safe("Initial activity simulation", lambda: __import__('venture_engine.activity_simulator', fromlist=['simulate_activity']).simulate_activity(get_db().__enter__()))
+    _safe("Purging low-score news", _purge_low_score_news)
+    _safe("Seeding DB releases", _seed_releases_from_static)
+
+    try:
+        logger.info("Starting scheduler...")
+        from venture_engine.scheduler import start_scheduler
+        start_scheduler()
+    except Exception as e:
+        logger.error(f"Scheduler start FAILED: {e}")
+
+    logger.info("Venture Intelligence Engine is running. v2.5")

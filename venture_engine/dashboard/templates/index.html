@@ -917,7 +917,9 @@ html.dark .sl-msg-wrap:hover { background:rgba(255,255,255,.08); }
 .bug-board-col-title { font-size:12px; font-weight:700; color:var(--text2); text-transform:uppercase; padding:8px; margin-bottom:4px; }
 .bug-board-col-nv { border:2px solid rgba(99,102,241,0.4); background:rgba(99,102,241,0.06); }
 .bug-board-col-nv .bug-board-col-title { color:#6366f1; }
-.bug-card.sprint-candidate { border-left:3px solid #f59e0b; background:rgba(245,158,11,0.06); }
+.bug-board-col-planning { border:2px solid rgba(245,158,11,0.4); background:rgba(245,158,11,0.06); }
+.bug-board-col-planning .bug-board-col-title { color:#f59e0b; }
+.bug-card.sprint-candidate { border-left:3px solid #f59e0b; }
 .sprint-candidate-badge { display:inline-flex;align-items:center;gap:3px;font-size:9px;font-weight:700;color:#f59e0b;background:rgba(245,158,11,0.12);padding:1px 6px;border-radius:var(--radius-pill);white-space:nowrap; }
 /* ─── Bug-Finding Leaderboard ────────────────────────── */
 .lb-header { text-align:center; margin-bottom:24px; }
@@ -6329,36 +6331,74 @@ function renderBugList(bugs, stats, candidateKeys = new Set(), candidateScores =
       const nvTitle = document.getElementById('next-version-col-title');
       if (nvTitle) nvTitle.textContent = `🚀 Next Version ${_nextVersion} (${document.querySelectorAll('.bug-board-col-nv .bug-card').length})`;
     }).catch(()=>{});
+
+    // Helper to render a bug card
+    const _bugCard = (b, extra = '') => {
+      const sp = b.story_points || '?';
+      const bv = b.business_value || '?';
+      const ratio = (b.story_points && b.business_value) ? (b.business_value / b.story_points).toFixed(1) : '—';
+      return `
+      <div class="bug-card${extra ? ' ' + extra : ''}" onclick="_bugShowDetail('${b.id}')" style="flex-direction:column;gap:4px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;width:100%;">
+          <span class="bug-key">${esc(b.key)}</span>
+          <span class="bug-priority ${b.priority}">${b.priority}</span>
+        </div>
+        <div class="bug-title" style="font-size:13px;">${esc(b.title)}</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;width:100%;margin-top:2px;">
+          <span style="font-size:10px;color:var(--text3);">${b.assignee_name || 'Unassigned'}</span>
+          <span style="font-size:10px;font-weight:600;color:var(--text2);" title="SP=${sp} BV=${bv} Ratio=${ratio}">🎯${bv} ⏱${sp}</span>
+        </div>
+      </div>`;
+    };
+
+    // Split open bugs into backlog (not candidates) and planning (candidates)
+    const openBugs = bugs.filter(b => b.status === 'open');
+    const planningBugs = openBugs.filter(b => candidateKeys.has(b.key))
+      .sort((a, b) => (candidateScores[a.key]?.rank || 99) - (candidateScores[b.key]?.rank || 99));
+    const backlogBugs = openBugs.filter(b => !candidateKeys.has(b.key));
+
     // Kanban board view
     let boardHtml = '<div class="bug-board">';
-    for (const status of statusOrder) {
+
+    // Backlog / Open column
+    boardHtml += `<div class="bug-board-col">
+      <div class="bug-board-col-title">📋 Backlog (${backlogBugs.length})</div>
+      ${backlogBugs.map(b => _bugCard(b)).join('')}
+    </div>`;
+
+    // Sprint Planning column — next sprint candidates
+    boardHtml += `<div class="bug-board-col bug-board-col-planning">
+      <div class="bug-board-col-title">⚡ Sprint Planning (${planningBugs.length})</div>
+      ${planningBugs.map(b => {
+        const ci = candidateScores[b.key];
+        const sp = b.story_points || '?';
+        const bv = b.business_value || '?';
+        const ratio = (b.story_points && b.business_value) ? (b.business_value / b.story_points).toFixed(1) : '—';
+        return `
+        <div class="bug-card sprint-candidate" onclick="_bugShowDetail('${b.id}')" style="flex-direction:column;gap:4px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;width:100%;">
+            <span class="bug-key">${esc(b.key)}</span>
+            <span class="bug-priority ${b.priority}">${b.priority}</span>
+          </div>
+          <div class="bug-title" style="font-size:13px;">${esc(b.title)}</div>
+          <div style="display:flex;justify-content:space-between;align-items:center;width:100%;margin-top:2px;">
+            <span style="font-size:10px;color:var(--text3);">${b.assignee_name || 'Unassigned'}</span>
+            <span style="font-size:10px;font-weight:600;color:var(--text2);" title="SP=${sp} BV=${bv} Ratio=${ratio}">🎯${bv} ⏱${sp}</span>
+          </div>
+          <span class="sprint-candidate-badge">⚡ #${ci?.rank || '?'} · score ${ci?.score || '—'}</span>
+        </div>`;
+      }).join('')}
+    </div>`;
+
+    // Remaining columns: sprint, in_progress, review, done, next_version, closed
+    const restOrder = ['sprint','in_progress','review','done','next_version','closed'];
+    for (const status of restOrder) {
       const col = bugs.filter(b => b.status === status);
       const colClass = status === 'sprint' ? ' bug-board-col-sprint' : (status === 'next_version' ? ' bug-board-col-nv' : '');
       const titleId = status === 'next_version' ? ' id="next-version-col-title"' : '';
       boardHtml += `<div class="bug-board-col${colClass}">
         <div class="bug-board-col-title"${titleId}>${statusIcons[status]||''} ${statusLabels[status]||status} (${col.length})</div>
-        ${col.map(b => {
-          const sp = b.story_points || '?';
-          const bv = b.business_value || '?';
-          const ratio = (b.story_points && b.business_value) ? (b.business_value / b.story_points).toFixed(1) : '—';
-          const isCand = status === 'open' && candidateKeys.has(b.key);
-          const candInfo = candidateScores[b.key];
-          const candClass = isCand ? ' sprint-candidate' : '';
-          const candBadge = isCand ? `<span class="sprint-candidate-badge">⚡ #${candInfo?.rank || '?'} next sprint · ${candInfo?.score || '—'}</span>` : '';
-          return `
-          <div class="bug-card${candClass}" onclick="_bugShowDetail('${b.id}')" style="flex-direction:column;gap:4px;">
-            <div style="display:flex;justify-content:space-between;align-items:center;width:100%;">
-              <span class="bug-key">${esc(b.key)}</span>
-              <span class="bug-priority ${b.priority}">${b.priority}</span>
-            </div>
-            <div class="bug-title" style="font-size:13px;">${esc(b.title)}</div>
-            <div style="display:flex;justify-content:space-between;align-items:center;width:100%;margin-top:2px;">
-              <span style="font-size:10px;color:var(--text3);">${b.assignee_name || 'Unassigned'}</span>
-              <span style="font-size:10px;font-weight:600;color:var(--text2);" title="SP=${sp} BV=${bv} Ratio=${ratio}">🎯${bv} ⏱${sp}</span>
-            </div>
-            ${candBadge}
-          </div>`;
-        }).join('')}
+        ${col.map(b => _bugCard(b)).join('')}
       </div>`;
     }
     boardHtml += '</div>';

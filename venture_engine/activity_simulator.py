@@ -1027,7 +1027,64 @@ def run_activity_simulation():
 # ── Sprint Planning (Product Owner — hourly) ─────────────────────────────
 _sprint_plan_lock = threading.Lock()
 _sprint_plan_hour = None
-SPRINT_CAPACITY = 10  # max bugs to move to sprint per hour
+SPRINT_CAPACITY = 10  # max bugs to move to sprint per cycle
+SPRINT_PLANNING_POOL = 20  # candidates shown in Sprint Planning column
+
+
+def _replenish_backlog(db, needed: int) -> int:
+    """PO generates new bugs/features/improvements to keep the backlog full."""
+    areas = RALPH_AREAS
+    types = ["bug", "feature", "improvement", "task"]
+    priorities = ["critical", "high", "medium", "low"]
+    priority_weights = [0.1, 0.3, 0.35, 0.25]
+    verbs = {
+        "bug": ["Fix", "Resolve", "Investigate", "Debug", "Patch"],
+        "feature": ["Add", "Implement", "Build", "Create", "Enable"],
+        "improvement": ["Improve", "Optimize", "Refactor", "Enhance", "Streamline"],
+        "task": ["Update", "Migrate", "Configure", "Document", "Set up"],
+    }
+    nouns = [
+        "authentication flow", "caching layer", "error handling", "API response time",
+        "database queries", "logging pipeline", "webhook delivery", "search indexing",
+        "notification system", "rate limiter", "health checks", "retry logic",
+        "config management", "deployment pipeline", "monitoring alerts", "data export",
+        "session management", "input validation", "batch processing", "queue worker",
+        "metrics collection", "backup strategy", "load balancer rules", "SSL certificates",
+        "dependency updates", "memory usage", "connection pooling", "timeout handling",
+    ]
+    created = 0
+    po = PRODUCT_OWNER
+    for _ in range(needed):
+        bt = random.choice(types)
+        priority = random.choices(priorities, weights=priority_weights, k=1)[0]
+        area = random.choice(areas)
+        verb = random.choice(verbs[bt])
+        noun = random.choice(nouns)
+        title = f"{verb} {noun} in {area}"
+
+        val_range = PRIORITY_TO_VALUE.get(priority, (3, 6))
+        eff_range = PRIORITY_TO_EFFORT.get(priority, (2, 5))
+        sp = random.choice([p for p in FIBONACCI_POINTS if eff_range[0] <= p <= eff_range[1]] or [3])
+        bv = random.randint(val_range[0], val_range[1])
+        assignee = _random_user()
+        bug = Bug(
+            key=_next_bug_key(db),
+            title=title,
+            description=f"PO backlog grooming: {verb.lower()} the {noun} for the {area} component.",
+            priority=priority,
+            bug_type=bt,
+            status="open",
+            reporter_email=po["email"],
+            reporter_name=po["name"],
+            assignee_email=assignee["email"],
+            assignee_name=assignee["name"],
+            labels=[area.replace(" ", "-"), bt, "po-groomed"],
+            story_points=sp,
+            business_value=bv,
+        )
+        db.add(bug)
+        created += 1
+    return created
 
 
 def sprint_planning(db: Session) -> dict:
@@ -1064,6 +1121,16 @@ def sprint_planning(db: Session) -> dict:
     if in_flight > 0:
         logger.info(f"Sprint still in progress ({in_flight} items in sprint/in_progress/review). Waiting for completion.")
         return {"moved": 0, "promoted": promoted, "in_flight": in_flight, "waiting": True}
+
+    # ── Ensure backlog has enough bugs for Sprint Planning pool (20) ──
+    open_count = db.query(Bug).filter(Bug.status == "open").count()
+    generated = 0
+    if open_count < SPRINT_PLANNING_POOL + SPRINT_CAPACITY:
+        needed = (SPRINT_PLANNING_POOL + SPRINT_CAPACITY) - open_count
+        generated = _replenish_backlog(db, needed)
+        if generated:
+            db.commit()
+            logger.info(f"PO generated {generated} new bugs to fill backlog.")
 
     # ── Find all open bugs (candidates for new sprint) ──
     candidates = db.query(Bug).filter(Bug.status == "open").all()
@@ -1188,12 +1255,15 @@ def auto_release(db: Session) -> dict:
         return {"released": False, "reason": "no fixes"}
 
     # Determine next version from the latest release in DB
-    latest_release = db.query(Release).order_by(Release.created_at.desc()).first()
-    if latest_release:
-        match = re.match(r"v(\d+)\.(\d+)\.(\d+)", latest_release.version)
-        if match:
-            major, minor, patch = int(match.group(1)), int(match.group(2)), int(match.group(3))
-            new_version = f"v{major}.{minor}.{patch + 1}"
+    # Find highest version by semantic version (not created_at which can be equal for seeded entries)
+    all_releases = db.query(Release).all()
+    if all_releases:
+        def _ver_tuple(r):
+            m = re.match(r"v(\d+)\.(\d+)\.(\d+)", r.version or "")
+            return (int(m.group(1)), int(m.group(2)), int(m.group(3))) if m else (0, 0, 0)
+        latest_release = max(all_releases, key=_ver_tuple)
+        major, minor, patch = _ver_tuple(latest_release)
+        new_version = f"v{major}.{minor}.{patch + 1}"
         else:
             new_version = "v0.14.0"
     else:

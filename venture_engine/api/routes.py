@@ -3567,8 +3567,9 @@ def trim_sprint(db: Session = Depends(get_db_dependency)):
 
 @router.get("/api/bugs/sprint-candidates")
 def get_sprint_candidates(db: Session = Depends(get_db_dependency)):
-    """Return bug keys that are top-10 sprint candidates from the open pool,
-    scored by (business_value / story_points) × priority_bonus."""
+    """Return top-20 sprint candidates from the open pool,
+    scored by (business_value / story_points) × priority_bonus.
+    Product Owner picks highest value + lowest effort."""
     PRIORITY_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3}
     open_bugs = db.query(Bug).filter(Bug.status == "open").all()
 
@@ -3580,11 +3581,11 @@ def get_sprint_candidates(db: Session = Depends(get_db_dependency)):
         return (bv / sp) * prio_bonus
 
     scored = sorted(open_bugs, key=_score, reverse=True)
-    top10 = scored[:10]
+    top20 = scored[:20]
     return {
         "candidates": [
             {"key": b.key, "id": b.id, "score": round(_score(b), 2)}
-            for b in top10
+            for b in top20
         ]
     }
 
@@ -3763,31 +3764,20 @@ def get_release_notes(db: Session = Depends(get_db_dependency)):
 
 @router.get("/api/next-version")
 def get_next_version(db: Session = Depends(get_db_dependency)):
-    """Return the next version number (current patch + 1) for the board column header."""
-    import re
+    """Return the next version number (current latest + 1 patch) for the board column header."""
+    import re as _re
     from venture_engine.db.models import Release
-    # Check DB first (persistent)
-    latest = db.query(Release).order_by(Release.created_at.desc()).first()
-    if latest:
-        match = re.match(r"v(\d+)\.(\d+)\.(\d+)", latest.version)
-        if match:
-            major, minor, patch = int(match.group(1)), int(match.group(2)), int(match.group(3))
-            return {"version": f"v{major}.{minor}.{patch + 1}"}
-    # Fallback to file
-    candidates = [
-        os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "RELEASE_NOTES.md"),
-        os.path.join(os.getcwd(), "RELEASE_NOTES.md"),
-        "/app/RELEASE_NOTES.md",
-    ]
-    for path in candidates:
-        if os.path.isfile(path):
-            with open(path, "r") as f:
-                content = f.read()
-            match = re.search(r"## v(\d+)\.(\d+)\.(\d+)", content)
-            if match:
-                major, minor, patch = int(match.group(1)), int(match.group(2)), int(match.group(3))
-                return {"version": f"v{major}.{minor}.{patch + 1}"}
-    return {"version": "v0.14.0"}
+
+    # Find highest version by semantic version sort (not created_at)
+    all_releases = db.query(Release).all()
+    if all_releases:
+        def _ver_tuple(r):
+            m = _re.match(r"v(\d+)\.(\d+)\.(\d+)", r.version or "")
+            return (int(m.group(1)), int(m.group(2)), int(m.group(3))) if m else (0, 0, 0)
+        latest = max(all_releases, key=_ver_tuple)
+        major, minor, patch = _ver_tuple(latest)
+        return {"version": f"v{major}.{minor}.{patch + 1}"}
+    return {"version": "v0.1.0"}
 
 
 @router.get("/api/graph")

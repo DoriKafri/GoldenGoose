@@ -91,6 +91,21 @@ def _add_missing_columns():
                 logger.info("Adding business_value column to bugs...")
                 db.execute(text("ALTER TABLE bugs ADD COLUMN business_value INTEGER DEFAULT 5"))
                 db.commit()
+            # Proof-of-done columns
+            proof_cols = {
+                "proof_url": "TEXT",
+                "proof_type": "TEXT",
+                "proof_description": "TEXT",
+                "commit_sha": "VARCHAR(40)",
+                "pr_number": "INTEGER",
+                "release_version": "VARCHAR",
+                "deployed_at": "TIMESTAMP",
+            }
+            for col, ctype in proof_cols.items():
+                if col not in cols:
+                    logger.info(f"Adding {col} column to bugs...")
+                    db.execute(text(f"ALTER TABLE bugs ADD COLUMN {col} {ctype}"))
+                    db.commit()
 
 
 def _fix_json_columns():

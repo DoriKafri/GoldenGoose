@@ -6465,6 +6465,30 @@ async function _bugShowDetail(bugId) {
         </div>
         ${bug.labels && bug.labels.length ? '<div style="margin-bottom:12px;">' + bug.labels.map(l => '<span style="font-size:11px;padding:2px 8px;border-radius:var(--radius-pill);background:var(--bg2);color:var(--text2);margin-right:4px;">'+esc(l)+'</span>').join('') + '</div>' : ''}
         <div class="bug-description">${esc(bug.description || 'No description.')}</div>
+        ${(bug.proof_url || bug.commit_sha || bug.release_version) ? `
+        <div style="margin:20px 0;padding:16px;border-radius:var(--radius);border:1px solid rgba(34,197,94,0.3);background:rgba(34,197,94,0.06);">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+            <span style="font-size:16px;">✅</span>
+            <span style="font-size:14px;font-weight:700;color:#22c55e;">Proof of Done</span>
+            ${bug.deployed_at ? '<span style="font-size:10px;color:var(--text3);margin-left:auto;">Deployed ' + timeAgo(bug.deployed_at) + '</span>' : ''}
+          </div>
+          ${bug.proof_url ? `
+          <div style="margin-bottom:12px;">
+            <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:6px;text-transform:uppercase;">${esc(bug.proof_type || 'screenshot')} Evidence</div>
+            <img src="${esc(bug.proof_url)}" alt="Proof: ${esc(bug.key)}" style="max-width:100%;border-radius:8px;border:1px solid var(--border);cursor:pointer;" onclick="window.open('${esc(bug.proof_url)}','_blank')">
+          </div>` : ''}
+          ${bug.proof_description ? `
+          <div style="margin-bottom:12px;">
+            <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px;text-transform:uppercase;">How to Demo / Definition of Done</div>
+            <pre style="font-size:12px;color:var(--text);white-space:pre-wrap;background:var(--bg2);padding:10px 12px;border-radius:8px;margin:0;line-height:1.5;">${esc(bug.proof_description)}</pre>
+          </div>` : ''}
+          <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;">
+            ${bug.commit_sha ? `<span style="font-size:11px;color:var(--text2);">🔗 Commit: <code style="background:var(--bg2);padding:1px 6px;border-radius:4px;font-size:11px;">${esc(bug.commit_sha)}</code></span>` : ''}
+            ${bug.pr_number ? `<span style="font-size:11px;color:var(--text2);">📝 PR #${bug.pr_number}</span>` : ''}
+            ${bug.release_version ? `<span style="font-size:11px;font-weight:600;cursor:pointer;color:#f59e0b;" onclick="switchTab('release-notes')">🚀 Released in ${esc(bug.release_version)}</span>` : ''}
+          </div>
+        </div>
+        ` : ''}
         <div class="bug-comments">
           <div style="font-size:14px;font-weight:700;margin-bottom:12px;">Comments (${(bug.comments || []).length})</div>
           ${(bug.comments || []).map(c => `

@@ -491,6 +491,34 @@ RALPH_AREAS = [
 ]
 
 
+def _attach_proof_of_done(bug, actor, pr_num, commit_sha):
+    """Attach proof of done: screenshot/video URL, demo description, commit, PR."""
+    # Simulated proof screenshot via placeholder service
+    proof_types = ["screenshot", "screenshot", "screenshot", "gif", "video"]
+    proof_type = random.choice(proof_types)
+    w, h = random.choice([(1280, 720), (1920, 1080), (800, 600)])
+    colors = ["4f46e5", "059669", "d97706", "dc2626", "7c3aed", "0891b2"]
+    color = random.choice(colors)
+
+    # Generate a deterministic placeholder screenshot URL
+    slug = bug.key.lower().replace("-", "")
+    bug.proof_url = f"https://placehold.co/{w}x{h}/{color}/white?text={bug.key}+Done"
+    bug.proof_type = proof_type
+
+    # Definition of Done / How to Demo description
+    demo_templates = [
+        f"1. Navigate to the affected area\n2. Verify {bug.title.lower()} is resolved\n3. Check no regressions in related flows\n4. Confirmed on staging env before merge",
+        f"1. Open the feature in staging\n2. Reproduce original bug scenario — should no longer occur\n3. Run regression tests\n4. Verified by {actor['name']} on {datetime.utcnow().strftime('%Y-%m-%d')}",
+        f"1. Pull branch and run locally\n2. Verify fix for: {bug.title}\n3. Check edge cases and error states\n4. Screenshot attached — staging deployment confirmed",
+        f"1. Deployed to staging ({commit_sha[:8]})\n2. QA walkthrough completed by {actor['name']}\n3. No console errors, no visual regressions\n4. Performance baseline maintained",
+        f"1. PR #{pr_num} merged to main\n2. Auto-deployed to staging\n3. Manual verification: {bug.title.lower()}\n4. Monitoring dashboards show no anomalies",
+    ]
+    bug.proof_description = random.choice(demo_templates)
+    bug.commit_sha = commit_sha[:8]
+    bug.pr_number = pr_num
+    bug.deployed_at = datetime.utcnow()
+
+
 def _generate_bugs_from_closure(db, closed_bug, closer, stats):
     """Ralph loop: closing a bug reveals 3 new ones (regression, follow-up, improvement).
 
@@ -839,9 +867,11 @@ def simulate_activity(db: Session) -> dict:
 
         # Add transition comment
         actor = _random_user()
+        pr_num = random.randint(140, 999)
+        commit_sha = '%040x' % random.getrandbits(160)
         transition_msgs = {
             "in_progress": f"Picking this up now. Moving from {old_status} → {new_status}.",
-            "review": f"Fix ready. PR #{random.randint(140, 999)} submitted. Moving to review.",
+            "review": f"Fix ready. PR #{pr_num} submitted. Moving to review.",
             "done": f"QA verified on staging. Merging to main. \u2705",
             "closed": f"Deployed and stable in production for {random.randint(24, 72)}h. Closing.",
         }
@@ -855,6 +885,13 @@ def simulate_activity(db: Session) -> dict:
         db.add(bc)
         stats["bugs_transitioned"] += 1
         _record_bug_fix()
+
+        # ── Attach proof when bug reaches "done" ──
+        if new_status == "done":
+            _attach_proof_of_done(bug, actor, pr_num, commit_sha)
+        elif new_status == "review":
+            bug.pr_number = pr_num
+            bug.commit_sha = commit_sha[:8]
 
         # ── Post to #closed-crs and generate 3 new bugs on closure ──
         if new_status in ("done", "closed"):
@@ -1343,10 +1380,13 @@ def auto_release(db: Session) -> dict:
     except Exception as e:
         logger.warning(f"Failed to post release to Slack: {e}")
 
-    # Move all released bugs from next_version → closed
+    # Move all released bugs from next_version → closed, stamp release version
     for bug in fixed_bugs:
         bug.status = "closed"
         bug.updated_at = now
+        bug.release_version = new_version
+        if not bug.deployed_at:
+            bug.deployed_at = now
 
     db.commit()
     _last_release_time = now

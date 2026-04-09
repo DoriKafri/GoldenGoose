@@ -402,6 +402,15 @@ class Bug(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    # ── Proof of Done / Definition of Done ──
+    proof_url = Column(Text, nullable=True)                      # screenshot or video URL
+    proof_type = Column(Text, nullable=True)                     # "screenshot" | "video" | "gif"
+    proof_description = Column(Text, nullable=True)              # short demo / how-to-verify text
+    commit_sha = Column(String(40), nullable=True)               # git commit hash
+    pr_number = Column(Integer, nullable=True)                   # PR number
+    release_version = Column(String, nullable=True)              # "v0.14.1" — linked on release
+    deployed_at = Column(DateTime, nullable=True)                # timestamp when deployed to prod
+
     comments = relationship("BugComment", back_populates="bug", cascade="all, delete-orphan")
 
 

@@ -3490,6 +3490,13 @@ def _serialize_bug(bug, include_comments=False):
         "business_value": getattr(bug, 'business_value', None) or 5,
         "created_at": bug.created_at.isoformat() if bug.created_at else None,
         "updated_at": bug.updated_at.isoformat() if bug.updated_at else None,
+        "proof_url": getattr(bug, 'proof_url', None),
+        "proof_type": getattr(bug, 'proof_type', None),
+        "proof_description": getattr(bug, 'proof_description', None),
+        "commit_sha": getattr(bug, 'commit_sha', None),
+        "pr_number": getattr(bug, 'pr_number', None),
+        "release_version": getattr(bug, 'release_version', None),
+        "deployed_at": bug.deployed_at.isoformat() if getattr(bug, 'deployed_at', None) else None,
     }
     if include_comments:
         d["comments"] = [

@@ -418,6 +418,18 @@ class BugComment(Base):
     bug = relationship("Bug", back_populates="comments")
 
 
+class Release(Base):
+    __tablename__ = "releases"
+
+    id = Column(String, primary_key=True, default=new_uuid)
+    version = Column(String, unique=True, nullable=False)     # e.g. "v0.13.1"
+    fixes_count = Column(Integer, default=0)
+    summary = Column(Text, nullable=True)                      # "32 critical, 5 high, 10 medium, 3 low"
+    body = Column(Text, nullable=True)                         # full markdown body of the release
+    bug_keys = Column(JSON, nullable=True)                     # ["BUG-42", "BUG-43", ...]
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 class SlackChannel(Base):
     __tablename__ = "slack_channels"
 

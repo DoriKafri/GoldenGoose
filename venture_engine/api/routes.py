@@ -18,7 +18,7 @@ from venture_engine.db.models import (
     Venture, VentureScore, Vote, Comment, ThoughtLeader,
     TLSignal, HarvestRun, TechGap, Annotation, OfficeHoursReview,
     NewsFeedItem, PageAnnotation, PageAnnotationReply, AnnotationReaction,
-    Bug, BugComment, GraphEdge, SlackChannel, SlackMessage,
+    Bug, BugComment, GraphEdge, SlackChannel, SlackMessage, Release,
 )
 
 router = APIRouter()
@@ -3705,25 +3705,67 @@ def add_bug_comment(bug_id: str, req: BugCommentRequest, db: Session = Depends(g
 # ─── Knowledge Graph ────────────────────────────────────────────
 
 @router.get("/api/release-notes")
-def get_release_notes():
-    """Return release notes markdown content."""
-    # Try multiple possible locations for the release notes file
+def get_release_notes(db: Session = Depends(get_db_dependency)):
+    """Return release notes — DB releases (persistent) merged with static file."""
+    from venture_engine.db.models import Release
+
+    # Start with static file content
+    static_content = ""
     candidates = [
         os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "RELEASE_NOTES.md"),
         os.path.join(os.getcwd(), "RELEASE_NOTES.md"),
-        "/app/RELEASE_NOTES.md",  # Railway container path
+        "/app/RELEASE_NOTES.md",
     ]
     for path in candidates:
         if os.path.isfile(path):
             with open(path, "r") as f:
-                return {"content": f.read()}
-    return {"content": "# Release Notes\n\nNo release notes available yet."}
+                static_content = f.read()
+            break
+
+    # Get all DB releases (newest first)
+    db_releases = db.query(Release).order_by(Release.created_at.desc()).all()
+
+    if not db_releases:
+        return {"content": static_content or "# Release Notes\n\nNo release notes available yet."}
+
+    # Build combined release notes: DB releases first, then static
+    header = "# Release Notes — Develeap Venture Intelligence Engine\n"
+    db_section = "\n".join(f"\n---\n\n{r.body}" for r in db_releases if r.body)
+
+    # Extract static entries (skip header and any DB-duplicate versions)
+    db_versions = {r.version for r in db_releases}
+    static_entries = []
+    if static_content:
+        import re
+        parts = re.split(r'\n---\n', static_content)
+        for part in parts[1:]:  # skip header
+            version_match = re.search(r'## (v\d+\.\d+\.\d+)', part)
+            if version_match and version_match.group(1) in db_versions:
+                continue  # skip duplicates
+            static_entries.append(part.strip())
+
+    static_section = "\n\n---\n\n".join(static_entries) if static_entries else ""
+
+    content = header + db_section
+    if static_section:
+        content += "\n\n---\n\n" + static_section
+
+    return {"content": content}
 
 
 @router.get("/api/next-version")
-def get_next_version():
+def get_next_version(db: Session = Depends(get_db_dependency)):
     """Return the next version number (current patch + 1) for the board column header."""
     import re
+    from venture_engine.db.models import Release
+    # Check DB first (persistent)
+    latest = db.query(Release).order_by(Release.created_at.desc()).first()
+    if latest:
+        match = re.match(r"v(\d+)\.(\d+)\.(\d+)", latest.version)
+        if match:
+            major, minor, patch = int(match.group(1)), int(match.group(2)), int(match.group(3))
+            return {"version": f"v{major}.{minor}.{patch + 1}"}
+    # Fallback to file
     candidates = [
         os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "RELEASE_NOTES.md"),
         os.path.join(os.getcwd(), "RELEASE_NOTES.md"),
@@ -3737,7 +3779,7 @@ def get_next_version():
             if match:
                 major, minor, patch = int(match.group(1)), int(match.group(2)), int(match.group(3))
                 return {"version": f"v{major}.{minor}.{patch + 1}"}
-    return {"version": "v0.13.0"}
+    return {"version": "v0.14.0"}
 
 
 @router.get("/api/graph")

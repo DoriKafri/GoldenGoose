@@ -112,7 +112,7 @@ def _record_bug_fix(n: int = 1):
 from venture_engine.db.models import (
     NewsFeedItem, PageAnnotation, PageAnnotationReply,
     AnnotationReaction, Bug, BugComment, ThoughtLeader,
-    SlackChannel, SlackMessage,
+    SlackChannel, SlackMessage, Release,
 )
 
 # ── Develeap team ──────────────────────────────────────────────────────────
@@ -1167,13 +1167,13 @@ RELEASE_MANAGER = {
 
 
 def auto_release(db: Session) -> dict:
-    """Generate a version release with all bugs fixed since the last release.
+    """Generate a version release with all bugs in next_version.
 
-    Runs every 6 hours. Collects done/closed bugs updated since last release,
-    bumps the patch version, writes a release entry, and posts to Slack.
+    Runs every 6 hours. Collects next_version bugs, bumps the patch version,
+    stores the release in the DB, and posts to Slack.
     """
     global _last_release_time
-    import os
+    import re
 
     now = datetime.utcnow()
 
@@ -1183,37 +1183,21 @@ def auto_release(db: Session) -> dict:
     ).order_by(Bug.priority.asc(), Bug.updated_at.desc()).all()
 
     if not fixed_bugs:
-        logger.info("Auto-release: no bugs fixed since last release. Skipping.")
+        logger.info("Auto-release: no bugs in next_version. Skipping.")
         _last_release_time = now
         return {"released": False, "reason": "no fixes"}
 
-    # Read current release notes to determine next version
-    notes_path = None
-    for p in [
-        os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "RELEASE_NOTES.md"),
-        os.path.join(os.getcwd(), "RELEASE_NOTES.md"),
-        "/app/RELEASE_NOTES.md",
-    ]:
-        if os.path.isfile(p):
-            notes_path = p
-            break
-
-    if not notes_path:
-        logger.warning("Auto-release: RELEASE_NOTES.md not found.")
-        _last_release_time = now
-        return {"released": False, "reason": "no release notes file"}
-
-    with open(notes_path, "r") as f:
-        content = f.read()
-
-    # Parse current version (e.g., v0.11.0 → bump to v0.11.1)
-    import re
-    version_match = re.search(r"## v(\d+)\.(\d+)\.(\d+)", content)
-    if version_match:
-        major, minor, patch = int(version_match.group(1)), int(version_match.group(2)), int(version_match.group(3))
-        new_version = f"v{major}.{minor}.{patch + 1}"
+    # Determine next version from the latest release in DB
+    latest_release = db.query(Release).order_by(Release.created_at.desc()).first()
+    if latest_release:
+        match = re.match(r"v(\d+)\.(\d+)\.(\d+)", latest_release.version)
+        if match:
+            major, minor, patch = int(match.group(1)), int(match.group(2)), int(match.group(3))
+            new_version = f"v{major}.{minor}.{patch + 1}"
+        else:
+            new_version = "v0.14.0"
     else:
-        new_version = "v0.12.0"
+        new_version = "v0.14.0"
 
     # Build release entry
     date_str = now.strftime("%Y-%m-%d %H:%M UTC")
@@ -1235,26 +1219,43 @@ def auto_release(db: Session) -> dict:
     if low_count: summary_parts.append(f"{low_count} low")
     summary = ", ".join(summary_parts)
 
-    release_entry = f"""
-## {new_version} — {date_str}
+    body_md = f"## {new_version} — {date_str}\n\n### Auto-Release — {len(fixed_bugs)} fixes ({summary})\n" + "\n".join(bug_lines)
 
-### Auto-Release — {len(fixed_bugs)} fixes ({summary})
-{chr(10).join(bug_lines)}
-"""
+    # Store release in DB (persists across deploys)
+    release = Release(
+        version=new_version,
+        fixes_count=len(fixed_bugs),
+        summary=summary,
+        body=body_md,
+        bug_keys=[b.key for b in fixed_bugs],
+    )
+    db.add(release)
 
-    # Insert after the first ---
-    insert_pos = content.find("\n---\n")
-    if insert_pos >= 0:
-        new_content = content[:insert_pos] + "\n---\n" + release_entry + content[insert_pos + 5:]
-    else:
-        new_content = content + "\n---\n" + release_entry
-
-    with open(notes_path, "w") as f:
-        f.write(new_content)
+    # Also try to write to RELEASE_NOTES.md (best-effort, ephemeral on Railway)
+    try:
+        import os
+        for p in [
+            os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "RELEASE_NOTES.md"),
+            os.path.join(os.getcwd(), "RELEASE_NOTES.md"),
+            "/app/RELEASE_NOTES.md",
+        ]:
+            if os.path.isfile(p):
+                with open(p, "r") as f:
+                    content = f.read()
+                insert_pos = content.find("\n---\n")
+                release_entry = f"\n{body_md}\n"
+                if insert_pos >= 0:
+                    new_content = content[:insert_pos] + "\n---\n" + release_entry + content[insert_pos + 5:]
+                else:
+                    new_content = content + "\n---\n" + release_entry
+                with open(p, "w") as f:
+                    f.write(new_content)
+                break
+    except Exception as e:
+        logger.warning(f"Failed to write RELEASE_NOTES.md (non-critical): {e}")
 
     # Post release announcement to Slack #general
     try:
-        from venture_engine.db.models import SlackChannel, SlackMessage
         channel = db.query(SlackChannel).filter(SlackChannel.name == "general").first()
         if channel:
             slack_body = (

@@ -1199,8 +1199,20 @@ def list_news(
             (NewsFeedItem.url.ilike(search)) |
             (NewsFeedItem.source_name.ilike(search))
         )
+    # Deduplicate by URL at query time — keep highest signal_strength per URL
+    from sqlalchemy import func as sqlfunc
+    seen_urls = set()
     total = query.count()
-    items = query.offset(offset).limit(limit).all()
+    raw_items = query.offset(offset).limit(limit + 20).all()  # fetch extra to cover dupes
+    items = []
+    for item in raw_items:
+        key = (item.url or item.id)
+        if key in seen_urls:
+            continue
+        seen_urls.add(key)
+        items.append(item)
+        if len(items) >= limit:
+            break
 
     results = []
     for item in items:

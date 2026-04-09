@@ -3704,15 +3704,32 @@ def add_bug_comment(bug_id: str, req: BugCommentRequest, db: Session = Depends(g
 
 # ─── Knowledge Graph ────────────────────────────────────────────
 
+@router.get("/api/releases-debug")
+def get_releases_debug(db: Session = Depends(get_db_dependency)):
+    """Debug: list all releases in DB."""
+    from venture_engine.db.models import Release
+    releases = db.query(Release).order_by(Release.created_at.desc()).all()
+    return [{"version": r.version, "body_len": len(r.body) if r.body else 0,
+             "created_at": str(r.created_at)} for r in releases]
+
+
 @router.get("/api/release-notes")
 def get_release_notes(db: Session = Depends(get_db_dependency)):
     """Return release notes entirely from DB (seeded from static file on startup)."""
     from venture_engine.db.models import Release
+    import re as _re
 
     db_releases = db.query(Release).order_by(Release.created_at.desc()).all()
 
     if not db_releases:
         return {"content": "# Release Notes\n\nNo release notes available yet."}
+
+    # Sort by version number descending (not created_at) to ensure correct order
+    def _ver_key(r):
+        m = _re.match(r"v(\d+)\.(\d+)\.(\d+)", r.version or "")
+        return (int(m.group(1)), int(m.group(2)), int(m.group(3))) if m else (0, 0, 0)
+
+    db_releases.sort(key=_ver_key, reverse=True)
 
     header = "# Release Notes — Develeap Venture Intelligence Engine\n"
     body = "\n\n---\n\n".join(r.body for r in db_releases if r.body)

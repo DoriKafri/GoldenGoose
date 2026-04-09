@@ -80,6 +80,12 @@ def run_all_sources(db: Session) -> HarvestRun:
             existing_urls = {r[0] for r in existing}
             existing_news = db.query(NewsFeedItem.url).filter(NewsFeedItem.url.in_(urls)).all()
             existing_news_urls = {r[0] for r in existing_news}
+            titles = [s.get("title", "") for s in signals if s.get("title")]
+            if titles:
+                existing_news_titles_q = db.query(NewsFeedItem.title).filter(NewsFeedItem.title.in_(titles)).all()
+                existing_news_titles = {r[0] for r in existing_news_titles_q}
+            else:
+                existing_news_titles = set()
 
     SOURCE_NAMES = {
         "hackernews": "Hacker News",
@@ -108,8 +114,9 @@ def run_all_sources(db: Session) -> HarvestRun:
         db.add(raw)
         new_count += 1
 
-        # Also create a news feed item if URL is new
-        if url and url not in existing_news_urls:
+        # Also create a news feed item if URL and title are new
+        _title = s.get("title", "Untitled")
+        if url and url not in existing_news_urls and _title not in existing_news_titles:
             source = s.get("source", "unknown")
             strength = s.get("signal_strength", 0.5)
             # Detect YouTube thumbnail
@@ -144,6 +151,7 @@ def run_all_sources(db: Session) -> HarvestRun:
             )
             db.add(news_item)
             existing_news_urls.add(url)
+            existing_news_titles.add(_title)
             news_count += 1
 
     run.source_breakdown = breakdown

@@ -197,6 +197,36 @@ def _algolia_find_url(search_q: str):
     return None
 
 
+def _dedup_news_feed():
+    """Remove duplicate news items by title (keep highest signal_strength)."""
+    from venture_engine.db.models import NewsFeedItem
+    from sqlalchemy import func as sqlfunc
+
+    with get_db() as db:
+        # Find titles that appear more than once
+        dupes = (
+            db.query(NewsFeedItem.title, sqlfunc.count(NewsFeedItem.id))
+            .group_by(NewsFeedItem.title)
+            .having(sqlfunc.count(NewsFeedItem.id) > 1)
+            .all()
+        )
+        deleted = 0
+        for title, cnt in dupes:
+            items = (
+                db.query(NewsFeedItem)
+                .filter(NewsFeedItem.title == title)
+                .order_by(NewsFeedItem.signal_strength.desc(), NewsFeedItem.created_at.asc())
+                .all()
+            )
+            # Keep the first (highest score / oldest), delete the rest
+            for item in items[1:]:
+                db.delete(item)
+                deleted += 1
+        if deleted:
+            db.commit()
+            logger.info(f"Dedup: removed {deleted} duplicate news items across {len(dupes)} titles")
+
+
 def _backfill_news_from_signals():
     """Create NewsFeedItem entries for any RawSignals that don't have one yet."""
     from venture_engine.db.models import RawSignal, NewsFeedItem
@@ -214,6 +244,7 @@ def _backfill_news_from_signals():
     with get_db() as db:
         # Get all URLs already in news_feed
         existing_urls = {r[0] for r in db.query(NewsFeedItem.url).all() if r[0]}
+        existing_titles = {r[0] for r in db.query(NewsFeedItem.title).all() if r[0]}
 
         # Find raw signals with URLs not yet in news_feed
         signals = db.query(RawSignal).filter(
@@ -230,6 +261,9 @@ def _backfill_news_from_signals():
 
             # ── DOPI relevance gate: score article before adding to feed ──
             title = s.title or "Untitled"
+            if title in existing_titles:
+                existing_urls.add(s.url)  # don't re-check
+                continue
             summary = (s.content or "")[:300]
             dopi_score = _score_dopi_relevance(title, summary)
             # Higher threshold for arXiv — require strong practical relevance
@@ -504,6 +538,7 @@ def on_startup():
     _safe("Loading settings", lambda: __import__('venture_engine.settings_service', fromlist=['load_cache']).load_cache(get_db().__enter__()))
     _safe("Resolving HN news URLs", _resolve_hn_urls)
     _safe("Backfilling news from signals", _backfill_news_from_signals)
+    _safe("Deduplicating news feed", _dedup_news_feed)
     _safe("Backfilling YouTube thumbnails", _backfill_youtube_thumbnails)
     _safe("Seeding Slack channels", lambda: __import__('venture_engine.slack_simulator', fromlist=['seed_channels_and_history']).seed_channels_and_history(get_db().__enter__()))
     _safe("Seeding bugs", _seed_bugs_if_empty)

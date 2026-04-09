@@ -3565,6 +3565,17 @@ def trim_sprint(db: Session = Depends(get_db_dependency)):
     return {"trimmed": len(remove), "kept": len(keep), "removed_keys": [b.key for b in remove]}
 
 
+@router.post("/api/bugs/promote-done")
+def promote_done_to_next_version(db: Session = Depends(get_db_dependency)):
+    """Move all done bugs to next_version for release."""
+    done_bugs = db.query(Bug).filter(Bug.status == "done").all()
+    for bug in done_bugs:
+        bug.status = "next_version"
+        bug.updated_at = datetime.utcnow()
+    db.commit()
+    return {"promoted": len(done_bugs)}
+
+
 @router.get("/api/bugs/fix-rate")
 def bug_fix_rate():
     """Current bug-fix rate limiter status."""

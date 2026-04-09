@@ -106,6 +106,23 @@ def _add_missing_columns():
                     logger.info(f"Adding {col} column to bugs...")
                     db.execute(text(f"ALTER TABLE bugs ADD COLUMN {col} {ctype}"))
                     db.commit()
+        # Investment committee columns on ventures
+        if insp.has_table("ventures"):
+            cols = [c["name"] for c in insp.get_columns("ventures")]
+            ic_cols = {
+                "one_pager": "JSONB",
+                "pitch_deck": "JSONB",
+                "agent_upvotes": "INTEGER DEFAULT 0",
+                "agent_downvotes": "INTEGER DEFAULT 0",
+                "ic_reviewed_at": "TIMESTAMP",
+                "ic_verdict": "TEXT",
+                "ic_notes": "JSONB",
+            }
+            for col, ctype in ic_cols.items():
+                if col not in cols:
+                    logger.info(f"Adding {col} column to ventures...")
+                    db.execute(text(f"ALTER TABLE ventures ADD COLUMN {col} {ctype}"))
+                    db.commit()
 
 
 def _fix_json_columns():
@@ -545,6 +562,8 @@ def on_startup():
     _safe("Initial activity simulation", lambda: __import__('venture_engine.activity_simulator', fromlist=['simulate_activity']).simulate_activity(get_db().__enter__()))
     _safe("Purging low-score news", _purge_low_score_news)
     _safe("Seeding DB releases", _seed_releases_from_static)
+    _safe("Initial IC voting", lambda: __import__('venture_engine.ventures.venture_committee', fromlist=['daily_agent_voting']).daily_agent_voting())
+    _safe("Initial IC review", lambda: __import__('venture_engine.ventures.venture_committee', fromlist=['weekly_investment_committee']).weekly_investment_committee())
 
     try:
         logger.info("Starting scheduler...")

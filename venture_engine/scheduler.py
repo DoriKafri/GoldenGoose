@@ -111,6 +111,27 @@ def _run_auto_release():
     run_auto_release()
 
 
+def _daily_agent_voting():
+    """Job 10: Daily agent voting on new ventures."""
+    logger.info("=== SCHEDULED: Daily agent voting ===")
+    from venture_engine.ventures.venture_committee import run_daily_voting
+    run_daily_voting()
+
+
+def _weekly_slack_promotion():
+    """Job 11: Weekly Slack venture champion posts."""
+    logger.info("=== SCHEDULED: Weekly Slack venture promotion ===")
+    from venture_engine.ventures.venture_committee import run_weekly_promotion
+    run_weekly_promotion()
+
+
+def _weekly_ic_review():
+    """Job 12: Weekly investment committee review with 1-pager + pitch deck."""
+    logger.info("=== SCHEDULED: Weekly IC review ===")
+    from venture_engine.ventures.venture_committee import run_weekly_ic_review
+    run_weekly_ic_review()
+
+
 def _update_tl_personas():
     """Job 7: Weekly update of thought leader personas with latest public thoughts."""
     logger.info("=== SCHEDULED: TL persona update starting ===")
@@ -269,6 +290,32 @@ def start_scheduler():
         "interval",
         hours=6,
         id="auto_release",
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        _daily_agent_voting,
+        "cron",
+        hour=9,
+        timezone=SCHEDULER_TZ,
+        id="daily_agent_voting",
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        _weekly_slack_promotion,
+        "cron",
+        day_of_week="thu",
+        hour=10,
+        timezone=SCHEDULER_TZ,
+        id="weekly_slack_promotion",
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        _weekly_ic_review,
+        "cron",
+        day_of_week="fri",
+        hour=14,
+        timezone=SCHEDULER_TZ,
+        id="weekly_ic_review",
         replace_existing=True,
     )
     scheduler.start()

@@ -266,6 +266,68 @@ def venture_logo(title: str):
 
 # ─── Ventures ─────────────────────────────────────────────────────
 
+@router.get("/api/ventures/investment-committee")
+def get_investment_committee(db: Session = Depends(get_db_dependency)):
+    """Return this week's top 3 IC-reviewed ventures with 1-pager + pitch deck."""
+    week_ago = datetime.utcnow() - timedelta(days=7)
+
+    # Get ventures reviewed this week, ordered by net votes
+    reviewed = (
+        db.query(Venture)
+        .filter(Venture.ic_reviewed_at.isnot(None))
+        .filter(Venture.ic_reviewed_at >= week_ago)
+        .order_by((Venture.agent_upvotes - Venture.agent_downvotes).desc())
+        .limit(3)
+        .all()
+    )
+
+    # If none reviewed this week, get the most recent IC-reviewed ones
+    if not reviewed:
+        reviewed = (
+            db.query(Venture)
+            .filter(Venture.ic_reviewed_at.isnot(None))
+            .order_by(Venture.ic_reviewed_at.desc())
+            .limit(3)
+            .all()
+        )
+
+    results = []
+    for v in reviewed:
+        results.append({
+            "id": v.id,
+            "title": v.title,
+            "slogan": v.slogan,
+            "domain": v.domain,
+            "status": v.status,
+            "score_total": v.score_total,
+            "agent_upvotes": v.agent_upvotes or 0,
+            "agent_downvotes": v.agent_downvotes or 0,
+            "net_votes": (v.agent_upvotes or 0) - (v.agent_downvotes or 0),
+            "ic_verdict": v.ic_verdict,
+            "ic_reviewed_at": v.ic_reviewed_at.isoformat() if v.ic_reviewed_at else None,
+            "ic_notes": v.ic_notes or [],
+            "one_pager": v.one_pager,
+            "pitch_deck": v.pitch_deck,
+            "problem": v.problem,
+            "proposed_solution": v.proposed_solution,
+            "target_buyer": v.target_buyer,
+        })
+
+    return {"candidates": results, "week_of": datetime.utcnow().strftime("%Y-%m-%d")}
+
+
+@router.post("/api/ventures/investment-committee/trigger")
+def trigger_ic_review(db: Session = Depends(get_db_dependency)):
+    """Manually trigger the weekly IC review pipeline (voting + Slack + IC)."""
+    from venture_engine.ventures.venture_committee import (
+        daily_agent_voting, weekly_slack_promotion, weekly_investment_committee,
+    )
+    daily_agent_voting()
+    weekly_slack_promotion()
+    weekly_investment_committee()
+    return {"status": "ok", "message": "IC pipeline completed"}
+
+
 @router.get("/api/ventures")
 def list_ventures(
     status: Optional[str] = None,

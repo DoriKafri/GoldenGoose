@@ -178,6 +178,7 @@ DEFAULT_CHANNELS = [
     {"name": "ai-and-ml", "description": "AI/ML trends, LLM experiments, and agent architectures"},
     {"name": "closed-crs", "description": "Closed change requests — automated feed of resolved bugs, features, and improvements"},
     {"name": "random", "description": "Off-topic, memes, and water cooler chat"},
+    {"name": "venture-champions", "description": "Weekly venture advocacy — team members champion their top venture picks"},
 ]
 
 # ── Seed conversation threads per channel ─────────────────────────────────

@@ -56,6 +56,14 @@ class Venture(Base):
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
     last_scored_at = Column(DateTime)
     score_total = Column(Float, index=True)
+    # Investment committee / agent voting
+    one_pager = Column(JSON, nullable=True)       # {problem, solution, market, traction, team, ask}
+    pitch_deck = Column(JSON, nullable=True)      # [{slide_title, slide_body, slide_type}]
+    agent_upvotes = Column(Integer, default=0)
+    agent_downvotes = Column(Integer, default=0)
+    ic_reviewed_at = Column(DateTime, nullable=True)  # last investment committee review
+    ic_verdict = Column(Text, nullable=True)          # "fund" | "pass" | "revisit"
+    ic_notes = Column(JSON, nullable=True)            # [{vc_name, verdict, reasoning}]
 
     scores = relationship("VentureScore", back_populates="venture", order_by="VentureScore.scored_at.desc()")
     tech_gaps = relationship("TechGap", back_populates="venture")

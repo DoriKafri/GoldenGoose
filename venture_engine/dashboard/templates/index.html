@@ -824,6 +824,60 @@ html.dark .sl-msg-wrap:hover { background:rgba(255,255,255,.08); }
 .dopi-research-btn:disabled { opacity:0.7; cursor:wait; }
 .dopi-research-btn.dopi-research-success { display:inline-flex; background:rgba(34,197,94,0.1); border-color:rgba(34,197,94,0.3); color:#16a34a; }
 .dopi-research-btn.dopi-research-rejected { display:inline-flex; background:rgba(239,68,68,0.08); border-color:rgba(239,68,68,0.2); color:#dc2626; }
+
+/* ── Investment Committee ── */
+.ic-header { text-align:center; padding:24px 20px 16px; }
+.ic-title { font-size:24px; font-weight:700; color:var(--text); margin:0; }
+.ic-subtitle { font-size:13px; color:var(--text3); margin-top:4px; }
+.ic-trigger-btn { padding:6px 16px; font-size:12px; font-weight:600; border:1px solid rgba(124,58,237,0.3); color:#7c3aed; background:rgba(124,58,237,0.08); border-radius:6px; cursor:pointer; transition:all 0.2s; }
+.ic-trigger-btn:hover { background:rgba(124,58,237,0.18); }
+.ic-trigger-btn:disabled { opacity:0.5; cursor:wait; }
+.ic-empty { text-align:center; padding:80px 20px; }
+.ic-empty h3 { font-size:18px; margin:0 0 8px; color:var(--text); }
+.ic-empty p { font-size:13px; color:var(--text3); margin:0 0 20px; }
+.ic-grid { display:flex; flex-direction:column; gap:20px; padding:0 20px 40px; max-width:900px; margin:0 auto; }
+.ic-card { background:var(--card-bg); border:1px solid var(--border); border-radius:12px; overflow:hidden; }
+.ic-card-header { display:flex; align-items:flex-start; gap:12px; padding:20px 20px 12px; }
+.ic-medal { font-size:28px; }
+.ic-card-title-wrap { flex:1; }
+.ic-card-title { font-size:18px; font-weight:700; color:var(--text); margin:0; }
+.ic-card-slogan { font-size:12px; color:var(--text3); margin-top:2px; font-style:italic; }
+.ic-verdict { padding:4px 10px; border-radius:20px; font-size:11px; font-weight:700; text-transform:uppercase; white-space:nowrap; }
+.ic-verdict-fund { background:rgba(34,197,94,0.12); color:#16a34a; }
+.ic-verdict-revisit { background:rgba(245,158,11,0.12); color:#d97706; }
+.ic-verdict-pass { background:rgba(239,68,68,0.08); color:#dc2626; }
+.ic-card-meta { display:flex; gap:12px; padding:0 20px 12px; flex-wrap:wrap; }
+.ic-meta-badge { font-size:11px; font-weight:600; padding:2px 8px; border-radius:4px; background:rgba(99,102,241,0.1); color:#6366f1; }
+.ic-meta-score { font-size:11px; font-weight:600; color:var(--text3); }
+.ic-meta-votes { font-size:11px; color:var(--text3); }
+.ic-tabs { display:flex; border-bottom:1px solid var(--border); }
+.ic-tab { flex:1; padding:10px; font-size:12px; font-weight:600; color:var(--text3); background:none; border:none; cursor:pointer; border-bottom:2px solid transparent; transition:all 0.2s; }
+.ic-tab.active { color:var(--accent, #f59e0b); border-bottom-color:var(--accent, #f59e0b); }
+.ic-tab:hover { background:rgba(255,255,255,0.03); }
+.ic-tab-panel { display:none; padding:16px 20px 20px; }
+.ic-tab-panel.active { display:block; }
+.ic-placeholder { text-align:center; padding:30px; color:var(--text3); font-size:13px; }
+.ic-onepager { display:flex; flex-direction:column; gap:12px; }
+.ic-op-section h4 { font-size:12px; font-weight:700; color:var(--accent, #f59e0b); text-transform:uppercase; letter-spacing:0.5px; margin:0 0 4px; }
+.ic-op-section p { font-size:13px; color:var(--text2, var(--text)); margin:0; line-height:1.5; }
+.ic-op-section ul { font-size:13px; color:var(--text2, var(--text)); margin:4px 0 0; padding-left:18px; }
+.ic-op-row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.ic-deck { display:flex; flex-direction:column; gap:8px; }
+.ic-slide { display:flex; gap:12px; align-items:flex-start; padding:12px; border-radius:8px; background:rgba(255,255,255,0.02); border:1px solid var(--border); }
+.ic-slide-num { width:28px; height:28px; border-radius:50%; color:#fff; font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.ic-slide-content { flex:1; }
+.ic-slide-title { font-size:14px; font-weight:700; color:var(--text); margin-bottom:4px; }
+.ic-slide-body { font-size:12px; color:var(--text2, var(--text)); line-height:1.5; }
+.ic-vc-panel { display:flex; flex-direction:column; gap:10px; }
+.ic-vc-review { padding:12px; border-radius:8px; border:1px solid var(--border); }
+.ic-vc-fund { border-left:3px solid #22c55e; }
+.ic-vc-revisit { border-left:3px solid #f59e0b; }
+.ic-vc-pass { border-left:3px solid #ef4444; }
+.ic-vc-header { display:flex; align-items:center; gap:8px; margin-bottom:6px; flex-wrap:wrap; }
+.ic-vc-header strong { font-size:13px; color:var(--text); }
+.ic-vc-firm { font-size:11px; color:var(--text3); }
+.ic-vc-verdict { font-size:11px; font-weight:700; margin-left:auto; text-transform:uppercase; }
+.ic-vc-reasoning { font-size:12px; color:var(--text2, var(--text)); line-height:1.5; margin:0; }
 .yt-panel { display:none; overflow-x:hidden; position:relative; }
 .yt-panel.active { display:flex; flex-direction:column; flex:1; min-height:0; }
 #ytTakeawaysPanel.active, #ytDpoiPanel.active, #ytTranscriptPanel.active { display:block; flex:none; }
@@ -1262,6 +1316,10 @@ html.dark .sl-msg-wrap:hover { background:rgba(255,255,255,.08); }
       <button class="sidebar-nav-item" data-tab="training" onclick="switchTab('training')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>
         Training
+      </button>
+      <button class="sidebar-nav-item" data-tab="ic" onclick="switchTab('ic')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+        Investment Committee
       </button>
       <div class="sidebar-nav-divider"></div>
       <span class="sidebar-nav-label">Tools</span>
@@ -2171,7 +2229,7 @@ function switchTab(tab, skipHash) {
     b.classList.toggle('active', b.dataset.tab === tab);
   });
   // Show/hide context-sensitive elements
-  const isVentureTab = !['news','threads','bugs','graph','slack','activity','sim-users','leaderboard','release-notes','live'].includes(tab);
+  const isVentureTab = !['news','threads','bugs','graph','slack','activity','sim-users','leaderboard','release-notes','live','ic'].includes(tab);
   document.getElementById('suggestTabBtn').style.display = isVentureTab ? '' : 'none';
   document.getElementById('newsPostBar').style.display = (tab === 'news') ? '' : 'none';
   document.getElementById('ventureSearchBar').style.display = isVentureTab ? '' : 'none';
@@ -2200,6 +2258,7 @@ function switchTab(tab, skipHash) {
   else if (tab === 'leaderboard') { loadLeaderboard(); }
   else if (tab === 'release-notes') { loadReleaseNotes(); }
   else if (tab === 'live') { loadLiveMonitor(); }
+  else if (tab === 'ic') { loadInvestmentCommittee(); }
   else { loadVentures(); }
 }
 
@@ -7141,6 +7200,150 @@ let _lmPollTimer = null;
 let _lmTickTimer = null;
 let _lmLastTime = null;
 let _lmHistory = [];
+// ── Investment Committee View ─────────────────────────────────────────
+async function loadInvestmentCommittee() {
+  const el = document.getElementById('ventureList');
+  el.innerHTML = '<div style="padding:40px;text-align:center;"><div class="tab-spinner" style="display:inline-block;width:28px;height:28px;border-width:3px;"></div><div style="margin-top:12px;color:var(--text3);">Loading Investment Committee...</div></div>';
+
+  try {
+    const resp = await fetch(`${API}/api/ventures/investment-committee`);
+    const data = await resp.json();
+    const candidates = data.candidates || [];
+
+    if (!candidates.length) {
+      el.innerHTML = `
+        <div class="ic-empty">
+          <div style="font-size:48px;margin-bottom:16px;">🏦</div>
+          <h3>No IC Reviews Yet</h3>
+          <p>The investment committee hasn't reviewed any ventures this week.</p>
+          <button class="ic-trigger-btn" onclick="_triggerICReview()">Run IC Pipeline Now</button>
+        </div>`;
+      return;
+    }
+
+    let html = `
+      <div class="ic-header">
+        <h2 class="ic-title">Investment Committee</h2>
+        <div class="ic-subtitle">Week of ${data.week_of} — Top ${candidates.length} Venture Candidates</div>
+        <button class="ic-trigger-btn" onclick="_triggerICReview()" style="margin-top:8px;">Refresh IC Review</button>
+      </div>
+      <div class="ic-grid">`;
+
+    for (const [idx, c] of candidates.entries()) {
+      const verdictClass = c.ic_verdict === 'fund' ? 'ic-verdict-fund' : c.ic_verdict === 'revisit' ? 'ic-verdict-revisit' : 'ic-verdict-pass';
+      const verdictIcon = c.ic_verdict === 'fund' ? '&#9989;' : c.ic_verdict === 'revisit' ? '&#128260;' : '&#10060;';
+      const medal = idx === 0 ? '&#129351;' : idx === 1 ? '&#129352;' : '&#129353;';
+
+      html += `
+        <div class="ic-card">
+          <div class="ic-card-header">
+            <span class="ic-medal">${medal}</span>
+            <div class="ic-card-title-wrap">
+              <h3 class="ic-card-title">${esc(c.title)}</h3>
+              <div class="ic-card-slogan">${esc(c.slogan || '')}</div>
+            </div>
+            <span class="ic-verdict ${verdictClass}">${verdictIcon} ${esc(c.ic_verdict || 'pending')}</span>
+          </div>
+          <div class="ic-card-meta">
+            <span class="ic-meta-badge">${esc(c.domain || '')}</span>
+            <span class="ic-meta-score">Score: ${Math.round(c.score_total || 0)}</span>
+            <span class="ic-meta-votes">&#128077; ${c.agent_upvotes} &nbsp; &#128078; ${c.agent_downvotes}</span>
+          </div>
+
+          <div class="ic-tabs">
+            <button class="ic-tab active" onclick="_icSwitchTab(this, 'onepager', '${c.id}')">1-Pager</button>
+            <button class="ic-tab" onclick="_icSwitchTab(this, 'deck', '${c.id}')">Pitch Deck</button>
+            <button class="ic-tab" onclick="_icSwitchTab(this, 'vc', '${c.id}')">VC Panel</button>
+          </div>
+
+          <div class="ic-tab-panel active" id="ic-onepager-${c.id}">
+            ${c.one_pager ? _renderOnePager(c.one_pager) : '<div class="ic-placeholder">No 1-pager generated yet</div>'}
+          </div>
+          <div class="ic-tab-panel" id="ic-deck-${c.id}">
+            ${c.pitch_deck ? _renderPitchDeck(c.pitch_deck) : '<div class="ic-placeholder">No pitch deck generated yet</div>'}
+          </div>
+          <div class="ic-tab-panel" id="ic-vc-${c.id}">
+            ${c.ic_notes ? _renderVCPanel(c.ic_notes) : '<div class="ic-placeholder">No VC reviews yet</div>'}
+          </div>
+        </div>`;
+    }
+
+    html += '</div>';
+    el.innerHTML = html;
+  } catch(e) {
+    el.innerHTML = `<div style="padding:40px;text-align:center;color:var(--danger);">Failed to load IC data: ${esc(e.message)}</div>`;
+  }
+}
+
+function _icSwitchTab(btn, panel, ventureId) {
+  const card = btn.closest('.ic-card');
+  card.querySelectorAll('.ic-tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  card.querySelectorAll('.ic-tab-panel').forEach(p => p.classList.remove('active'));
+  const target = document.getElementById(`ic-${panel}-${ventureId}`);
+  if (target) target.classList.add('active');
+}
+
+function _renderOnePager(op) {
+  return `<div class="ic-onepager">
+    <div class="ic-op-section"><h4>Problem</h4><p>${esc(op.problem || '')}</p></div>
+    <div class="ic-op-section"><h4>Solution</h4><p>${esc(op.solution || '')}</p></div>
+    <div class="ic-op-row">
+      <div class="ic-op-section"><h4>Target Market</h4><p>${esc(op.target_market || '')}</p></div>
+      <div class="ic-op-section"><h4>Market Size</h4><p>${esc(op.market_size || '')}</p></div>
+    </div>
+    <div class="ic-op-section"><h4>Business Model</h4><p>${esc(op.business_model || '')}</p></div>
+    <div class="ic-op-section"><h4>Competitive Advantage</h4><p>${esc(op.competitive_advantage || '')}</p></div>
+    <div class="ic-op-section"><h4>Traction</h4><p>${esc(op.traction || '')}</p></div>
+    <div class="ic-op-section"><h4>Team Fit</h4><p>${esc(op.team_fit || '')}</p></div>
+    <div class="ic-op-section"><h4>The Ask</h4><p>${esc(op.ask || '')}</p></div>
+    <div class="ic-op-section"><h4>Key Risks</h4><ul>${(op.risks || []).map(r => '<li>' + esc(r) + '</li>').join('')}</ul></div>
+  </div>`;
+}
+
+function _renderPitchDeck(slides) {
+  if (!Array.isArray(slides)) return '<div class="ic-placeholder">Invalid deck data</div>';
+  return '<div class="ic-deck">' + slides.map((s, i) => {
+    const typeColors = {cover:'#7c3aed', problem:'#dc2626', solution:'#059669', market:'#2563eb', advantage:'#d97706', business_model:'#0891b2', traction:'#7c3aed', gtm:'#059669', ask:'#dc2626'};
+    const color = typeColors[s.slide_type] || '#6b7280';
+    return `<div class="ic-slide">
+      <div class="ic-slide-num" style="background:${color};">${i + 1}</div>
+      <div class="ic-slide-content">
+        <div class="ic-slide-title">${esc(s.slide_title || '')}</div>
+        <div class="ic-slide-body">${esc(s.slide_body || '').replace(/\\n/g, '<br>')}</div>
+      </div>
+    </div>`;
+  }).join('') + '</div>';
+}
+
+function _renderVCPanel(notes) {
+  if (!Array.isArray(notes)) return '<div class="ic-placeholder">No VC feedback</div>';
+  return '<div class="ic-vc-panel">' + notes.map(n => {
+    const vClass = n.verdict === 'fund' ? 'ic-vc-fund' : n.verdict === 'revisit' ? 'ic-vc-revisit' : 'ic-vc-pass';
+    const vIcon = n.verdict === 'fund' ? '&#9989;' : n.verdict === 'revisit' ? '&#128260;' : '&#10060;';
+    return `<div class="ic-vc-review ${vClass}">
+      <div class="ic-vc-header">
+        <strong>${esc(n.vc_name || '')}</strong>
+        <span class="ic-vc-firm">${esc(n.firm || '')}</span>
+        <span class="ic-vc-verdict">${vIcon} ${esc(n.verdict || '')}</span>
+      </div>
+      <p class="ic-vc-reasoning">${esc(n.reasoning || '')}</p>
+    </div>`;
+  }).join('') + '</div>';
+}
+
+async function _triggerICReview() {
+  const el = document.getElementById('ventureList');
+  const btn = el.querySelector('.ic-trigger-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Running IC pipeline...'; }
+  try {
+    await fetch(`${API}/api/ventures/investment-committee/trigger`, {method:'POST', headers:{'X-API-Key':'develeap2024'}});
+    loadInvestmentCommittee();
+  } catch(e) {
+    if (btn) { btn.disabled = false; btn.textContent = 'Refresh IC Review'; }
+  }
+}
+
 async function loadLiveMonitor() {
   if (_lmPollTimer) { clearInterval(_lmPollTimer); _lmPollTimer = null; }
   if (_lmTickTimer) { clearInterval(_lmTickTimer); _lmTickTimer = null; }

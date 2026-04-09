@@ -3576,6 +3576,14 @@ def promote_done_to_next_version(db: Session = Depends(get_db_dependency)):
     return {"promoted": len(done_bugs)}
 
 
+@router.post("/api/bugs/trigger-release")
+def trigger_release(db: Session = Depends(get_db_dependency)):
+    """Manually trigger an auto-release of all next_version bugs."""
+    from venture_engine.activity_simulator import auto_release
+    result = auto_release(db)
+    return result
+
+
 @router.get("/api/bugs/fix-rate")
 def bug_fix_rate():
     """Current bug-fix rate limiter status."""

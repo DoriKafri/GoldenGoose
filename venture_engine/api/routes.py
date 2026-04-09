@@ -3742,6 +3742,39 @@ def add_bug_comment(bug_id: str, req: BugCommentRequest, db: Session = Depends(g
             "created_at": comment.created_at.isoformat() if comment.created_at else None}
 
 
+@router.post("/api/releases/fix-versions")
+def fix_release_versions(db: Session = Depends(get_db_dependency)):
+    """Fix version ordering issues: delete bogus low versions, rename v0.1.1→v0.14.1 etc."""
+    import re as _re
+    from venture_engine.db.models import Release
+
+    all_releases = db.query(Release).all()
+    def _ver_tuple(r):
+        m = _re.match(r"v(\d+)\.(\d+)\.(\d+)", r.version or "")
+        return (int(m.group(1)), int(m.group(2)), int(m.group(3))) if m else (0, 0, 0)
+
+    # Find the highest "real" release (v0.X.0 series from seeded data)
+    seeded = [r for r in all_releases if r.fixes_count == 0]
+    auto = [r for r in all_releases if r.fixes_count > 0]
+
+    highest_seeded = max(seeded, key=_ver_tuple) if seeded else None
+    highest_major = _ver_tuple(highest_seeded) if highest_seeded else (0, 13, 0)
+
+    # Fix auto-releases that got wrong version numbers
+    fixed = []
+    next_patch = highest_major[2] + 1
+    for r in sorted(auto, key=lambda x: x.created_at):
+        old_ver = r.version
+        expected = f"v{highest_major[0]}.{highest_major[1]}.{next_patch}"
+        if _ver_tuple(r) < highest_major:
+            r.version = expected
+            next_patch += 1
+            fixed.append({"old": old_ver, "new": r.version})
+
+    db.commit()
+    return {"fixed": fixed, "total_releases": len(all_releases)}
+
+
 # ─── Knowledge Graph ────────────────────────────────────────────
 
 @router.get("/api/releases-debug")

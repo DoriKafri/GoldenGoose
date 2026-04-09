@@ -3541,6 +3541,30 @@ def bug_stats(db: Session = Depends(get_db_dependency)):
     return {"by_status": status_counts, "by_priority": priority_counts, "total": sum(status_counts.values())}
 
 
+@router.post("/api/bugs/trim-sprint")
+def trim_sprint(db: Session = Depends(get_db_dependency)):
+    """Keep only top 10 sprint items by value/effort score, move rest back to open."""
+    sprint_bugs = db.query(Bug).filter(Bug.status == "sprint").all()
+    if len(sprint_bugs) <= 10:
+        return {"trimmed": 0, "kept": len(sprint_bugs)}
+
+    PRIORITY_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3}
+    def _score(bug):
+        sp = max(1, bug.story_points or 3)
+        bv = bug.business_value or 5
+        prio_bonus = {0: 2.0, 1: 1.5, 2: 1.0, 3: 0.5}.get(PRIORITY_ORDER.get(bug.priority, 2), 1.0)
+        return (bv / sp) * prio_bonus
+
+    scored = sorted(sprint_bugs, key=_score, reverse=True)
+    keep = scored[:10]
+    remove = scored[10:]
+    for bug in remove:
+        bug.status = "open"
+        bug.updated_at = datetime.utcnow()
+    db.commit()
+    return {"trimmed": len(remove), "kept": len(keep), "removed_keys": [b.key for b in remove]}
+
+
 @router.get("/api/bugs/fix-rate")
 def bug_fix_rate():
     """Current bug-fix rate limiter status."""

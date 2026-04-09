@@ -3606,18 +3606,6 @@ def promote_done_to_next_version(db: Session = Depends(get_db_dependency)):
     return {"promoted": len(done_bugs)}
 
 
-@router.post("/api/bugs/trigger-sprint")
-def trigger_sprint(db: Session = Depends(get_db_dependency)):
-    """Manually trigger sprint planning (PO picks top 10 from open pool)."""
-    from venture_engine.activity_simulator import sprint_planning, _sprint_plan_hour, _sprint_plan_lock
-    import venture_engine.activity_simulator as _sim
-    # Reset the hourly guard so it runs immediately
-    with _sim._sprint_plan_lock:
-        _sim._sprint_plan_hour = None
-    result = sprint_planning(db)
-    return result
-
-
 @router.post("/api/bugs/trigger-release")
 def trigger_release(db: Session = Depends(get_db_dependency)):
     """Manually trigger an auto-release of all next_version bugs."""
@@ -3678,6 +3666,16 @@ def bug_finding_leaderboard(db: Session = Depends(get_db_dependency)):
             "severity_multipliers": SEVERITY_MULT,
         },
     }
+
+
+@router.post("/api/bugs/trigger-sprint")
+def trigger_sprint(db: Session = Depends(get_db_dependency)):
+    """Manually trigger sprint planning (PO picks top 10 from open pool)."""
+    import venture_engine.activity_simulator as _sim
+    with _sim._sprint_plan_lock:
+        _sim._sprint_plan_hour = None
+    result = _sim.sprint_planning(db)
+    return result
 
 
 @router.get("/api/bugs/{bug_id}")

@@ -817,6 +817,13 @@ html.dark .sl-msg-wrap:hover { background:rgba(255,255,255,.08); }
 .yt-tab.loading .yt-tab-icon { display:none; }
 .yt-tab.ready .yt-tab-icon { color:#22c55e; }
 @keyframes tabSpin { to { transform:rotate(360deg); } }
+.dopi-research-btn { display:none; position:absolute; bottom:8px; right:8px; padding:4px 10px; font-size:11px; font-weight:600; color:#7c3aed; background:rgba(124,58,237,0.08); border:1px solid rgba(124,58,237,0.25); border-radius:6px; cursor:pointer; align-items:center; gap:4px; transition:all 0.2s; z-index:2; }
+.dopi-item { position:relative; }
+.dopi-item:hover .dopi-research-btn { display:inline-flex; }
+.dopi-research-btn:hover { background:rgba(124,58,237,0.18); color:#6d28d9; transform:scale(1.04); }
+.dopi-research-btn:disabled { opacity:0.7; cursor:wait; }
+.dopi-research-btn.dopi-research-success { display:inline-flex; background:rgba(34,197,94,0.1); border-color:rgba(34,197,94,0.3); color:#16a34a; }
+.dopi-research-btn.dopi-research-rejected { display:inline-flex; background:rgba(239,68,68,0.08); border-color:rgba(239,68,68,0.2); color:#dc2626; }
 .yt-panel { display:none; overflow-x:hidden; position:relative; }
 .yt-panel.active { display:flex; flex-direction:column; flex:1; min-height:0; }
 #ytTakeawaysPanel.active, #ytDpoiPanel.active, #ytTranscriptPanel.active { display:block; flex:none; }
@@ -3857,16 +3864,21 @@ async function _artLoadDpoi() {
 function _artRenderDpoi(items) {
   const el = document.getElementById('artDpoiContent');
   if (!el) return;
-  el.innerHTML = '<div class="yt-ai-list">' + items.map(item => {
+  el.innerHTML = '<div class="yt-ai-list">' + items.map((item, idx) => {
     const badge = item.type === 'problem'
       ? '<span class="yt-ai-badge problem">Problem</span>'
       : '<span class="yt-ai-badge opportunity">Opportunity</span>';
-    return `<div class="yt-ai-item" style="cursor:pointer;" onclick="_artScrollToText(${JSON.stringify(item.text).replace(/"/g, '&quot;')})">
+    return `<div class="yt-ai-item dopi-item" style="cursor:pointer;" onclick="_artScrollToText(${JSON.stringify(item.text).replace(/"/g, '&quot;')})" data-dopi-idx="${idx}">
       <div class="yt-ai-item-header">${badge}</div>
       <div class="yt-ai-title">${esc(item.text || '')}</div>
       ${item.label ? `<div class="yt-ai-desc" style="margin-top:4px;font-size:12px;color:var(--text3);">${esc(item.label)}</div>` : ''}
+      <button class="dopi-research-btn" onclick="event.stopPropagation(); _dopiResearchVenture(${idx}, true)" title="Research a venture from this insight">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        Research Venture
+      </button>
     </div>`;
   }).join('') + '</div>';
+  window._artDopiItems = items;
 }
 
 function _artScrollToText(text) {
@@ -4538,12 +4550,12 @@ async function _ytLoadDpoi() {
 function _ytRenderDpoi(items) {
   const contentEl = document.getElementById('ytDpoiContent');
   if (!contentEl) return;
-  contentEl.innerHTML = '<div class="yt-ai-list">' + items.map(item => {
+  contentEl.innerHTML = '<div class="yt-ai-list">' + items.map((item, idx) => {
     const badge = item.type === 'problem'
       ? '<span class="yt-ai-badge problem">Problem</span>'
       : '<span class="yt-ai-badge opportunity">Opportunity</span>';
     const score = item.venture_relevance || 0;
-    return `<div class="yt-ai-item" onclick="_ytTranscriptClick(${item.start_seconds})" title="Jump to ${item.start_time || _fmtTime(item.start_seconds)}">
+    return `<div class="yt-ai-item dopi-item" onclick="_ytTranscriptClick(${item.start_seconds})" title="Jump to ${item.start_time || _fmtTime(item.start_seconds)}" data-dopi-idx="${idx}">
       <div class="yt-ai-item-header">
         ${badge}
         <span class="yt-ai-time">${item.start_time || _fmtTime(item.start_seconds)} – ${item.end_time || _fmtTime(item.end_seconds)}</span>
@@ -4555,8 +4567,56 @@ function _ytRenderDpoi(items) {
         <div class="yt-ai-relevance-bar"><div class="yt-ai-relevance-fill" style="width:${score*10}%"></div></div>
         ${score}/10
       </div>
+      <button class="dopi-research-btn" onclick="event.stopPropagation(); _dopiResearchVenture(${idx})" title="Research a venture from this insight">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        Research Venture
+      </button>
     </div>`;
   }).join('') + '</div>';
+  // Store items for research handler
+  window._dopiItems = items;
+}
+
+async function _dopiResearchVenture(idx, isArticle) {
+  const items = isArticle ? window._artDopiItems : window._dopiItems;
+  const item = items && items[idx];
+  if (!item) return;
+
+  const container = isArticle ? '#artDpoiContent' : '#ytDpoiContent';
+  const btn = document.querySelector(`${container} .dopi-item[data-dopi-idx="${idx}"] .dopi-research-btn`);
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span class="tab-spinner" style="display:inline-block;width:12px;height:12px;border-width:2px;margin-right:4px;"></span>Researching...';
+  }
+
+  try {
+    const resp = await fetch(`${API}/api/ventures/research-from-dopi`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-API-Key': 'develeap2024'},
+      body: JSON.stringify({
+        title: item.title || item.text || '',
+        description: item.description || item.label || item.text || '',
+        type: item.type || 'opportunity',
+      }),
+    });
+    const data = await resp.json();
+
+    if (data.status === 'accepted') {
+      btn.classList.add('dopi-research-success');
+      btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:14px;height:14px;"><path d="M20 6L9 17l-5-5"/></svg> ${esc(data.title)} — Score: ${data.score_total}`;
+      btn.onclick = () => { window.location.hash = ''; loadVentures(); };
+      btn.title = 'Click to view ventures';
+    } else if (data.status === 'rejected') {
+      btn.classList.add('dopi-research-rejected');
+      btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Score ${data.score_total} — below 9.5 threshold`;
+      setTimeout(() => { btn.disabled = false; btn.classList.remove('dopi-research-rejected'); btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> Research Venture'; }, 4000);
+    } else {
+      btn.innerHTML = `&#9888; ${esc(data.message || 'Failed')}`;
+      setTimeout(() => { btn.disabled = false; btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> Research Venture'; }, 4000);
+    }
+  } catch(e) {
+    if (btn) { btn.disabled = false; btn.innerHTML = '&#9888; Error — retry'; }
+  }
 }
 
 function _ytMarkTimestamp() {

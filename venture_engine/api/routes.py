@@ -895,6 +895,101 @@ def suggest_venture(req: SuggestRequest):
         raise HTTPException(500, f"Suggest failed: {str(exc)}")
 
 
+class ResearchFromDopiRequest(BaseModel):
+    title: str
+    description: str
+    type: str = "opportunity"  # problem | opportunity
+
+
+@router.post("/api/ventures/research-from-dopi")
+def research_from_dopi(req: ResearchFromDopiRequest, db: Session = Depends(get_db_dependency)):
+    """Full pipeline: DOPI insight → suggest venture → create → score.  Only keeps score > 9.5."""
+    from anthropic import Anthropic
+    from venture_engine.ventures.scorer import score_venture as _score_venture
+
+    client = Anthropic(api_key=settings.anthropic_api_key)
+
+    # Step 1: Generate venture concept from DOPI insight
+    idea = f"{req.type.upper()}: {req.title}\n\nDetails: {req.description}"
+    system = SUGGEST_PROMPTS.get("venture", "")
+    system += (
+        "\n\nTake the user's DOPI insight (problem or opportunity identified from content) "
+        "and turn it into a complete B2B SaaS venture concept. "
+        "The venture should score very high on market opportunity, feasibility, and Develeap fit. "
+        "Respond with valid JSON only: "
+        '{"title": "...", "slogan": "...", "summary": "...", "problem": "...", '
+        '"proposed_solution": "...", "target_buyer": "...", "domain": "..."} '
+        "Domain must be one of: DevOps, DevSecOps, MLOps, DataOps, AIEng, SRE"
+    )
+
+    try:
+        response = client.messages.create(
+            model=settings.claude_model,
+            max_tokens=2048,
+            system=system,
+            messages=[{"role": "user", "content": idea}],
+        )
+        raw = response.content[0].text.strip()
+        raw = re.sub(r"^```(?:json)?\s*\n?", "", raw)
+        raw = re.sub(r"\n?```\s*$", "", raw)
+        data = json.loads(raw.strip())
+    except Exception as exc:
+        logger.error(f"Research-from-DOPI suggest failed: {exc}")
+        raise HTTPException(500, f"AI suggestion failed: {str(exc)}")
+
+    # Step 2: Create the venture
+    venture = Venture(
+        title=data.get("title", req.title),
+        slogan=data.get("slogan", ""),
+        summary=data.get("summary", ""),
+        problem=data.get("problem", req.description),
+        proposed_solution=data.get("proposed_solution", ""),
+        target_buyer=data.get("target_buyer", ""),
+        domain=data.get("domain", "DevOps"),
+        category="venture",
+        source_type="dopi_insight",
+        status="backlog",
+    )
+    db.add(venture)
+    db.flush()
+
+    # Step 3: Score it
+    try:
+        score_obj = _score_venture(db, venture)
+    except Exception as exc:
+        logger.error(f"Research-from-DOPI scoring failed: {exc}")
+        db.commit()
+        return {
+            "status": "created_unscored",
+            "venture_id": venture.id,
+            "title": venture.title,
+            "score_total": None,
+            "message": f"Created but scoring failed: {str(exc)}",
+        }
+
+    total = venture.score_total or 0
+    if total < 9.5:
+        # Below threshold — delete it
+        db.delete(venture)
+        db.commit()
+        return {
+            "status": "rejected",
+            "score_total": total,
+            "title": data.get("title", req.title),
+            "message": f"Score {total}/100 is below the 9.5 threshold. Venture discarded.",
+        }
+
+    db.commit()
+    return {
+        "status": "accepted",
+        "venture_id": venture.id,
+        "title": venture.title,
+        "score_total": total,
+        "summary": venture.summary,
+        "message": f"Venture created with score {total}/100!",
+    }
+
+
 class PolishRequest(BaseModel):
     title: str
     summary: str = ""

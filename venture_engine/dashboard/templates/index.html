@@ -917,6 +917,8 @@ html.dark .sl-msg-wrap:hover { background:rgba(255,255,255,.08); }
 .bug-board-col-title { font-size:12px; font-weight:700; color:var(--text2); text-transform:uppercase; padding:8px; margin-bottom:4px; }
 .bug-board-col-nv { border:2px solid rgba(99,102,241,0.4); background:rgba(99,102,241,0.06); }
 .bug-board-col-nv .bug-board-col-title { color:#6366f1; }
+.bug-card.sprint-candidate { border-left:3px solid #f59e0b; background:rgba(245,158,11,0.06); }
+.sprint-candidate-badge { display:inline-flex;align-items:center;gap:3px;font-size:9px;font-weight:700;color:#f59e0b;background:rgba(245,158,11,0.12);padding:1px 6px;border-radius:var(--radius-pill);white-space:nowrap; }
 /* ─── Bug-Finding Leaderboard ────────────────────────── */
 .lb-header { text-align:center; margin-bottom:24px; }
 .lb-header h2 { font-size:22px; font-weight:800; color:var(--text); margin-bottom:4px; }
@@ -6276,25 +6278,30 @@ setTimeout(updateTabScrollHint, 100);
 
 // Read hash on page load for deep linking
 // ─── Bug Tracking ───────────────────────────────────────────────
-let _bugViewMode = 'list'; // 'list' or 'board'
+let _bugViewMode = 'board'; // 'list' or 'board'
 
 async function loadBugs() {
   const el = document.getElementById('ventureList');
   el.innerHTML = '<div class="loading">Loading bugs...</div>';
   try {
-    const [bugsRes, statsRes] = await Promise.all([
+    const [bugsRes, statsRes, candRes] = await Promise.all([
       fetch(`${API}/api/bugs?limit=100`),
       fetch(`${API}/api/bugs/stats`),
+      fetch(`${API}/api/bugs/sprint-candidates`),
     ]);
     const bugsData = await bugsRes.json();
     const stats = await statsRes.json();
-    renderBugList(bugsData.items, stats);
+    const candData = await candRes.json();
+    const candidateKeys = new Set((candData.candidates || []).map(c => c.key));
+    const candidateScores = {};
+    (candData.candidates || []).forEach((c, i) => { candidateScores[c.key] = { rank: i + 1, score: c.score }; });
+    renderBugList(bugsData.items, stats, candidateKeys, candidateScores);
   } catch(e) {
     el.innerHTML = '<div class="loading">Failed to load bugs.</div>';
   }
 }
 
-function renderBugList(bugs, stats) {
+function renderBugList(bugs, stats, candidateKeys = new Set(), candidateScores = {}) {
   const el = document.getElementById('ventureList');
   const typeIcons = {bug:'🐛', feature:'✨', task:'📋', improvement:'🔧'};
   const statusOrder = ['open','sprint','in_progress','review','done','next_version','closed'];
@@ -6334,8 +6341,12 @@ function renderBugList(bugs, stats) {
           const sp = b.story_points || '?';
           const bv = b.business_value || '?';
           const ratio = (b.story_points && b.business_value) ? (b.business_value / b.story_points).toFixed(1) : '—';
+          const isCand = status === 'open' && candidateKeys.has(b.key);
+          const candInfo = candidateScores[b.key];
+          const candClass = isCand ? ' sprint-candidate' : '';
+          const candBadge = isCand ? `<span class="sprint-candidate-badge">⚡ #${candInfo?.rank || '?'} next sprint · ${candInfo?.score || '—'}</span>` : '';
           return `
-          <div class="bug-card" onclick="_bugShowDetail('${b.id}')" style="flex-direction:column;gap:4px;">
+          <div class="bug-card${candClass}" onclick="_bugShowDetail('${b.id}')" style="flex-direction:column;gap:4px;">
             <div style="display:flex;justify-content:space-between;align-items:center;width:100%;">
               <span class="bug-key">${esc(b.key)}</span>
               <span class="bug-priority ${b.priority}">${b.priority}</span>
@@ -6345,6 +6356,7 @@ function renderBugList(bugs, stats) {
               <span style="font-size:10px;color:var(--text3);">${b.assignee_name || 'Unassigned'}</span>
               <span style="font-size:10px;font-weight:600;color:var(--text2);" title="SP=${sp} BV=${bv} Ratio=${ratio}">🎯${bv} ⏱${sp}</span>
             </div>
+            ${candBadge}
           </div>`;
         }).join('')}
       </div>`;

@@ -3565,6 +3565,30 @@ def trim_sprint(db: Session = Depends(get_db_dependency)):
     return {"trimmed": len(remove), "kept": len(keep), "removed_keys": [b.key for b in remove]}
 
 
+@router.get("/api/bugs/sprint-candidates")
+def get_sprint_candidates(db: Session = Depends(get_db_dependency)):
+    """Return bug keys that are top-10 sprint candidates from the open pool,
+    scored by (business_value / story_points) × priority_bonus."""
+    PRIORITY_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3}
+    open_bugs = db.query(Bug).filter(Bug.status == "open").all()
+
+    def _score(bug):
+        sp = max(1, bug.story_points or 3)
+        bv = bug.business_value or 5
+        prio_bonus = {0: 2.0, 1: 1.5, 2: 1.0, 3: 0.5}.get(
+            PRIORITY_ORDER.get(bug.priority, 2), 1.0)
+        return (bv / sp) * prio_bonus
+
+    scored = sorted(open_bugs, key=_score, reverse=True)
+    top10 = scored[:10]
+    return {
+        "candidates": [
+            {"key": b.key, "id": b.id, "score": round(_score(b), 2)}
+            for b in top10
+        ]
+    }
+
+
 @router.post("/api/bugs/promote-done")
 def promote_done_to_next_version(db: Session = Depends(get_db_dependency)):
     """Move all done bugs to next_version for release."""

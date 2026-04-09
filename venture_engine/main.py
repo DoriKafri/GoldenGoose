@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from loguru import logger
+import os
 import sys
 
 from venture_engine.db.models import Base
@@ -407,6 +408,54 @@ def _seed_bugs_if_empty():
         logger.info(f"Seeded {created} bugs & feature requests")
 
 
+def _seed_releases_from_static():
+    """Seed DB releases table from the static RELEASE_NOTES.md so all
+    historical versions persist across deploys."""
+    import re
+    from venture_engine.db.models import Release
+
+    candidates = [
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "RELEASE_NOTES.md"),
+        os.path.join(os.getcwd(), "RELEASE_NOTES.md"),
+        "/app/RELEASE_NOTES.md",
+    ]
+    content = ""
+    for path in candidates:
+        if os.path.isfile(path):
+            with open(path, "r") as f:
+                content = f.read()
+            break
+    if not content:
+        return
+
+    with get_db() as db:
+        existing = {r.version for r in db.query(Release.version).all()}
+        parts = re.split(r'\n---\n', content)
+        seeded = 0
+        for part in parts[1:]:  # skip header
+            vm = re.search(r'## (v\d+\.\d+\.\d+)\s*—?\s*(.*)', part)
+            if not vm:
+                continue
+            version = vm.group(1)
+            if version in existing:
+                continue
+            # Extract subtitle
+            sub = re.search(r'### (.+)', part)
+            subtitle = sub.group(1).strip() if sub else ""
+            body = part.strip()
+            release = Release(
+                version=version,
+                fixes_count=0,
+                summary=subtitle,
+                body=body,
+            )
+            db.add(release)
+            seeded += 1
+        if seeded:
+            db.commit()
+            logger.info(f"Seeded {seeded} historical releases from RELEASE_NOTES.md")
+
+
 @app.on_event("startup")
 def on_startup():
     logger.info("Creating database tables...")
@@ -438,7 +487,9 @@ def on_startup():
     from venture_engine.activity_simulator import simulate_activity
     with get_db() as db:
         simulate_activity(db)
+    logger.info("Seeding DB releases from static RELEASE_NOTES.md...")
+    _seed_releases_from_static()
     logger.info("Starting scheduler...")
     from venture_engine.scheduler import start_scheduler
     start_scheduler()
-    logger.info("Venture Intelligence Engine is running. v2.3")
+    logger.info("Venture Intelligence Engine is running. v2.4")

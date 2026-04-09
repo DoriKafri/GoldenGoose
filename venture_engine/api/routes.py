@@ -3706,51 +3706,18 @@ def add_bug_comment(bug_id: str, req: BugCommentRequest, db: Session = Depends(g
 
 @router.get("/api/release-notes")
 def get_release_notes(db: Session = Depends(get_db_dependency)):
-    """Return release notes — DB releases (persistent) merged with static file."""
+    """Return release notes entirely from DB (seeded from static file on startup)."""
     from venture_engine.db.models import Release
 
-    # Start with static file content
-    static_content = ""
-    candidates = [
-        os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "RELEASE_NOTES.md"),
-        os.path.join(os.getcwd(), "RELEASE_NOTES.md"),
-        "/app/RELEASE_NOTES.md",
-    ]
-    for path in candidates:
-        if os.path.isfile(path):
-            with open(path, "r") as f:
-                static_content = f.read()
-            break
-
-    # Get all DB releases (newest first)
     db_releases = db.query(Release).order_by(Release.created_at.desc()).all()
 
     if not db_releases:
-        return {"content": static_content or "# Release Notes\n\nNo release notes available yet."}
+        return {"content": "# Release Notes\n\nNo release notes available yet."}
 
-    # Build combined release notes: DB releases first, then static
     header = "# Release Notes — Develeap Venture Intelligence Engine\n"
-    db_section = "\n".join(f"\n---\n\n{r.body}" for r in db_releases if r.body)
+    body = "\n\n---\n\n".join(r.body for r in db_releases if r.body)
 
-    # Extract static entries (skip header and any DB-duplicate versions)
-    db_versions = {r.version for r in db_releases}
-    static_entries = []
-    if static_content:
-        import re
-        parts = re.split(r'\n---\n', static_content)
-        for part in parts[1:]:  # skip header
-            version_match = re.search(r'## (v\d+\.\d+\.\d+)', part)
-            if version_match and version_match.group(1) in db_versions:
-                continue  # skip duplicates
-            static_entries.append(part.strip())
-
-    static_section = "\n\n---\n\n".join(static_entries) if static_entries else ""
-
-    content = header + db_section
-    if static_section:
-        content += "\n\n---\n\n" + static_section
-
-    return {"content": content}
+    return {"content": header + "\n\n---\n\n" + body}
 
 
 @router.get("/api/next-version")

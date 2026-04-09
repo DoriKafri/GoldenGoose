@@ -7195,15 +7195,6 @@ function renderForceGraph(data) {
     problem: '#f87171', opportunity: '#4ade80', tag: '#94a3b8', bug: '#a78bfa'
   };
 
-  function _nodeRadius(d) {
-    if (d.type === 'venture') return 10;
-    if (d.type === 'thought_leader') return 8;
-    if (d.type === 'bug') return 6;
-    if (d.type === 'problem' || d.type === 'opportunity') return 6;
-    if (d.type === 'tag') return 4;
-    return 5;
-  }
-
   // Build link map for connection counts
   const linkCounts = {};
   (data.edges || []).forEach(e => {
@@ -7215,14 +7206,12 @@ function renderForceGraph(data) {
     nodes: data.nodes.map(n => ({
       ...n,
       color: colorMap[n.type] || '#666',
-      _radius: _nodeRadius(n) + Math.min(5, (linkCounts[n.id] || 0) * 0.6),
-      _connections: linkCounts[n.id] || 0,
+      val: n.type === 'venture' ? 12 : n.type === 'thought_leader' ? 8 : n.type === 'tag' ? 2 : 4,
     })),
     links: (data.edges || []).map(e => ({
       source: e.source,
       target: e.target,
       weight: e.weight || 0.5,
-      label: e.label || '',
     }))
   };
 
@@ -7232,7 +7221,6 @@ function renderForceGraph(data) {
   }
   container.innerHTML = '';
 
-  const bgColor = '#1a1b2e';
   let _hoverNode = null;
   const _neighborSet = new Set();
   const _linkSet = new Set();
@@ -7258,107 +7246,56 @@ function renderForceGraph(data) {
     .graphData(graphData)
     .width(container.clientWidth || 800)
     .height(container.clientHeight || 600)
-    .backgroundColor(bgColor)
+    .backgroundColor('#1a1b2e')
     .enableNodeDrag(true)
     .enableZoomInteraction(true)
     .enablePanInteraction(true)
-    .nodeRelSize(1)
-    .nodeVal(d => d._radius * d._radius)
-    .nodeCanvasObject((node, ctx, globalScale) => {
-      const r = node._radius;
-      const isHovered = _hoverNode && _hoverNode.id === node.id;
-      const isNeighbor = _hoverNode && _neighborSet.has(node.id);
-      const isDimmed = _hoverNode && !isHovered && !isNeighbor;
-      const alpha = isDimmed ? 0.08 : 1;
-
-      // Outer glow (always, like Obsidian)
-      const glowR = r + (isHovered ? 14 : 6);
-      const grad = ctx.createRadialGradient(node.x, node.y, r * 0.5, node.x, node.y, glowR);
-      grad.addColorStop(0, node.color + (isHovered ? '60' : '25'));
-      grad.addColorStop(1, node.color + '00');
-      ctx.globalAlpha = isDimmed ? 0.05 : 1;
-      ctx.beginPath();
-      ctx.arc(node.x, node.y, glowR, 0, 2 * Math.PI);
-      ctx.fillStyle = grad;
-      ctx.fill();
-
-      // Filled circle
-      ctx.beginPath();
-      ctx.arc(node.x, node.y, r, 0, 2 * Math.PI);
-      ctx.fillStyle = node.color;
-      ctx.globalAlpha = isDimmed ? 0.1 : 0.9;
-      ctx.fill();
-
-      // Bright center
-      ctx.beginPath();
-      ctx.arc(node.x, node.y, r * 0.4, 0, 2 * Math.PI);
-      ctx.fillStyle = '#fff';
-      ctx.globalAlpha = isDimmed ? 0.03 : 0.35;
-      ctx.fill();
-
-      // Labels — ventures/TLs always visible, others at zoom
-      const isMajor = node.type === 'venture' || node.type === 'thought_leader';
-      const showLabel = isMajor || (isHovered || isNeighbor) || globalScale > 1.8;
-      if (showLabel && !isDimmed) {
-        const label = (node.label || '').slice(0, 24);
-        const fontSize = Math.max(3.5, (isMajor ? 4.5 : 3.5));
-        ctx.font = `${isMajor ? '600' : '400'} ${fontSize}px Inter, sans-serif`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'top';
-        const tw = ctx.measureText(label).width;
-        const px = 2, py = 1;
-        // Dark pill background
-        ctx.fillStyle = 'rgba(26,27,46,0.85)';
-        ctx.globalAlpha = 0.9;
-        ctx.beginPath();
-        const pillY = node.y + r + 2;
-        ctx.roundRect ? ctx.roundRect(node.x - tw/2 - px, pillY - py, tw + px*2, fontSize + py*2 + 1, 3) : ctx.rect(node.x - tw/2 - px, pillY - py, tw + px*2, fontSize + py*2 + 1);
-        ctx.fill();
-        // Label text
-        ctx.fillStyle = isHovered ? '#fff' : (isMajor ? node.color : 'rgba(255,255,255,0.7)');
-        ctx.globalAlpha = 1;
-        ctx.fillText(label, node.x, pillY);
+    // Use built-in node rendering (no custom canvas)
+    .nodeRelSize(6)
+    .nodeVal(d => d.val)
+    .nodeColor(d => {
+      if (_hoverNode) {
+        if (d.id === _hoverNode.id) return d.color;
+        if (_neighborSet.has(d.id)) return d.color;
+        return d.color + '15';
       }
-      ctx.globalAlpha = 1;
+      return d.color;
     })
-    .nodeCanvasObjectMode(() => 'replace')
-    // Links — always visible with soft glow
-    .linkWidth(d => _linkSet.has(d) ? 2 : 0.6)
+    .nodeLabel(d => `${d.label || d.id} (${d.type})`)
+    // Links
+    .linkWidth(d => _linkSet.has(d) ? 2.5 : 0.5)
     .linkColor(d => {
-      if (_linkSet.has(d)) return 'rgba(255,177,0,0.6)';
-      if (_hoverNode) return 'rgba(255,255,255,0.03)';
-      return 'rgba(255,255,255,0.08)';
+      if (_linkSet.has(d)) return 'rgba(255,177,0,0.7)';
+      if (_hoverNode) return 'rgba(255,255,255,0.02)';
+      return 'rgba(255,255,255,0.06)';
     })
-    .linkCurvature(0.15)
-    .linkDirectionalParticles(d => _linkSet.has(d) ? 3 : (d.weight > 0.7 ? 1 : 0))
-    .linkDirectionalParticleWidth(d => _linkSet.has(d) ? 3 : 1.5)
-    .linkDirectionalParticleSpeed(0.005)
-    .linkDirectionalParticleColor(d => {
-      if (_linkSet.has(d)) return '#FFB100';
-      const s = typeof d.source === 'object' ? d.source : graphData.nodes.find(n => n.id === d.source);
-      return s ? s.color + '80' : '#ffffff40';
-    })
-    // Forces — spread out, clustered by type
-    .d3Force('charge', d3.forceManyBody().strength(-180).distanceMax(400))
-    .d3Force('link', d3.forceLink().distance(70).strength(0.3))
+    .linkCurvature(0.2)
+    .linkDirectionalParticles(d => _linkSet.has(d) ? 3 : 0)
+    .linkDirectionalParticleWidth(2.5)
+    .linkDirectionalParticleSpeed(0.006)
+    .linkDirectionalParticleColor(() => '#FFB100')
+    // Forces
+    .d3Force('charge', d3.forceManyBody().strength(-100).distanceMax(300))
+    .d3Force('link', d3.forceLink().distance(50).strength(0.4))
     .d3Force('center', d3.forceCenter(0, 0).strength(0.05))
-    .d3Force('collide', d3.forceCollide().radius(d => d._radius + 8).strength(0.7))
-    .warmupTicks(120)
-    .cooldownTicks(400)
-    .onEngineStop(() => { _graph2d.zoomToFit(500, 60); })
+    .d3Force('collide', d3.forceCollide().radius(d => Math.sqrt(d.val) * 6 + 3).strength(0.7))
+    .warmupTicks(80)
+    .cooldownTicks(200)
+    .onEngineStop(() => { _graph2d.zoomToFit(400, 40); })
     // Interactions
     .onNodeHover(node => {
       _hoverNode = node;
       _updateHighlight(node);
       container.style.cursor = node ? 'pointer' : 'default';
+      _graph2d.nodeColor(_graph2d.nodeColor()); // force re-render
     })
     .onNodeClick(node => {
       _graphShowFile(node);
-      _graph2d.centerAt(node.x, node.y, 800);
-      _graph2d.zoom(4, 800);
+      _graph2d.centerAt(node.x, node.y, 600);
+      _graph2d.zoom(3, 600);
     });
 
-  // Resize observer
+  // Resize
   const resizeObs = new ResizeObserver(() => {
     if (_graph2d && container.clientWidth && container.clientHeight) {
       _graph2d.width(container.clientWidth).height(container.clientHeight);

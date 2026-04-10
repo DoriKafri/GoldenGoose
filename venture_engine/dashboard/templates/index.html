@@ -4269,12 +4269,14 @@ async function _artLoadTakeaways() {
       el.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text3);font-size:13px;">No takeaways found for this article.</div>';
     }
   } catch(e) {
-    _tabSetReady('art-takeaways');
-    el.innerHTML = _ytUnavailableHTML('Takeaways', '_artLoadTakeaways()');
+    el.innerHTML = _ytBuildingHTML('takeaways');
     _ytTakeawaysRetries = (_ytTakeawaysRetries || 0) + 1;
-    if (_ytTakeawaysRetries < 8) {
+    if (_ytTakeawaysRetries < 12) {
       clearTimeout(_ytTakeawaysRetryTimer);
-      _ytTakeawaysRetryTimer = setTimeout(() => _artLoadTakeaways(), 15000);
+      _ytTakeawaysRetryTimer = setTimeout(() => _artLoadTakeaways(), 10000);
+    } else {
+      _tabSetReady('art-takeaways');
+      el.innerHTML = _ytUnavailableHTML('Takeaways', '_ytTakeawaysRetries=0;_artLoadTakeaways()');
     }
   }
 }
@@ -4320,12 +4322,14 @@ async function _artLoadDpoi() {
       el.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text3);font-size:13px;">No problems or opportunities found for this article.</div>';
     }
   } catch(e) {
-    _tabSetReady('art-dpoi');
-    el.innerHTML = _ytUnavailableHTML('DOPI Insights', '_artLoadDpoi()');
+    el.innerHTML = _ytBuildingHTML('DOPI insights');
     _ytDpoiRetries = (_ytDpoiRetries || 0) + 1;
-    if (_ytDpoiRetries < 8) {
+    if (_ytDpoiRetries < 12) {
       clearTimeout(_ytDpoiRetryTimer);
-      _ytDpoiRetryTimer = setTimeout(() => _artLoadDpoi(), 15000);
+      _ytDpoiRetryTimer = setTimeout(() => _artLoadDpoi(), 10000);
+    } else {
+      _tabSetReady('art-dpoi');
+      el.innerHTML = _ytUnavailableHTML('DOPI Insights', '_ytDpoiRetries=0;_artLoadDpoi()');
     }
   }
 }
@@ -4404,6 +4408,36 @@ function _tabSetLoading(tabName) {
   });
 }
 
+// Poll an API endpoint until it returns data; keep tab in loading state until success
+const _ytPollTimers = {};
+function _ytPollUntilReady(tabName, url, vid, onSuccess, attempt) {
+  attempt = attempt || 0;
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 12000);
+  fetch(url, {signal: ctrl.signal}).then(r => { clearTimeout(timer); return r.ok ? r.json() : null; }).then(d => {
+    if (d && !d.error && !d.detail) {
+      onSuccess(d);
+      _tabSetReady(tabName);
+      // If the user is currently viewing this tab, render it
+      const activeTab = document.querySelector(`.yt-tab.active[data-tab="${tabName}"]`);
+      if (activeTab) {
+        if (tabName === 'takeaways') _ytRenderTakeaways(_ytTakeawaysData);
+        if (tabName === 'dpoi') _ytRenderDpoi(_ytDpoiData);
+      }
+      return;
+    }
+    // Not ready yet — retry after delay (up to 12 attempts = ~2 min)
+    if (attempt < 12 && _readerUrl) {
+      _ytPollTimers[tabName] = setTimeout(() => _ytPollUntilReady(tabName, url, vid, onSuccess, attempt + 1), 10000);
+    }
+  }).catch(() => {
+    clearTimeout(timer);
+    if (attempt < 12 && _readerUrl) {
+      _ytPollTimers[tabName] = setTimeout(() => _ytPollUntilReady(tabName, url, vid, onSuccess, attempt + 1), 10000);
+    }
+  });
+}
+
 // ── Eager pre-fetch all tabs in parallel when reader opens ──
 function _ytEagerFetchAll(vid) {
   if (!vid) return;
@@ -4418,21 +4452,17 @@ function _ytEagerFetchAll(vid) {
       _tabSetReady('transcript');
     }).catch(() => _tabSetReady('transcript'));
   } else { _tabSetReady('transcript'); }
-  // Takeaways
+  // Takeaways — poll until data is ready
   if (!_ytTakeawaysData || _ytTakeawaysVideoId !== vid) {
     _tabSetLoading('takeaways');
-    fetch(`${API}/api/youtube-key-takeaways?video_id=${vid}`).then(r => r.ok ? r.json() : null).then(d => {
-      if (d && !d.error && !d.detail) { _ytTakeawaysData = d.takeaways || d; _ytTakeawaysVideoId = vid; }
-      _tabSetReady('takeaways');
-    }).catch(() => _tabSetReady('takeaways'));
+    _ytPollUntilReady('takeaways', `${API}/api/youtube-key-takeaways?video_id=${vid}`, vid,
+      d => { _ytTakeawaysData = d.takeaways || d; _ytTakeawaysVideoId = vid; });
   } else { _tabSetReady('takeaways'); }
-  // DOPI
+  // DOPI — poll until data is ready
   if (!_ytDpoiData || _ytDpoiVideoId !== vid) {
     _tabSetLoading('dpoi');
-    fetch(`${API}/api/youtube-dpoi?video_id=${vid}`).then(r => r.ok ? r.json() : null).then(d => {
-      if (d && !d.error && !d.detail) { _ytDpoiData = d.insights || d; _ytDpoiVideoId = vid; }
-      _tabSetReady('dpoi');
-    }).catch(() => _tabSetReady('dpoi'));
+    _ytPollUntilReady('dpoi', `${API}/api/youtube-dpoi?video_id=${vid}`, vid,
+      d => { _ytDpoiData = d.insights || d; _ytDpoiVideoId = vid; });
   } else { _tabSetReady('dpoi'); }
 }
 
@@ -4445,14 +4475,13 @@ function _artEagerFetchAll(url) {
   }
   _tabSetLoading('art-takeaways');
   _tabSetLoading('art-dpoi');
-  fetch(`${API}/api/article-insights?url=${encodeURIComponent(url)}`).then(r => r.ok ? r.json() : null).then(d => {
-    if (d && d.highlights) {
-      _articleInsightsData = d.highlights;
-      _articleInsightsUrl = url;
-    }
-    _tabSetReady('art-takeaways');
-    _tabSetReady('art-dpoi');
-  }).catch(() => { _tabSetReady('art-takeaways'); _tabSetReady('art-dpoi'); });
+  const artUrl = `${API}/api/article-insights?url=${encodeURIComponent(url)}`;
+  _ytPollUntilReady('art-takeaways', artUrl, url, d => {
+    if (d && d.highlights) { _articleInsightsData = d.highlights; _articleInsightsUrl = url; }
+  });
+  _ytPollUntilReady('art-dpoi', artUrl, url, d => {
+    if (d && d.highlights) { _articleInsightsData = d.highlights; _articleInsightsUrl = url; }
+  });
 }
 
 // ── YouTube Tabs: Video / Transcript ──
@@ -4924,13 +4953,16 @@ async function _ytLoadTakeaways() {
     _tabSetReady('takeaways');
     _ytRenderTakeaways(_ytTakeawaysData);
   } catch(e) {
-    _tabSetReady('takeaways');
-    contentEl.innerHTML = _ytUnavailableHTML('Takeaways', '_ytLoadTakeaways()');
-    // Auto-retry up to 8 times (covers ~2 min of background generation)
+    // Don't mark tab as ready — keep loading spinner on tab
+    contentEl.innerHTML = _ytBuildingHTML('takeaways');
+    // Auto-retry up to 12 times (covers ~2 min of background generation)
     _ytTakeawaysRetries = (_ytTakeawaysRetries || 0) + 1;
-    if (_ytTakeawaysRetries < 8) {
+    if (_ytTakeawaysRetries < 12) {
       clearTimeout(_ytTakeawaysRetryTimer);
-      _ytTakeawaysRetryTimer = setTimeout(() => _ytLoadTakeaways(), 15000);
+      _ytTakeawaysRetryTimer = setTimeout(() => _ytLoadTakeaways(), 10000);
+    } else {
+      _tabSetReady('takeaways');
+      contentEl.innerHTML = _ytUnavailableHTML('Takeaways', '_ytTakeawaysRetries=0;_ytLoadTakeaways()');
     }
   }
 }
@@ -5024,13 +5056,16 @@ async function _ytLoadDpoi() {
     _tabSetReady('dpoi');
     _ytRenderDpoi(_ytDpoiData);
   } catch(e) {
-    _tabSetReady('dpoi');
-    contentEl.innerHTML = _ytUnavailableHTML('DOPI Insights', '_ytLoadDpoi()');
-    // Auto-retry up to 8 times (covers ~2 min of background generation)
+    // Don't mark tab as ready — keep loading spinner on tab
+    contentEl.innerHTML = _ytBuildingHTML('DOPI insights');
+    // Auto-retry up to 12 times (covers ~2 min of background generation)
     _ytDpoiRetries = (_ytDpoiRetries || 0) + 1;
-    if (_ytDpoiRetries < 8) {
+    if (_ytDpoiRetries < 12) {
       clearTimeout(_ytDpoiRetryTimer);
-      _ytDpoiRetryTimer = setTimeout(() => _ytLoadDpoi(), 15000);
+      _ytDpoiRetryTimer = setTimeout(() => _ytLoadDpoi(), 10000);
+    } else {
+      _tabSetReady('dpoi');
+      contentEl.innerHTML = _ytUnavailableHTML('DOPI Insights', '_ytDpoiRetries=0;_ytLoadDpoi()');
     }
   }
 }
@@ -5279,9 +5314,10 @@ function closeReader(fromPopstate) {
   if (_ytPlayer) { try { _ytPlayer.destroy(); } catch(e){} _ytPlayer = null; }
   _ytPlayerReady = false;
   _isYouTube = false;
-  // Clear auto-retry timers
+  // Clear auto-retry timers and poll timers
   clearTimeout(_ytTakeawaysRetryTimer); _ytTakeawaysRetries = 0;
   clearTimeout(_ytDpoiRetryTimer); _ytDpoiRetries = 0;
+  Object.keys(_ytPollTimers).forEach(k => { clearTimeout(_ytPollTimers[k]); delete _ytPollTimers[k]; });
   const oldWrap = document.getElementById('readerContent')?.querySelector('.yt-player-wrap');
   if (oldWrap) oldWrap.remove();
   // Hide annotation UI elements that float on document.body

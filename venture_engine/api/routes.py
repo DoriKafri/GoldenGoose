@@ -2229,6 +2229,8 @@ def youtube_transcript(
 ):
     """Return auto-generated transcript for a YouTube video.
 
+    Has a 45-second total deadline. If no approach succeeds by then, returns 404.
+
     Strategy:
     0. Check database cache first
     1. InnerTube ANDROID player API
@@ -2241,8 +2243,17 @@ def youtube_transcript(
     """
     import json as _json
     import httpx
+    import time as _time
     from venture_engine.db.session import SessionLocal
     from venture_engine.db.models import TranscriptCache
+
+    _deadline = _time.monotonic() + 45  # 45-second total deadline
+
+    def _past_deadline():
+        if _time.monotonic() > _deadline:
+            logger.warning(f"Transcript deadline exceeded for {video_id}")
+            return True
+        return False
 
     # ── Check cache first ──
     try:
@@ -2286,7 +2297,7 @@ def youtube_transcript(
                 "context": {"client": {"clientName": client_name, "clientVersion": client_ver, "hl": "en"}},
                 "videoId": video_id,
             }
-            with httpx.Client(timeout=15) as client:
+            with httpx.Client(timeout=8) as client:
                 player_resp = client.post(
                     "https://www.youtube.com/youtubei/v1/player?prettyPrint=false",
                     json=innertube_body,
@@ -2303,7 +2314,7 @@ def youtube_transcript(
                     raise ValueError(f"No tracks (playability={playability})")
 
                 track = next((t for t in tracks if t.get("languageCode", "").startswith("en")), tracks[0])
-                cap_resp = client.get(track["baseUrl"], headers={"User-Agent": ua}, timeout=15)
+                cap_resp = client.get(track["baseUrl"], headers={"User-Agent": ua}, timeout=8)
                 if not cap_resp.text or len(cap_resp.text) < 50:
                     raise ValueError("Empty caption response")
 
@@ -2317,6 +2328,9 @@ def youtube_transcript(
         except Exception as exc:
             logger.warning(f"Transcript InnerTube {client_name} failed for {video_id}: {exc}")
             errors.append(f"innertube-{client_name.lower()}: {str(exc)[:100]}")
+
+    if _past_deadline():
+        raise HTTPException(404, f"Transcript not available yet for {video_id} (deadline). Retry later.")
 
     # ── Approach 2: Invidious API instances (server-side) ──
     _invidious_instances = [
@@ -2350,6 +2364,9 @@ def youtube_transcript(
             logger.warning(f"Invidious {instance} failed for {video_id}: {inv_exc}")
             errors.append(f"invidious: {str(inv_exc)[:80]}")
 
+    if _past_deadline():
+        raise HTTPException(404, f"Transcript not available yet for {video_id} (deadline). Retry later.")
+
     # ── Approach 3: youtube-transcript-api library ──
     try:
         from youtube_transcript_api import YouTubeTranscriptApi
@@ -2361,6 +2378,9 @@ def youtube_transcript(
     except Exception as exc2:
         logger.warning(f"Transcript youtube-transcript-api failed for {video_id}: {exc2}")
         errors.append(f"yt-api: {str(exc2)[:100]}")
+
+    if _past_deadline():
+        raise HTTPException(404, f"Transcript not available yet for {video_id} (deadline). Retry later.")
 
     # ── Approach 4: yt-dlp subtitle extraction ──
     try:
@@ -2384,6 +2404,9 @@ def youtube_transcript(
     except Exception as exc3:
         logger.warning(f"Transcript yt-dlp failed for {video_id}: {exc3}")
         errors.append(f"yt-dlp: {str(exc3)[:100]}")
+
+    if _past_deadline():
+        raise HTTPException(404, f"Transcript not available yet for {video_id} (deadline). Retry later.")
 
     # ── Approach 5: Gemini AI transcript generation ──
     # When all fetch methods fail (common on cloud IPs), use Gemini to
@@ -2417,7 +2440,7 @@ def youtube_transcript(
                             }],
                             "generationConfig": {"temperature": 0.1, "maxOutputTokens": 65536}
                         },
-                        timeout=120.0,
+                        timeout=30.0,
                     )
                     if resp.status_code == 200:
                         data = resp.json()

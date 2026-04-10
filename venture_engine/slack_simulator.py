@@ -820,7 +820,7 @@ def run_slack_simulation():
 
 
 def post_closed_cr(db, bug) -> bool:
-    """Post a closed CR (bug/feature/improvement) to the #closed-crs Slack channel.
+    """Post a closed CR with full evidence to #closed-crs, plus agent review comments.
 
     Called when a bug transitions to 'closed' or 'done' status.
     Returns True if posted successfully.
@@ -846,23 +846,137 @@ def post_closed_cr(db, bug) -> bool:
     }
     badge = priority_badge.get(bug.priority, bug.priority or "")
 
+    # ── Build the main CR evidence message ──
     body = (
         f"{emoji} *{bug.key}* — {bug.title}\n"
         f"Type: {bug.bug_type} | Priority: {badge}\n"
         f"Reporter: {bug.reporter_name or bug.reporter_email} | "
         f"Assignee: {bug.assignee_name or bug.assignee_email or 'Unassigned'}\n"
-        f"Status: {bug.status}"
+        f"Status: *{bug.status}*"
     )
     if bug.description:
-        body += f"\n> {bug.description[:200]}"
+        body += f"\n\n> {bug.description[:200]}"
+
+    # ── Evidence of Execution ──
+    proof_url = getattr(bug, 'proof_url', None)
+    proof_type = getattr(bug, 'proof_type', None)
+    commit_sha = getattr(bug, 'commit_sha', None)
+    pr_number = getattr(bug, 'pr_number', None)
+    release_ver = getattr(bug, 'release_version', None)
+    deployed_at = getattr(bug, 'deployed_at', None)
+    proof_desc = getattr(bug, 'proof_description', None)
+
+    evidence_lines = ["\n\n--- *Evidence of Execution* ---"]
+    if proof_url:
+        media_label = {"screenshot": "\U0001f4f8 Screenshot", "video": "\U0001f3ac Video", "gif": "\U0001f3ac GIF"}.get(proof_type, "\U0001f4ce Attachment")
+        evidence_lines.append(f"{media_label}: {proof_url}")
+    if commit_sha:
+        evidence_lines.append(f"\U0001f4bb Commit: `{commit_sha}`")
+    if pr_number:
+        evidence_lines.append(f"\U0001f500 PR: #{pr_number}")
+    if release_ver:
+        evidence_lines.append(f"\U0001f680 Released in: *{release_ver}*")
+    if deployed_at:
+        ts = deployed_at.strftime('%Y-%m-%d %H:%M UTC') if hasattr(deployed_at, 'strftime') else str(deployed_at)
+        evidence_lines.append(f"\u2705 Deployed: {ts}")
+    if proof_desc:
+        evidence_lines.append(f"\n*Definition of Done:*\n```{proof_desc}```")
+
+    if len(evidence_lines) > 1:
+        body += "\n".join(evidence_lines)
+
+    # ── Story points ──
+    sp = getattr(bug, 'story_points', None)
+    bv = getattr(bug, 'business_value', None)
+    if sp or bv:
+        body += f"\n\n\U0001f3af Story Points: {sp or '?'} | Business Value: {bv or '?'}"
 
     msg = SlackMessage(
         channel_id=channel.id,
         author_email="system@develeap.com",
         author_name="CR Bot",
         body=body,
+        reactions=[{"emoji": "\u2705", "users": [bug.assignee_email or "system@develeap.com"]}],
     )
     db.add(msg)
     db.flush()
-    logger.info(f"Posted closed CR {bug.key} to #closed-crs")
+
+    # ── Agent review comments as thread replies ──
+    _post_cr_agent_reviews(db, channel, msg, bug)
+
+    logger.info(f"Posted closed CR {bug.key} with evidence to #closed-crs")
     return True
+
+
+def _post_cr_agent_reviews(db, channel, parent_msg, bug):
+    """Generate 2-4 agent review comments on the closed CR as thread replies."""
+    import random as _rnd
+
+    # Pick 2-4 reviewers (excluding the assignee)
+    available = [(e, p) for e, p in PERSONAS.items() if e != (bug.assignee_email or "")]
+    _rnd.shuffle(available)
+    reviewers = available[:_rnd.randint(2, min(4, len(available)))]
+
+    bug_title = bug.title or ""
+    bug_type = bug.bug_type or "bug"
+    proof_type = getattr(bug, 'proof_type', 'screenshot') or 'screenshot'
+
+    # Review templates organized by persona expertise match
+    review_templates = [
+        # Quality / testing
+        "Reviewed the {proof_type} — looks clean. The fix handles the edge case correctly. One suggestion: we should add a regression test for this path so it doesn't come back.",
+        "Good work on {key}. The {proof_type} confirms the fix. I'd recommend adding a smoke test to our CI pipeline for this specific scenario.",
+        "Verified the fix in staging. The {proof_type} matches the expected behavior. Small nitpick: the error handling could be more descriptive for future debugging.",
+        # Architecture / design
+        "Nice fix. Looking at the commit, the approach is solid. For follow-up: we should consider refactoring the surrounding module — I see some tech debt accumulating there.",
+        "The PR looks good. One architectural thought — this area is getting touched frequently. Might be worth extracting it into its own service to reduce blast radius.",
+        "Clean implementation. The fix is scoped correctly. I noticed the related module could benefit from better separation of concerns — worth a follow-up ticket.",
+        # Observability / monitoring
+        "Fix confirmed. Suggestion: we should add alerting for this type of failure. If it happens again in prod, we want to catch it immediately, not wait for user reports.",
+        "Looks solid. I'd recommend adding a metric or structured log around this code path so we can track recurrence. Dashboard visibility > manual checking.",
+        # Security
+        "Reviewed from a security angle — no concerns. The input validation is proper. Good to ship.",
+        "Fix looks good. Just flagging: this touches user-facing logic. Let's make sure the access controls are still intact after the change. Otherwise, LGTM.",
+        # Performance
+        "Checked the {proof_type}. Performance-wise, this looks fine. No hot paths affected. Ship it.",
+        "Good fix for {key}. The approach avoids the N+1 query issue I was worried about. Efficient and correct.",
+        # Positive feedback
+        "Great turnaround on this one. The {proof_type} clearly shows the issue is resolved. Well done {assignee}!",
+        "This was a tricky one. Clean fix with good proof of done. The demo steps in the DoD are thorough — exactly what we need for auditing.",
+        "Solid work. The fact that we have {proof_type} evidence + commit reference + PR makes this fully traceable. This is how all CRs should be closed.",
+    ]
+
+    suggestions_templates = [
+        "Follow-up suggestion: we should document this fix pattern in our runbook for similar issues.",
+        "Recommendation: tag this area for tech debt review in the next sprint planning.",
+        "Idea: this bug category keeps coming up. Should we create a linter rule to catch it earlier?",
+        "We should add this scenario to our QA test suite to prevent regression.",
+        "This fix could benefit other customers too — let's check if it applies to the enterprise tier.",
+        "Worth sharing the learnings from this fix in our next engineering retro.",
+    ]
+
+    for i, (email, persona) in enumerate(reviewers):
+        # Build personalized review
+        template = _rnd.choice(review_templates)
+        review = template.format(
+            proof_type=proof_type,
+            key=bug.key or "this bug",
+            assignee=bug.assignee_name or "the team",
+        )
+
+        # 50% chance to add a follow-up suggestion
+        if _rnd.random() > 0.5:
+            review += "\n\n" + _rnd.choice(suggestions_templates)
+
+        reply = SlackMessage(
+            channel_id=channel.id,
+            thread_id=parent_msg.id,
+            author_email=email,
+            author_name=persona["name"],
+            body=review,
+            created_at=datetime.utcnow() + timedelta(minutes=_rnd.randint(2, 45) * (i + 1)),
+            reactions=[{"emoji": _rnd.choice(["👍", "💡", "✅", "🔥"]),
+                        "users": [_rnd.choice([e for e, _ in PERSONAS.items() if e != email])]}]
+                      if _rnd.random() > 0.4 else [],
+        )
+        db.add(reply)

@@ -2489,13 +2489,16 @@ async def youtube_transcript_cache_put(video_id: str, request: Request):
 
 
 def _get_transcript_text(video_id: str) -> str:
-    """Get transcript text for a video, formatted with timestamps for AI analysis."""
+    """Get transcript text for a video, formatted with timestamps for AI analysis.
+    Only uses cached transcript — does NOT trigger live fetch (which can hang for minutes).
+    The live fetch is handled by the client-side and the /api/youtube-transcript endpoint.
+    """
     from venture_engine.db.session import SessionLocal
     from venture_engine.db.models import TranscriptCache
 
     segments = None
 
-    # 1. Check cache
+    # Check cache only — no live fetch (it blocks for too long in background threads)
     try:
         db = SessionLocal()
         cached = db.query(TranscriptCache).filter(TranscriptCache.video_id == video_id).first()
@@ -2506,18 +2509,8 @@ def _get_transcript_text(video_id: str) -> str:
     except Exception as e:
         logger.warning(f"Transcript cache lookup failed for {video_id}: {e}")
 
-    # 2. Try fetching live
     if not segments:
-        try:
-            result = youtube_transcript(video_id=video_id)
-            if isinstance(result, dict) and result.get("segments"):
-                segments = result["segments"]
-                logger.info(f"Transcript text from live fetch for {video_id}: {len(segments)} segments")
-        except Exception as e:
-            logger.warning(f"Live transcript fetch failed for {video_id}: {e}")
-
-    if not segments:
-        logger.warning(f"No transcript available for {video_id}")
+        logger.info(f"No cached transcript for {video_id} — takeaways/DOPI will retry later")
         return None
 
     # Format with timestamps for Claude

@@ -878,6 +878,28 @@ html.dark .sl-msg-wrap:hover { background:rgba(255,255,255,.08); }
 .ic-vc-firm { font-size:11px; color:var(--text3); }
 .ic-vc-verdict { font-size:11px; font-weight:700; margin-left:auto; text-transform:uppercase; }
 .ic-vc-reasoning { font-size:12px; color:var(--text2, var(--text)); line-height:1.5; margin:0; }
+.ic-link { cursor:pointer; transition:color 0.2s; }
+.ic-link:hover { color:var(--accent, #f59e0b); text-decoration:underline; }
+.ic-evidence { display:flex; gap:16px; padding:0 20px 8px; flex-wrap:wrap; }
+.ic-evidence-row { display:flex; gap:4px; font-size:11px; }
+.ic-evidence-label { color:var(--text3); font-weight:600; }
+.ic-evidence-val { color:var(--text2, var(--text)); }
+.ic-ticket-link { color:#7c3aed; cursor:pointer; font-family:monospace; font-size:11px; }
+.ic-ticket-link:hover { text-decoration:underline; }
+.ic-voters { padding:4px 20px 10px; display:flex; flex-direction:column; gap:4px; }
+.ic-voters-section { display:flex; gap:6px; font-size:11px; flex-wrap:wrap; align-items:baseline; }
+.ic-voters-label { color:var(--text3); font-weight:600; white-space:nowrap; }
+.ic-voters-names { color:var(--text2, var(--text)); }
+.ic-champ-section { margin-top:8px; }
+.ic-champ-title { font-size:16px; font-weight:700; color:var(--text); margin:0 0 12px; padding:0; }
+.ic-champ-posts { display:flex; flex-direction:column; gap:10px; }
+.ic-champ-post { background:var(--card-bg); border:1px solid var(--border); border-left:3px solid #7c3aed; border-radius:8px; padding:12px 16px; }
+.ic-champ-post-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; }
+.ic-champ-post-header strong { font-size:13px; color:var(--text); }
+.ic-champ-date { font-size:11px; color:var(--text3); }
+.ic-champ-body { font-size:12px; color:var(--text2, var(--text)); line-height:1.6; white-space:pre-wrap; }
+.ic-champ-reactions { margin-top:6px; display:flex; gap:4px; }
+.ic-champ-reaction { font-size:14px; }
 .yt-panel { display:none; overflow-x:hidden; position:relative; }
 .yt-panel.active { display:flex; flex-direction:column; flex:1; min-height:0; }
 #ytTakeawaysPanel.active, #ytDpoiPanel.active, #ytTranscriptPanel.active { display:block; flex:none; }
@@ -2292,7 +2314,7 @@ function readHash() {
     return;
   }
   const ventureId = parts[1];
-  const validTabs = ['news','venture','stealth','flip','customer','missing_piece','training','threads','bugs','graph','slack','activity','sim-users','leaderboard','release-notes','live'];
+  const validTabs = ['news','venture','stealth','flip','customer','missing_piece','training','threads','bugs','graph','slack','activity','sim-users','leaderboard','release-notes','live','ic'];
   if (validTabs.includes(tab)) {
     switchTab(tab, true);
     if (ventureId) setTimeout(() => openDetail(ventureId, true), 300);
@@ -2325,7 +2347,7 @@ window.addEventListener('popstate', (e) => {
     return;
   }
   const ventureId = parts[1];
-  const validTabs = ['news','venture','stealth','flip','customer','missing_piece','training','threads','bugs','graph','slack','activity','sim-users','leaderboard','release-notes','live'];
+  const validTabs = ['news','venture','stealth','flip','customer','missing_piece','training','threads','bugs','graph','slack','activity','sim-users','leaderboard','release-notes','live','ic'];
   if (validTabs.includes(tab) && tab !== currentTab) switchTab(tab, true);
   if (ventureId) openDetail(ventureId, true);
   else closeDetailPanel(true);
@@ -7221,6 +7243,8 @@ async function loadInvestmentCommittee() {
       return;
     }
 
+    const champPosts = data.champion_posts || [];
+
     let html = `
       <div class="ic-header">
         <h2 class="ic-title">Investment Committee</h2>
@@ -7233,21 +7257,51 @@ async function loadInvestmentCommittee() {
       const verdictClass = c.ic_verdict === 'fund' ? 'ic-verdict-fund' : c.ic_verdict === 'revisit' ? 'ic-verdict-revisit' : 'ic-verdict-pass';
       const verdictIcon = c.ic_verdict === 'fund' ? '&#9989;' : c.ic_verdict === 'revisit' ? '&#128260;' : '&#10060;';
       const medal = idx === 0 ? '&#129351;' : idx === 1 ? '&#129352;' : '&#129353;';
+      const reviewDate = c.ic_reviewed_at ? new Date(c.ic_reviewed_at).toLocaleDateString('en-GB', {day:'numeric', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit'}) : 'N/A';
 
       html += `
         <div class="ic-card">
           <div class="ic-card-header">
             <span class="ic-medal">${medal}</span>
             <div class="ic-card-title-wrap">
-              <h3 class="ic-card-title">${esc(c.title)}</h3>
+              <h3 class="ic-card-title ic-link" onclick="event.stopPropagation(); openDetail('${c.id}')" title="Open venture details">${esc(c.title)}</h3>
               <div class="ic-card-slogan">${esc(c.slogan || '')}</div>
             </div>
             <span class="ic-verdict ${verdictClass}">${verdictIcon} ${esc(c.ic_verdict || 'pending')}</span>
           </div>
+
+          <!-- Evidence of Execution -->
+          <div class="ic-evidence">
+            <div class="ic-evidence-row">
+              <span class="ic-evidence-label">IC Review:</span>
+              <span class="ic-evidence-val">${reviewDate}</span>
+            </div>
+            <div class="ic-evidence-row">
+              <span class="ic-evidence-label">Created:</span>
+              <span class="ic-evidence-val">${c.created_at ? new Date(c.created_at).toLocaleDateString('en-GB', {day:'numeric', month:'short', year:'numeric'}) : 'N/A'}</span>
+            </div>
+            <div class="ic-evidence-row">
+              <span class="ic-evidence-label">Venture Ticket:</span>
+              <span class="ic-evidence-val"><a class="ic-ticket-link" onclick="event.stopPropagation(); openDetail('${c.id}')" title="Open venture card">${esc(c.id.substring(0, 8))}...</a></span>
+            </div>
+          </div>
+
+          <!-- Voter Breakdown -->
+          <div class="ic-voters">
+            <div class="ic-voters-section">
+              <span class="ic-voters-label">&#128077; Upvotes (${c.agent_upvotes}):</span>
+              <span class="ic-voters-names">${(c.voters_up || []).map(v => esc(v.name)).join(', ') || 'None yet'}</span>
+            </div>
+            <div class="ic-voters-section">
+              <span class="ic-voters-label">&#128078; Downvotes (${c.agent_downvotes}):</span>
+              <span class="ic-voters-names">${(c.voters_down || []).map(v => esc(v.name)).join(', ') || 'None'}</span>
+            </div>
+          </div>
+
           <div class="ic-card-meta">
             <span class="ic-meta-badge">${esc(c.domain || '')}</span>
-            <span class="ic-meta-score">Score: ${Math.round(c.score_total || 0)}</span>
-            <span class="ic-meta-votes">&#128077; ${c.agent_upvotes} &nbsp; &#128078; ${c.agent_downvotes}</span>
+            <span class="ic-meta-score">Score: ${Math.round(c.score_total || 0)}/100</span>
+            <span class="ic-meta-votes">Net: +${c.net_votes}</span>
           </div>
 
           <div class="ic-tabs">
@@ -7266,6 +7320,28 @@ async function loadInvestmentCommittee() {
             ${c.ic_notes ? _renderVCPanel(c.ic_notes) : '<div class="ic-placeholder">No VC reviews yet</div>'}
           </div>
         </div>`;
+    }
+
+    // Slack Champion Posts section
+    if (champPosts.length) {
+      html += `
+        <div class="ic-champ-section">
+          <h3 class="ic-champ-title">&#128172; #venture-champions — Slack Advocacy</h3>
+          <div class="ic-champ-posts">`;
+      for (const post of champPosts) {
+        const postDate = post.created_at ? new Date(post.created_at).toLocaleDateString('en-GB', {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'}) : '';
+        const reactions = (post.reactions || []).map(r => `<span class="ic-champ-reaction">${r.emoji}</span>`).join('');
+        html += `
+            <div class="ic-champ-post">
+              <div class="ic-champ-post-header">
+                <strong>${esc(post.author)}</strong>
+                <span class="ic-champ-date">${postDate}</span>
+              </div>
+              <div class="ic-champ-body">${esc(post.body).replace(/\n/g, '<br>').replace(/\*([^*]+)\*/g, '<strong>$1</strong>')}</div>
+              ${reactions ? `<div class="ic-champ-reactions">${reactions}</div>` : ''}
+            </div>`;
+      }
+      html += '</div></div>';
     }
 
     html += '</div>';

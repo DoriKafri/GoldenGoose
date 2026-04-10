@@ -291,8 +291,34 @@ def get_investment_committee(db: Session = Depends(get_db_dependency)):
             .all()
         )
 
+    # Get Slack champion posts from #venture-champions
+    champ_channel = db.query(SlackChannel).filter(SlackChannel.name == "venture-champions").first()
+    champ_posts = []
+    if champ_channel:
+        recent_posts = (
+            db.query(SlackMessage)
+            .filter(SlackMessage.channel_id == champ_channel.id)
+            .filter(SlackMessage.thread_id.is_(None))
+            .order_by(SlackMessage.created_at.desc())
+            .limit(10)
+            .all()
+        )
+        for msg in recent_posts:
+            champ_posts.append({
+                "author": msg.author_name,
+                "author_email": msg.author_email,
+                "body": msg.body,
+                "created_at": msg.created_at.isoformat() if msg.created_at else None,
+                "reactions": msg.reactions or [],
+            })
+
     results = []
     for v in reviewed:
+        # Get individual voter breakdown
+        votes = db.query(Vote).filter(Vote.venture_id == v.id).all()
+        voters_up = [{"name": vt.voter_name, "email": vt.voter_email} for vt in votes if vt.vote == "up"]
+        voters_down = [{"name": vt.voter_name, "email": vt.voter_email} for vt in votes if vt.vote == "down"]
+
         results.append({
             "id": v.id,
             "title": v.title,
@@ -303,6 +329,8 @@ def get_investment_committee(db: Session = Depends(get_db_dependency)):
             "agent_upvotes": v.agent_upvotes or 0,
             "agent_downvotes": v.agent_downvotes or 0,
             "net_votes": (v.agent_upvotes or 0) - (v.agent_downvotes or 0),
+            "voters_up": voters_up,
+            "voters_down": voters_down,
             "ic_verdict": v.ic_verdict,
             "ic_reviewed_at": v.ic_reviewed_at.isoformat() if v.ic_reviewed_at else None,
             "ic_notes": v.ic_notes or [],
@@ -311,9 +339,14 @@ def get_investment_committee(db: Session = Depends(get_db_dependency)):
             "problem": v.problem,
             "proposed_solution": v.proposed_solution,
             "target_buyer": v.target_buyer,
+            "created_at": v.created_at.isoformat() if v.created_at else None,
         })
 
-    return {"candidates": results, "week_of": datetime.utcnow().strftime("%Y-%m-%d")}
+    return {
+        "candidates": results,
+        "week_of": datetime.utcnow().strftime("%Y-%m-%d"),
+        "champion_posts": champ_posts,
+    }
 
 
 @router.post("/api/ventures/investment-committee/trigger")

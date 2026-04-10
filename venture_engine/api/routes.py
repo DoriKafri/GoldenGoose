@@ -2286,6 +2286,64 @@ def youtube_transcript(
         return {"segments": segments, "language": language}
 
     # ── Approach 1: InnerTube player API (multiple clients) ──
+    # ── Approach 0.5: Watch-page key extraction + InnerTube (like youtube-transcript-api) ──
+    # YouTube requires the INNERTUBE_API_KEY from the watch page to avoid LOGIN_REQUIRED
+    try:
+        import re as _re
+        _watch_ua = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+        with httpx.Client(timeout=8, follow_redirects=True, headers={"User-Agent": _watch_ua, "Accept-Language": "en-US,en"}) as _wc:
+            _watch_resp = _wc.get(f"https://www.youtube.com/watch?v={video_id}")
+            _watch_html = _watch_resp.text
+            # Handle consent page
+            if 'action="https://consent.youtube.com/s"' in _watch_html:
+                _consent_m = _re.search(r'name="v" value="(.*?)"', _watch_html)
+                if _consent_m:
+                    _wc.cookies.set("CONSENT", "YES+" + _consent_m.group(1), domain=".youtube.com")
+                    _watch_resp = _wc.get(f"https://www.youtube.com/watch?v={video_id}")
+                    _watch_html = _watch_resp.text
+            _key_m = _re.search(r'"INNERTUBE_API_KEY":\s*"([a-zA-Z0-9_-]+)"', _watch_html)
+            if _key_m:
+                _api_key = _key_m.group(1)
+                _innertube_resp = _wc.post(
+                    f"https://www.youtube.com/youtubei/v1/player?key={_api_key}",
+                    json={
+                        "context": {"client": {"clientName": "ANDROID", "clientVersion": "20.10.38"}},
+                        "videoId": video_id,
+                    },
+                    headers={"Content-Type": "application/json"},
+                )
+                _it_data = _innertube_resp.json()
+                _it_status = _it_data.get("playabilityStatus", {}).get("status", "")
+                _it_tracks = (
+                    _it_data.get("captions", {})
+                    .get("playerCaptionsTracklistRenderer", {})
+                    .get("captionTracks", [])
+                )
+                if _it_tracks:
+                    _it_track = next((t for t in _it_tracks if t.get("languageCode", "").startswith("en")), _it_tracks[0])
+                    _cap_url = _it_track["baseUrl"]
+                    # Check for xpe flag — means PoToken required, captions won't work
+                    if "&exp=xpe" not in _cap_url:
+                        _cap_resp = _wc.get(_cap_url)
+                        if _cap_resp.text and len(_cap_resp.text) > 50:
+                            segments = _parse_innertube_caption_xml(_cap_resp.text)
+                            if segments:
+                                logger.info(f"Transcript via watch-page InnerTube for {video_id}: {len(segments)} segments")
+                                return _cache_and_return(segments, _it_track.get("languageCode", "en"))
+                    else:
+                        logger.info(f"Caption URL has xpe flag for {video_id}, skipping direct fetch")
+                else:
+                    logger.warning(f"Watch-page InnerTube: no tracks (status={_it_status}) for {video_id}")
+            else:
+                logger.warning(f"Could not extract INNERTUBE_API_KEY from watch page for {video_id}")
+    except Exception as _wp_exc:
+        logger.warning(f"Watch-page InnerTube failed for {video_id}: {_wp_exc}")
+        errors.append(f"watch-page-innertube: {str(_wp_exc)[:100]}")
+
+    if _past_deadline():
+        raise HTTPException(404, f"Transcript not available yet for {video_id} (deadline). Retry later.")
+
+    # ── Approach 1: InnerTube player API (multiple clients without API key) ──
     # TVHTML5_SIMPLY_EMBEDDED_PLAYER bypasses LOGIN_REQUIRED for most videos
     _innertube_clients = [
         {

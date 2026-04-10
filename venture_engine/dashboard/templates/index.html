@@ -319,6 +319,8 @@ html.dark .sl-msg-wrap:hover { background:rgba(255,255,255,.08); }
 .rn-list li::before { content:'';position:absolute;left:0;top:13px;width:6px;height:6px;border-radius:50%;background:var(--accent); }
 .rn-list li strong { color:var(--text);font-weight:700; }
 .rn-list li em { font-style:normal;color:var(--text3); }
+.rn-bug-link { color:#7c3aed; cursor:pointer; font-weight:700; text-decoration:none; border-bottom:1px dashed rgba(124,58,237,0.4); transition:all 0.2s; }
+.rn-bug-link:hover { color:#6d28d9; border-bottom-color:#6d28d9; background:rgba(124,58,237,0.06); border-radius:3px; padding:1px 3px; margin:-1px -3px; }
 .sl-thread-composer-box { border:1px solid var(--border);border-radius:8px;overflow:hidden; }
 .sl-thread-composer-toolbar { display:flex;align-items:center;gap:2px;padding:6px 10px;border-top:1px solid var(--border); }
 .sl-thread-composer-toolbar button { background:none;border:none;color:var(--text3);font-size:16px;cursor:pointer;padding:4px 6px;border-radius:4px; }
@@ -7198,6 +7200,9 @@ async function loadReleaseNotes() {
       .replace(/^- (.+)$/gm, '<li>$1</li>')
       .replace(/\n/g, '');
 
+    // Make BUG-xxx keys clickable — link to bug detail
+    html = html.replace(/\b(BUG-\d+)\b/g, '<a class="rn-bug-link" onclick="_rnOpenBug(\'$1\')">$1</a>');
+
     // Wrap consecutive <li> in <ul>
     html = html.replace(/(<li>.*?<\/li>)+/g, '<ul class="rn-list">$&</ul>');
 
@@ -7214,6 +7219,25 @@ async function loadReleaseNotes() {
       </div>`;
   } catch(e) {
     el.innerHTML = '<div style="text-align:center;padding:40px;color:#ef4444;">Failed to load release notes.</div>';
+  }
+}
+
+async function _rnOpenBug(bugKey) {
+  // Find bug by key, then show its detail in bugs view
+  try {
+    const resp = await fetch(`${API}/api/bugs`);
+    const data = await resp.json();
+    const bugs = data.bugs || [];
+    const bug = bugs.find(b => b.key === bugKey);
+    if (bug) {
+      switchTab('bugs', true);
+      setTimeout(() => _bugShowDetail(bug.id), 200);
+    } else {
+      // Fallback: just switch to bugs tab
+      switchTab('bugs');
+    }
+  } catch(e) {
+    switchTab('bugs');
   }
 }
 

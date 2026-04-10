@@ -4659,10 +4659,23 @@ async function _ytLoadTranscript() {
     return;
   }
 
+  // Already failed – show unavailable immediately, don't re-race
+  if (_ytTranscriptFailed) {
+    contentEl.innerHTML = '<div class="yt-transcript-error">Transcript unavailable for this video.</div>';
+    _tabSetReady('transcript');
+    return;
+  }
+
   // Use cache if same video
   if (_ytTranscriptData && _ytTranscriptVideoId === vid) {
     await _ytPreFetchInsights(vid);
     _ytRenderTranscript(_ytTranscriptData);
+    return;
+  }
+
+  // Already loading — wait for the in-progress load instead of starting a new race
+  if (_ytTranscriptLoadingPromise) {
+    await _ytTranscriptLoadingPromise;
     return;
   }
 
@@ -4685,46 +4698,51 @@ async function _ytLoadTranscript() {
     throw new Error('no embedded cache');
   }
 
-  let segments = null;
-  try {
-    const _sources = Promise.any([_serverFetch(), _embeddedFetch(), _ytFetchTranscriptClientSide(vid).then(s => { if (!s || !s.length) throw new Error('empty'); return s; })]);
-    const _timeout = new Promise((resolve) => setTimeout(() => resolve(null), 12000));
-    segments = await Promise.race([_sources, _timeout]);
-  } catch(e) {
-    console.warn('All transcript sources failed:', e.message);
-  }
+  _ytTranscriptLoadingPromise = (async () => {
+    let segments = null;
+    try {
+      const _sources = Promise.any([_serverFetch(), _embeddedFetch(), _ytFetchTranscriptClientSide(vid).then(s => { if (!s || !s.length) throw new Error('empty'); return s; })]);
+      const _timeout = new Promise((resolve) => setTimeout(() => resolve(null), 12000));
+      segments = await Promise.race([_sources, _timeout]);
+    } catch(e) {
+      console.warn('All transcript sources failed:', e.message);
+    }
 
-  // Cache successful client-side result on server (fire-and-forget)
-  if (segments && segments.length) {
-    fetch(`${API}/api/youtube-transcript-cache/${vid}`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({segments, language: 'en'}),
-    }).catch(() => {});
-  }
+    // Cache successful client-side result on server (fire-and-forget)
+    if (segments && segments.length) {
+      fetch(`${API}/api/youtube-transcript-cache/${vid}`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({segments, language: 'en'}),
+      }).catch(() => {});
+    }
 
-  if (segments && segments.length) {
-    _ytTranscriptData = segments;
-    _ytTranscriptVideoId = vid;
-    _tabSetReady('transcript');
-    _ytRenderTranscript(_ytTranscriptData);
-    // Kick off takeaways & DOPI in background (don't await)
-    _ytPreFetchInsights(vid);
-  } else {
-    _tabSetReady('transcript');
-    contentEl.innerHTML = '<div class="yt-transcript-error">Transcript unavailable for this video.</div>';
-    // No transcript = no takeaways/DOPI possible — stop polling and show unavailable
-    _ytTranscriptFailed = true;
-    clearTimeout(_ytTakeawaysRetryTimer);
-    clearTimeout(_ytDpoiRetryTimer);
-    Object.keys(_ytPollTimers).forEach(k => { clearTimeout(_ytPollTimers[k]); delete _ytPollTimers[k]; });
-    _tabSetReady('takeaways');
-    _tabSetReady('dpoi');
-    const tkEl = document.getElementById('ytTakeawaysContent');
-    const dpEl = document.getElementById('ytDpoiContent');
-    if (tkEl) tkEl.innerHTML = _ytUnavailableHTML('Takeaways', '_ytLoadTakeaways()');
-    if (dpEl) dpEl.innerHTML = _ytUnavailableHTML('DOPI Insights', '_ytLoadDpoi()');
-  }
+    if (segments && segments.length) {
+      _ytTranscriptData = segments;
+      _ytTranscriptVideoId = vid;
+      _tabSetReady('transcript');
+      _ytRenderTranscript(_ytTranscriptData);
+      // Kick off takeaways & DOPI in background (don't await)
+      _ytPreFetchInsights(vid);
+    } else {
+      _tabSetReady('transcript');
+      contentEl.innerHTML = '<div class="yt-transcript-error">Transcript unavailable for this video.</div>';
+      // No transcript = no takeaways/DOPI possible — stop polling and show unavailable
+      _ytTranscriptFailed = true;
+      clearTimeout(_ytTakeawaysRetryTimer);
+      clearTimeout(_ytDpoiRetryTimer);
+      Object.keys(_ytPollTimers).forEach(k => { clearTimeout(_ytPollTimers[k]); delete _ytPollTimers[k]; });
+      _tabSetReady('takeaways');
+      _tabSetReady('dpoi');
+      const tkEl = document.getElementById('ytTakeawaysContent');
+      const dpEl = document.getElementById('ytDpoiContent');
+      if (tkEl) tkEl.innerHTML = _ytUnavailableHTML('Takeaways', '_ytLoadTakeaways()');
+      if (dpEl) dpEl.innerHTML = _ytUnavailableHTML('DOPI Insights', '_ytLoadDpoi()');
+    }
+  })();
+
+  await _ytTranscriptLoadingPromise;
+  _ytTranscriptLoadingPromise = null;
 }
 
 async function _ytPreFetchInsights(vid) {
@@ -4895,6 +4913,7 @@ let _ytTakeawaysVideoId = null;
 let _ytTakeawaysRetries = 0, _ytTakeawaysRetryTimer = null;
 let _ytDpoiRetries = 0, _ytDpoiRetryTimer = null;
 let _ytTranscriptFailed = false;
+let _ytTranscriptLoadingPromise = null;
 
 // Client-side embedded cache (survives deploys)
 const _ytAnalysisCache = {
@@ -5369,6 +5388,7 @@ function closeReader(fromPopstate) {
   clearTimeout(_ytTakeawaysRetryTimer); _ytTakeawaysRetries = 0;
   clearTimeout(_ytDpoiRetryTimer); _ytDpoiRetries = 0;
   _ytTranscriptFailed = false;
+  _ytTranscriptLoadingPromise = null;
   Object.keys(_ytPollTimers).forEach(k => { clearTimeout(_ytPollTimers[k]); delete _ytPollTimers[k]; });
   const oldWrap = document.getElementById('readerContent')?.querySelector('.yt-player-wrap');
   if (oldWrap) oldWrap.remove();

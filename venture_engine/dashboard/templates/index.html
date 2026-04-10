@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>Develeap · Venture Intelligence Engine</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 128 128'%3E%3Crect width='128' height='128' rx='24' fill='%23ffffff'/%3E%3Cpath d='M68 22C91 22 108 39 108 62C108 85 91 102 68 102V22Z' fill='%2305323C'/%3E%3Crect x='22' y='68' width='38' height='34' rx='3' fill='%2305323C'/%3E%3Ccircle cx='41' cy='41' r='19' fill='%23FFB100'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -4412,9 +4415,13 @@ function _tabSetLoading(tabName) {
 const _ytPollTimers = {};
 function _ytPollUntilReady(tabName, url, vid, onSuccess, attempt) {
   attempt = attempt || 0;
+  // Stop polling if transcript failed (no point generating takeaways/DOPI)
+  if (_ytTranscriptFailed) {
+    _tabSetReady(tabName);
+    return;
+  }
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 12000);
-  // Add cache-buster to avoid stale 404 responses
   const fetchUrl = url + (url.includes('?') ? '&' : '?') + '_t=' + Date.now();
   fetch(fetchUrl, {signal: ctrl.signal}).then(r => { clearTimeout(timer); return r.ok ? r.json() : null; }).then(d => {
     if (d && !d.error && !d.detail) {
@@ -4428,14 +4435,21 @@ function _ytPollUntilReady(tabName, url, vid, onSuccess, attempt) {
       }
       return;
     }
+    // Stop if transcript has since failed
+    if (_ytTranscriptFailed) { _tabSetReady(tabName); return; }
     // Not ready yet — retry after delay (up to 12 attempts = ~2 min)
     if (attempt < 12 && _readerUrl) {
       _ytPollTimers[tabName] = setTimeout(() => _ytPollUntilReady(tabName, url, vid, onSuccess, attempt + 1), 10000);
+    } else {
+      _tabSetReady(tabName);
     }
   }).catch(() => {
     clearTimeout(timer);
+    if (_ytTranscriptFailed) { _tabSetReady(tabName); return; }
     if (attempt < 12 && _readerUrl) {
       _ytPollTimers[tabName] = setTimeout(() => _ytPollUntilReady(tabName, url, vid, onSuccess, attempt + 1), 10000);
+    } else {
+      _tabSetReady(tabName);
     }
   });
 }
@@ -4931,6 +4945,13 @@ async function _ytLoadTakeaways() {
   const contentEl = document.getElementById('ytTakeawaysContent');
   if (!contentEl) return;
 
+  // If transcript has failed, no point trying
+  if (_ytTranscriptFailed) {
+    _tabSetReady('takeaways');
+    contentEl.innerHTML = _ytUnavailableHTML('Takeaways', '_ytTranscriptFailed=false;_ytTakeawaysRetries=0;_ytLoadTakeaways()');
+    return;
+  }
+
   let vid = _isYouTube ? _youtubeId(_readerUrl) : null;
   if (!vid && _ytPlayer && _ytPlayerReady) {
     try { vid = _youtubeId(_ytPlayer.getVideoUrl()); } catch(e) {}
@@ -5033,6 +5054,13 @@ let _ytDpoiVideoId = null;
 async function _ytLoadDpoi() {
   const contentEl = document.getElementById('ytDpoiContent');
   if (!contentEl) return;
+
+  // If transcript has failed, no point trying
+  if (_ytTranscriptFailed) {
+    _tabSetReady('dpoi');
+    contentEl.innerHTML = _ytUnavailableHTML('DOPI Insights', '_ytTranscriptFailed=false;_ytDpoiRetries=0;_ytLoadDpoi()');
+    return;
+  }
 
   let vid = _isYouTube ? _youtubeId(_readerUrl) : null;
   if (!vid && _ytPlayer && _ytPlayerReady) {

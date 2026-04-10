@@ -3914,7 +3914,7 @@ def get_bug_proof_screenshot(bug_id: str, db: Session = Depends(get_db_dependenc
     else:
         app_hash = "#bugs"
 
-    bug_type_label = {{"bug": "Bug Fix", "feature": "Feature", "improvement": "Improvement", "task": "Task"}}.get(bug.bug_type, "Change")
+    bug_type_label = {"bug": "Bug Fix", "feature": "Feature", "improvement": "Improvement", "task": "Task"}.get(bug.bug_type, "Change")
     commit = bug.commit_sha or "abc1234"
     pr = bug.pr_number or 100
     assignee = bug.assignee_name or "Team"

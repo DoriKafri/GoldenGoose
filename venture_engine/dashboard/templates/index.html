@@ -3897,7 +3897,7 @@ async function _artLoadTakeaways() {
     }
   } catch(e) {
     _tabSetReady('art-takeaways');
-    el.innerHTML = _ytBuildingHTML('takeaways');
+    el.innerHTML = _ytUnavailableHTML('Takeaways', '_artLoadTakeaways()');
   }
 }
 
@@ -3940,7 +3940,7 @@ async function _artLoadDpoi() {
     }
   } catch(e) {
     _tabSetReady('art-dpoi');
-    el.innerHTML = _ytBuildingHTML('DOPI insights');
+    el.innerHTML = _ytUnavailableHTML('DOPI Insights', '_artLoadDpoi()');
   }
 }
 
@@ -4127,49 +4127,34 @@ function _parseXmlTranscript(xmlText) {
 }
 
 async function _ytFetchTranscriptClientSide(videoId) {
-  // Method 1: Try Invidious instances
-  for (const instance of _INVIDIOUS_INSTANCES) {
-    try {
-      // 1. Get caption track list
-      const listResp = await fetch(`${instance}/api/v1/captions/${videoId}`, {signal: AbortSignal.timeout(8000)});
-      if (!listResp.ok) continue;
-      const listData = await listResp.json();
-      const tracks = listData.captions || [];
-      if (!tracks.length) continue;
-
-      // Prefer English, fall back to first track
-      let track = tracks.find(t => (t.language_code || t.languageCode || '').startsWith('en'));
-      if (!track) track = tracks[0];
-
-      // 2. Fetch the subtitle content (VTT format)
-      let subUrl = track.url;
-      if (subUrl && !subUrl.startsWith('http')) {
-        subUrl = instance + subUrl;
-      }
-      const subResp = await fetch(subUrl, {signal: AbortSignal.timeout(8000)});
-      if (!subResp.ok) continue;
-      const vttText = await subResp.text();
-      if (!vttText || vttText.length < 20) continue;
-
-      // 3. Parse VTT into segments
-      const segments = _parseVttSegments(vttText);
-      if (segments.length > 0) {
-        console.log(`Transcript via Invidious (${instance}): ${segments.length} segments`);
-        return segments;
-      }
-    } catch(e) {
-      console.warn(`Invidious ${instance} failed:`, e.message);
-    }
+  // Race all Invidious instances + YouTube timedtext in parallel for fastest result
+  async function _tryInvidious(instance) {
+    const listResp = await fetch(`${instance}/api/v1/captions/${videoId}`, {signal: AbortSignal.timeout(4000)});
+    if (!listResp.ok) throw new Error('no captions');
+    const listData = await listResp.json();
+    const tracks = listData.captions || [];
+    if (!tracks.length) throw new Error('no tracks');
+    let track = tracks.find(t => (t.language_code || t.languageCode || '').startsWith('en'));
+    if (!track) track = tracks[0];
+    let subUrl = track.url;
+    if (subUrl && !subUrl.startsWith('http')) subUrl = instance + subUrl;
+    const subResp = await fetch(subUrl, {signal: AbortSignal.timeout(4000)});
+    if (!subResp.ok) throw new Error('sub fetch failed');
+    const vttText = await subResp.text();
+    if (!vttText || vttText.length < 20) throw new Error('empty sub');
+    const segments = _parseVttSegments(vttText);
+    if (!segments.length) throw new Error('no segments');
+    console.log(`Transcript via Invidious (${instance}): ${segments.length} segments`);
+    return segments;
   }
 
-  // Method 2: Try YouTube timedtext directly with user's cookies (CORS supported)
-  try {
+  async function _tryYouTubeDirect() {
     for (const kind of ['asr', '']) {
       const params = new URLSearchParams({v: videoId, lang: 'en', fmt: 'srv3'});
       if (kind) params.set('kind', kind);
       const resp = await fetch(`https://www.youtube.com/api/timedtext?${params}`, {
         credentials: 'include',
-        signal: AbortSignal.timeout(8000),
+        signal: AbortSignal.timeout(4000),
       });
       if (resp.ok) {
         const xmlText = await resp.text();
@@ -4182,11 +4167,19 @@ async function _ytFetchTranscriptClientSide(videoId) {
         }
       }
     }
-  } catch(e) {
-    console.warn('YouTube timedtext direct failed:', e.message);
+    throw new Error('YouTube direct failed');
   }
 
-  return null;
+  // Race all sources — first to succeed wins
+  const races = _INVIDIOUS_INSTANCES.map(inst => _tryInvidious(inst));
+  races.push(_tryYouTubeDirect());
+
+  try {
+    return await Promise.any(races);
+  } catch(e) {
+    console.warn('All transcript sources failed:', e.message);
+    return null;
+  }
 }
 
 function _parseVttSegments(vttText) {
@@ -4235,51 +4228,46 @@ async function _ytLoadTranscript() {
 
   contentEl.innerHTML = '<div class="yt-transcript-loading">Loading transcript...</div>';
 
-  let segments = null;
-
-  // 1. Server-side (may return cached or freshly fetched)
-  try {
-    const resp = await fetch(`${API}/api/youtube-transcript?video_id=${vid}`);
-    if (resp.ok) {
-      const data = await resp.json();
-      if (!data.error && data.segments && data.segments.length) {
-        segments = data.segments;
-      }
-    }
-  } catch(e) {
-    console.warn('Server transcript failed:', e.message);
+  // Race server + client-side + embedded cache in parallel for fastest result
+  async function _serverFetch() {
+    const resp = await fetch(`${API}/api/youtube-transcript?video_id=${vid}`, {signal: AbortSignal.timeout(6000)});
+    if (!resp.ok) throw new Error('server fail');
+    const data = await resp.json();
+    if (!data.segments || !data.segments.length) throw new Error('empty');
+    return data.segments;
   }
 
-  // 2. Embedded cache fallback
-  if (!segments) {
+  async function _embeddedFetch() {
     const cached = _ytAnalysisCache[vid];
-    if (cached && cached.transcript) {
-      segments = cached.transcript.map(function(s) { return {start: s[0], duration: s[1], text: s[2]}; });
+    if (cached && cached.transcript && cached.transcript.length) {
+      return cached.transcript.map(s => ({start: s[0], duration: s[1], text: s[2]}));
     }
+    throw new Error('no embedded cache');
   }
 
-  // 3. Client-side fallback (Invidious + direct YouTube timedtext)
-  if (!segments) {
-    contentEl.innerHTML = '<div class="yt-transcript-loading">Trying client-side extraction...</div>';
-    segments = await _ytFetchTranscriptClientSide(vid);
+  let segments = null;
+  try {
+    segments = await Promise.any([_serverFetch(), _embeddedFetch(), _ytFetchTranscriptClientSide(vid).then(s => { if (!s || !s.length) throw new Error('empty'); return s; })]);
+  } catch(e) {
+    console.warn('All transcript sources failed:', e.message);
+  }
 
-    // Cache successful client-side result on server for future requests
-    if (segments && segments.length) {
-      fetch(`${API}/api/youtube-transcript-cache/${vid}`, {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({segments, language: 'en'}),
-      }).catch(() => {});
-    }
+  // Cache successful client-side result on server (fire-and-forget)
+  if (segments && segments.length) {
+    fetch(`${API}/api/youtube-transcript-cache/${vid}`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({segments, language: 'en'}),
+    }).catch(() => {});
   }
 
   if (segments && segments.length) {
     _ytTranscriptData = segments;
     _ytTranscriptVideoId = vid;
     _tabSetReady('transcript');
-    // Pre-fetch takeaways & DOPI for transcript highlights (non-blocking)
-    await _ytPreFetchInsights(vid);
     _ytRenderTranscript(_ytTranscriptData);
+    // Kick off takeaways & DOPI in background (don't await)
+    _ytPreFetchInsights(vid);
   } else {
     _tabSetReady('transcript');
     contentEl.innerHTML = '<div class="yt-transcript-error">Transcript unavailable for this video.</div>';
@@ -4534,7 +4522,7 @@ async function _ytLoadTakeaways() {
       if (cached && cached.takeaways) {
         _ytTakeawaysData = cached.takeaways;
       } else {
-        throw new Error('generating');
+        throw new Error('unavailable');
       }
     }
     _ytTakeawaysVideoId = vid;
@@ -4542,11 +4530,7 @@ async function _ytLoadTakeaways() {
     _ytRenderTakeaways(_ytTakeawaysData);
   } catch(e) {
     _tabSetReady('takeaways');
-    if (e.message === 'generating') {
-      contentEl.innerHTML = _ytBuildingHTML('takeaways');
-    } else {
-      contentEl.innerHTML = `<div class="yt-transcript-error">${esc(e.message)}</div>`;
-    }
+    contentEl.innerHTML = _ytUnavailableHTML('Takeaways', '_ytLoadTakeaways()');
   }
 }
 
@@ -4565,6 +4549,19 @@ function _ytBuildingHTML(label) {
       AI is analyzing the transcript. This may take a minute.<br>Feel free to come back shortly.
     </div>
     <style>@keyframes hourglassSpin{0%{transform:rotate(0deg)}50%{transform:rotate(180deg)}100%{transform:rotate(360deg)}}</style>
+  </div>`;
+}
+
+function _ytUnavailableHTML(label, retryFn) {
+  return `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:48px 24px;text-align:center;gap:14px;">
+    <div style="font-size:40px;opacity:0.5;">&#128269;</div>
+    <div style="font-size:15px;font-weight:600;color:var(--text);opacity:0.85;">${label} not available yet</div>
+    <div style="font-size:12px;color:var(--text3);max-width:280px;line-height:1.5;">
+      The transcript needs to be loaded first, or AI generation is still in progress.
+    </div>
+    <button onclick="${retryFn}" style="margin-top:4px;padding:6px 16px;font-size:12px;font-weight:600;border-radius:6px;border:1px solid var(--accent);background:rgba(245,158,11,0.1);color:var(--accent);cursor:pointer;">
+      Retry
+    </button>
   </div>`;
 }
 
@@ -4614,7 +4611,7 @@ async function _ytLoadDpoi() {
       if (cached && cached.insights) {
         _ytDpoiData = cached.insights;
       } else {
-        throw new Error('generating');
+        throw new Error('unavailable');
       }
     }
     _ytDpoiVideoId = vid;
@@ -4622,11 +4619,7 @@ async function _ytLoadDpoi() {
     _ytRenderDpoi(_ytDpoiData);
   } catch(e) {
     _tabSetReady('dpoi');
-    if (e.message === 'generating') {
-      contentEl.innerHTML = _ytBuildingHTML('DOPI insights');
-    } else {
-      contentEl.innerHTML = `<div class="yt-transcript-error">${esc(e.message)}</div>`;
-    }
+    contentEl.innerHTML = _ytUnavailableHTML('DOPI Insights', '_ytLoadDpoi()');
   }
 }
 

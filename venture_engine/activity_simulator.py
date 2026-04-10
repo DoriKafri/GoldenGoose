@@ -500,9 +500,8 @@ def _attach_proof_of_done(bug, actor, pr_num, commit_sha):
     colors = ["4f46e5", "059669", "d97706", "dc2626", "7c3aed", "0891b2"]
     color = random.choice(colors)
 
-    # Generate a deterministic placeholder screenshot URL
-    slug = bug.key.lower().replace("-", "")
-    bug.proof_url = f"https://placehold.co/{w}x{h}/{color}/white?text={bug.key}+Done"
+    # Point to the realistic proof-screenshot HTML endpoint
+    bug.proof_url = f"/api/bugs/{bug.id}/proof-screenshot"
     bug.proof_type = proof_type
 
     # Definition of Done / How to Demo description

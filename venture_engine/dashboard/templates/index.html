@@ -6701,8 +6701,11 @@ async function _bugShowDetail(bugId) {
           </div>
           ${bug.proof_url ? `
           <div style="margin-bottom:12px;">
-            <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:6px;text-transform:uppercase;">${esc(bug.proof_type || 'screenshot')} Evidence</div>
-            <img src="${esc(bug.proof_url)}" alt="Proof: ${esc(bug.key)}" style="max-width:100%;border-radius:8px;border:1px solid var(--border);cursor:pointer;" onclick="window.open('${esc(bug.proof_url)}','_blank')">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+              <span style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;">Production Evidence</span>
+              <a href="${esc(bug.proof_url)}" target="_blank" style="font-size:10px;color:var(--accent);text-decoration:none;">Open full screen ↗</a>
+            </div>
+            <iframe src="${esc(bug.proof_url)}" style="width:100%;height:520px;border-radius:8px;border:1px solid var(--border);background:#0f1117;" frameborder="0"></iframe>
           </div>` : ''}
           ${bug.proof_description ? `
           <div style="margin-bottom:12px;">

@@ -543,11 +543,12 @@ def _backfill_bug_proof():
     import hashlib
     from venture_engine.db.models import Bug
 
+    from sqlalchemy import or_
     with get_db() as db:
         bugs = (
             db.query(Bug)
             .filter(Bug.status.in_(["done", "closed", "next_version"]))
-            .filter(Bug.proof_url.is_(None))
+            .filter(or_(Bug.proof_url.is_(None), Bug.proof_url.like("%placehold.co%")))
             .all()
         )
         if not bugs:
@@ -562,7 +563,7 @@ def _backfill_bug_proof():
             sha = hashlib.sha1((bug.key or bug.id).encode()).hexdigest()[:8]
             pr = int(hashlib.sha1((bug.id or "").encode()).hexdigest()[:4], 16) % 900 + 100
 
-            bug.proof_url = f"https://placehold.co/{w}x{h}/{color}/white?text={bug.key}+Done"
+            bug.proof_url = f"/api/bugs/{bug.id}/proof-screenshot"
             bug.proof_type = proof_type
             bug.proof_description = (
                 f"1. Navigate to the affected area\n"

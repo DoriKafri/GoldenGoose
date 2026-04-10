@@ -7223,29 +7223,15 @@ async function loadReleaseNotes() {
 }
 
 async function _rnOpenBug(bugKey) {
-  // Find bug by key, then open its detail directly (no tab switch race)
-  try {
-    const resp = await fetch(`${API}/api/bugs?limit=200`);
-    const data = await resp.json();
-    const bugs = data.items || [];
-    const bug = bugs.find(b => b.key === bugKey);
-    if (bug) {
-      // Set sidebar active state to bugs without triggering loadBugs
-      currentTab = 'bugs';
-      document.querySelectorAll('.sidebar-nav-item').forEach(b => b.classList.toggle('active', b.dataset.tab === 'bugs'));
-      // Hide venture-only UI
-      document.getElementById('suggestTabBtn').style.display = 'none';
-      document.getElementById('ventureSearchBar').style.display = 'none';
-      const f = document.getElementById('sidebarFilters'); if (f) f.style.display = 'none';
-      const p = document.querySelector('.pagination'); if (p) p.style.display = 'none';
-      // Open the bug detail directly
-      _bugShowDetail(bug.id);
-    } else {
-      switchTab('bugs');
-    }
-  } catch(e) {
-    switchTab('bugs');
-  }
+  // Find bug by key via API, then show its detail card directly
+  const resp = await fetch(`${API}/api/bugs?limit=500`).catch(() => null);
+  if (!resp) return;
+  const data = await resp.json();
+  const bugs = data.items || [];
+  const bug = bugs.find(b => b.key === bugKey);
+  if (!bug) return;
+  // Show the bug detail directly — _bugShowDetail writes to ventureList
+  await _bugShowDetail(bug.id);
 }
 
 // ── Live Monitor ──

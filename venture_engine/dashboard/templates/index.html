@@ -4413,11 +4413,27 @@ function _tabSetLoading(tabName) {
 
 // Poll an API endpoint until it returns data; keep tab in loading state until success
 const _ytPollTimers = {};
+function _ytPollStopAndShowUnavailable(tabName) {
+  _tabSetReady(tabName);
+  // Also update the content panel so the "Building..." hourglass goes away
+  const panelId = tabName === 'takeaways' ? 'ytTakeawaysContent' :
+                  tabName === 'dpoi' ? 'ytDpoiContent' :
+                  tabName === 'art-takeaways' ? 'artTakeawaysContent' :
+                  tabName === 'art-dpoi' ? 'artDpoiContent' : null;
+  const retryFn = tabName === 'takeaways' ? '_ytTakeawaysRetries=0;_ytLoadTakeaways()' :
+                  tabName === 'dpoi' ? '_ytDpoiRetries=0;_ytLoadDpoi()' :
+                  tabName === 'art-takeaways' ? '_ytTakeawaysRetries=0;_artLoadTakeaways()' :
+                  '_ytDpoiRetries=0;_artLoadDpoi()';
+  const label = tabName.includes('dpoi') ? 'DOPI Insights' : 'Takeaways';
+  const el = panelId ? document.getElementById(panelId) : null;
+  if (el) el.innerHTML = _ytUnavailableHTML(label, '_ytTranscriptFailed=false;' + retryFn);
+}
+
 function _ytPollUntilReady(tabName, url, vid, onSuccess, attempt) {
   attempt = attempt || 0;
   // Stop polling if transcript failed (no point generating takeaways/DOPI)
   if (_ytTranscriptFailed) {
-    _tabSetReady(tabName);
+    _ytPollStopAndShowUnavailable(tabName);
     return;
   }
   const ctrl = new AbortController();
@@ -4435,21 +4451,19 @@ function _ytPollUntilReady(tabName, url, vid, onSuccess, attempt) {
       }
       return;
     }
-    // Stop if transcript has since failed
-    if (_ytTranscriptFailed) { _tabSetReady(tabName); return; }
-    // Not ready yet — retry after delay (up to 12 attempts = ~2 min)
+    if (_ytTranscriptFailed) { _ytPollStopAndShowUnavailable(tabName); return; }
     if (attempt < 12 && _readerUrl) {
       _ytPollTimers[tabName] = setTimeout(() => _ytPollUntilReady(tabName, url, vid, onSuccess, attempt + 1), 10000);
     } else {
-      _tabSetReady(tabName);
+      _ytPollStopAndShowUnavailable(tabName);
     }
   }).catch(() => {
     clearTimeout(timer);
-    if (_ytTranscriptFailed) { _tabSetReady(tabName); return; }
+    if (_ytTranscriptFailed) { _ytPollStopAndShowUnavailable(tabName); return; }
     if (attempt < 12 && _readerUrl) {
       _ytPollTimers[tabName] = setTimeout(() => _ytPollUntilReady(tabName, url, vid, onSuccess, attempt + 1), 10000);
     } else {
-      _tabSetReady(tabName);
+      _ytPollStopAndShowUnavailable(tabName);
     }
   });
 }

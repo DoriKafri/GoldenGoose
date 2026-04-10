@@ -23,6 +23,9 @@ from venture_engine.db.models import (
 
 router = APIRouter()
 
+# Track active background Gemini generation tasks to avoid duplicates
+_bg_generation_active: set = set()
+
 
 def _safe_json_or_str(val):
     """Parse JSON if possible, otherwise return as string."""
@@ -2701,7 +2704,8 @@ TRANSCRIPT:
 
 @router.get("/api/youtube-key-takeaways")
 def youtube_key_takeaways(video_id: str = Query(..., min_length=11, max_length=11), refresh: bool = Query(False)):
-    """Return cached AI key takeaways, or auto-generate via Gemini if available."""
+    """Return cached AI key takeaways, or kick off background Gemini generation."""
+    import threading
     from venture_engine.db.session import SessionLocal
     from venture_engine.db.models import TakeawaysCache
 
@@ -2715,11 +2719,19 @@ def youtube_key_takeaways(video_id: str = Query(..., min_length=11, max_length=1
         except Exception as e:
             logger.warning(f"Takeaways cache lookup failed: {e}")
 
-    # Auto-generate if Gemini key is available
-    auto = _auto_generate_takeaways(video_id)
-    if auto:
-        return auto
-    raise HTTPException(404, "Takeaways not yet generated for this video.")
+    # Kick off background generation instead of blocking the request
+    _bg_key = f"takeaways_{video_id}"
+    if _bg_key not in _bg_generation_active:
+        _bg_generation_active.add(_bg_key)
+        def _bg():
+            try:
+                _auto_generate_takeaways(video_id)
+            finally:
+                _bg_generation_active.discard(_bg_key)
+        threading.Thread(target=_bg, daemon=True).start()
+        logger.info(f"Started background takeaways generation for {video_id}")
+
+    raise HTTPException(404, "Takeaways generation in progress. Retry in a few seconds.")
 
 
 @router.post("/api/youtube-key-takeaways-cache/{video_id}")
@@ -2746,7 +2758,8 @@ async def youtube_key_takeaways_cache_put(video_id: str, request: Request):
 
 @router.get("/api/youtube-dpoi")
 def youtube_dpoi(video_id: str = Query(..., min_length=11, max_length=11), refresh: bool = Query(False)):
-    """Return cached DOPI insights, or auto-generate via Gemini if available."""
+    """Return cached DOPI insights, or kick off background Gemini generation."""
+    import threading
     from venture_engine.db.session import SessionLocal
     from venture_engine.db.models import DpoiCache
 
@@ -2760,12 +2773,19 @@ def youtube_dpoi(video_id: str = Query(..., min_length=11, max_length=11), refre
         except Exception as e:
             logger.warning(f"DPOI cache lookup failed: {e}")
 
-    # Auto-generate if Gemini key is available
-    auto = _auto_generate_dopi(video_id)
-    if auto:
-        return auto
+    # Kick off background generation instead of blocking the request
+    _bg_key = f"dpoi_{video_id}"
+    if _bg_key not in _bg_generation_active:
+        _bg_generation_active.add(_bg_key)
+        def _bg():
+            try:
+                _auto_generate_dopi(video_id)
+            finally:
+                _bg_generation_active.discard(_bg_key)
+        threading.Thread(target=_bg, daemon=True).start()
+        logger.info(f"Started background DOPI generation for {video_id}")
 
-    raise HTTPException(404, "DOPI analysis not yet generated for this video.")
+    raise HTTPException(404, "DOPI generation in progress. Retry in a few seconds.")
 
 
 @router.post("/api/youtube-dpoi-cache/{video_id}")

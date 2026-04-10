@@ -4271,6 +4271,11 @@ async function _artLoadTakeaways() {
   } catch(e) {
     _tabSetReady('art-takeaways');
     el.innerHTML = _ytUnavailableHTML('Takeaways', '_artLoadTakeaways()');
+    _ytTakeawaysRetries = (_ytTakeawaysRetries || 0) + 1;
+    if (_ytTakeawaysRetries < 8) {
+      clearTimeout(_ytTakeawaysRetryTimer);
+      _ytTakeawaysRetryTimer = setTimeout(() => _artLoadTakeaways(), 15000);
+    }
   }
 }
 
@@ -4317,6 +4322,11 @@ async function _artLoadDpoi() {
   } catch(e) {
     _tabSetReady('art-dpoi');
     el.innerHTML = _ytUnavailableHTML('DOPI Insights', '_artLoadDpoi()');
+    _ytDpoiRetries = (_ytDpoiRetries || 0) + 1;
+    if (_ytDpoiRetries < 8) {
+      clearTimeout(_ytDpoiRetryTimer);
+      _ytDpoiRetryTimer = setTimeout(() => _artLoadDpoi(), 15000);
+    }
   }
 }
 
@@ -4817,6 +4827,8 @@ function _ytHighlightTranscriptSeg() {
 // ── Key Takeaways ──
 let _ytTakeawaysData = null;
 let _ytTakeawaysVideoId = null;
+let _ytTakeawaysRetries = 0, _ytTakeawaysRetryTimer = null;
+let _ytDpoiRetries = 0, _ytDpoiRetryTimer = null;
 
 // Client-side embedded cache (survives deploys)
 const _ytAnalysisCache = {
@@ -4907,11 +4919,19 @@ async function _ytLoadTakeaways() {
       }
     }
     _ytTakeawaysVideoId = vid;
+    _ytTakeawaysRetries = 0;
+    clearTimeout(_ytTakeawaysRetryTimer);
     _tabSetReady('takeaways');
     _ytRenderTakeaways(_ytTakeawaysData);
   } catch(e) {
     _tabSetReady('takeaways');
     contentEl.innerHTML = _ytUnavailableHTML('Takeaways', '_ytLoadTakeaways()');
+    // Auto-retry up to 8 times (covers ~2 min of background generation)
+    _ytTakeawaysRetries = (_ytTakeawaysRetries || 0) + 1;
+    if (_ytTakeawaysRetries < 8) {
+      clearTimeout(_ytTakeawaysRetryTimer);
+      _ytTakeawaysRetryTimer = setTimeout(() => _ytLoadTakeaways(), 15000);
+    }
   }
 }
 
@@ -4938,10 +4958,10 @@ function _ytUnavailableHTML(label, retryFn) {
     <div style="font-size:40px;opacity:0.5;">&#128269;</div>
     <div style="font-size:15px;font-weight:600;color:var(--text);opacity:0.85;">${label} not available yet</div>
     <div style="font-size:12px;color:var(--text3);max-width:280px;line-height:1.5;">
-      The transcript needs to be loaded first, or AI generation is still in progress.
+      AI is generating in the background. Auto-retrying...
     </div>
     <button onclick="${retryFn}" style="margin-top:4px;padding:6px 16px;font-size:12px;font-weight:600;border-radius:6px;border:1px solid var(--accent);background:rgba(245,158,11,0.1);color:var(--accent);cursor:pointer;">
-      Retry
+      Retry now
     </button>
   </div>`;
 }
@@ -4999,11 +5019,19 @@ async function _ytLoadDpoi() {
       }
     }
     _ytDpoiVideoId = vid;
+    _ytDpoiRetries = 0;
+    clearTimeout(_ytDpoiRetryTimer);
     _tabSetReady('dpoi');
     _ytRenderDpoi(_ytDpoiData);
   } catch(e) {
     _tabSetReady('dpoi');
     contentEl.innerHTML = _ytUnavailableHTML('DOPI Insights', '_ytLoadDpoi()');
+    // Auto-retry up to 8 times (covers ~2 min of background generation)
+    _ytDpoiRetries = (_ytDpoiRetries || 0) + 1;
+    if (_ytDpoiRetries < 8) {
+      clearTimeout(_ytDpoiRetryTimer);
+      _ytDpoiRetryTimer = setTimeout(() => _ytLoadDpoi(), 15000);
+    }
   }
 }
 
@@ -5251,6 +5279,9 @@ function closeReader(fromPopstate) {
   if (_ytPlayer) { try { _ytPlayer.destroy(); } catch(e){} _ytPlayer = null; }
   _ytPlayerReady = false;
   _isYouTube = false;
+  // Clear auto-retry timers
+  clearTimeout(_ytTakeawaysRetryTimer); _ytTakeawaysRetries = 0;
+  clearTimeout(_ytDpoiRetryTimer); _ytDpoiRetries = 0;
   const oldWrap = document.getElementById('readerContent')?.querySelector('.yt-player-wrap');
   if (oldWrap) oldWrap.remove();
   // Hide annotation UI elements that float on document.body

@@ -4544,7 +4544,9 @@ async function _ytLoadTranscript() {
 
   let segments = null;
   try {
-    segments = await Promise.any([_serverFetch(), _embeddedFetch(), _ytFetchTranscriptClientSide(vid).then(s => { if (!s || !s.length) throw new Error('empty'); return s; })]);
+    const _sources = Promise.any([_serverFetch(), _embeddedFetch(), _ytFetchTranscriptClientSide(vid).then(s => { if (!s || !s.length) throw new Error('empty'); return s; })]);
+    const _timeout = new Promise((resolve) => setTimeout(() => resolve(null), 12000));
+    segments = await Promise.race([_sources, _timeout]);
   } catch(e) {
     console.warn('All transcript sources failed:', e.message);
   }

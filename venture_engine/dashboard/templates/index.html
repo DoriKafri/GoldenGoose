@@ -7225,9 +7225,9 @@ async function loadReleaseNotes() {
 async function _rnOpenBug(bugKey) {
   // Find bug by key, then open its detail directly (no tab switch race)
   try {
-    const resp = await fetch(`${API}/api/bugs`);
+    const resp = await fetch(`${API}/api/bugs?limit=200`);
     const data = await resp.json();
-    const bugs = data.bugs || [];
+    const bugs = data.items || [];
     const bug = bugs.find(b => b.key === bugKey);
     if (bug) {
       // Set sidebar active state to bugs without triggering loadBugs

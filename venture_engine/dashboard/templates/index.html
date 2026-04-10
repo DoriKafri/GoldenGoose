@@ -4252,7 +4252,10 @@ async function _artLoadTakeaways() {
   el.innerHTML = _ytBuildingHTML('takeaways');
 
   try {
-    const resp = await fetch(`${API}/api/article-insights?url=${encodeURIComponent(_readerUrl)}`);
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 15000);
+    const resp = await fetch(`${API}/api/article-insights?url=${encodeURIComponent(_readerUrl)}`, {signal: ctrl.signal});
+    clearTimeout(timer);
     if (!resp.ok) throw new Error('Failed to load');
     const data = await resp.json();
     const highlights = data.highlights || [];
@@ -4295,7 +4298,10 @@ async function _artLoadDpoi() {
   el.innerHTML = _ytBuildingHTML('DOPI insights');
 
   try {
-    const resp = await fetch(`${API}/api/article-insights?url=${encodeURIComponent(_readerUrl)}`);
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 15000);
+    const resp = await fetch(`${API}/api/article-insights?url=${encodeURIComponent(_readerUrl)}`, {signal: ctrl.signal});
+    clearTimeout(timer);
     if (!resp.ok) throw new Error('Failed to load');
     const data = await resp.json();
     const highlights = data.highlights || [];
@@ -4883,7 +4889,10 @@ async function _ytLoadTakeaways() {
   contentEl.innerHTML = _ytBuildingHTML('takeaways');
 
   try {
-    const resp = await fetch(`${API}/api/youtube-key-takeaways?video_id=${vid}`);
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 15000);
+    const resp = await fetch(`${API}/api/youtube-key-takeaways?video_id=${vid}`, {signal: ctrl.signal});
+    clearTimeout(timer);
     if (resp.ok) {
       const data = await resp.json();
       if (data.error) throw new Error(data.error);
@@ -4972,7 +4981,10 @@ async function _ytLoadDpoi() {
   contentEl.innerHTML = _ytBuildingHTML('DOPI insights');
 
   try {
-    const resp = await fetch(`${API}/api/youtube-dpoi?video_id=${vid}`);
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 15000);
+    const resp = await fetch(`${API}/api/youtube-dpoi?video_id=${vid}`, {signal: ctrl.signal});
+    clearTimeout(timer);
     if (resp.ok) {
       const data = await resp.json();
       if (data.error) throw new Error(data.error);

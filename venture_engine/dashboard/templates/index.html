@@ -1096,29 +1096,285 @@ html.dark .sl-msg-wrap:hover { background:rgba(255,255,255,.08); }
 .ann-compose-submit { background:linear-gradient(135deg,#f59e0b,#d97706); color:#fff; }
 @media(max-width:768px) {
   .reader-body { flex-direction:column; }
-  .reader-sidebar { width:100%; height:auto; max-height:160px; border-left:none; border-top:1px solid var(--border); flex-shrink:0; }
-  .reader-sidebar-header { padding:6px 12px; font-size:11px; }
-  .reader-sidebar-list { flex:none; display:flex; flex-direction:row; overflow-x:auto; overflow-y:hidden; padding:6px 8px; gap:8px; scroll-snap-type:x mandatory; -webkit-overflow-scrolling:touch; }
-  .reader-sidebar-list::-webkit-scrollbar { height:3px; }
-  .reader-sidebar-list::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
-  .reader-ann-card { flex:0 0 220px; scroll-snap-align:start; margin-bottom:0; padding:8px 10px; font-size:12px; }
-  .reader-ann-quote { font-size:10px; margin-bottom:4px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
-  .reader-ann-body { font-size:11px; line-height:1.4; margin-bottom:4px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
-  .reader-ann-meta { font-size:9px; }
-  .reader-ann-actions { margin-top:4px; }
-  .reader-ann-actions button { font-size:9px; padding:1px 6px; }
-  .ann-reactions { gap:3px; margin-top:4px; }
-  .ann-reaction-btn { padding:1px 6px; font-size:10px; }
-  .reader-replies { display:block; padding-left:8px; border-left:2px solid var(--border); margin-top:6px; }
-  .reader-reply-input { display:none; }
-  .ann-video-thumb { margin-bottom:4px; }
-  .ann-video-thumb-sm { max-width:180px; }
-  .ann-timestamp { font-size:10px; padding:1px 6px; margin-bottom:4px; }
+  /* Hide desktop sidebar — use YouTube-style bottom sheet instead */
+  .reader-sidebar { display:none !important; }
   /* YouTube controls compact on mobile */
   .yt-controls { padding:6px 10px; gap:6px; }
   .yt-mark-btn { padding:6px 10px; font-size:11px; }
   .yt-hint { display:none; }
+  /* Topbar compact */
+  .reader-topbar { padding:6px 10px; gap:6px; min-height:40px; }
+  .reader-topbar-title { font-size:12px; }
+
+  /* ── YouTube-style Comments Preview Strip ── */
+  .yt-comments-preview { display:flex !important; }
+
+  /* ── YouTube-style Comments Bottom Sheet ── */
+  .yt-comments-sheet { display:block !important; }
+  .yt-comments-sheet.open { transform:translateY(0); }
 }
+/* YouTube-style comments preview (hidden on desktop) */
+.yt-comments-preview {
+  display:none;
+  align-items:center;
+  gap:10px;
+  padding:12px 16px;
+  background:var(--card);
+  border-top:1px solid var(--border);
+  cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+}
+.yt-comments-preview:active { background:var(--bg2); }
+.yt-comments-preview-title {
+  font-size:14px;
+  font-weight:700;
+  color:var(--text);
+  flex-shrink:0;
+}
+.yt-comments-preview-count {
+  font-size:12px;
+  color:var(--text3);
+  margin-left:-4px;
+}
+.yt-comments-preview-body {
+  flex:1;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  min-width:0;
+}
+.yt-comments-preview-avatar {
+  width:24px;
+  height:24px;
+  border-radius:50%;
+  flex-shrink:0;
+}
+.yt-comments-preview-text {
+  font-size:12px;
+  color:var(--text2);
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  flex:1;
+}
+.yt-comments-preview-arrow {
+  color:var(--text3);
+  font-size:16px;
+  flex-shrink:0;
+}
+
+/* YouTube-style Comments Bottom Sheet */
+.yt-comments-sheet {
+  display:none;
+  position:fixed;
+  inset:0;
+  z-index:700;
+  transform:translateY(100%);
+  transition:transform 0.3s cubic-bezier(0.4,0,0.2,1);
+}
+.yt-comments-sheet-overlay {
+  position:absolute;
+  inset:0;
+  background:rgba(0,0,0,0.5);
+}
+.yt-comments-sheet-panel {
+  position:absolute;
+  bottom:0;
+  left:0;
+  right:0;
+  top:60px;
+  background:var(--card);
+  border-radius:16px 16px 0 0;
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+}
+.yt-comments-sheet-handle {
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:8px;
+  flex-shrink:0;
+}
+.yt-comments-sheet-handle::before {
+  content:'';
+  width:36px;
+  height:4px;
+  border-radius:2px;
+  background:var(--border);
+}
+.yt-comments-sheet-header {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:0 16px 12px;
+  border-bottom:1px solid var(--border);
+  flex-shrink:0;
+}
+.yt-comments-sheet-header h3 {
+  font-size:16px;
+  font-weight:700;
+  color:var(--text);
+  margin:0;
+}
+.yt-comments-sheet-close {
+  width:36px;
+  height:36px;
+  border:none;
+  background:none;
+  color:var(--text2);
+  font-size:22px;
+  cursor:pointer;
+  border-radius:50%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+.yt-comments-sheet-close:active { background:var(--bg2); }
+.yt-comments-sheet-list {
+  flex:1;
+  overflow-y:auto;
+  -webkit-overflow-scrolling:touch;
+  padding:8px 0;
+}
+/* Individual comment in sheet (YouTube mobile style) */
+.yt-comment {
+  display:flex;
+  gap:12px;
+  padding:12px 16px;
+}
+.yt-comment-avatar {
+  width:36px;
+  height:36px;
+  border-radius:50%;
+  flex-shrink:0;
+}
+.yt-comment-content { flex:1; min-width:0; }
+.yt-comment-header {
+  display:flex;
+  align-items:center;
+  gap:6px;
+  margin-bottom:4px;
+}
+.yt-comment-name {
+  font-size:12px;
+  font-weight:600;
+  color:var(--text2);
+}
+.yt-comment-time {
+  font-size:11px;
+  color:var(--text3);
+}
+.yt-comment-badge-you {
+  font-size:9px;
+  padding:1px 6px;
+  border-radius:var(--radius-pill);
+  background:rgba(245,158,11,0.12);
+  color:#d97706;
+  font-weight:600;
+}
+.yt-comment-body {
+  font-size:14px;
+  color:var(--text);
+  line-height:1.5;
+  margin-bottom:8px;
+  word-break:break-word;
+}
+.yt-comment-ts-badge {
+  display:inline-flex;
+  align-items:center;
+  gap:4px;
+  padding:2px 8px;
+  border-radius:var(--radius-pill);
+  background:rgba(245,158,11,0.1);
+  color:#d97706;
+  font-size:11px;
+  font-weight:700;
+  margin-bottom:6px;
+  cursor:pointer;
+}
+.yt-comment-ts-badge:active { background:rgba(245,158,11,0.2); }
+.yt-comment-actions {
+  display:flex;
+  align-items:center;
+  gap:4px;
+}
+.yt-comment-action-btn {
+  display:inline-flex;
+  align-items:center;
+  gap:3px;
+  padding:4px 8px;
+  border:none;
+  background:none;
+  color:var(--text3);
+  font-size:12px;
+  cursor:pointer;
+  border-radius:20px;
+  font-family:inherit;
+  -webkit-tap-highlight-color:transparent;
+}
+.yt-comment-action-btn:active { background:var(--bg2); }
+.yt-comment-action-btn.liked { color:var(--accent); }
+.yt-comment-action-btn svg { width:16px; height:16px; }
+.yt-comment-reply-toggle {
+  font-size:12px;
+  font-weight:700;
+  color:var(--accent);
+  border:none;
+  background:none;
+  cursor:pointer;
+  padding:6px 0;
+  font-family:inherit;
+}
+.yt-comment-replies {
+  padding-left:48px;
+}
+.yt-comment-replies .yt-comment { padding:8px 0; }
+.yt-comment-replies .yt-comment-avatar { width:28px; height:28px; }
+.yt-comment-replies .yt-comment-body { font-size:13px; }
+/* Sticky compose bar at bottom */
+.yt-comments-compose {
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding:8px 12px;
+  border-top:1px solid var(--border);
+  background:var(--card);
+  flex-shrink:0;
+}
+.yt-comments-compose-avatar {
+  width:28px;
+  height:28px;
+  border-radius:50%;
+  flex-shrink:0;
+}
+.yt-comments-compose input {
+  flex:1;
+  padding:8px 16px;
+  border-radius:20px;
+  border:1px solid var(--border);
+  font-size:13px;
+  background:var(--bg);
+  color:var(--text);
+  font-family:inherit;
+  outline:none;
+}
+.yt-comments-compose input:focus { border-color:var(--accent); }
+.yt-comments-compose-send {
+  width:36px;
+  height:36px;
+  border-radius:50%;
+  border:none;
+  background:var(--accent);
+  color:#fff;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  cursor:pointer;
+  flex-shrink:0;
+}
+.yt-comments-compose-send:disabled { opacity:0.4; }
+.yt-comments-compose-send:active { transform:scale(0.95); }
 /* Landscape on mobile: sidebar on right like desktop */
 @media(max-width:768px) and (orientation:landscape) {
   .reader-body { flex-direction:row; }
@@ -1683,6 +1939,28 @@ if (location.hash && location.hash.startsWith('#news/read/')) {
     <div class="ann-compose-actions">
       <button class="ann-compose-cancel" onclick="hideAnnotationCompose()">Cancel</button>
       <button class="ann-compose-submit" onclick="submitAnnotation()">Post</button>
+    </div>
+  </div>
+</div>
+
+<!-- YouTube-style Comments Bottom Sheet (mobile) -->
+<div class="yt-comments-sheet" id="ytCommentsSheet">
+  <div class="yt-comments-sheet-overlay" onclick="_ytCloseCommentsSheet()"></div>
+  <div class="yt-comments-sheet-panel">
+    <div class="yt-comments-sheet-handle" onclick="_ytCloseCommentsSheet()"></div>
+    <div class="yt-comments-sheet-header">
+      <h3>Comments <span id="ytSheetCommentCount" style="font-size:13px;font-weight:400;color:var(--text3);"></span></h3>
+      <button class="yt-comments-sheet-close" onclick="_ytCloseCommentsSheet()">&times;</button>
+    </div>
+    <div class="yt-comments-sheet-list" id="ytCommentsSheetList">
+      <div style="padding:40px;text-align:center;color:var(--text3);font-size:13px;">No comments yet. Add one below!</div>
+    </div>
+    <div class="yt-comments-compose">
+      <img class="yt-comments-compose-avatar" id="ytComposeAvatar" src="" alt="">
+      <input type="text" id="ytComposeInput" placeholder="Add a comment..." onkeydown="if(event.key==='Enter')_ytSheetPostComment()">
+      <button class="yt-comments-compose-send" onclick="_ytSheetPostComment()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:18px;height:18px;"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+      </button>
     </div>
   </div>
 </div>
@@ -3646,6 +3924,17 @@ function openReader(url, title, newsItemId) {
             Comment
           </button>
         </div>
+        <!-- YouTube-style comments preview (mobile only) -->
+        <div class="yt-comments-preview" id="ytCommentsPreview" onclick="_ytOpenCommentsSheet()">
+          <div>
+            <span class="yt-comments-preview-title">Comments</span>
+            <span class="yt-comments-preview-count" id="ytCommentsPreviewCount">0</span>
+          </div>
+          <div class="yt-comments-preview-body" id="ytCommentsPreviewBody">
+            <span class="yt-comments-preview-text" style="color:var(--text3);">No comments yet</span>
+          </div>
+          <span class="yt-comments-preview-arrow">&#9662;</span>
+        </div>
       </div>
       <div class="yt-panel" id="ytTranscriptPanel">
         <div class="yt-transcript-search">
@@ -5178,6 +5467,187 @@ function renderReaderAnnotations() {
 
   // Render timeline markers for YouTube
   if (_isYouTube) _renderYtTimelineMarkers();
+
+  // Update mobile YouTube-style comments preview + sheet
+  _ytUpdateMobileComments();
+}
+
+// ── YouTube-style mobile comments ──
+function _ytUpdateMobileComments() {
+  const preview = document.getElementById('ytCommentsPreview');
+  const previewCount = document.getElementById('ytCommentsPreviewCount');
+  const previewBody = document.getElementById('ytCommentsPreviewBody');
+  if (!preview) return;
+
+  const count = _readerAnnotations.length;
+  if (previewCount) previewCount.textContent = count;
+
+  if (count > 0 && previewBody) {
+    const first = _readerAnnotations[0];
+    const avatar = `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(first.author_name||first.author_id)}&backgroundColor=b6e3f4`;
+    previewBody.innerHTML = `
+      <img class="yt-comments-preview-avatar" src="${avatar}" alt="">
+      <span class="yt-comments-preview-text">${esc(first.body).substring(0, 80)}</span>
+    `;
+  } else if (previewBody) {
+    previewBody.innerHTML = '<span class="yt-comments-preview-text" style="color:var(--text3);">Add a comment...</span>';
+  }
+
+  // Also update sheet count
+  const sheetCount = document.getElementById('ytSheetCommentCount');
+  if (sheetCount) sheetCount.textContent = count ? count : '';
+
+  // Render sheet list
+  _ytRenderSheetComments();
+}
+
+function _ytRenderSheetComments() {
+  const list = document.getElementById('ytCommentsSheetList');
+  if (!list) return;
+
+  if (!_readerAnnotations.length) {
+    list.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text3);font-size:13px;">No comments yet. Add one below!</div>';
+    return;
+  }
+
+  const sorted = [..._readerAnnotations];
+  if (_isYouTube) {
+    sorted.sort((a, b) => (a.timestamp_seconds ?? 9999999) - (b.timestamp_seconds ?? 9999999));
+  }
+
+  list.innerHTML = sorted.map(ann => {
+    const avatar = `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(ann.author_name||ann.author_id)}&backgroundColor=b6e3f4`;
+    const isMine = ann.author_id === anonId;
+    const isVideoAnn = ann.timestamp_seconds != null;
+    const replyCount = (ann.replies||[]).length;
+
+    // Reactions summary
+    const likes = (ann.reactions||[]).find(r => r.emoji === '👍');
+    const dislikes = (ann.reactions||[]).find(r => r.emoji === '👎');
+    const likeCount = likes ? likes.count : 0;
+    const dislikeCount = dislikes ? dislikes.count : 0;
+    const isLiked = likes && likes.users.some(u => u.author_id === anonId);
+    const isDisliked = dislikes && dislikes.users.some(u => u.author_id === anonId);
+    const otherRxns = (ann.reactions||[]).filter(r => r.emoji !== '👍' && r.emoji !== '👎');
+
+    // Replies
+    const repliesHtml = (ann.replies||[]).map(r => {
+      const rAvatar = `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(r.author_name||r.author_id)}&backgroundColor=b6e3f4`;
+      return `<div class="yt-comment">
+        <img class="yt-comment-avatar" src="${rAvatar}" alt="">
+        <div class="yt-comment-content">
+          <div class="yt-comment-header">
+            <span class="yt-comment-name">${esc(r.author_name||'Anon')}</span>
+            <span class="yt-comment-time">${timeAgo(r.created_at)}</span>
+          </div>
+          <div class="yt-comment-body" style="font-size:13px;">${esc(r.body)}</div>
+        </div>
+      </div>`;
+    }).join('');
+
+    return `<div class="yt-comment">
+      <img class="yt-comment-avatar" src="${avatar}" alt="">
+      <div class="yt-comment-content">
+        <div class="yt-comment-header">
+          <span class="yt-comment-name">${esc(ann.author_name||'Anon')}</span>
+          <span class="yt-comment-time">${timeAgo(ann.created_at)}</span>
+          ${isMine ? '<span class="yt-comment-badge-you">You</span>' : ''}
+        </div>
+        ${isVideoAnn ? `<div class="yt-comment-ts-badge" onclick="_ytSeekTo(${ann.timestamp_seconds});_ytCloseCommentsSheet()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:12px;height:12px;"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          ${_fmtTime(ann.timestamp_seconds)}
+        </div>` : ''}
+        <div class="yt-comment-body">${esc(ann.body)}</div>
+        <div class="yt-comment-actions">
+          <button class="yt-comment-action-btn ${isLiked?'liked':''}" onclick="event.stopPropagation();toggleReaction('${ann.id}','👍')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 9V5a3 3 0 00-3-3l-4 9v11h11.28a2 2 0 002-1.7l1.38-9a2 2 0 00-2-2.3H14z"/><path d="M7 22H4a2 2 0 01-2-2v-7a2 2 0 012-2h3"/></svg>
+            ${likeCount || ''}
+          </button>
+          <button class="yt-comment-action-btn ${isDisliked?'liked':''}" onclick="event.stopPropagation();toggleReaction('${ann.id}','👎')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 15v4a3 3 0 003 3l4-9V2H5.72a2 2 0 00-2 1.7l-1.38 9a2 2 0 002 2.3H10z"/><path d="M17 2h3a2 2 0 012 2v7a2 2 0 01-2 2h-3"/></svg>
+            ${dislikeCount || ''}
+          </button>
+          ${otherRxns.map(rx => `<button class="yt-comment-action-btn" onclick="event.stopPropagation();toggleReaction('${ann.id}','${rx.emoji}')">${rx.emoji} ${rx.count}</button>`).join('')}
+          <button class="yt-comment-action-btn" onclick="event.stopPropagation();_ytSheetToggleReply('${ann.id}')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+            ${replyCount || ''}
+          </button>
+        </div>
+        ${replyCount ? `<button class="yt-comment-reply-toggle" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none';this.textContent=this.nextElementSibling.style.display==='none'?'${replyCount} replies':'Hide replies'">
+          ${replyCount} ${replyCount===1?'reply':'replies'}
+        </button>
+        <div class="yt-comment-replies" style="display:none;">${repliesHtml}</div>` : ''}
+        <div class="yt-sheet-reply-form" id="ytSheetReply_${ann.id}" style="display:none;margin-top:8px;">
+          <div style="display:flex;gap:8px;align-items:center;">
+            <input type="text" id="ytSheetReplyInput_${ann.id}" placeholder="Reply..." style="flex:1;padding:6px 14px;border-radius:20px;border:1px solid var(--border);font-size:12px;background:var(--bg);color:var(--text);outline:none;" onkeydown="if(event.key==='Enter')submitReply('${ann.id}')">
+            <button onclick="submitReply('${ann.id}')" style="padding:4px 12px;border-radius:20px;border:none;background:var(--accent);color:#fff;font-size:11px;font-weight:600;cursor:pointer;">Reply</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function _ytOpenCommentsSheet() {
+  const sheet = document.getElementById('ytCommentsSheet');
+  if (!sheet) return;
+  sheet.style.display = 'block';
+  // Set compose avatar
+  const avatarEl = document.getElementById('ytComposeAvatar');
+  if (avatarEl) avatarEl.src = `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(anonName||anonId)}&backgroundColor=b6e3f4`;
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => sheet.classList.add('open'));
+  });
+  document.body.style.overflow = 'hidden';
+}
+
+function _ytCloseCommentsSheet() {
+  const sheet = document.getElementById('ytCommentsSheet');
+  if (!sheet) return;
+  sheet.classList.remove('open');
+  setTimeout(() => { sheet.style.display = 'none'; }, 300);
+  document.body.style.overflow = '';
+}
+
+async function _ytSheetPostComment() {
+  const input = document.getElementById('ytComposeInput');
+  if (!input || !input.value.trim()) return;
+  const body = input.value.trim();
+  input.value = '';
+
+  // Get current video timestamp
+  let ts = null;
+  if (_isYouTube && _ytPlayer && _ytPlayerReady) {
+    try { ts = Math.floor(_ytPlayer.getCurrentTime()); } catch(e) {}
+  }
+
+  try {
+    await fetch(`${API}/api/page-annotations`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        url: _readerUrl,
+        body: body,
+        selected_text: '',
+        timestamp_seconds: ts,
+        author_id: anonId,
+        author_name: anonName
+      })
+    });
+    await loadReaderAnnotations();
+  } catch(e) {
+    console.error('Failed to post comment:', e);
+  }
+}
+
+function _ytSheetToggleReply(annId) {
+  const form = document.getElementById('ytSheetReply_' + annId);
+  if (!form) return;
+  form.style.display = form.style.display === 'none' ? 'block' : 'none';
+  if (form.style.display === 'block') {
+    const input = document.getElementById('ytSheetReplyInput_' + annId);
+    if (input) { input.value = ''; input.focus(); }
+  }
 }
 
 function scrollToAnnotation(annId) {
@@ -5218,7 +5688,8 @@ function toggleReplyForm(annId) {
 }
 
 async function submitReply(annId) {
-  const input = document.getElementById('replyInput_' + annId);
+  const input = document.getElementById('replyInput_' + annId) || document.getElementById('ytSheetReplyInput_' + annId);
+  if (!input) return;
   const body = input.value.trim();
   if (!body) return;
   // Remove typing indicator

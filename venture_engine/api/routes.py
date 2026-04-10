@@ -2246,7 +2246,7 @@ def youtube_transcript(
     from venture_engine.db.session import SessionLocal
     from venture_engine.db.models import TranscriptCache
 
-    _deadline = _time.monotonic() + 55  # 55-second total deadline
+    _deadline = _time.monotonic() + 50  # 50-second total deadline (Railway has 60s limit)
 
     def _past_deadline():
         if _time.monotonic() > _deadline:
@@ -2318,6 +2318,8 @@ def youtube_transcript(
         },
     ]
     for cinfo in _innertube_clients:
+        if _past_deadline():
+            break
         client_name = cinfo["name"]
         try:
             client_ctx = {"clientName": client_name, "clientVersion": cinfo["version"], "hl": "en"}
@@ -2329,11 +2331,12 @@ def youtube_transcript(
             # Embedded player needs thirdParty field
             if cinfo["embed"]:
                 innertube_body["context"]["thirdParty"] = {"embedUrl": "https://www.youtube.com/"}
-            with httpx.Client(timeout=8) as client:
+            _ua = cinfo["ua"]
+            with httpx.Client(timeout=5) as client:
                 player_resp = client.post(
                     "https://www.youtube.com/youtubei/v1/player?prettyPrint=false",
                     json=innertube_body,
-                    headers={"User-Agent": cinfo["ua"], "Content-Type": "application/json"},
+                    headers={"User-Agent": _ua, "Content-Type": "application/json"},
                 )
                 player_data = player_resp.json()
                 playability = player_data.get("playabilityStatus", {}).get("status", "")
@@ -2346,7 +2349,7 @@ def youtube_transcript(
                     raise ValueError(f"No tracks (playability={playability})")
 
                 track = next((t for t in tracks if t.get("languageCode", "").startswith("en")), tracks[0])
-                cap_resp = client.get(track["baseUrl"], headers={"User-Agent": ua}, timeout=8)
+                cap_resp = client.get(track["baseUrl"], headers={"User-Agent": _ua}, timeout=5)
                 if not cap_resp.text or len(cap_resp.text) < 50:
                     raise ValueError("Empty caption response")
 
@@ -2372,9 +2375,11 @@ def youtube_transcript(
         "https://vid.puffyan.us",
     ]
     for instance in _invidious_instances:
+        if _past_deadline():
+            break
         try:
             _headers = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"}
-            with httpx.Client(timeout=10, headers=_headers) as client:
+            with httpx.Client(timeout=5, headers=_headers) as client:
                 list_resp = client.get(f"{instance}/api/v1/captions/{video_id}")
                 if list_resp.status_code != 200:
                     continue
@@ -2385,7 +2390,7 @@ def youtube_transcript(
                 sub_url = track.get("url", "")
                 if sub_url and not sub_url.startswith("http"):
                     sub_url = instance + sub_url
-                sub_resp = client.get(sub_url, timeout=10)
+                sub_resp = client.get(sub_url, timeout=5)
                 if sub_resp.status_code != 200 or len(sub_resp.text) < 50:
                     continue
                 segments = _parse_vtt_segments(sub_resp.text)

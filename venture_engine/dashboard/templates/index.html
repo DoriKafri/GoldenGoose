@@ -1098,16 +1098,89 @@ html.dark .sl-msg-wrap:hover { background:rgba(255,255,255,.08); }
   .reader-body { flex-direction:column; }
   /* Hide desktop sidebar — use YouTube-style bottom sheet instead */
   .reader-sidebar { display:none !important; }
-  /* YouTube controls compact on mobile */
-  .yt-controls { padding:6px 10px; gap:6px; }
-  .yt-mark-btn { padding:6px 10px; font-size:11px; }
+
+  /* ── Topbar: stack title/URL vertically, hide clutter ── */
+  .reader-topbar {
+    padding:8px 12px;
+    gap:8px;
+    min-height:44px;
+    flex-wrap:wrap;
+  }
+  .reader-topbar-close { width:36px; height:36px; }
+  .reader-topbar-title { font-size:14px; font-weight:700; white-space:normal; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; line-height:1.3; }
+  .reader-topbar-url { max-width:100%; font-size:10px; }
+  /* Hide annotation count, share, open-original on mobile topbar — save space */
+  #readerAnnCount { display:none !important; }
+  #readerShareBtn { display:none !important; }
+  #readerExtLink { display:none !important; }
+
+  /* ── YouTube Tabs: full-width, evenly spaced, larger touch targets ── */
+  .yt-tabs {
+    display:flex;
+    overflow-x:auto;
+    -webkit-overflow-scrolling:touch;
+    scrollbar-width:none;
+    gap:0;
+  }
+  .yt-tabs::-webkit-scrollbar { display:none; }
+  .yt-tab {
+    flex:1;
+    min-width:0;
+    padding:12px 6px;
+    font-size:11px;
+    text-align:center;
+    justify-content:center;
+    min-height:44px;
+    display:flex;
+    align-items:center;
+    gap:4px;
+  }
+  .yt-tab-icon { width:16px; height:16px; margin-right:4px; }
+  .yt-tab.active::after { left:8px; right:8px; height:3px; }
+
+  /* ── Video Player: full-width, proper aspect ratio ── */
+  .yt-player-wrap { min-height:auto; }
+  .yt-player-container { padding-bottom:56.25%; }
+  #ytVideoPanel { background:#000; }
+
+  /* ── Controls bar: compact but touch-friendly ── */
+  .yt-controls {
+    padding:8px 12px;
+    gap:8px;
+    min-height:44px;
+  }
+  .yt-time-display { font-size:12px; min-width:38px; }
+  .yt-mark-btn {
+    padding:8px 12px;
+    font-size:11px;
+    gap:4px;
+    min-height:36px;
+    border-radius:18px;
+  }
   .yt-hint { display:none; }
-  /* Topbar compact */
-  .reader-topbar { padding:6px 10px; gap:6px; min-height:40px; }
-  .reader-topbar-title { font-size:12px; }
+  .yt-timeline { height:8px; }
+  .yt-timeline-marker { width:16px; height:16px; top:-4px; }
+
+  /* ── Transcript segments: tighter on mobile ── */
+  .yt-transcript-seg { padding:8px 14px; gap:8px; }
+  .yt-transcript-time { font-size:11px; min-width:38px; }
+  .yt-transcript-text { font-size:13px; line-height:1.5; }
+  .yt-transcript-search { padding:8px 12px; }
+  .yt-transcript-search input { padding:8px 14px; font-size:13px; min-height:40px; }
+
+  /* ── AI panels (takeaways/DOPI): mobile padding ── */
+  .yt-ai-loading { padding:30px 16px; font-size:12px; }
 
   /* ── YouTube-style Comments Preview Strip ── */
-  .yt-comments-preview { display:flex !important; }
+  .yt-comments-preview {
+    display:flex !important;
+    padding:14px 16px;
+    border-top:1px solid var(--border);
+    border-bottom:4px solid var(--bg2);
+    min-height:52px;
+  }
+  .yt-comments-preview-title { font-size:15px; }
+  .yt-comments-preview-count { font-size:13px; }
 
   /* ── YouTube-style Comments Bottom Sheet ── */
   .yt-comments-sheet { display:block !important; }

@@ -2476,7 +2476,7 @@ def youtube_transcript(
     return Response(
         content=_json.dumps({"error": "Transcript unavailable", "details": errors}),
         media_type="application/json",
-        status_code=500,
+        status_code=404,
     )
 
 

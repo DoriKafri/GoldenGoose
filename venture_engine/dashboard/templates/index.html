@@ -4691,6 +4691,17 @@ async function _ytLoadTranscript() {
   } else {
     _tabSetReady('transcript');
     contentEl.innerHTML = '<div class="yt-transcript-error">Transcript unavailable for this video.</div>';
+    // No transcript = no takeaways/DOPI possible — stop polling and show unavailable
+    _ytTranscriptFailed = true;
+    clearTimeout(_ytTakeawaysRetryTimer);
+    clearTimeout(_ytDpoiRetryTimer);
+    Object.keys(_ytPollTimers).forEach(k => { clearTimeout(_ytPollTimers[k]); delete _ytPollTimers[k]; });
+    _tabSetReady('takeaways');
+    _tabSetReady('dpoi');
+    const tkEl = document.getElementById('ytTakeawaysContent');
+    const dpEl = document.getElementById('ytDpoiContent');
+    if (tkEl) tkEl.innerHTML = _ytUnavailableHTML('Takeaways', '_ytLoadTakeaways()');
+    if (dpEl) dpEl.innerHTML = _ytUnavailableHTML('DOPI Insights', '_ytLoadDpoi()');
   }
 }
 
@@ -4861,6 +4872,7 @@ let _ytTakeawaysData = null;
 let _ytTakeawaysVideoId = null;
 let _ytTakeawaysRetries = 0, _ytTakeawaysRetryTimer = null;
 let _ytDpoiRetries = 0, _ytDpoiRetryTimer = null;
+let _ytTranscriptFailed = false;
 
 // Client-side embedded cache (survives deploys)
 const _ytAnalysisCache = {
@@ -5320,6 +5332,7 @@ function closeReader(fromPopstate) {
   // Clear auto-retry timers and poll timers
   clearTimeout(_ytTakeawaysRetryTimer); _ytTakeawaysRetries = 0;
   clearTimeout(_ytDpoiRetryTimer); _ytDpoiRetries = 0;
+  _ytTranscriptFailed = false;
   Object.keys(_ytPollTimers).forEach(k => { clearTimeout(_ytPollTimers[k]); delete _ytPollTimers[k]; });
   const oldWrap = document.getElementById('readerContent')?.querySelector('.yt-player-wrap');
   if (oldWrap) oldWrap.remove();

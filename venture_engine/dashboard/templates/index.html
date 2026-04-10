@@ -4682,8 +4682,9 @@ async function _ytLoadTranscript() {
   contentEl.innerHTML = '<div class="yt-transcript-loading">Loading transcript...</div>';
 
   // Race server + client-side + embedded cache in parallel for fastest result
-  async function _serverFetch() {
-    const resp = await fetch(`${API}/api/youtube-transcript?video_id=${vid}`, {signal: AbortSignal.timeout(6000)});
+  // Quick server fetch (10s) — for the race
+  async function _serverFetchQuick() {
+    const resp = await fetch(`${API}/api/youtube-transcript?video_id=${vid}`, {signal: AbortSignal.timeout(10000)});
     if (!resp.ok) throw new Error('server fail');
     const data = await resp.json();
     if (!data.segments || !data.segments.length) throw new Error('empty');
@@ -4701,8 +4702,8 @@ async function _ytLoadTranscript() {
   _ytTranscriptLoadingPromise = (async () => {
     let segments = null;
     try {
-      const _sources = Promise.any([_serverFetch(), _embeddedFetch(), _ytFetchTranscriptClientSide(vid).then(s => { if (!s || !s.length) throw new Error('empty'); return s; })]);
-      const _timeout = new Promise((resolve) => setTimeout(() => resolve(null), 12000));
+      const _sources = Promise.any([_serverFetchQuick(), _embeddedFetch(), _ytFetchTranscriptClientSide(vid).then(s => { if (!s || !s.length) throw new Error('empty'); return s; })]);
+      const _timeout = new Promise((resolve) => setTimeout(() => resolve(null), 15000));
       segments = await Promise.race([_sources, _timeout]);
     } catch(e) {
       console.warn('All transcript sources failed:', e.message);
@@ -4725,8 +4726,24 @@ async function _ytLoadTranscript() {
       // Kick off takeaways & DOPI in background (don't await)
       _ytPreFetchInsights(vid);
     } else {
+      // Fire a long background server request (no timeout) to let the server try all
+      // approaches (InnerTube, Invidious, yt-dlp, Gemini) and cache the result.
+      // Next time the user opens this video, the cache will have it.
+      fetch(`${API}/api/youtube-transcript?video_id=${vid}`).then(r => r.ok ? r.json() : null).then(d => {
+        if (d && d.segments && d.segments.length) {
+          console.log(`Background server transcript succeeded for ${vid}: ${d.segments.length} segments`);
+          _ytTranscriptData = d.segments;
+          _ytTranscriptVideoId = vid;
+          _ytTranscriptFailed = false;
+          _tabSetReady('transcript');
+          const el = document.getElementById('ytTranscriptContent');
+          if (el) _ytRenderTranscript(d.segments);
+          _ytPreFetchInsights(vid);
+        }
+      }).catch(() => {});
+
       _tabSetReady('transcript');
-      contentEl.innerHTML = '<div class="yt-transcript-error">Transcript unavailable for this video.</div>';
+      contentEl.innerHTML = '<div class="yt-transcript-error">Transcript unavailable for this video.<br><small style="color:#888">Trying in background… refresh in ~30s</small></div>';
       // No transcript = no takeaways/DOPI possible — stop polling and show unavailable
       _ytTranscriptFailed = true;
       clearTimeout(_ytTakeawaysRetryTimer);
@@ -4736,8 +4753,8 @@ async function _ytLoadTranscript() {
       _tabSetReady('dpoi');
       const tkEl = document.getElementById('ytTakeawaysContent');
       const dpEl = document.getElementById('ytDpoiContent');
-      if (tkEl) tkEl.innerHTML = _ytUnavailableHTML('Takeaways', '_ytLoadTakeaways()');
-      if (dpEl) dpEl.innerHTML = _ytUnavailableHTML('DOPI Insights', '_ytLoadDpoi()');
+      if (tkEl) tkEl.innerHTML = _ytUnavailableHTML('Takeaways', '_ytTranscriptFailed=false;_ytTakeawaysRetries=0;_ytLoadTakeaways()');
+      if (dpEl) dpEl.innerHTML = _ytUnavailableHTML('DOPI Insights', '_ytTranscriptFailed=false;_ytDpoiRetries=0;_ytLoadDpoi()');
     }
   })();
 

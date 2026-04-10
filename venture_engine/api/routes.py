@@ -2233,8 +2233,7 @@ def youtube_transcript(
 
     Strategy:
     0. Check database cache first
-    1. InnerTube ANDROID player API
-    2. InnerTube IOS player API
+    1. InnerTube player API (TVHTML5_EMBEDDED, WEB, ANDROID, IOS)
     3. youtube-transcript-api library
     4. yt-dlp subtitle extraction
 
@@ -2247,7 +2246,7 @@ def youtube_transcript(
     from venture_engine.db.session import SessionLocal
     from venture_engine.db.models import TranscriptCache
 
-    _deadline = _time.monotonic() + 45  # 45-second total deadline
+    _deadline = _time.monotonic() + 55  # 55-second total deadline
 
     def _past_deadline():
         if _time.monotonic() > _deadline:
@@ -2287,21 +2286,54 @@ def youtube_transcript(
         return {"segments": segments, "language": language}
 
     # ── Approach 1: InnerTube player API (multiple clients) ──
-    for client_name, client_ver, ua in [
-        ("WEB", "2.20250401", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"),
-        ("ANDROID", "20.10.38", "com.google.android.youtube/20.10.38"),
-        ("IOS", "20.10.38", "com.google.ios.youtube/20.10.38"),
-    ]:
+    # TVHTML5_SIMPLY_EMBEDDED_PLAYER bypasses LOGIN_REQUIRED for most videos
+    _innertube_clients = [
+        {
+            "name": "TVHTML5_SIMPLY_EMBEDDED_PLAYER",
+            "version": "2.0",
+            "ua": "Mozilla/5.0 (SMART-TV; Linux; Tizen 6.5)",
+            "extra_context": {"clientScreen": "EMBED"},
+            "embed": True,
+        },
+        {
+            "name": "WEB",
+            "version": "2.20250401",
+            "ua": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+            "extra_context": {},
+            "embed": False,
+        },
+        {
+            "name": "ANDROID",
+            "version": "20.10.38",
+            "ua": "com.google.android.youtube/20.10.38",
+            "extra_context": {"androidSdkVersion": 34},
+            "embed": False,
+        },
+        {
+            "name": "IOS",
+            "version": "20.10.38",
+            "ua": "com.google.ios.youtube/20.10.38",
+            "extra_context": {},
+            "embed": False,
+        },
+    ]
+    for cinfo in _innertube_clients:
+        client_name = cinfo["name"]
         try:
+            client_ctx = {"clientName": client_name, "clientVersion": cinfo["version"], "hl": "en"}
+            client_ctx.update(cinfo["extra_context"])
             innertube_body = {
-                "context": {"client": {"clientName": client_name, "clientVersion": client_ver, "hl": "en"}},
+                "context": {"client": client_ctx},
                 "videoId": video_id,
             }
+            # Embedded player needs thirdParty field
+            if cinfo["embed"]:
+                innertube_body["context"]["thirdParty"] = {"embedUrl": "https://www.youtube.com/"}
             with httpx.Client(timeout=8) as client:
                 player_resp = client.post(
                     "https://www.youtube.com/youtubei/v1/player?prettyPrint=false",
                     json=innertube_body,
-                    headers={"User-Agent": ua, "Content-Type": "application/json"},
+                    headers={"User-Agent": cinfo["ua"], "Content-Type": "application/json"},
                 )
                 player_data = player_resp.json()
                 playability = player_data.get("playabilityStatus", {}).get("status", "")
@@ -2440,7 +2472,7 @@ def youtube_transcript(
                             }],
                             "generationConfig": {"temperature": 0.1, "maxOutputTokens": 65536}
                         },
-                        timeout=30.0,
+                        timeout=45.0,
                     )
                     if resp.status_code == 200:
                         data = resp.json()

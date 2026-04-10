@@ -4457,17 +4457,11 @@ function _ytPollUntilReady(tabName, url, vid, onSuccess, attempt) {
 // ── Eager pre-fetch all tabs in parallel when reader opens ──
 function _ytEagerFetchAll(vid) {
   if (!vid) return;
-  // Transcript
+  // Transcript — run the full load (server + client-side + embedded cache)
+  // This also sets _ytTranscriptFailed if all approaches fail, which stops takeaways/DOPI polling
   if (!_ytTranscriptData || _ytTranscriptVideoId !== vid) {
     _tabSetLoading('transcript');
-    fetch(`${API}/api/youtube-transcript?video_id=${vid}`).then(r => r.ok ? r.json() : null).then(d => {
-      if (d && !d.error && d.segments && d.segments.length) {
-        _ytTranscriptData = d.segments;
-        _ytTranscriptVideoId = vid;
-        _tabSetReady('transcript');
-      }
-      // If no data, transcript tab stays in loading; _ytLoadTranscript handles its own fetch + retry
-    }).catch(() => {});
+    _ytLoadTranscript();
   } else { _tabSetReady('transcript'); }
   // Takeaways — poll until data is ready
   if (!_ytTakeawaysData || _ytTakeawaysVideoId !== vid) {

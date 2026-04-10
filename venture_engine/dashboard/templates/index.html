@@ -4414,7 +4414,9 @@ function _ytPollUntilReady(tabName, url, vid, onSuccess, attempt) {
   attempt = attempt || 0;
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 12000);
-  fetch(url, {signal: ctrl.signal}).then(r => { clearTimeout(timer); return r.ok ? r.json() : null; }).then(d => {
+  // Add cache-buster to avoid stale 404 responses
+  const fetchUrl = url + (url.includes('?') ? '&' : '?') + '_t=' + Date.now();
+  fetch(fetchUrl, {signal: ctrl.signal}).then(r => { clearTimeout(timer); return r.ok ? r.json() : null; }).then(d => {
     if (d && !d.error && !d.detail) {
       onSuccess(d);
       _tabSetReady(tabName);
@@ -4448,9 +4450,10 @@ function _ytEagerFetchAll(vid) {
       if (d && !d.error && d.segments && d.segments.length) {
         _ytTranscriptData = d.segments;
         _ytTranscriptVideoId = vid;
+        _tabSetReady('transcript');
       }
-      _tabSetReady('transcript');
-    }).catch(() => _tabSetReady('transcript'));
+      // If no data, transcript tab stays in loading; _ytLoadTranscript handles its own fetch + retry
+    }).catch(() => {});
   } else { _tabSetReady('transcript'); }
   // Takeaways — poll until data is ready
   if (!_ytTakeawaysData || _ytTakeawaysVideoId !== vid) {

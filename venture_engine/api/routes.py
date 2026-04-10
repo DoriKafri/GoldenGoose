@@ -78,7 +78,11 @@ def require_api_key(x_api_key: Optional[str] = Header(None)):
 
 @router.get("/", response_class=HTMLResponse)
 def dashboard(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+    resp = templates.TemplateResponse("index.html", {"request": request})
+    resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    resp.headers["Pragma"] = "no-cache"
+    resp.headers["Expires"] = "0"
+    return resp
 
 
 # ─── Shareable Venture Page ────────────────────────────────────────

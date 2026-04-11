@@ -2330,10 +2330,18 @@ def youtube_transcript(
                             if segments:
                                 logger.info(f"Transcript via watch-page InnerTube for {video_id}: {len(segments)} segments")
                                 return _cache_and_return(segments, _it_track.get("languageCode", "en"))
+                            else:
+                                logger.warning(f"Watch-page: got caption XML but parsed 0 segments for {video_id}")
+                                errors.append("watch-page: caption XML parsed 0 segments")
+                        else:
+                            logger.warning(f"Watch-page: caption URL returned empty content ({len(_cap_resp.text or '')} bytes) for {video_id}")
+                            errors.append(f"watch-page: caption content empty ({len(_cap_resp.text or '')}b)")
                     else:
                         logger.info(f"Caption URL has xpe flag for {video_id}, skipping direct fetch")
+                        errors.append("watch-page: xpe flag (PoToken required)")
                 else:
                     logger.warning(f"Watch-page InnerTube: no tracks (status={_it_status}) for {video_id}")
+                    errors.append(f"watch-page: no tracks (status={_it_status})")
             else:
                 logger.warning(f"Could not extract INNERTUBE_API_KEY from watch page for {video_id}")
     except Exception as _wp_exc:
@@ -2509,6 +2517,7 @@ def youtube_transcript(
     import os as _os
     _gemini_key = settings.google_gemini_api_key or _os.environ.get("GOOGLE_GEMINI_API_KEY", "")
     logger.info(f"Gemini transcript fallback for {video_id}, key present: {bool(_gemini_key)}, key len: {len(_gemini_key)}")
+    _gemini_errors = []
     try:
         if _gemini_key:
             import httpx
@@ -2522,6 +2531,9 @@ def youtube_transcript(
             )
             models = ["gemini-2.5-flash", "gemini-2.0-flash"]
             for model in models:
+                if _past_deadline():
+                    _gemini_errors.append(f"{model}: deadline")
+                    break
                 try:
                     resp = httpx.post(
                         f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
@@ -2550,20 +2562,26 @@ def youtube_transcript(
                         if isinstance(segments, list) and len(segments) > 0:
                             logger.info(f"Transcript via Gemini {model} for {video_id}: {len(segments)} segments")
                             return _cache_and_return(segments)
+                        _gemini_errors.append(f"{model}: empty/invalid response")
                     elif resp.status_code == 429:
+                        _gemini_errors.append(f"{model}: rate-limited (429)")
                         continue
                     else:
-                        logger.warning(f"Gemini transcript {model} returned {resp.status_code}: {resp.text[:200]}")
+                        _err_text = resp.text[:200]
+                        logger.warning(f"Gemini transcript {model} returned {resp.status_code}: {_err_text}")
+                        _gemini_errors.append(f"{model}: {resp.status_code} {_err_text[:80]}")
                         continue
                 except _json.JSONDecodeError as je:
                     logger.warning(f"Gemini transcript {model} JSON parse error: {je}")
+                    _gemini_errors.append(f"{model}: json-parse-error")
                     continue
                 except Exception as ge:
                     logger.warning(f"Gemini transcript {model} error: {ge}")
+                    _gemini_errors.append(f"{model}: {str(ge)[:80]}")
                     continue
-            errors.append("gemini: all models failed")
+            errors.append(f"gemini: {'; '.join(_gemini_errors) if _gemini_errors else 'all models failed'}")
         else:
-            errors.append("gemini: no API key")
+            errors.append("gemini: no API key configured")
     except Exception as exc5:
         logger.warning(f"Gemini transcript fallback failed for {video_id}: {exc5}")
         errors.append(f"gemini: {str(exc5)[:100]}")

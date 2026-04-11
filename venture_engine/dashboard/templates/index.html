@@ -4732,33 +4732,22 @@ function _ytEagerFetchAll(vid) {
   if (!vid) return;
   // Transcript — run the full load (server + client-side + embedded cache)
   // This also sets _ytTranscriptFailed if all approaches fail, which stops takeaways/DOPI polling
+  // Always try instant cache fetch for takeaways/DOPI in parallel with transcript
+  // If server has cached data, they render immediately without waiting for transcript
+  if (!_ytTakeawaysData || _ytTakeawaysVideoId !== vid) {
+    _tabSetLoading('takeaways');
+    _ytFetchTakeawaysWithFallback(vid);
+  } else { _tabSetReady('takeaways'); }
+  if (!_ytDpoiData || _ytDpoiVideoId !== vid) {
+    _tabSetLoading('dpoi');
+    _ytFetchDpoiWithFallback(vid);
+  } else { _tabSetReady('dpoi'); }
+
   if (!_ytTranscriptData || _ytTranscriptVideoId !== vid) {
     _tabSetLoading('transcript');
-    _tabSetLoading('takeaways');
-    _tabSetLoading('dpoi');
-    // Load transcript first, THEN start polling for takeaways/DOPI
-    _ytLoadTranscript().then(() => {
-      if (_ytTranscriptFailed) return; // transcript failed — tabs already marked failed
-      // Now transcript is cached on server — start polling for AI-generated content
-      // Stagger DOPI by 15s to avoid Gemini rate-limit collision with takeaways
-      if (!_ytTakeawaysData || _ytTakeawaysVideoId !== vid) {
-        _ytFetchTakeawaysWithFallback(vid);
-      } else { _tabSetReady('takeaways'); }
-      if (!_ytDpoiData || _ytDpoiVideoId !== vid) {
-        _ytFetchDpoiWithFallback(vid);
-      } else { _tabSetReady('dpoi'); }
-    });
+    _ytLoadTranscript();
   } else {
     _tabSetReady('transcript');
-    // Transcript already cached — check cache instantly
-    if (!_ytTakeawaysData || _ytTakeawaysVideoId !== vid) {
-      _tabSetLoading('takeaways');
-      _ytFetchTakeawaysWithFallback(vid);
-    } else { _tabSetReady('takeaways'); }
-    if (!_ytDpoiData || _ytDpoiVideoId !== vid) {
-      _tabSetLoading('dpoi');
-      _ytFetchDpoiWithFallback(vid);
-    } else { _tabSetReady('dpoi'); }
   }
 }
 

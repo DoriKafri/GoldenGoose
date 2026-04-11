@@ -302,7 +302,31 @@ html.dark .sl-msg-wrap:hover { background:rgba(255,255,255,.08); }
 .sl-composer-toolbar button:hover { background:var(--bg2);color:var(--text); }
 .sl-composer-send { background:none;border:none;padding:4px 8px;cursor:pointer;border-radius:4px;margin-left:auto;color:var(--text3);font-size:18px; }
 .sl-composer-send:hover { color:var(--accent); }
-@media(max-width:768px) { .sl-sidebar { width:60px;min-width:60px; } .sl-ch-item-name,.sl-sidebar-section-title span,.sl-ch-badge,.sl-sidebar-workspace,.sl-sidebar-compose,.sl-ch-item-hash { display:none; } .sl-ch-item { padding:8px 0;justify-content:center; } .sl-thread-side { width:100%;min-width:0;max-width:100%;position:absolute;top:0;left:0;right:0;bottom:0;z-index:20; } }
+@media(max-width:768px) {
+  .sl-workspace { left:0 !important;width:100vw !important;top:44px !important;height:calc(100vh - 44px) !important;height:calc(100dvh - 44px) !important; }
+  .sl-sidebar { display:none !important; }
+  .sl-main { width:100%; }
+  .sl-channel-header { padding:8px 12px;gap:6px; }
+  .sl-channel-name { display:none !important; }
+  .sl-channel-desc { display:none !important; }
+  .sl-mobile-ch-select { display:inline-flex !important; }
+  .sl-header-actions { display:none; }
+  .sl-msg-wrap { padding:6px 12px; }
+  .sl-text { font-size:14px; }
+  .sl-author { font-size:14px; }
+  .sl-avatar { width:32px !important;height:32px !important;min-width:32px;min-height:32px;max-width:32px;max-height:32px; }
+  .sl-composer { padding:0 8px 8px; }
+  .sl-composer-input { padding:8px 10px;font-size:13px; }
+  .sl-composer-toolbar button:not(.sl-composer-send) { display:none; }
+  .sl-composer-toolbar button.sl-composer-essential { display:flex !important; }
+  .sl-composer-send { display:flex !important; }
+  .sl-media-preview { flex-direction:column; max-width:100%; }
+  .sl-media-preview-img { width:100%;height:120px;min-width:unset; }
+  .sl-thread-side { width:100%;min-width:0;max-width:100%;position:absolute;top:0;left:0;right:0;bottom:0;z-index:20; }
+}
+.sl-mobile-ch-select { display:none;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:14px;font-weight:700;color:var(--text);cursor:pointer;flex:1;font-family:inherit;-webkit-appearance:none;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 8px center;padding-right:28px; }
+.sl-mobile-back { display:none;background:none;border:none;color:var(--text2);font-size:18px;cursor:pointer;padding:2px 6px;flex-shrink:0; }
+@media(max-width:768px) { .sl-mobile-back { display:flex !important; } }
 /* ─── Media Preview Card (link unfurling) ─── */
 .sl-media-preview { display:flex;border:1px solid var(--border);border-radius:10px;overflow:hidden;margin:6px 0 10px;background:var(--bg2);cursor:pointer;transition:background .15s,border-color .15s;max-width:520px; }
 .sl-media-preview:hover { background:var(--bg3);border-color:var(--accent); }
@@ -8807,7 +8831,9 @@ function _renderSlackWorkspace(channels) {
     </div>
     <div class="sl-main">
       <div class="sl-channel-header" id="slChannelHeader">
+        <button class="sl-mobile-back" onclick="document.querySelector('.sl-workspace').remove();switchTab('news');" title="Back">&larr;</button>
         <span class="sl-channel-name" id="slChName"># general</span>
+        <select class="sl-mobile-ch-select" id="slMobileChSelect" onchange="_slackSelectChannel(this.value)"></select>
         <span class="sl-channel-desc" id="slChDesc"></span>
         <div class="sl-header-actions">
           <button class="sl-header-btn"><svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="9" r="6"/><path d="M14 14l4 4" stroke-linecap="round"/></svg> Search</button>
@@ -8821,18 +8847,25 @@ function _renderSlackWorkspace(channels) {
         <div class="sl-composer-box">
           <div class="sl-composer-input" contenteditable="true" data-placeholder="Message #general" id="slComposerInput"></div>
           <div class="sl-composer-toolbar">
-            <button title="Attach">+</button>
+            <button class="sl-composer-essential" title="Attach">+</button>
             <button title="Formatting" style="font-size:13px;font-weight:700;">Aa</button>
-            <button title="Emoji">&#x263A;</button>
-            <button title="Mention">@</button>
+            <button class="sl-composer-essential" title="Emoji">&#x263A;</button>
+            <button class="sl-composer-essential" title="Mention">@</button>
             <button title="Record">&#x1F3A4;</button>
-            <button title="Shortcuts">&#x26A1;</button>
+            <button class="sl-composer-essential" title="Shortcuts">&#x26A1;</button>
             <button class="sl-composer-send" title="Send" onclick="_slackSendMessage()">&#x27A4;</button>
           </div>
         </div>
       </div>
     </div>
   </div>`;
+  // Populate mobile channel selector
+  const mobileSelect = document.getElementById('slMobileChSelect');
+  if (mobileSelect) {
+    mobileSelect.innerHTML = channels.map(ch =>
+      `<option value="${ch.id}"${ch.id === _slackCurrentChannel ? ' selected' : ''}># ${esc(ch.name)}</option>`
+    ).join('');
+  }
 }
 
 async function _slackSelectChannel(channelId) {
@@ -8848,6 +8881,9 @@ async function _slackSelectChannel(channelId) {
   const descEl = document.getElementById('slChDesc');
   if (nameEl) nameEl.textContent = `# ${chName}`;
   if (descEl) descEl.textContent = chDesc;
+  // Sync mobile channel selector
+  const mobileSelect = document.getElementById('slMobileChSelect');
+  if (mobileSelect) mobileSelect.value = channelId;
   const composerInput = document.getElementById('slComposerInput');
   if (composerInput) composerInput.setAttribute('data-placeholder', `Message #${chName}`);
   // Close thread panel

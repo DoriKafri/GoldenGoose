@@ -4691,10 +4691,12 @@ function _ytFetchTakeawaysWithFallback(vid) {
       if (activeTab) _ytRenderTakeaways(_ytTakeawaysData);
       return;
     }
-    // Not cached — poll normally
+    // Not cached — NOW show spinner, then poll
+    _tabSetLoading('takeaways');
     _ytPollUntilReady('takeaways', tkUrl, vid,
       d => { _ytTakeawaysData = d.takeaways || d; _ytTakeawaysVideoId = vid; });
   }).catch(() => {
+    _tabSetLoading('takeaways');
     _ytPollUntilReady('takeaways', tkUrl, vid,
       d => { _ytTakeawaysData = d.takeaways || d; _ytTakeawaysVideoId = vid; });
   });
@@ -4713,13 +4715,14 @@ function _ytFetchDpoiWithFallback(vid) {
       _renderDpoiTimelineSegments();
       return;
     }
-    // Not cached yet — stagger by 15s to avoid Gemini rate-limit, then poll
+    // Not cached yet — NOW show spinner, stagger by 15s then poll
+    _tabSetLoading('dpoi');
     setTimeout(() => {
       _ytPollUntilReady('dpoi', dopiUrl, vid,
         d => { _ytDpoiData = d.insights || d; _ytDpoiVideoId = vid; });
     }, 15000);
   }).catch(() => {
-    // Network error — fall back to staggered polling
+    _tabSetLoading('dpoi');
     setTimeout(() => {
       _ytPollUntilReady('dpoi', dopiUrl, vid,
         d => { _ytDpoiData = d.insights || d; _ytDpoiVideoId = vid; });
@@ -4734,12 +4737,11 @@ function _ytEagerFetchAll(vid) {
   // This also sets _ytTranscriptFailed if all approaches fail, which stops takeaways/DOPI polling
   // Always try instant cache fetch for takeaways/DOPI in parallel with transcript
   // If server has cached data, they render immediately without waiting for transcript
+  // Takeaways & DOPI: no spinner upfront — fetch first, spinner only if not cached
   if (!_ytTakeawaysData || _ytTakeawaysVideoId !== vid) {
-    _tabSetLoading('takeaways');
     _ytFetchTakeawaysWithFallback(vid);
   } else { _tabSetReady('takeaways'); }
   if (!_ytDpoiData || _ytDpoiVideoId !== vid) {
-    _tabSetLoading('dpoi');
     _ytFetchDpoiWithFallback(vid);
   } else { _tabSetReady('dpoi'); }
 

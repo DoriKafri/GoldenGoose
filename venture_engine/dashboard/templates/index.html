@@ -3938,7 +3938,10 @@ function _fmtTime(sec) {
   return m + ':' + (s < 10 ? '0' : '') + s;
 }
 
+let _savedScrollY = 0;  // Save scroll position before opening reader
+
 function openReader(url, title, newsItemId) {
+  _savedScrollY = window.scrollY || window.pageYOffset;
   _readerUrl = url;
   _readerNewsItemId = newsItemId || null;
   _readerAnnotations = [];
@@ -5466,7 +5469,22 @@ function closeReader(fromPopstate) {
   }
   // Restore the news feed so user doesn't return to an empty page
   var activeTab = restoreHash.replace('#', '').split('/')[0] || 'news';
-  switchTab(activeTab, true);
+  // If returning to news and items are already loaded, just restore visibility without re-fetching
+  if (activeTab === 'news' && _newsItems && _newsItems.length > 0) {
+    currentTab = 'news';
+    document.querySelectorAll('.sidebar-nav-item').forEach(b => b.classList.toggle('active', b.dataset.tab === 'news'));
+    document.querySelectorAll('.drawer-nav-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === 'news'));
+    document.getElementById('newsPostBar').style.display = '';
+    document.querySelector('.pagination').style.display = 'none';
+    document.getElementById('suggestTabBtn').style.display = 'none';
+    document.getElementById('ventureSearchBar').style.display = 'none';
+    const filtersEl = document.getElementById('sidebarFilters');
+    if (filtersEl) filtersEl.style.display = 'none';
+    // Restore scroll position after a tick (DOM needs to settle)
+    requestAnimationFrame(() => { window.scrollTo(0, _savedScrollY); });
+  } else {
+    switchTab(activeTab, true);
+  }
 }
 
 async function loadReaderAnnotations() {

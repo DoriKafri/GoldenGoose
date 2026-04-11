@@ -1732,9 +1732,14 @@ html.dark .lm-tl-speed button:hover, html.dark .lm-tl-speed button.active { back
 .lm-tl-version { font-family:'JetBrains Mono',monospace; font-size:12px; font-weight:700; color:#10b981; opacity:0; transition:opacity 0.5s; }
 .lm-tl-version.show { opacity:1; }
 
-/* Timelapse replay badge */
-.lm-tl-replay-badge { position:absolute; top:14px; left:14px; display:flex; align-items:center; gap:6px; background:rgba(99,102,241,0.9); color:#fff; padding:4px 12px 4px 8px; border-radius:4px; font-size:11px; font-weight:700; font-family:'JetBrains Mono',monospace; letter-spacing:1px; z-index:3; cursor:default; box-shadow:0 2px 8px rgba(99,102,241,0.3); text-transform:uppercase; }
-.lm-tl-replay-icon { font-size:12px; }
+/* Timelapse mode toggle */
+.lm-tl-mode-toggle { position:absolute; top:14px; left:14px; display:flex; border-radius:6px; overflow:hidden; z-index:3; box-shadow:0 2px 8px rgba(0,0,0,0.15); font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:700; letter-spacing:0.5px; cursor:pointer; }
+.lm-tl-mode-btn { padding:6px 14px; border:none; color:rgba(255,255,255,0.6); font-family:inherit; font-size:inherit; font-weight:inherit; letter-spacing:inherit; cursor:pointer; transition:all 0.2s; display:flex; align-items:center; gap:5px; background:rgba(100,116,139,0.5); }
+.lm-tl-mode-btn.active { color:#fff; }
+.lm-tl-mode-btn.active[data-mode="replay"] { background:rgba(99,102,241,0.9); }
+.lm-tl-mode-btn.active[data-mode="live"] { background:rgba(220,38,38,0.9); }
+.lm-tl-live-dot { width:7px; height:7px; border-radius:50%; background:#fff; animation:lmLivePulse 1.5s ease-in-out infinite; }
+@keyframes lmLivePulse { 0%,100%{ opacity:1; } 50%{ opacity:0.4; } }
 
 /* Periscope-style floating comments */
 #tlComments { position:absolute; bottom:12px; left:12px; width:320px; pointer-events:none; display:flex; flex-direction:column-reverse; top:0; overflow:hidden; -webkit-mask-image:linear-gradient(to bottom, transparent 0%, black 15%); mask-image:linear-gradient(to bottom, transparent 0%, black 15%); }
@@ -8573,7 +8578,10 @@ async function loadLiveMonitor() {
         </div>
         <div class="lm-tl-canvas-wrap">
           <canvas id="tlCanvas"></canvas>
-          <div class="lm-tl-replay-badge"><span class="lm-tl-replay-icon">⏪</span>REPLAY</div>
+          <div class="lm-tl-mode-toggle">
+            <button class="lm-tl-mode-btn active" data-mode="replay" onclick="_tlSwitchMode('replay')">⏪ REPLAY</button>
+            <button class="lm-tl-mode-btn" data-mode="live" onclick="_tlSwitchMode('live')"><span class="lm-tl-live-dot"></span>LIVE</button>
+          </div>
           <div id="tlComments"></div>
         </div>
         <div class="lm-tl-stats">
@@ -9154,6 +9162,38 @@ function _tlInit() {
   let counters={commits:0,bugs:0,releases:0,agents:0};
   const TIME_SCALE=120000; // 1s real = 2min simulated
   let lastFrame=0;
+  let _tlMode = 'replay'; // 'replay' or 'live'
+  let _tlLiveLastPoll = 0;
+  let _tlLiveLastTime = null;
+
+  window._tlSwitchMode = function(mode) {
+    _tlMode = mode;
+    document.querySelectorAll('.lm-tl-mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+    const controlsEl = document.querySelector('.lm-tl-controls');
+    const timelineEl = document.getElementById('tlTimeline');
+    if (mode === 'live') {
+      // Hide replay controls, show live clock
+      if (controlsEl) controlsEl.style.display = 'none';
+      if (timelineEl) timelineEl.style.display = 'none';
+      const clockEl = document.getElementById('tlClock');
+      if (clockEl) clockEl.textContent = new Date().toLocaleTimeString();
+      // Clear replay bubbles
+      const comments = document.getElementById('tlComments');
+      if (comments) comments.innerHTML = '';
+      // Reset live counters
+      _tlLiveLastTime = null;
+      _tlLiveLastPoll = 0;
+    } else {
+      if (controlsEl) controlsEl.style.display = '';
+      if (timelineEl) timelineEl.style.display = '';
+      // Reset replay
+      currentTime = T_START; eventIndex = 0;
+      counters = {commits:0,bugs:0,releases:0,agents:0};
+      _tlUpdateCounters();
+      const comments = document.getElementById('tlComments');
+      if (comments) comments.innerHTML = '';
+    }
+  };
 
   window._tlSetSpeed = function(s){
     speed=s;
@@ -9313,26 +9353,54 @@ function _tlInit() {
     _tlUpdateCounters();
   }
 
+  // LIVE mode: poll server for real events
+  async function _tlLivePoll() {
+    try {
+      let url = `${API}/api/live-feed?limit=10`;
+      if (_tlLiveLastTime) url += `&since=${encodeURIComponent(_tlLiveLastTime)}`;
+      const resp = await fetch(url);
+      const data = await resp.json();
+      const events = data.events || [];
+      for (const ev of events) {
+        const meta = ev.meta || {};
+        const isAgent = meta.is_agent;
+        const name = (ev.user || 'System').split(' ')[0];
+        const un = findUser(name);
+        const an = findAi(name) || (isAgent ? findAi('Claude') : null);
+        if (an) { an.activate(0.6); emit(an, centerNode, an.color, 2.5); }
+        else if (un) { un.activate(0.5); emit(un, centerNode, un.color, 2); }
+        centerNode.activate(0.3);
+        const color = an ? an.color : (un ? un.color : '#64748b');
+        _tlAddBubble(ev.user || 'System', ev.action || '', color, !!isAgent);
+      }
+      if (data.server_time) _tlLiveLastTime = data.server_time;
+    } catch(e) { /* ignore */ }
+  }
+
   function tlFrame(now){
     if(currentTab!=='live'){_tlAnimId=null;return;}
     _tlAnimId=requestAnimationFrame(tlFrame);
 
     const dt=lastFrame?(now-lastFrame)/1000:0;
     lastFrame=now;
-    currentTime+=dt*TIME_SCALE*speed;
-    if(currentTime>T_END+60000){currentTime=T_START;eventIndex=0;counters={commits:0,bugs:0,releases:0,agents:0};}
 
-    while(eventIndex<tlEvents.length&&tlEvents[eventIndex].t<=currentTime){processEvent(tlEvents[eventIndex]);eventIndex++;}
-
-    // Periodic Slack-style comments between events
-    _tlMaybeSlackBubble();
-
-    // Clock & progress
-    const el=id=>document.getElementById(id);
-    const pct=(currentTime-T_START)/T_SPAN*100;
-    el('tlClock').textContent=formatTlDate(currentTime);
-    el('tlProgress').style.width=pct+'%';
-    el('tlPlayhead').style.left=pct+'%';
+    if (_tlMode === 'replay') {
+      currentTime+=dt*TIME_SCALE*speed;
+      if(currentTime>T_END+60000){currentTime=T_START;eventIndex=0;counters={commits:0,bugs:0,releases:0,agents:0};}
+      while(eventIndex<tlEvents.length&&tlEvents[eventIndex].t<=currentTime){processEvent(tlEvents[eventIndex]);eventIndex++;}
+      _tlMaybeSlackBubble();
+      const el=id=>document.getElementById(id);
+      const pct=(currentTime-T_START)/T_SPAN*100;
+      el('tlClock').textContent=formatTlDate(currentTime);
+      el('tlProgress').style.width=pct+'%';
+      el('tlPlayhead').style.left=pct+'%';
+    } else {
+      // LIVE mode
+      const clockEl = document.getElementById('tlClock');
+      if (clockEl) clockEl.textContent = new Date().toLocaleTimeString();
+      // Poll every 5 seconds
+      if (now - _tlLiveLastPoll > 5000) { _tlLiveLastPoll = now; _tlLivePoll(); }
+    }
 
     // Resize check
     const rect=wrap.getBoundingClientRect();

@@ -4292,14 +4292,7 @@ def update_bug(bug_id: str, req: UpdateBugRequest, db: Session = Depends(get_db_
             post_closed_cr(db, bug)
         except Exception as e:
             logger.warning(f"Failed to post closed CR: {e}")
-        # Ralph loop: generate 3 new bugs from each closure
-        try:
-            from venture_engine.activity_simulator import _generate_bugs_from_closure
-            closer = {"email": bug.assignee_email or bug.reporter_email,
-                       "name": bug.assignee_name or bug.reporter_name or "System"}
-            _generate_bugs_from_closure(db, bug, closer, {})
-        except Exception as e:
-            logger.warning(f"Ralph loop failed: {e}")
+        # Ralph loop disabled — bug tracker is now for real user-submitted bugs only
 
     db.commit()
     db.refresh(bug)

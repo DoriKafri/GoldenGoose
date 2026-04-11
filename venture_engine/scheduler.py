@@ -111,6 +111,18 @@ def _run_auto_release():
     run_auto_release()
 
 
+def _run_bug_hunter():
+    """Job 10a: AI agent scans codebase for real bugs/CRs."""
+    from venture_engine.agents.bug_hunter import run_bug_hunter
+    run_bug_hunter()
+
+
+def _run_bug_fixer():
+    """Job 10b: AI agent generates real code fixes for sprint bugs."""
+    from venture_engine.agents.bug_fixer import run_bug_fixer
+    run_bug_fixer()
+
+
 def _daily_agent_voting():
     """Job 10: Daily agent voting on new ventures."""
     logger.info("=== SCHEDULED: Daily agent voting ===")
@@ -292,6 +304,21 @@ def start_scheduler():
         id="auto_release",
         replace_existing=True,
     )
+    # AI Agents — real codebase analysis and automated fixes
+    scheduler.add_job(
+        _run_bug_hunter,
+        "interval",
+        hours=4,
+        id="bug_hunter",
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        _run_bug_fixer,
+        "interval",
+        hours=2,
+        id="bug_fixer",
+        replace_existing=True,
+    )
     scheduler.add_job(
         _daily_agent_voting,
         "cron",
@@ -324,7 +351,8 @@ def start_scheduler():
         f"gap check at {settings.gap_check_hour}:00, "
         f"TL sync every {settings.tl_sync_interval_hours}h, "
         f"digest {settings.weekly_digest_day} {settings.weekly_digest_hour}:00, "
-        f"activity sim every 30min, sprint planning every 1h, auto-release every 6h"
+        f"activity sim every 30min, sprint planning every 1h, auto-release every 6h, "
+        f"bug hunter every 4h, bug fixer every 2h"
     )
 
 

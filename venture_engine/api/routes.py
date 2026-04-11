@@ -4043,6 +4043,33 @@ def trigger_sprint(db: Session = Depends(get_db_dependency)):
     return result
 
 
+@router.post("/api/bugs/trigger-hunt")
+def trigger_bug_hunt(db: Session = Depends(get_db_dependency)):
+    """Manually trigger the AI bug hunter to scan the codebase for real issues."""
+    from venture_engine.agents.bug_hunter import hunt_bugs
+    result = hunt_bugs(db)
+    return result
+
+
+@router.post("/api/bugs/trigger-fix")
+def trigger_bug_fix(db: Session = Depends(get_db_dependency)):
+    """Manually trigger the AI bug fixer to fix real bugs in sprint."""
+    from venture_engine.agents.bug_fixer import fix_sprint_bugs
+    result = fix_sprint_bugs(db)
+    return result
+
+
+@router.post("/api/bugs/{bug_id}/auto-fix")
+def auto_fix_single_bug(bug_id: str, db: Session = Depends(get_db_dependency)):
+    """Manually trigger an AI fix for a specific bug."""
+    bug = db.query(Bug).filter(Bug.id == bug_id).first()
+    if not bug:
+        raise HTTPException(404, "Bug not found")
+    from venture_engine.agents.bug_fixer import fix_bug
+    result = fix_bug(db, bug)
+    return result
+
+
 @router.get("/api/bugs/{bug_id}/proof-screenshot")
 def get_bug_proof_screenshot(bug_id: str, db: Session = Depends(get_db_dependency)):
     """Render a unique, bug-specific proof-of-done page with contextual UI evidence."""

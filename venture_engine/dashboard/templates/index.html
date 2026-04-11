@@ -10099,8 +10099,8 @@ function _renderSlackWorkspace(channels) {
       </div>
     </div>
   </div>`;
+  if (!_isMobile) el.innerHTML = '';  // clear loading text on desktop before appending
   _wsContainer.appendChild(_wsDiv.firstElementChild);
-  if (!_isMobile) el.innerHTML = '';  // clear loading text on desktop
 }
 
 function _slToggleMobileSidebar() {

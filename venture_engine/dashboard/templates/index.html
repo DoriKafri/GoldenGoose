@@ -2694,8 +2694,7 @@ window.addEventListener('popstate', (e) => {
   // If reader overlay is open, close it and restore news feed
   if (document.getElementById('readerOverlay').classList.contains('open')) {
     closeReader(true);
-    // Always restore news feed after closing reader
-    switchTab('news', true);
+    // closeReader already restores the tab UI and scroll position
     if (!location.hash || !location.hash.startsWith('#news')) {
       history.replaceState(null, '', '#news');
     }
@@ -3177,6 +3176,7 @@ let _newsLoading = false;
 let _newsHasMore = true;
 let _newsPage = 0;
 const _NEWS_PAGE_SIZE = 20;
+let _newsFeedScrollY = 0; // saved scroll position when opening reader
 
 async function loadNews(append) {
   // Ensure post bar is visible on News tab
@@ -3939,6 +3939,8 @@ function _fmtTime(sec) {
 }
 
 function openReader(url, title, newsItemId) {
+  // Save scroll position so we can restore it when closing
+  _newsFeedScrollY = window.scrollY || window.pageYOffset || 0;
   _readerUrl = url;
   _readerNewsItemId = newsItemId || null;
   _readerAnnotations = [];
@@ -5466,7 +5468,21 @@ function closeReader(fromPopstate) {
   }
   // Restore the news feed so user doesn't return to an empty page
   var activeTab = restoreHash.replace('#', '').split('/')[0] || 'news';
-  switchTab(activeTab, true);
+  if (activeTab === 'news' && _newsItems.length > 0) {
+    // Restore tab UI without re-fetching / re-rendering the news feed
+    currentTab = 'news';
+    document.querySelectorAll('.sidebar-nav-item').forEach(function(b){ b.classList.toggle('active', b.dataset.tab === 'news'); });
+    document.querySelectorAll('.drawer-nav-btn').forEach(function(b){ b.classList.toggle('active', b.dataset.tab === 'news'); });
+    document.querySelectorAll('.top-tab').forEach(function(b){ b.classList.toggle('active', b.dataset.tab === 'news'); });
+    document.getElementById('newsPostBar').style.display = '';
+    document.getElementById('suggestTabBtn').style.display = 'none';
+    document.getElementById('ventureSearchBar').style.display = 'none';
+    var pag = document.querySelector('.pagination'); if (pag) pag.style.display = 'none';
+    // Restore saved scroll position
+    setTimeout(function(){ window.scrollTo(0, _newsFeedScrollY); }, 0);
+  } else {
+    switchTab(activeTab, true);
+  }
 }
 
 async function loadReaderAnnotations() {

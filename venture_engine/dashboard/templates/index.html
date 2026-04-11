@@ -8906,7 +8906,7 @@ async function _lmLoadChart() {
 let _tlAnimId = null;
 let _tlInited = false;
 
-function _tlInit() {
+async function _tlInit() {
   if (_tlInited) return;
   _tlInited = true;
 
@@ -8928,7 +8928,35 @@ function _tlInit() {
     { name:'AutoFix', role:'TDD Agent', color:'#059669' },
   ];
 
-  // Real events only
+  // ── Fetch real events from API ──
+  let _tlRealEvents = [];
+  try {
+    const resp = await fetch(`${API}/api/timelapse-events`);
+    const data = await resp.json();
+    _tlRealEvents = data.events || [];
+  } catch(e) { console.warn('Failed to fetch timelapse events:', e); }
+
+  // Build timeline from real API data
+  const tlEvents = [];
+  for (const ev of _tlRealEvents) {
+    const t = new Date(ev.t).getTime();
+    if (isNaN(t)) continue;
+    if (ev.type === 'slack') {
+      tlEvents.push({ t, type:'user_action', data:{ user:ev.user.split(' ')[0], action:ev.action + (ev.body ? ': ' + ev.body.slice(0,50) : '') }});
+    } else if (ev.type === 'bug') {
+      tlEvents.push({ t, type:'bug', data:{ key:ev.key, title:ev.title, reporter:ev.reporter, fixer:ev.fixer||'Claude', status:ev.status }});
+    } else if (ev.type === 'user_action') {
+      const d = { user:ev.user, action:ev.action };
+      if (ev.kanban_from) { d.kanban_from = ev.kanban_from; d.kanban_to = ev.kanban_to; d.bug_key = ev.bug_key; }
+      tlEvents.push({ t, type:'user_action', data:d });
+    } else if (ev.type === 'ai_action') {
+      tlEvents.push({ t, type:'ai_action', data:{ agent:ev.agent||ev.user, action:ev.action }});
+    }
+  }
+  tlEvents.sort((a,b) => a.t - b.t);
+
+  // Fallback if no events from API — use hardcoded data
+  if (tlEvents.length === 0) {
   const TL_COMMITS = [
     { t:'2026-04-09T10:00:00', msg:'Initial venture engine scaffold' },
     { t:'2026-04-09T13:22:00', msg:'Core news feed + YouTube reader' },
@@ -9068,14 +9096,16 @@ function _tlInit() {
     { t:'2026-04-11T18:25:00', agent:'AutoFix', action:'ran E2E test: DOPI cache behavior' },
   ];
 
-  // Build sorted timeline
-  const tlEvents = [];
+  // Build sorted timeline from fallback data
   TL_COMMITS.forEach(c => tlEvents.push({ t:new Date(c.t).getTime(), type:'commit', data:c }));
   TL_RELEASES.forEach(r => tlEvents.push({ t:new Date(r.t).getTime(), type:'release', data:r }));
   TL_BUGS.forEach(b => tlEvents.push({ t:new Date(b.t).getTime(), type:'bug', data:b }));
   TL_USER_ACTIONS.forEach(a => tlEvents.push({ t:new Date(a.t).getTime(), type:'user_action', data:a }));
   TL_AI_ACTIONS.forEach(a => tlEvents.push({ t:new Date(a.t).getTime(), type:'ai_action', data:a }));
   tlEvents.sort((a,b) => a.t - b.t);
+  } // end fallback
+
+  if (tlEvents.length === 0) { console.warn('No timelapse events'); return; }
 
   const T_START = tlEvents[0].t;
   const T_END = tlEvents[tlEvents.length - 1].t;
@@ -9473,10 +9503,12 @@ function _tlInit() {
         const un=findUser(d.user);
         if(un){un.activate(0.4);emit(un,centerNode,un.color||'#38bdf8',2);}
         _tlAddBubble(d.user, d.action, un?un.color:'#38bdf8', false);
-        // Check for kanban movement
-        const kb = _tlParseKanban(d.action);
-        if (kb) {
-          _tlEmitKanbanTicket(kb.key, kb.fromCol, kb.toCol, un ? un.color : '#38bdf8');
+        // Check for kanban movement — from API data or parsed from text
+        if (d.kanban_from || d.kanban_to) {
+          _tlEmitKanbanTicket(d.bug_key || d.key || '?', d.kanban_from, d.kanban_to, un ? un.color : '#38bdf8');
+        } else {
+          const kb = _tlParseKanban(d.action);
+          if (kb) _tlEmitKanbanTicket(kb.key, kb.fromCol, kb.toCol, un ? un.color : '#38bdf8');
         }
         break;
       }

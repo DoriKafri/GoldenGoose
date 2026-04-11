@@ -5561,6 +5561,101 @@ def get_live_feed(since: Optional[str] = None, limit: int = 30, db: Session = De
     }
 
 
+@router.get("/api/timelapse-events")
+def get_timelapse_events(db: Session = Depends(get_db_dependency)):
+    """Return all historical events formatted for the timelapse animation."""
+    events = []
+    agent_emails = {"codehawk@develeap.com", "autofix@develeap.com", "pixeleye@develeap.com", "maya@develeap.com"}
+    agent_name_map = {
+        "codehawk@develeap.com": "Bug Hunter",
+        "autofix@develeap.com": "AutoFix",
+        "pixeleye@develeap.com": "PixelEye",
+        "maya@develeap.com": "Claude",
+    }
+
+    # Slack messages → user_action or ai_action
+    for m in db.query(SlackMessage).order_by(SlackMessage.created_at.asc()).all():
+        ch = db.query(SlackChannel).filter(SlackChannel.id == m.channel_id).first()
+        ch_name = ch.name if ch else "channel"
+        t = m.created_at.isoformat() if m.created_at else None
+        user = m.author_name or m.author_email or "Unknown"
+        body = (m.body or "")[:100]
+        events.append({
+            "t": t, "type": "slack",
+            "user": user, "action": f"posted in #{ch_name}",
+            "body": body,
+        })
+
+    # Bugs → bug events with status
+    for b in db.query(Bug).order_by(Bug.created_at.asc()).all():
+        t = b.created_at.isoformat() if b.created_at else None
+        is_agent = b.reporter_email in agent_emails
+        reporter = b.reporter_name or b.reporter_email or "Unknown"
+        events.append({
+            "t": t, "type": "bug",
+            "key": b.key, "title": (b.title or "")[:80],
+            "reporter": reporter.split(" ")[0],
+            "status": b.status or "open",
+            "is_agent": is_agent,
+            "fixer": agent_name_map.get(b.reporter_email, "Claude") if is_agent else "Claude",
+        })
+
+    # Bug comments → kanban movements or user actions
+    for bc in db.query(BugComment).order_by(BugComment.created_at.asc()).all():
+        bug = db.query(Bug).filter(Bug.id == bc.bug_id).first()
+        t = bc.created_at.isoformat() if bc.created_at else None
+        user = bc.author_name or bc.author_email or "Unknown"
+        body = (bc.body or "")[:100]
+        bug_key = bug.key if bug else "BUG-?"
+        is_agent = bc.author_email in agent_emails
+
+        # Detect status transitions in comment text
+        kanban_from = None
+        kanban_to = None
+        lower = body.lower()
+        if "→ in_progress" in lower or "moving from open" in lower:
+            kanban_from = "open"
+            kanban_to = "in_progress"
+        elif "moving to review" in lower or "submitted for review" in lower or "pr #" in lower.lower():
+            kanban_from = "in_progress"
+            kanban_to = "review"
+        elif "approved" in lower or "moved to done" in lower:
+            kanban_from = "review"
+            kanban_to = "done"
+        elif "sprint" in lower:
+            kanban_from = "open"
+            kanban_to = "sprint"
+
+        ev = {
+            "t": t,
+            "type": "ai_action" if is_agent else "user_action",
+            "user": user.split(" ")[0],
+            "agent": agent_name_map.get(bc.author_email, user.split(" ")[0]) if is_agent else None,
+            "action": f"commented on {bug_key}: {body[:60]}",
+            "bug_key": bug_key,
+        }
+        if kanban_from:
+            ev["kanban_from"] = kanban_from
+            ev["kanban_to"] = kanban_to
+            ev["action"] = f"moved {bug_key} from {kanban_from} → {kanban_to}"
+        events.append(ev)
+
+    # Page annotations → user actions
+    for a in db.query(PageAnnotation).order_by(PageAnnotation.created_at.asc()).all():
+        t = a.created_at.isoformat() if a.created_at else None
+        user = a.author_name or a.author_id or "Unknown"
+        events.append({
+            "t": t, "type": "user_action",
+            "user": user.split(" ")[0],
+            "action": f"annotated an article: {(a.body or '')[:50]}",
+        })
+
+    # Sort by time
+    events.sort(key=lambda e: e.get("t") or "")
+
+    return {"events": events}
+
+
 @router.get("/api/activity-chart")
 def get_activity_chart(time_range: str = Query("1h", alias="range"), db: Session = Depends(get_db_dependency)):
     """Return bucketed activity counts for chart display.

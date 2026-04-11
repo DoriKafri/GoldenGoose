@@ -9474,21 +9474,27 @@ async function _tlInit() {
     }
   };
 
+  function _tlSetFullscreen(on) {
+    const tl = document.querySelector('.lm-timelapse');
+    if (!tl) return;
+    if (on) tl.classList.add('tl-fullscreen'); else tl.classList.remove('tl-fullscreen');
+    const expand = document.getElementById('tlFsIconExpand');
+    const shrink = document.getElementById('tlFsIconShrink');
+    if (expand) expand.style.display = on ? 'none' : '';
+    if (shrink) shrink.style.display = on ? '' : 'none';
+    try { localStorage.setItem('tl_fullscreen', on ? '1' : '0'); } catch(e){}
+  }
+
   window._tlToggleFullscreen = function() {
     const tl = document.querySelector('.lm-timelapse');
     if (!tl) return;
-    const isFs = tl.classList.toggle('tl-fullscreen');
-    const expand = document.getElementById('tlFsIconExpand');
-    const shrink = document.getElementById('tlFsIconShrink');
-    if (expand) expand.style.display = isFs ? 'none' : '';
-    if (shrink) shrink.style.display = isFs ? '' : 'none';
+    const isFs = !tl.classList.contains('tl-fullscreen');
+    _tlSetFullscreen(isFs);
     // ESC to exit
     if (isFs) {
       const escHandler = function(e) {
         if (e.key === 'Escape') {
-          tl.classList.remove('tl-fullscreen');
-          if (expand) expand.style.display = '';
-          if (shrink) shrink.style.display = 'none';
+          _tlSetFullscreen(false);
           document.removeEventListener('keydown', escHandler);
         }
       };
@@ -9964,6 +9970,13 @@ async function _tlInit() {
     // Kanban tickets
     for(let i=kanbanTickets.length-1;i>=0;i--){const rm=kanbanTickets[i].update();kanbanTickets[i].draw(ctx);if(rm)kanbanTickets.splice(i,1);}
   }
+
+  // Restore fullscreen state from previous session
+  try {
+    if (localStorage.getItem('tl_fullscreen') === '1') {
+      _tlSetFullscreen(true);
+    }
+  } catch(e){}
 
   // Start animation
   lastFrame=0;

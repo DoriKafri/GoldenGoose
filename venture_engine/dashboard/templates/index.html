@@ -1664,22 +1664,21 @@ html.dark .sl-msg-wrap:hover { background:rgba(255,255,255,.08); }
 .lm-side { width:320px; flex-shrink:0; display:flex; flex-direction:column; gap:16px; }
 
 /* Hero header bar */
-.lm-hero-bar { display:flex; align-items:center; gap:16px; margin-bottom:16px; padding:14px 20px; background:var(--card); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; }
-.lm-hero-left { display:flex; align-items:center; gap:10px; }
+.lm-hero-bar { display:flex; align-items:center; gap:12px; margin-bottom:16px; padding:12px 16px; background:var(--card); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; flex-wrap:nowrap; }
+.lm-hero-left { display:flex; align-items:center; gap:10px; flex-shrink:0; }
 .lm-pulse { width:10px; height:10px; border-radius:50%; background:#22c55e; animation:lmPulse 2s ease-in-out infinite; flex-shrink:0; }
 @keyframes lmPulse { 0%,100%{box-shadow:0 0 0 0 rgba(34,197,94,.5)} 50%{box-shadow:0 0 0 8px rgba(34,197,94,0)} }
 .lm-hero-title { font-size:16px; font-weight:800; color:var(--text); letter-spacing:-0.3px; }
 .lm-hero-clock { font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text3); }
 .lm-hero-divider { width:1px; height:28px; background:var(--border); flex-shrink:0; }
-.lm-hero-stats { display:flex; gap:16px; align-items:center; }
+.lm-hero-stats { display:flex; gap:12px; align-items:center; flex-shrink:0; }
 .lm-hero-stat { text-align:center; min-width:52px; }
 .lm-hero-stat-val { font-family:'JetBrains Mono',monospace; font-size:18px; font-weight:700; line-height:1; }
 .lm-hero-stat-label { font-size:8px; text-transform:uppercase; letter-spacing:0.8px; color:var(--text3); margin-top:2px; }
-.lm-hero-users { display:flex; align-items:center; gap:4px; margin-left:auto; flex-shrink:0; max-width:200px; overflow:hidden; }
-.lm-hero-users-label { font-size:9px; font-weight:600; color:var(--text3); text-transform:uppercase; letter-spacing:0.5px; margin-right:4px; }
-.lm-hero-avatar { width:24px; height:24px; border-radius:50%; border:2px solid var(--card); margin-left:-6px; object-fit:cover; }
-.lm-hero-avatar:first-of-type { margin-left:0; }
-.lm-hero-count { font-size:11px; font-weight:700; color:var(--text3); margin-left:4px; background:var(--bg2); border-radius:10px; padding:2px 8px; }
+.lm-hero-users { display:flex; align-items:center; gap:0; margin-left:auto; flex-shrink:0; }
+.lm-hero-avatar { width:26px; height:26px; border-radius:50%; border:2px solid var(--card); margin-left:-7px; object-fit:cover; flex-shrink:0; }
+.lm-hero-avatar:first-child { margin-left:0; }
+.lm-hero-count { font-size:10px; font-weight:700; color:var(--text3); margin-left:4px; background:var(--bg2); border-radius:10px; padding:2px 7px; white-space:nowrap; flex-shrink:0; }
 
 /* Agent pills in header */
 .lm-hero-agents { display:flex; gap:6px; align-items:center; flex-shrink:1; overflow:hidden; }
@@ -8713,12 +8712,12 @@ async function _lmPoll() {
       if (users.length === 0) {
         usersEl.innerHTML = '<span class="lm-hero-users-label">Offline</span>';
       } else {
-        const maxShow = 5;
+        const maxShow = 4;
         const shown = users.slice(0, maxShow);
         const extra = users.length - maxShow;
-        usersEl.innerHTML = '<span class="lm-hero-users-label">Online</span>' +
+        usersEl.innerHTML =
           shown.map(u => `<img class="lm-hero-avatar" src="${_avatar(u, 24)}" alt="${esc(u)}" title="${esc(u)}">`).join('') +
-          (extra > 0 ? `<span style="font-size:10px;font-weight:600;color:var(--text3);margin-left:4px;white-space:nowrap;">+${extra}</span>` : '');
+          (extra > 0 ? `<span class="lm-hero-count">+${extra}</span>` : '');
       }
     }
 

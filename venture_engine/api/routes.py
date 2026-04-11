@@ -2858,7 +2858,12 @@ def youtube_key_takeaways(video_id: str = Query(..., min_length=11, max_length=1
         _bg_generation_active.add(_bg_key)
         def _bg():
             try:
-                _auto_generate_takeaways(video_id)
+                result = _auto_generate_takeaways(video_id)
+                if not result:
+                    import time as _t
+                    logger.info(f"Takeaways generation failed for {video_id}, retrying in 10s...")
+                    _t.sleep(10)
+                    _auto_generate_takeaways(video_id)
             finally:
                 _bg_generation_active.discard(_bg_key)
         threading.Thread(target=_bg, daemon=True).start()
@@ -2912,7 +2917,13 @@ def youtube_dpoi(video_id: str = Query(..., min_length=11, max_length=11), refre
         _bg_generation_active.add(_bg_key)
         def _bg():
             try:
-                _auto_generate_dopi(video_id)
+                result = _auto_generate_dopi(video_id)
+                if not result:
+                    # Retry once after 10s (Gemini rate-limit may have cleared)
+                    import time as _t
+                    logger.info(f"DOPI generation failed for {video_id}, retrying in 10s...")
+                    _t.sleep(10)
+                    _auto_generate_dopi(video_id)
             finally:
                 _bg_generation_active.discard(_bg_key)
         threading.Thread(target=_bg, daemon=True).start()

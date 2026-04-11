@@ -4464,7 +4464,7 @@ function _ytPollUntilReady(tabName, url, vid, onSuccess, attempt) {
       return;
     }
     if (_ytTranscriptFailed) { _ytPollStopAndShowUnavailable(tabName); return; }
-    if (attempt < 12 && _readerUrl) {
+    if (attempt < 20 && _readerUrl) {
       _ytPollTimers[tabName] = setTimeout(() => _ytPollUntilReady(tabName, url, vid, onSuccess, attempt + 1), 10000);
     } else {
       _ytPollStopAndShowUnavailable(tabName);
@@ -4472,7 +4472,7 @@ function _ytPollUntilReady(tabName, url, vid, onSuccess, attempt) {
   }).catch(() => {
     clearTimeout(timer);
     if (_ytTranscriptFailed) { _ytPollStopAndShowUnavailable(tabName); return; }
-    if (attempt < 12 && _readerUrl) {
+    if (attempt < 20 && _readerUrl) {
       _ytPollTimers[tabName] = setTimeout(() => _ytPollUntilReady(tabName, url, vid, onSuccess, attempt + 1), 10000);
     } else {
       _ytPollStopAndShowUnavailable(tabName);
@@ -4493,13 +4493,16 @@ function _ytEagerFetchAll(vid) {
     _ytLoadTranscript().then(() => {
       if (_ytTranscriptFailed) return; // transcript failed — tabs already marked failed
       // Now transcript is cached on server — start polling for AI-generated content
+      // Stagger DOPI by 15s to avoid Gemini rate-limit collision with takeaways
       if (!_ytTakeawaysData || _ytTakeawaysVideoId !== vid) {
         _ytPollUntilReady('takeaways', `${API}/api/youtube-key-takeaways?video_id=${vid}`, vid,
           d => { _ytTakeawaysData = d.takeaways || d; _ytTakeawaysVideoId = vid; });
       } else { _tabSetReady('takeaways'); }
       if (!_ytDpoiData || _ytDpoiVideoId !== vid) {
-        _ytPollUntilReady('dpoi', `${API}/api/youtube-dpoi?video_id=${vid}`, vid,
-          d => { _ytDpoiData = d.insights || d; _ytDpoiVideoId = vid; });
+        setTimeout(() => {
+          _ytPollUntilReady('dpoi', `${API}/api/youtube-dpoi?video_id=${vid}`, vid,
+            d => { _ytDpoiData = d.insights || d; _ytDpoiVideoId = vid; });
+        }, 15000);
       } else { _tabSetReady('dpoi'); }
     });
   } else {
@@ -4512,8 +4515,10 @@ function _ytEagerFetchAll(vid) {
     } else { _tabSetReady('takeaways'); }
     if (!_ytDpoiData || _ytDpoiVideoId !== vid) {
       _tabSetLoading('dpoi');
-      _ytPollUntilReady('dpoi', `${API}/api/youtube-dpoi?video_id=${vid}`, vid,
-        d => { _ytDpoiData = d.insights || d; _ytDpoiVideoId = vid; });
+      setTimeout(() => {
+        _ytPollUntilReady('dpoi', `${API}/api/youtube-dpoi?video_id=${vid}`, vid,
+          d => { _ytDpoiData = d.insights || d; _ytDpoiVideoId = vid; });
+      }, 15000);
     } else { _tabSetReady('dpoi'); }
   }
 }

@@ -5539,8 +5539,14 @@ def get_live_feed(since: Optional[str] = None, limit: int = 30, db: Session = De
     real_bugs = sum(1 for b in all_bugs if b.labels and "real" in b.labels)
     real_fixed = sum(1 for b in all_bugs if b.labels and "real" in b.labels and b.status in ("done", "next_version", "closed"))
 
+    trimmed = events[:limit]
+    # Use the latest event time as cursor so clients can paginate correctly
+    # even when event timestamps are ahead of server clock
+    latest_event_time = max((e["time"] for e in trimmed if e.get("time")), default=None)
+    cursor_time = latest_event_time or datetime.utcnow().isoformat()
+
     return {
-        "events": events[:limit],
+        "events": trimmed,
         "active_users": sorted(active_users),
         "stats": {
             "total_bugs": total_bugs,
@@ -5551,7 +5557,7 @@ def get_live_feed(since: Optional[str] = None, limit: int = 30, db: Session = De
             "real_bugs": real_bugs,
             "real_fixed": real_fixed,
         },
-        "server_time": datetime.utcnow().isoformat(),
+        "server_time": cursor_time,
     }
 
 

@@ -4714,12 +4714,10 @@ function _ytFetchTakeawaysWithFallback(vid) {
       if (activeTab) _ytRenderTakeaways(_ytTakeawaysData);
       return;
     }
-    // Not cached — NOW show spinner, then poll
-    _tabSetLoading('takeaways');
+    // Not cached — spinner already showing, poll
     _ytPollUntilReady('takeaways', tkUrl, vid,
       d => { _ytTakeawaysData = d.takeaways || d; _ytTakeawaysVideoId = vid; });
   }).catch(() => {
-    _tabSetLoading('takeaways');
     _ytPollUntilReady('takeaways', tkUrl, vid,
       d => { _ytTakeawaysData = d.takeaways || d; _ytTakeawaysVideoId = vid; });
   });
@@ -4738,14 +4736,12 @@ function _ytFetchDpoiWithFallback(vid) {
       _renderDpoiTimelineSegments();
       return;
     }
-    // Not cached yet — NOW show spinner, stagger by 15s then poll
-    _tabSetLoading('dpoi');
+    // Not cached yet — spinner already showing, stagger by 15s then poll
     setTimeout(() => {
       _ytPollUntilReady('dpoi', dopiUrl, vid,
         d => { _ytDpoiData = d.insights || d; _ytDpoiVideoId = vid; });
     }, 15000);
   }).catch(() => {
-    _tabSetLoading('dpoi');
     setTimeout(() => {
       _ytPollUntilReady('dpoi', dopiUrl, vid,
         d => { _ytDpoiData = d.insights || d; _ytDpoiVideoId = vid; });
@@ -4760,15 +4756,18 @@ function _ytEagerFetchAll(vid) {
   // This also sets _ytTranscriptFailed if all approaches fail, which stops takeaways/DOPI polling
   // Always try instant cache fetch for takeaways/DOPI in parallel with transcript
   // If server has cached data, they render immediately without waiting for transcript
-  // Takeaways & DOPI: no spinner upfront — fetch first, spinner only if not cached
+  // Show spinners immediately, then instant-cancel if cache probe succeeds
   if (!_ytTakeawaysData || _ytTakeawaysVideoId !== vid) {
+    _tabSetLoading('takeaways');
     _ytFetchTakeawaysWithFallback(vid);
   } else { _tabSetReady('takeaways'); }
   if (!_ytDpoiData || _ytDpoiVideoId !== vid) {
+    _tabSetLoading('dpoi');
     _ytFetchDpoiWithFallback(vid);
   } else { _tabSetReady('dpoi'); }
 
   if (!_ytTranscriptData || _ytTranscriptVideoId !== vid) {
+    _tabSetLoading('transcript');
     _ytLoadTranscript();
   } else {
     _tabSetReady('transcript');
@@ -4984,8 +4983,7 @@ async function _ytLoadTranscript() {
     }
   } catch(e) { /* probe failed — fall through to full loading */ }
 
-  // Not cached — now show spinner and loading text
-  _tabSetLoading('transcript');
+  // Not cached — spinner already set upfront, show loading text
   contentEl.innerHTML = '<div class="yt-transcript-loading">Loading transcript...</div>';
 
   // Two-phase loading:

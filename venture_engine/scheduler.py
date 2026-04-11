@@ -100,9 +100,9 @@ def _simulate_user_activity():
 
 
 def _run_sprint_planning():
-    """Job 8: Hourly sprint planning — PO moves top bugs from open to sprint."""
-    from venture_engine.activity_simulator import run_sprint_planning
-    run_sprint_planning()
+    """Job 8: AI PO agent scores tickets and plans sprints with Claude."""
+    from venture_engine.agents.po_agent import run_po_agent
+    run_po_agent()
 
 
 def _run_auto_release():

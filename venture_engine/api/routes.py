@@ -4035,11 +4035,12 @@ def bug_finding_leaderboard(db: Session = Depends(get_db_dependency)):
 
 @router.post("/api/bugs/trigger-sprint")
 def trigger_sprint(db: Session = Depends(get_db_dependency)):
-    """Manually trigger sprint planning (PO picks top 10 from open pool)."""
-    import venture_engine.activity_simulator as _sim
-    with _sim._sprint_plan_lock:
-        _sim._sprint_plan_hour = None
-    result = _sim.sprint_planning(db)
+    """Manually trigger AI PO agent sprint planning (Claude-scored tickets)."""
+    from venture_engine.agents.po_agent import _sprint_lock, _sprint_hour, run_sprint_planning
+    import venture_engine.agents.po_agent as _po
+    with _po._sprint_lock:
+        _po._sprint_hour = None
+    result = run_sprint_planning(db)
     return result
 
 

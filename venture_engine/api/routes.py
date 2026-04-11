@@ -7,7 +7,7 @@ from fastapi.responses import HTMLResponse, Response
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from pydantic import BaseModel
+from pydantic import BaseModel, validator
 from loguru import logger
 import os
 
@@ -2987,18 +2987,19 @@ def article_insights(url: str = Query(...), refresh: bool = Query(False)):
     if not refresh:
         from venture_engine.db.session import SessionLocal
         from venture_engine.db.models import ArticleInsightsCache
+        _ai_db = SessionLocal()
         try:
-            db = SessionLocal()
-            cached = db.query(ArticleInsightsCache).filter(ArticleInsightsCache.url_hash == url_hash).first()
-            db.close()
+            cached = _ai_db.query(ArticleInsightsCache).filter(ArticleInsightsCache.url_hash == url_hash).first()
             if cached and cached.data:
                 return cached.data
         except Exception as e:
             logger.warning(f"Article insights cache lookup failed: {e}")
+        finally:
+            _ai_db.close()
 
-    # Fetch article HTML
+    # Fetch article HTML (verify=False to handle Railway SSL issues — BUG-234)
     try:
-        resp = httpx.get(url, timeout=15.0, follow_redirects=True, headers={
+        resp = httpx.get(url, timeout=15.0, follow_redirects=True, verify=False, headers={
             "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
             "Accept": "text/html,*/*;q=0.8",
         })
@@ -3815,6 +3816,9 @@ def ralph_loop_endpoint(req: RalphLoopRequest, db: Session = Depends(get_db_depe
 
 # ─── Bug Tracking System ────────────────────────────────────────
 
+_VALID_BUG_PRIORITIES = {"critical", "high", "medium", "low"}
+_VALID_BUG_TYPES = {"bug", "feature", "improvement", "task"}
+
 class CreateBugRequest(BaseModel):
     title: str
     description: str = ""
@@ -3826,6 +3830,26 @@ class CreateBugRequest(BaseModel):
     reporter_name: str = ""
     venture_id: Optional[str] = None
     labels: Optional[list] = None
+
+    @validator("title")
+    def title_must_not_be_empty(cls, v):
+        if not v or not v.strip():
+            raise ValueError("Title must not be empty")
+        if len(v) > 500:
+            raise ValueError("Title must be 500 characters or fewer")
+        return v.strip()
+
+    @validator("priority")
+    def priority_must_be_valid(cls, v):
+        if v.lower() not in _VALID_BUG_PRIORITIES:
+            raise ValueError(f"Priority must be one of: {', '.join(sorted(_VALID_BUG_PRIORITIES))}")
+        return v.lower()
+
+    @validator("bug_type")
+    def bug_type_must_be_valid(cls, v):
+        if v.lower() not in _VALID_BUG_TYPES:
+            raise ValueError(f"Bug type must be one of: {', '.join(sorted(_VALID_BUG_TYPES))}")
+        return v.lower()
 
 class UpdateBugRequest(BaseModel):
     title: Optional[str] = None

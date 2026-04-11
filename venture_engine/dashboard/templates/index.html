@@ -1746,7 +1746,7 @@ html.dark .lm-tl-speed button:hover, html.dark .lm-tl-speed button.active { back
 @keyframes lmLivePulse { 0%,100%{ opacity:1; box-shadow:0 0 0 0 rgba(255,255,255,0.6); } 50%{ opacity:0.7; box-shadow:0 0 0 5px rgba(255,255,255,0); } }
 
 /* Periscope-style floating comments */
-#tlComments { position:absolute; bottom:12px; left:12px; width:320px; pointer-events:none; display:flex; flex-direction:column; justify-content:flex-end; top:12px; overflow:hidden; }
+#tlComments { position:absolute; bottom:12px; left:12px; width:320px; pointer-events:none; display:flex; flex-direction:column-reverse; top:0; overflow:hidden; }
 .tl-bubble { display:flex; align-items:center; gap:8px; padding:5px 12px 5px 6px; margin-bottom:4px; background:rgba(255,255,255,0.85); backdrop-filter:blur(6px); border-radius:20px; animation:tlBubbleUp 10s ease-out forwards; transform-origin:bottom left; max-width:fit-content; box-shadow:0 1px 4px rgba(0,0,0,0.1); }
 html.dark .tl-bubble { background:rgba(0,0,0,0.45); box-shadow:none; }
 .tl-bubble-avatar { width:26px; height:26px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; color:#fff; }
@@ -9253,11 +9253,11 @@ function _tlInit() {
         <div class="tl-bubble-name" style="color:${color};">${esc(name)}${isAi?'<span style="font-size:8px;margin-left:4px;padding:1px 4px;border-radius:3px;background:rgba(124,58,237,0.3);color:#c084fc;">AI</span>':''}</div>
         <div class="tl-bubble-msg">${esc(msg)}</div>
       </div>`;
-    container.appendChild(bubble);
+    container.prepend(bubble);
     // Remove after animation
     setTimeout(() => bubble.remove(), 10000);
-    // Keep container manageable
-    while (container.children.length > 16) container.firstChild.remove();
+    // Keep container manageable — remove oldest (last child in column-reverse)
+    while (container.children.length > 20) container.lastChild.remove();
   }
 
   function _tlAddEmoji() {

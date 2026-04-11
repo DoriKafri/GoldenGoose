@@ -1690,7 +1690,7 @@ html.dark .sl-msg-wrap:hover { background:rgba(255,255,255,.08); }
 @keyframes lmAgentPulse { 0%,100%{box-shadow:0 0 0 0 rgba(124,58,237,0.3)} 50%{box-shadow:0 0 0 4px rgba(124,58,237,0)} }
 
 /* Andon stop button (Toyota production line style) */
-.lm-andon-btn { position:absolute; top:10px; right:14px; z-index:4; display:none; align-items:center; gap:6px; padding:6px 14px; border:2px solid #dc2626; border-radius:10px; background:rgba(220,38,38,0.12); color:#dc2626; font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:800; letter-spacing:1px; cursor:pointer; transition:all 0.2s; backdrop-filter:blur(6px); box-shadow:0 2px 10px rgba(220,38,38,0.2); }
+.lm-andon-btn { position:absolute; top:56px; right:14px; z-index:4; display:none; align-items:center; gap:6px; padding:6px 14px; border:2px solid #dc2626; border-radius:10px; background:rgba(220,38,38,0.12); color:#dc2626; font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:800; letter-spacing:1px; cursor:pointer; transition:all 0.2s; backdrop-filter:blur(6px); box-shadow:0 2px 10px rgba(220,38,38,0.2); }
 .lm-andon-btn:hover { background:rgba(220,38,38,0.25); box-shadow:0 4px 16px rgba(220,38,38,0.35); transform:scale(1.03); }
 .lm-andon-btn.stopped { border-color:#22c55e; background:rgba(34,197,94,0.12); color:#16a34a; box-shadow:0 2px 10px rgba(34,197,94,0.2); }
 .lm-andon-btn.stopped:hover { background:rgba(34,197,94,0.25); box-shadow:0 4px 16px rgba(34,197,94,0.35); }
@@ -1757,8 +1757,15 @@ html.dark .lm-tl-timeline { background:rgba(15,23,42,0.8); border-top-color:rgba
 .lm-tl-histogram { position:absolute; bottom:3px; left:0; right:0; height:46px; display:flex; align-items:flex-end; gap:1px; padding:0 2px; overflow:visible; }
 .lm-tl-bar { flex:1; min-width:0; opacity:0.75; position:relative; z-index:2; border-radius:2px 2px 0 0; transition:opacity 0.12s; background:rgba(148,163,184,0.15); }
 .lm-tl-bar:hover { opacity:1; }
-.lm-tl-playhead { position:absolute; bottom:0; width:2px; height:54px; background:#2563eb; z-index:3; pointer-events:none; box-shadow:0 0 6px rgba(37,99,235,0.4); }
+.lm-tl-playhead { position:absolute; bottom:0; width:2px; height:54px; background:#2563eb; z-index:5; pointer-events:none; box-shadow:0 0 6px rgba(37,99,235,0.4); }
 html.dark .lm-tl-playhead { background:#38bdf8; box-shadow:0 0 8px rgba(56,189,248,0.5); }
+.lm-tl-scrubber { position:absolute; bottom:0; width:16px; height:16px; border-radius:50%; background:#2563eb; border:2px solid #fff; box-shadow:0 1px 6px rgba(0,0,0,0.3); z-index:6; cursor:grab; transform:translate(-50%, -19px); pointer-events:all; transition:transform 0.1s; }
+.lm-tl-scrubber:hover { transform:translate(-50%, -19px) scale(1.3); }
+.lm-tl-scrubber:active { cursor:grabbing; transform:translate(-50%, -19px) scale(1.1); }
+html.dark .lm-tl-scrubber { background:#38bdf8; border-color:#1e293b; }
+.lm-tl-timeline.scrubbing { cursor:grabbing !important; }
+.lm-tl-tooltip { position:absolute; bottom:58px; background:rgba(15,23,42,0.9); color:#fff; font-family:'JetBrains Mono',monospace; font-size:10px; padding:3px 8px; border-radius:4px; white-space:nowrap; pointer-events:none; z-index:7; transform:translateX(-50%); opacity:0; transition:opacity 0.15s; }
+.lm-tl-tooltip.show { opacity:1; }
 .lm-tl-progress { position:absolute; bottom:0; left:0; height:3px; background:linear-gradient(90deg,#10b981,#38bdf8,#a78bfa); }
 .lm-tl-controls { display:flex; align-items:center; justify-content:space-between; padding:6px 16px; background:rgba(241,245,249,0.9); border-top:1px solid var(--border); }
 html.dark .lm-tl-controls { background:rgba(15,23,42,0.6); border-top-color:transparent; }
@@ -1855,9 +1862,8 @@ try {
 </script>
 <style>
 /* Hide everything except the live tab content while fullscreen is restoring */
-html.tl-fs-pending .sidebar,
-html.tl-fs-pending .main > *:not(.lm-timelapse) { display:none !important; }
-html.tl-fs-pending .main { padding:0 !important; margin:0 !important; }
+html.tl-fs-pending body { visibility:hidden !important; }
+html.tl-fs-pending .lm-timelapse.tl-fullscreen { visibility:visible !important; }
 </style>
 </head>
 <body>
@@ -8720,15 +8726,19 @@ async function loadLiveMonitor() {
           </div>
           <div id="tlComments"></div>
         </div>
-        <div class="lm-tl-timeline" id="tlTimeline" onclick="_tlTimelineClick(event)">
+        <div class="lm-tl-timeline" id="tlTimeline">
           <div class="lm-tl-viewport" id="tlViewport" style="position:absolute;top:0;left:0;width:100%;height:100%;transform-origin:0 0;">
             <div class="lm-tl-histogram" id="tlHistogram"></div>
             <div class="lm-tl-playhead" id="tlPlayhead"></div>
             <div class="lm-tl-progress" id="tlProgress"></div>
           </div>
+          <div class="lm-tl-scrubber" id="tlScrubber"></div>
+          <div class="lm-tl-tooltip" id="tlTooltip"></div>
         </div>
         <div class="lm-tl-controls">
           <div class="lm-tl-speed" id="tlSpeedBtns">
+            <button onclick="_tlSetSpeed(0.1)" title="Slow motion">🐌</button>
+            <button onclick="_tlSetSpeed(0)" title="Pause" id="tlPauseBtn">⏸</button>
             <button onclick="_tlSetSpeed(0.5)">0.5×</button>
             <button onclick="_tlSetSpeed(1)" class="active">1×</button>
             <button onclick="_tlSetSpeed(2)">2×</button>
@@ -9729,41 +9739,127 @@ async function _tlInit() {
     _tlApplyViewport();
   };
 
+  let _tlPrevSpeed = 1; // remember speed before pause
   window._tlSetSpeed = function(s){
-    speed=s;
-    document.querySelectorAll('#tlSpeedBtns button').forEach(b=>b.classList.toggle('active',parseFloat(b.textContent)===s));
+    const pauseBtn = document.getElementById('tlPauseBtn');
+    if (s === 0) {
+      // Toggle pause
+      if (speed === 0) {
+        speed = _tlPrevSpeed || 1;
+        if (pauseBtn) pauseBtn.textContent = '⏸';
+      } else {
+        _tlPrevSpeed = speed;
+        speed = 0;
+        if (pauseBtn) pauseBtn.textContent = '▶';
+      }
+    } else {
+      speed = s;
+      if (pauseBtn) pauseBtn.textContent = '⏸';
+    }
+    document.querySelectorAll('#tlSpeedBtns button').forEach(b => {
+      const val = b.textContent.trim();
+      if (val === '🐌') b.classList.toggle('active', speed === 0.1);
+      else if (val === '⏸' || val === '▶') b.classList.toggle('active', speed === 0);
+      else b.classList.toggle('active', parseFloat(val) === speed);
+    });
   };
 
-  window._tlTimelineClick = function(e){
-    if (e.detail >= 2) return; // ignore double-click (used for zoom reset)
-    const rect = e.currentTarget.getBoundingClientRect();
-    const mouseX = (e.clientX-rect.left)/rect.width; // 0..1 within visible area
-    // Convert viewport-relative position to global fraction accounting for zoom
-    const pct = Math.max(0, Math.min(1, _tlViewOffset + mouseX / _tlZoom));
-    currentTime=T_START+pct*T_SPAN;
-    eventIndex=0;counters={commits:0,bugs:0,releases:0,agents:0};_tlNextReleaseIdx=0;
-    // Reset all user nodes to offline, then replay which ones were active
-    userNodes.forEach(n=>{n.targetOpacity=0.3;n.opacity=0.3;n.scale=0.7;n.targetScale=0.7;n.lastActiveTime=0;});
-    while(eventIndex<tlEvents.length&&tlEvents[eventIndex].t<=currentTime){
-      const ev=tlEvents[eventIndex];
-      if(ev.type==='commit')counters.commits++;else if(ev.type==='bug')counters.bugs++;else if(ev.type==='release')counters.releases++;else if(ev.type==='ai_action')counters.agents++;
-      // Track which users were active (without animation on seek)
-      const d=ev.data;
-      if(ev.type==='bug'&&d.reporter){const rp=findUser(d.reporter);if(rp){rp.lastActiveTime=ev.t;rp.targetOpacity=1;rp.opacity=1;rp.scale=1;rp.targetScale=1;}}
-      if(ev.type==='user_action'&&d.user){const un=findUser(d.user);if(un){un.lastActiveTime=ev.t;un.targetOpacity=1;un.opacity=1;un.scale=1;un.targetScale=1;}}
-      if(ev.type==='release'&&d.v){_tlNextReleaseIdx = _tlSortedReleases.findIndex(r=>r.v===d.v)+1;}
+  // VOD seek: rebuild state at any point in time
+  function _tlSeekTo(pct) {
+    pct = Math.max(0, Math.min(1, pct));
+    currentTime = T_START + pct * T_SPAN;
+    eventIndex = 0; counters = {commits:0,bugs:0,releases:0,agents:0}; _tlNextReleaseIdx = 0;
+    userNodes.forEach(n => { n.targetOpacity=0.3; n.opacity=0.3; n.scale=0.7; n.targetScale=0.7; n.lastActiveTime=0; });
+    while (eventIndex < tlEvents.length && tlEvents[eventIndex].t <= currentTime) {
+      const ev = tlEvents[eventIndex]; const d = ev.data;
+      if (ev.type==='commit') counters.commits++;
+      else if (ev.type==='bug') counters.bugs++;
+      else if (ev.type==='release') counters.releases++;
+      else if (ev.type==='ai_action') counters.agents++;
+      if (ev.type==='bug' && d.reporter) { const rp=findUser(d.reporter); if(rp){rp.lastActiveTime=ev.t;rp.targetOpacity=1;rp.opacity=1;rp.scale=1;rp.targetScale=1;} }
+      if (ev.type==='user_action' && d.user) { const un=findUser(d.user); if(un){un.lastActiveTime=ev.t;un.targetOpacity=1;un.opacity=1;un.scale=1;un.targetScale=1;} }
+      if (ev.type==='release' && d.v) { _tlNextReleaseIdx = _tlSortedReleases.findIndex(r=>r.v===d.v)+1; }
       eventIndex++;
     }
-    // Update release node label to show next version
     _tlUpdateReleaseLabel();
-    // Fade out users who haven't been active recently at seek position
-    userNodes.forEach(n=>{
-      if(n.lastActiveTime>0 && (currentTime-n.lastActiveTime)>OFFLINE_TIMEOUT){
-        n.targetOpacity=0.3;n.opacity=0.3;n.scale=0.7;n.targetScale=0.7;
+    userNodes.forEach(n => {
+      if (n.lastActiveTime > 0 && (currentTime - n.lastActiveTime) > OFFLINE_TIMEOUT) {
+        n.targetOpacity=0.3; n.opacity=0.3; n.scale=0.7; n.targetScale=0.7;
       }
     });
     _tlUpdateCounters();
-  };
+  }
+
+  // VOD scrubber: drag to seek, click to jump
+  let _tlScrubbing = false;
+  let _tlScrubPrevSpeed = 1;
+  const _tlScrubberEl = document.getElementById('tlScrubber');
+  const _tlTooltipEl = document.getElementById('tlTooltip');
+
+  function _tlMouseToFrac(e) {
+    const rect = _tlTimelineEl.getBoundingClientRect();
+    const mouseX = (e.clientX - rect.left) / rect.width;
+    return Math.max(0, Math.min(1, _tlViewOffset + mouseX / _tlZoom));
+  }
+
+  function _tlUpdateTooltip(e, frac) {
+    if (!_tlTooltipEl) return;
+    const rect = _tlTimelineEl.getBoundingClientRect();
+    _tlTooltipEl.style.left = (e.clientX - rect.left) + 'px';
+    _tlTooltipEl.textContent = formatTlDate(T_START + frac * T_SPAN);
+    _tlTooltipEl.classList.add('show');
+  }
+
+  if (_tlTimelineEl) {
+    // Click to seek
+    _tlTimelineEl.addEventListener('click', function(e) {
+      if (e.detail >= 2 || _tlScrubbing) return;
+      if (e.target === _tlScrubberEl) return;
+      _tlSeekTo(_tlMouseToFrac(e));
+    });
+
+    // Drag scrubber or anywhere on timeline
+    _tlTimelineEl.addEventListener('mousedown', function(e) {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      _tlScrubbing = true;
+      _tlScrubPrevSpeed = speed;
+      speed = 0; // pause while scrubbing
+      _tlTimelineEl.classList.add('scrubbing');
+      const frac = _tlMouseToFrac(e);
+      _tlSeekTo(frac);
+      _tlUpdateTooltip(e, frac);
+
+      function onMove(e2) {
+        const f = _tlMouseToFrac(e2);
+        _tlSeekTo(f);
+        _tlUpdateTooltip(e2, f);
+      }
+      function onUp() {
+        _tlScrubbing = false;
+        speed = _tlScrubPrevSpeed;
+        _tlTimelineEl.classList.remove('scrubbing');
+        if (_tlTooltipEl) _tlTooltipEl.classList.remove('show');
+        // Update pause button state
+        const pauseBtn = document.getElementById('tlPauseBtn');
+        if (pauseBtn) pauseBtn.textContent = speed === 0 ? '▶' : '⏸';
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+      }
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+
+    // Hover tooltip
+    _tlTimelineEl.addEventListener('mousemove', function(e) {
+      if (_tlScrubbing) return;
+      const frac = _tlMouseToFrac(e);
+      _tlUpdateTooltip(e, frac);
+    });
+    _tlTimelineEl.addEventListener('mouseleave', function() {
+      if (!_tlScrubbing && _tlTooltipEl) _tlTooltipEl.classList.remove('show');
+    });
+  }
 
   function _tlUpdateCounters(){
     const el=id=>document.getElementById(id);
@@ -10102,6 +10198,10 @@ async function _tlInit() {
       el('tlClock').textContent=formatTlDate(currentTime);
       el('tlProgress').style.width=pct+'%';
       el('tlPlayhead').style.left=pct+'%';
+      // Scrubber follows playhead in screen space (not inside viewport)
+      const frac01 = (currentTime-T_START)/T_SPAN;
+      const scrubScreenPct = (frac01 - _tlViewOffset) * _tlZoom * 100;
+      if (_tlScrubberEl) _tlScrubberEl.style.left = scrubScreenPct + '%';
       _tlUpdateReleaseLabel();
       // Auto-scroll viewport to keep playhead in view when zoomed
       if (_tlZoom > 1) {

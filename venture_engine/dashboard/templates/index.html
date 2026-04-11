@@ -4152,6 +4152,10 @@ function openReader(url, title, newsItemId) {
   }
 
   document.getElementById('readerOverlay').classList.add('open');
+  // Lock body scroll while preserving scroll position
+  document.body.style.position = 'fixed';
+  document.body.style.top = '-' + _newsFeedScrollY + 'px';
+  document.body.style.width = '100%';
   document.body.style.overflow = 'hidden';
   var readerHash = '#news/read/' + encodeURIComponent(url);
   if (location.hash.startsWith('#news/read/')) {
@@ -5432,7 +5436,12 @@ function closeReader(fromPopstate) {
   if (artWrapCleanup && !_isYouTube) artWrapCleanup.remove();
   document.getElementById('readerIframe').src = 'about:blank';
   document.getElementById('readerIframe').style.display = '';
+  // Restore body scroll — must set position back and scroll to saved pos
   document.body.style.overflow = '';
+  document.body.style.position = '';
+  document.body.style.top = '';
+  document.body.style.width = '';
+  window.scrollTo(0, _newsFeedScrollY);
   _readerUrl = '';
   _readerAnnotations = [];
   _pendingSelection = null;
@@ -5478,8 +5487,6 @@ function closeReader(fromPopstate) {
     document.getElementById('suggestTabBtn').style.display = 'none';
     document.getElementById('ventureSearchBar').style.display = 'none';
     var pag = document.querySelector('.pagination'); if (pag) pag.style.display = 'none';
-    // Restore saved scroll position
-    setTimeout(function(){ window.scrollTo(0, _newsFeedScrollY); }, 0);
   } else {
     switchTab(activeTab, true);
   }

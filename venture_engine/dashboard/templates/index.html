@@ -4487,20 +4487,35 @@ function _ytEagerFetchAll(vid) {
   // This also sets _ytTranscriptFailed if all approaches fail, which stops takeaways/DOPI polling
   if (!_ytTranscriptData || _ytTranscriptVideoId !== vid) {
     _tabSetLoading('transcript');
-    _ytLoadTranscript();
-  } else { _tabSetReady('transcript'); }
-  // Takeaways — poll until data is ready
-  if (!_ytTakeawaysData || _ytTakeawaysVideoId !== vid) {
     _tabSetLoading('takeaways');
-    _ytPollUntilReady('takeaways', `${API}/api/youtube-key-takeaways?video_id=${vid}`, vid,
-      d => { _ytTakeawaysData = d.takeaways || d; _ytTakeawaysVideoId = vid; });
-  } else { _tabSetReady('takeaways'); }
-  // DOPI — poll until data is ready
-  if (!_ytDpoiData || _ytDpoiVideoId !== vid) {
     _tabSetLoading('dpoi');
-    _ytPollUntilReady('dpoi', `${API}/api/youtube-dpoi?video_id=${vid}`, vid,
-      d => { _ytDpoiData = d.insights || d; _ytDpoiVideoId = vid; });
-  } else { _tabSetReady('dpoi'); }
+    // Load transcript first, THEN start polling for takeaways/DOPI
+    _ytLoadTranscript().then(() => {
+      if (_ytTranscriptFailed) return; // transcript failed — tabs already marked failed
+      // Now transcript is cached on server — start polling for AI-generated content
+      if (!_ytTakeawaysData || _ytTakeawaysVideoId !== vid) {
+        _ytPollUntilReady('takeaways', `${API}/api/youtube-key-takeaways?video_id=${vid}`, vid,
+          d => { _ytTakeawaysData = d.takeaways || d; _ytTakeawaysVideoId = vid; });
+      } else { _tabSetReady('takeaways'); }
+      if (!_ytDpoiData || _ytDpoiVideoId !== vid) {
+        _ytPollUntilReady('dpoi', `${API}/api/youtube-dpoi?video_id=${vid}`, vid,
+          d => { _ytDpoiData = d.insights || d; _ytDpoiVideoId = vid; });
+      } else { _tabSetReady('dpoi'); }
+    });
+  } else {
+    _tabSetReady('transcript');
+    // Transcript already cached — start polling immediately
+    if (!_ytTakeawaysData || _ytTakeawaysVideoId !== vid) {
+      _tabSetLoading('takeaways');
+      _ytPollUntilReady('takeaways', `${API}/api/youtube-key-takeaways?video_id=${vid}`, vid,
+        d => { _ytTakeawaysData = d.takeaways || d; _ytTakeawaysVideoId = vid; });
+    } else { _tabSetReady('takeaways'); }
+    if (!_ytDpoiData || _ytDpoiVideoId !== vid) {
+      _tabSetLoading('dpoi');
+      _ytPollUntilReady('dpoi', `${API}/api/youtube-dpoi?video_id=${vid}`, vid,
+        d => { _ytDpoiData = d.insights || d; _ytDpoiVideoId = vid; });
+    } else { _tabSetReady('dpoi'); }
+  }
 }
 
 function _artEagerFetchAll(url) {

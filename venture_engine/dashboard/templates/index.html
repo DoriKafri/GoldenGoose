@@ -9183,6 +9183,7 @@ function _tlInit() {
   let _tlMode = 'replay'; // 'replay' or 'live'
   let _tlLiveLastPoll = 0;
   let _tlLiveLastTime = null;
+  let _tlLiveSeenKeys = new Set();
 
   window._tlSwitchMode = function(mode) {
     _tlMode = mode;
@@ -9378,7 +9379,17 @@ function _tlInit() {
       if (_tlLiveLastTime) url += `&since=${encodeURIComponent(_tlLiveLastTime)}`;
       const resp = await fetch(url);
       const data = await resp.json();
-      const events = data.events || [];
+      const events = (data.events || []).filter(ev => {
+        const key = `${ev.type||''}|${ev.user||''}|${ev.action||''}|${ev.time||''}`;
+        if (_tlLiveSeenKeys.has(key)) return false;
+        _tlLiveSeenKeys.add(key);
+        return true;
+      });
+      // Cap seen set
+      if (_tlLiveSeenKeys.size > 300) {
+        const arr = [..._tlLiveSeenKeys];
+        _tlLiveSeenKeys = new Set(arr.slice(arr.length - 100));
+      }
       for (const ev of events) {
         const meta = ev.meta || {};
         const isAgent = meta.is_agent;

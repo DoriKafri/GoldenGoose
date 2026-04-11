@@ -2124,6 +2124,7 @@ if (location.hash && location.hash.startsWith('#news/read/')) {
       <button class="help-nav-btn" data-section="thought-leaders" onclick="switchHelpSection('thought-leaders')">Thought Leaders</button>
       <button class="help-nav-btn" data-section="suggest" onclick="switchHelpSection('suggest')">Suggest</button>
       <button class="help-nav-btn" data-section="settings-help" onclick="switchHelpSection('settings-help')">Settings</button>
+      <button class="help-nav-btn" data-section="ai-agents" onclick="switchHelpSection('ai-agents')">AI Agents</button>
     </nav>
     <div class="help-content" id="helpContent">
 
@@ -2145,6 +2146,7 @@ if (location.hash && location.hash.startsWith('#news/read/')) {
           <li><strong>Ralph Loop</strong> &mdash; Iterative venture refinement targeting weak scoring dimensions until the composite score exceeds 95. Named after the principle of relentless iteration.</li>
           <li><strong>Tech Gaps</strong> &mdash; When a venture scores below 8/10 on tech readiness, the missing technology is tracked with estimated availability and readiness signals.</li>
           <li><strong>Thought Leaders</strong> &mdash; 100+ real and simulated industry voices (Kelsey Hightower, DHH, Paul Graham, etc.) that react to each venture, providing a crowd-wisdom signal.</li>
+          <li><strong>AI Agents</strong> &mdash; Four autonomous agents continuously improve the platform: <strong>CodeHawk</strong> (scans code for real bugs), <strong>PixelEye</strong> (Playwright + Vision for UI/UX bugs), <strong>Maya Levi</strong> (AI PO with Claude-scored sprint planning), and <strong>AutoFix</strong> (generates and applies real code fixes). See the <em>AI Agents</em> help section for details.</li>
         </ul>
       </div>
 
@@ -2312,6 +2314,12 @@ if (location.hash && location.hash.startsWith('#news/read/')) {
           <li><strong>TL Signal Sync</strong> &mdash; Every N hours (default: 12). Refreshes real thought-leader signals.</li>
           <li><strong>Training Brainstorm</strong> &mdash; Weekly (default: Sunday 10:00 UTC). Generates new training course ideas.</li>
           <li><strong>Weekly Digest</strong> &mdash; Weekly (default: Monday 09:00 UTC). Top 10 ventures summary with notification.</li>
+          <li><strong>Activity Simulation</strong> &mdash; Every 30 min. Simulated team activity: comments, reactions, bug transitions.</li>
+          <li><strong>CodeHawk Bug Hunter</strong> &mdash; Every 4 hours. AI scans source code for real bugs, security, and performance issues.</li>
+          <li><strong>PixelEye UI Inspector</strong> &mdash; Every 6 hours. Playwright + Claude Vision screenshots and analyzes UI/UX on mobile &amp; desktop.</li>
+          <li><strong>Maya Levi PO Agent</strong> &mdash; Every hour. Claude-scored sprint planning with value/effort compound scoring.</li>
+          <li><strong>AutoFix Bug Fixer</strong> &mdash; Every 2 hours. Generates and applies real code fixes for sprint bugs.</li>
+          <li><strong>Auto-Release</strong> &mdash; Every 6 hours. Packages next_version bugs into versioned releases.</li>
         </ul>
 
         <h4>Manual Triggers</h4>
@@ -2469,6 +2477,75 @@ if (location.hash && location.hash.startsWith('#news/read/')) {
 
         <h4>Voting &amp; Annotations</h4>
         <p>Team members can upvote/downvote any venture and leave comments. You can also highlight text in the venture description to create inline annotations (similar to Google Docs comments). Anonymous identities are assigned automatically.</p>
+      </div>
+
+      <!-- AI Agents -->
+      <div class="help-section" data-section="ai-agents">
+        <h3>AI Agents</h3>
+        <p>Four autonomous AI agents continuously analyze the codebase, find real bugs, plan sprints, and generate fixes. Unlike the simulated bug pipeline, these agents work on the <strong>actual source code</strong> of this application.</p>
+
+        <h4>Agent Overview</h4>
+        <div class="help-dim-grid">
+          <div class="help-dim-card">
+            <div class="dim-name">CodeHawk AI &mdash; Bug Hunter</div>
+            <div class="dim-desc">Scans real source files (Python backend, HTML frontend, config) using Claude to find actual bugs, security vulnerabilities, performance issues, and code quality problems. Creates Bug entries with real file paths, line numbers, and suggested fixes. Runs <strong>every 4 hours</strong>, scanning 3 random files per run. Bugs are tagged <code>real</code> + <code>ai-found</code>.</div>
+          </div>
+          <div class="help-dim-card">
+            <div class="dim-name">PixelEye AI &mdash; UI Inspector</div>
+            <div class="dim-desc">Launches a headless Chromium browser via Playwright, navigates to app views in both mobile (390&times;844) and desktop (1440&times;900) viewports, takes screenshots, and sends them to Claude Vision for UI/UX analysis. Finds layout bugs, broken alignment, unreadable text, tap targets too small, overflow issues, and accessibility problems. Runs <strong>every 6 hours</strong>, inspecting 4 random routes. Bugs are tagged <code>real</code> + <code>ui-ux</code>.</div>
+          </div>
+          <div class="help-dim-card">
+            <div class="dim-name">Maya Levi &mdash; AI Product Owner</div>
+            <div class="dim-desc">Intelligent sprint planning powered by Claude. Sends the top 15 open tickets to Claude for evaluation, which assigns business_value (1&ndash;10), story_points (Fibonacci), and sprint_priority (1&ndash;100) with written reasoning for each. Real bugs (tagged <code>real</code>) get a <strong>2.5&times; priority boost</strong>. Selects top tickets within velocity cap (40 SP) and sprint capacity (10 tickets). Posts sprint summary to Slack #general. Runs <strong>every hour</strong>.</div>
+          </div>
+          <div class="help-dim-card">
+            <div class="dim-name">AutoFix AI &mdash; Bug Fixer</div>
+            <div class="dim-desc">Picks up real bugs in <code>sprint</code> or <code>in_progress</code> status, reads the actual source file, uses Claude to generate a minimal targeted fix, and <strong>applies the fix to the live codebase</strong>. Records the full diff in a bug comment for review. Moves the bug to <code>review</code> status. Runs <strong>every 2 hours</strong>, fixing up to 2 bugs per run.</div>
+          </div>
+        </div>
+
+        <h4>The Real Bug Pipeline</h4>
+        <ol>
+          <li><strong>Discovery</strong> &mdash; CodeHawk scans source code; PixelEye screenshots the UI. Both create real Bug entries tagged <code>real</code>.</li>
+          <li><strong>Scoring</strong> &mdash; Maya (PO) evaluates all open tickets with Claude, assigning compound value/effort scores. Real bugs are boosted 2.5&times; over simulated ones.</li>
+          <li><strong>Sprint Planning</strong> &mdash; Maya picks the highest-scored tickets into the sprint, respecting velocity (40 SP max) and capacity (10 tickets max). Posts reasoning to Slack.</li>
+          <li><strong>Auto-Fix</strong> &mdash; AutoFix picks up real sprint bugs, reads the relevant source file, generates a fix with Claude, and writes it to disk. The diff is recorded as a comment.</li>
+          <li><strong>Review &amp; Release</strong> &mdash; Fixed bugs move to <code>review</code> &rarr; <code>done</code> &rarr; <code>next_version</code> &rarr; <code>closed</code> via the standard release pipeline (auto-release every 6 hours).</li>
+        </ol>
+
+        <h4>Sprint Scoring Formula</h4>
+        <div class="help-formula">
+          sprint_priority = Claude's assessment (1&ndash;100)<br>
+          fallback = (business_value / story_points) &times; priority_bonus &times; real_boost<br><br>
+          priority_bonus: critical=3.0, high=2.0, medium=1.0, low=0.5<br>
+          real_boost: 2.5&times; for bugs tagged "real", 1.0&times; for simulated
+        </div>
+
+        <h4>Real vs. Simulated Bugs</h4>
+        <ul>
+          <li><strong>Real bugs</strong> &mdash; Found by CodeHawk or PixelEye. Tagged with <code>real</code> and <code>ai-found</code>. Reference actual file paths and line numbers. Fixes are applied to the live codebase.</li>
+          <li><strong>Simulated bugs</strong> &mdash; Generated by the activity simulator for demo purposes. Have procedurally generated titles and descriptions. Follow the same pipeline but don't affect real code.</li>
+          <li>Both types flow through the same board, sprint planning, and release pipeline. The PO agent prioritizes real bugs over simulated ones.</li>
+        </ul>
+
+        <h4>Manual Triggers</h4>
+        <ul>
+          <li><code>POST /api/bugs/trigger-hunt</code> &mdash; Run CodeHawk now (scan 3 files)</li>
+          <li><code>POST /api/bugs/trigger-ui-inspect</code> &mdash; Run PixelEye now (screenshot 4 views)</li>
+          <li><code>POST /api/bugs/trigger-sprint</code> &mdash; Run Maya's sprint planning now</li>
+          <li><code>POST /api/bugs/trigger-fix</code> &mdash; Run AutoFix now (fix sprint bugs)</li>
+          <li><code>POST /api/bugs/{id}/auto-fix</code> &mdash; Fix a specific bug</li>
+        </ul>
+
+        <h4>Scanned Files</h4>
+        <p style="font-size:12px;line-height:1.8;color:var(--text2);">
+          CodeHawk scans 20+ key files including: routes.py, models.py, main.py, config.py, scheduler.py, activity_simulator.py, harvester sources, venture scorer/generator/ideator, thought leader simulator, discussion engine, notifications, settings service, Slack simulator, and the main dashboard template.
+        </p>
+
+        <h4>Inspected UI Views</h4>
+        <p style="font-size:12px;line-height:1.8;color:var(--text2);">
+          PixelEye inspects 14 routes: News Feed, Ventures/Ideas, Bug Board, Slack, Knowledge Graph, Leaderboard, Activity Monitor, Release Notes, Sim Users, Settings, Investment Committee &mdash; each in mobile and desktop viewports.
+        </p>
       </div>
 
       <!-- Settings Help -->

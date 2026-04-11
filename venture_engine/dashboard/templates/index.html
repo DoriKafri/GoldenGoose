@@ -9566,18 +9566,18 @@ async function _tlInit() {
     return { key, fromCol, toCol };
   }
 
-  function _tlEmitKanbanTicket(key, fromColId, toColId, userColor) {
-    const fromNode = fromColId ? kanbanNodes.find(n => n.colId === fromColId) : null;
+  function _tlEmitKanbanTicket(key, fromColId, toColId, userColor, sourceNode) {
+    const fromNode = sourceNode || (fromColId ? kanbanNodes.find(n => n.colId === fromColId) : null);
     const toNode = kanbanNodes.find(n => n.colId === toColId);
     if (!toNode) return;
-    // If created (no from), start from center
     const src = fromNode || centerNode;
     const color = userColor || toNode.color;
     kanbanTickets.push(new KanbanTicket(key, src, toNode, color, ''));
-    // Light up both kanban column nodes
-    if (fromNode) fromNode.activate(0.5);
+    if (fromNode && fromNode !== sourceNode) fromNode.activate(0.5);
     toNode.activate(0.8);
     centerNode.activate(0.2);
+    // Also emit a particle from source to kanban for visual connection
+    if (sourceNode) emit(sourceNode, toNode, color, 2);
   }
 
   function processEvent(ev){
@@ -9607,6 +9607,8 @@ async function _tlInit() {
         if(rp){rp.activate(0.7);emit(rp,centerNode,'#f87171',2.5);}
         if(fx){fx.activate(0.5);emit(centerNode,fx,'#4ade80',2.5);}
         _tlAddBubble(d.reporter, 'reported '+d.key+' → fixed by '+d.fixer, '#f87171', false);
+        // Animate ticket from reporter to Open kanban column
+        _tlEmitKanbanTicket(d.key || 'BUG', null, 'open', rp ? rp.color : '#f87171', rp || null);
         break;
       }
       case 'user_action':{
@@ -9663,8 +9665,15 @@ async function _tlInit() {
         const color = an ? an.color : (un ? un.color : '#64748b');
         _tlAddBubble(ev.user || 'System', ev.action || '', color, !!isAgent);
         // Check for kanban movement in live events
-        const kb = _tlParseKanban(ev.action || '');
-        if (kb) _tlEmitKanbanTicket(kb.key, kb.fromCol, kb.toCol, color);
+        if (ev.type === 'bug' && meta.status === 'open') {
+          // Bug just created — animate from reporter node to Open kanban column
+          const srcNode = un || an || null;
+          const bugKey = (ev.action || '').match(/[A-Z]+-\d+/)?.[0] || 'BUG';
+          _tlEmitKanbanTicket(bugKey, null, 'open', color, srcNode);
+        } else {
+          const kb = _tlParseKanban(ev.action || '');
+          if (kb) _tlEmitKanbanTicket(kb.key, kb.fromCol, kb.toCol, color);
+        }
       }
       // Use latest event time as cursor to avoid re-fetching future-timestamped events
       const evTimes = (data.events || []).map(e => e.time).filter(Boolean);

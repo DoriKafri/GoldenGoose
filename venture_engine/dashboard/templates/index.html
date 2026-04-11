@@ -1752,11 +1752,19 @@ html.dark .lm-tl-stats-overlay { background:rgba(15,23,42,0.75); }
 html.dark .lm-tl-canvas-wrap { background:#0a0e17; }
 .lm-tl-canvas-wrap canvas { width:100%; height:100%; display:block; }
 /* Old stats row replaced by .lm-tl-stats-overlay on canvas */
-.lm-tl-timeline { position:relative; height:44px; background:rgba(241,245,249,0.9); border-top:1px solid var(--border); overflow-x:auto; overflow-y:hidden; scrollbar-width:thin; scrollbar-color:rgba(148,163,184,0.3) transparent; }
-.lm-tl-timeline::-webkit-scrollbar { height:4px; }
-.lm-tl-timeline::-webkit-scrollbar-thumb { background:rgba(148,163,184,0.3); border-radius:2px; }
+.lm-tl-timeline { position:relative; height:44px; background:rgba(241,245,249,0.9); border-top:1px solid var(--border); overflow-x:scroll; overflow-y:hidden; scrollbar-width:thin; scrollbar-color:rgba(148,163,184,0.3) transparent; -webkit-overflow-scrolling:touch; }
+.lm-tl-timeline::-webkit-scrollbar { height:5px; }
+.lm-tl-timeline::-webkit-scrollbar-thumb { background:rgba(148,163,184,0.4); border-radius:3px; }
+.lm-tl-timeline::-webkit-scrollbar-track { background:rgba(148,163,184,0.1); }
 html.dark .lm-tl-timeline { background:rgba(15,23,42,0.8); border-top-color:rgba(51,65,85,0.3); }
-.lm-tl-timeline-inner { position:relative; height:100%; min-width:200%; cursor:pointer; }
+html.dark .lm-tl-timeline::-webkit-scrollbar-thumb { background:rgba(148,163,184,0.25); }
+.lm-tl-timeline-inner { position:relative; height:100%; width:250%; cursor:pointer; }
+.lm-tl-scroll-arrow { position:absolute; top:0; width:24px; height:100%; z-index:5; display:flex; align-items:center; justify-content:center; cursor:pointer; border:none; padding:0; font-size:14px; color:var(--text2); opacity:0.5; transition:opacity 0.15s; }
+.lm-tl-scroll-arrow:hover { opacity:1; }
+.lm-tl-scroll-arrow.left { left:0; background:linear-gradient(90deg,rgba(241,245,249,0.95) 60%,transparent); }
+.lm-tl-scroll-arrow.right { right:0; background:linear-gradient(270deg,rgba(241,245,249,0.95) 60%,transparent); }
+html.dark .lm-tl-scroll-arrow.left { background:linear-gradient(90deg,rgba(15,23,42,0.95) 60%,transparent); }
+html.dark .lm-tl-scroll-arrow.right { background:linear-gradient(270deg,rgba(15,23,42,0.95) 60%,transparent); }
 .lm-tl-histogram { position:absolute; bottom:3px; left:0; right:0; height:38px; display:flex; align-items:flex-end; gap:1px; padding:0 2px; overflow:visible; }
 .lm-tl-bar { flex:1; min-width:0; opacity:0.65; position:relative; border-radius:2px 2px 0 0; transition:opacity 0.12s; }
 .lm-tl-bar:hover { opacity:1; }
@@ -8670,11 +8678,15 @@ async function loadLiveMonitor() {
           </div>
           <div id="tlComments"></div>
         </div>
-        <div class="lm-tl-timeline" id="tlTimeline">
-          <div class="lm-tl-timeline-inner" id="tlTimelineInner" onclick="_tlTimelineClick(event)">
-            <div class="lm-tl-histogram" id="tlHistogram"></div>
-            <div class="lm-tl-playhead" id="tlPlayhead"></div>
-            <div class="lm-tl-progress" id="tlProgress"></div>
+        <div style="position:relative;">
+          <button class="lm-tl-scroll-arrow left" onclick="document.getElementById('tlTimeline').scrollBy({left:-150,behavior:'smooth'})" title="Scroll left">◀</button>
+          <button class="lm-tl-scroll-arrow right" onclick="document.getElementById('tlTimeline').scrollBy({left:150,behavior:'smooth'})" title="Scroll right">▶</button>
+          <div class="lm-tl-timeline" id="tlTimeline">
+            <div class="lm-tl-timeline-inner" id="tlTimelineInner" onclick="_tlTimelineClick(event)">
+              <div class="lm-tl-histogram" id="tlHistogram"></div>
+              <div class="lm-tl-playhead" id="tlPlayhead"></div>
+              <div class="lm-tl-progress" id="tlProgress"></div>
+            </div>
           </div>
         </div>
         <div class="lm-tl-controls">
@@ -9539,15 +9551,36 @@ async function _tlInit() {
     }
   };
 
-  // Horizontal wheel scroll on timeline
+  // Horizontal scroll on timeline: wheel + drag
   const _tlTimelineEl = document.getElementById('tlTimeline');
   if(_tlTimelineEl){
+    // Mouse wheel → horizontal scroll
     _tlTimelineEl.addEventListener('wheel', function(e){
-      if(Math.abs(e.deltaY)>Math.abs(e.deltaX)){
-        e.preventDefault();
-        this.scrollLeft += e.deltaY;
-      }
+      e.preventDefault();
+      this.scrollLeft += (e.deltaY || e.deltaX);
     }, {passive:false});
+    // Drag to scroll (hold Shift or middle-click, or just drag right side of bar)
+    let _tlDragScrolling = false, _tlDragStartX = 0, _tlDragScrollStart = 0;
+    _tlTimelineEl.addEventListener('mousedown', function(e){
+      if(e.shiftKey || e.button === 1){ // shift+click or middle click for drag scroll
+        _tlDragScrolling = true;
+        _tlDragStartX = e.clientX;
+        _tlDragScrollStart = this.scrollLeft;
+        e.preventDefault();
+        this.style.cursor = 'grabbing';
+      }
+    });
+    window.addEventListener('mousemove', function(e){
+      if(!_tlDragScrolling) return;
+      const dx = e.clientX - _tlDragStartX;
+      _tlTimelineEl.scrollLeft = _tlDragScrollStart - dx;
+    });
+    window.addEventListener('mouseup', function(){
+      if(_tlDragScrolling){
+        _tlDragScrolling = false;
+        _tlTimelineEl.style.cursor = '';
+      }
+    });
   }
 
   window._tlSetSpeed = function(s){

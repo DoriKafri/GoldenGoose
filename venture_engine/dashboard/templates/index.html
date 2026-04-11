@@ -1752,8 +1752,11 @@ html.dark .lm-tl-stats-overlay { background:rgba(15,23,42,0.75); }
 html.dark .lm-tl-canvas-wrap { background:#0a0e17; }
 .lm-tl-canvas-wrap canvas { width:100%; height:100%; display:block; }
 /* Old stats row replaced by .lm-tl-stats-overlay on canvas */
-.lm-tl-timeline { position:relative; height:44px; background:rgba(241,245,249,0.9); cursor:pointer; border-top:1px solid var(--border); }
+.lm-tl-timeline { position:relative; height:44px; background:rgba(241,245,249,0.9); border-top:1px solid var(--border); overflow-x:auto; overflow-y:hidden; scrollbar-width:thin; scrollbar-color:rgba(148,163,184,0.3) transparent; }
+.lm-tl-timeline::-webkit-scrollbar { height:4px; }
+.lm-tl-timeline::-webkit-scrollbar-thumb { background:rgba(148,163,184,0.3); border-radius:2px; }
 html.dark .lm-tl-timeline { background:rgba(15,23,42,0.8); border-top-color:rgba(51,65,85,0.3); }
+.lm-tl-timeline-inner { position:relative; height:100%; min-width:200%; cursor:pointer; }
 .lm-tl-histogram { position:absolute; bottom:3px; left:0; right:0; height:38px; display:flex; align-items:flex-end; gap:1px; padding:0 2px; overflow:visible; }
 .lm-tl-bar { flex:1; min-width:0; opacity:0.65; position:relative; border-radius:2px 2px 0 0; transition:opacity 0.12s; }
 .lm-tl-bar:hover { opacity:1; }
@@ -1782,12 +1785,13 @@ html.dark .lm-tl-speed button:hover, html.dark .lm-tl-speed button.active { back
 #tlComments { position:absolute; bottom:12px; left:12px; width:320px; pointer-events:none; display:flex; flex-direction:column-reverse; top:0; overflow:hidden; -webkit-mask-image:linear-gradient(to bottom, transparent 0%, black 15%); mask-image:linear-gradient(to bottom, transparent 0%, black 15%); }
 .tl-bubble { display:flex; align-items:center; gap:8px; padding:5px 12px 5px 6px; margin-bottom:4px; background:rgba(255,255,255,0.85); backdrop-filter:blur(6px); border-radius:20px; animation:tlBubbleUp 10s ease-out forwards; transform-origin:bottom left; max-width:fit-content; box-shadow:0 1px 4px rgba(0,0,0,0.1); }
 html.dark .tl-bubble { background:rgba(0,0,0,0.45); box-shadow:none; }
-.tl-bubble-avatar { width:26px; height:26px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; color:#fff; }
+.tl-bubble-avatar { width:26px; height:26px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; color:#fff; overflow:hidden; }
+.tl-bubble-avatar img { width:100%; height:100%; border-radius:50%; object-fit:cover; }
 .tl-bubble-body { display:flex; flex-direction:column; min-width:0; }
 .tl-bubble-name { font-size:10px; font-weight:700; line-height:1.2; }
 .tl-bubble-msg { font-size:11px; color:rgba(30,41,59,0.8); line-height:1.3; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:230px; }
 html.dark .tl-bubble-msg { color:rgba(255,255,255,0.85); }
-.tl-bubble-emoji { font-size:20px; animation:tlEmojiFloat 3s ease-out forwards; position:absolute; pointer-events:none; }
+.tl-bubble-emoji { font-size:20px; animation:tlEmojiFloat 3s ease-out forwards; position:absolute; pointer-events:none; display:flex; align-items:center; gap:2px; }
 @keyframes tlBubbleUp {
   0% { opacity:0; transform:translateY(20px) scale(0.85); }
   5% { opacity:1; transform:translateY(0) scale(1); }
@@ -8658,6 +8662,7 @@ async function loadLiveMonitor() {
             </div>
           </div>
           <div class="lm-tl-stats-overlay">
+            <div class="tl-ov-stat"><div class="tl-ov-val" id="tlOnline" style="color:#22c55e;">0</div><div class="tl-ov-label">Online</div></div>
             <div class="tl-ov-stat"><div class="tl-ov-val" id="tlCommits" style="color:#2563eb;">0</div><div class="tl-ov-label">Commits</div></div>
             <div class="tl-ov-stat"><div class="tl-ov-val" id="tlBugs" style="color:#dc2626;">0</div><div class="tl-ov-label">Bugs</div></div>
             <div class="tl-ov-stat"><div class="tl-ov-val" id="tlReleases" style="color:#059669;">0</div><div class="tl-ov-label">Releases</div></div>
@@ -8665,10 +8670,12 @@ async function loadLiveMonitor() {
           </div>
           <div id="tlComments"></div>
         </div>
-        <div class="lm-tl-timeline" id="tlTimeline" onclick="_tlTimelineClick(event)">
-          <div class="lm-tl-histogram" id="tlHistogram"></div>
-          <div class="lm-tl-playhead" id="tlPlayhead"></div>
-          <div class="lm-tl-progress" id="tlProgress"></div>
+        <div class="lm-tl-timeline" id="tlTimeline">
+          <div class="lm-tl-timeline-inner" id="tlTimelineInner" onclick="_tlTimelineClick(event)">
+            <div class="lm-tl-histogram" id="tlHistogram"></div>
+            <div class="lm-tl-playhead" id="tlPlayhead"></div>
+            <div class="lm-tl-progress" id="tlProgress"></div>
+          </div>
         </div>
         <div class="lm-tl-controls">
           <div class="lm-tl-speed" id="tlSpeedBtns">
@@ -9187,27 +9194,74 @@ async function _tlInit() {
       this.name=name; this.label=label; this.color=color;
       this.x=x; this.y=y; this.tx=x; this.ty=y; this.r=r; this.type=type;
       this.glow=0; this.pulse=0;
+      // Online/offline visibility
+      this.opacity=1; this.targetOpacity=1;
+      this.scale=1; this.targetScale=1;
+      this.lastActiveTime=0; // timeline timestamp of last activity
+      this.entryPulse=0; // special "came online" pulse
     }
     activate(i=1) { this.glow=Math.min(1,this.glow+i); this.pulse=1; }
-    update() { this.glow*=0.97; this.pulse*=0.94; this.x+=(this.tx-this.x)*0.03; this.y+=(this.ty-this.y)*0.03; }
+    setOnline(animate) {
+      if (this.targetOpacity < 0.5) {
+        // Was offline → coming online
+        this.targetOpacity=1; this.targetScale=1;
+        if (animate) { this.entryPulse=1; this.pulse=1; this.glow=1; }
+      }
+      this.targetOpacity=1; this.targetScale=1;
+    }
+    setOffline(animate) {
+      this.targetOpacity=0.08; this.targetScale=0.4;
+    }
+    update() {
+      this.glow*=0.97; this.pulse*=0.94; this.entryPulse*=0.96;
+      this.x+=(this.tx-this.x)*0.03; this.y+=(this.ty-this.y)*0.03;
+      // Smooth opacity & scale transitions
+      this.opacity+=(this.targetOpacity-this.opacity)*0.045;
+      this.scale+=(this.targetScale-this.scale)*0.045;
+    }
     draw(c) {
+      if (this.opacity < 0.02) return; // fully hidden, skip draw
       const dark = _tlIsDark();
-      if(this.glow>0.01){const g=c.createRadialGradient(this.x,this.y,this.r,this.x,this.y,this.r*3.5);g.addColorStop(0,this.color+Math.floor(this.glow*70).toString(16).padStart(2,'0'));g.addColorStop(1,'transparent');c.fillStyle=g;c.beginPath();c.arc(this.x,this.y,this.r*3.5,0,Math.PI*2);c.fill();}
-      if(this.pulse>0.05){c.strokeStyle=this.color+Math.floor(this.pulse*100).toString(16).padStart(2,'0');c.lineWidth=1.5;c.beginPath();c.arc(this.x,this.y,this.r+(1-this.pulse)*20,0,Math.PI*2);c.stroke();}
-      const bg=c.createRadialGradient(this.x-this.r*0.3,this.y-this.r*0.3,this.r*0.1,this.x,this.y,this.r);bg.addColorStop(0,this.color);bg.addColorStop(1,this.color+'88');c.fillStyle=bg;c.beginPath();c.arc(this.x,this.y,this.r,0,Math.PI*2);c.fill();
+      const op = this.opacity;
+      const sc = this.scale;
+      const drawR = this.r * sc;
+      // Entry pulse — expanding ring when coming online
+      if(this.entryPulse>0.05){
+        const epR = drawR + (1-this.entryPulse)*35;
+        const epA = Math.floor(this.entryPulse*180);
+        c.strokeStyle=this.color+epA.toString(16).padStart(2,'0');
+        c.lineWidth=2.5;c.beginPath();c.arc(this.x,this.y,epR,0,Math.PI*2);c.stroke();
+      }
+      // Glow halo
+      if(this.glow>0.01){const g=c.createRadialGradient(this.x,this.y,drawR,this.x,this.y,drawR*3.5);g.addColorStop(0,this.color+Math.floor(this.glow*op*70).toString(16).padStart(2,'0'));g.addColorStop(1,'transparent');c.fillStyle=g;c.beginPath();c.arc(this.x,this.y,drawR*3.5,0,Math.PI*2);c.fill();}
+      // Pulse ring
+      if(this.pulse>0.05){c.strokeStyle=this.color+Math.floor(this.pulse*op*100).toString(16).padStart(2,'0');c.lineWidth=1.5;c.beginPath();c.arc(this.x,this.y,drawR+(1-this.pulse)*20,0,Math.PI*2);c.stroke();}
+      // Main circle
+      const nodeAlpha = Math.floor(op * 0x88).toString(16).padStart(2,'0');
+      const bg=c.createRadialGradient(this.x-drawR*0.3,this.y-drawR*0.3,drawR*0.1,this.x,this.y,drawR);
+      bg.addColorStop(0,this.color);bg.addColorStop(1,this.color+nodeAlpha);
+      c.fillStyle=bg;c.beginPath();c.arc(this.x,this.y,drawR,0,Math.PI*2);c.fill();
       // Shadow for light mode
-      if(!dark){c.strokeStyle='rgba(0,0,0,0.08)';c.lineWidth=1;c.beginPath();c.arc(this.x,this.y,this.r,0,Math.PI*2);c.stroke();}
-      const txtAlpha = dark ? (0.5+this.glow*0.5) : (0.7+this.glow*0.3);
+      if(!dark&&op>0.3){c.strokeStyle='rgba(0,0,0,'+(0.08*op)+')';c.lineWidth=1;c.beginPath();c.arc(this.x,this.y,drawR,0,Math.PI*2);c.stroke();}
+      // Online indicator dot (green dot when fully online)
+      if(this.type==='user'&&op>0.7){
+        const dotR=Math.max(2.5,drawR*0.28);
+        c.fillStyle='#22c55e';c.beginPath();c.arc(this.x+drawR*0.65,this.y-drawR*0.65,dotR,0,Math.PI*2);c.fill();
+        c.strokeStyle=dark?'#0f172a':'#f8fafc';c.lineWidth=1.2;c.beginPath();c.arc(this.x+drawR*0.65,this.y-drawR*0.65,dotR,0,Math.PI*2);c.stroke();
+      }
+      // Label text
+      const txtAlpha = op * (dark ? (0.5+this.glow*0.5) : (0.7+this.glow*0.3));
+      if(txtAlpha<0.03) return;
       c.fillStyle = dark ? 'rgba(148,163,184,'+txtAlpha+')' : 'rgba(30,41,59,'+txtAlpha+')';
       const isKanban = this.type==='kanban';
-      const fs = isKanban ? Math.max(10, Math.round(this.r * 1.8)) : Math.max(8, Math.round(this.r * (this.type==='center'?0.7:0.9)));
+      const fs = isKanban ? Math.max(10, Math.round(drawR * 1.8)) : Math.max(8, Math.round(drawR * (this.type==='center'?0.7:0.9)));
       const fsLabel = isKanban ? Math.max(9, Math.round(fs * 0.85)) : Math.max(6, Math.round(fs * 0.7));
       c.font=(isKanban?'700 ':'600 ')+fs+'px Inter';c.textAlign='center';
-      if(isKanban){c.fillText(this.name,this.x,this.y-this.r-4);}
-      else{c.fillText(this.name,this.x,this.y+this.r+fs+3);}
-      if(this.label){c.fillStyle=dark?'rgba(100,116,139,0.5)':'rgba(100,116,139,0.7)';c.font='600 '+fsLabel+'px Inter';
-        if(isKanban){c.fillText(this.label,this.x,this.y+this.r+fsLabel+5);}
-        else{c.fillText(this.label,this.x,this.y+this.r+fs+fsLabel+4);}
+      if(isKanban){c.fillText(this.name,this.x,this.y-drawR-4);}
+      else{c.fillText(this.name,this.x,this.y+drawR+fs+3);}
+      if(this.label){c.fillStyle=dark?'rgba(100,116,139,'+(0.5*op)+')':'rgba(100,116,139,'+(0.7*op)+')';c.font='600 '+fsLabel+'px Inter';
+        if(isKanban){c.fillText(this.label,this.x,this.y+drawR+fsLabel+5);}
+        else{c.fillText(this.label,this.x,this.y+drawR+fs+fsLabel+4);}
       }
     }
   }
@@ -9216,9 +9270,12 @@ async function _tlInit() {
   // Constrain orbits to stay within canvas bounds (leave 40px margin for labels)
   const maxUserOrbit = Math.min(Math.min(W,H)*0.35, 160);
   const maxAiOrbit = Math.min(Math.min(W,H)*0.2, 90);
-  const userNodes = TL_TEAM.map((u,i)=>{const a=(i/TL_TEAM.length)*Math.PI*2-Math.PI/2;const d=maxUserOrbit;return new TLNode(u.name,u.role,u.color,cx+Math.cos(a)*d,cy+Math.sin(a)*d,9,'user');});
+  const userNodes = TL_TEAM.map((u,i)=>{const a=(i/TL_TEAM.length)*Math.PI*2-Math.PI/2;const d=maxUserOrbit;const n=new TLNode(u.name,u.role,u.color,cx+Math.cos(a)*d,cy+Math.sin(a)*d,9,'user');n.opacity=0;n.targetOpacity=0.08;n.scale=0.4;n.targetScale=0.4;return n;});
   const aiNodes = TL_AI.map((a,i)=>{const ang=(i/TL_AI.length)*Math.PI*2-Math.PI/4;const d=maxAiOrbit;return new TLNode(a.name,a.role,a.color,cx+Math.cos(ang)*d,cy+Math.sin(ang)*d,7,'ai');});
   const allNodes = [centerNode,...userNodes,...aiNodes];
+  // Track online user count for replay
+  let _tlOnlineCount = 0;
+  const OFFLINE_TIMEOUT = 10 * 60 * 1000; // 10 minutes of inactivity → fade out
 
   // Particles
   const particles = [];
@@ -9315,9 +9372,32 @@ async function _tlInit() {
 
   // Histogram
   const NUM_BINS=60;
-  const histBins=Array.from({length:NUM_BINS},()=>({commits:0,bugs:0,releases:0,total:0}));
+  const histBins=Array.from({length:NUM_BINS},()=>({commits:0,bugs:0,releases:0,total:0,onlineUsers:0}));
   tlEvents.forEach(ev=>{const pct=(ev.t-T_START)/T_SPAN;const bin=Math.min(NUM_BINS-1,Math.max(0,Math.floor(pct*NUM_BINS)));histBins[bin].total++;if(ev.type==='commit')histBins[bin].commits++;else if(ev.type==='bug')histBins[bin].bugs++;else if(ev.type==='release')histBins[bin].releases++;});
   const maxBin=Math.max(1,...histBins.map(b=>b.total));
+
+  // Pre-compute online users per bin for the timeline graph
+  const _userLastActive = {}; // name → timestamp
+  const teamNames = TL_TEAM.map(u=>u.name);
+  let evIdx=0;
+  for(let bin=0;bin<NUM_BINS;bin++){
+    const binTime = T_START + (bin + 0.5) / NUM_BINS * T_SPAN;
+    // Process events up to this bin's time
+    while(evIdx<tlEvents.length && tlEvents[evIdx].t<=binTime){
+      const ev=tlEvents[evIdx]; const d=ev.data;
+      if(ev.type==='bug'&&d.reporter){_userLastActive[d.reporter]=ev.t;}
+      if(ev.type==='user_action'&&d.user){_userLastActive[d.user]=ev.t;}
+      evIdx++;
+    }
+    // Count how many team members are online at this bin
+    let online=0;
+    for(const name of teamNames){
+      const la=_userLastActive[name];
+      if(la && (binTime-la)<=OFFLINE_TIMEOUT) online++;
+    }
+    histBins[bin].onlineUsers=online;
+  }
+  const maxOnline=Math.max(1,...histBins.map(b=>b.onlineUsers));
 
   const histEl=document.getElementById('tlHistogram');
   if(histEl){
@@ -9342,6 +9422,28 @@ async function _tlInit() {
       const sep=dayStarts.has(i)&&i>0?`<div style="position:absolute;top:-12px;left:-1px;width:1px;height:calc(100% + 12px);background:rgba(100,116,139,0.25);"></div>`:'';
       return `<div class="lm-tl-bar" style="height:${Math.max(tH,1)}px;position:relative;overflow:visible;">${p}${dayLabel}${sep}</div>`;
     }).join('');
+
+    // Add SVG online users line overlay
+    const svgPts = histBins.map((b,i) => {
+      const x = ((i + 0.5) / NUM_BINS) * 100;
+      const y = 100 - (b.onlineUsers / maxOnline) * 100;
+      return `${x},${y}`;
+    }).join(' ');
+    const onlineSvg = document.createElement('div');
+    onlineSvg.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:2;';
+    onlineSvg.innerHTML = `<svg viewBox="0 0 100 100" preserveAspectRatio="none" style="width:100%;height:100%;overflow:visible;">
+      <defs><linearGradient id="onlineGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#22c55e" stop-opacity="0.3"/><stop offset="100%" stop-color="#22c55e" stop-opacity="0.02"/></linearGradient></defs>
+      <polygon points="0,100 ${svgPts} 100,100" fill="url(#onlineGrad)" />
+      <polyline points="${svgPts}" fill="none" stroke="#22c55e" stroke-width="1.5" vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round" opacity="0.8"/>
+    </svg>`;
+    histEl.style.position = 'relative';
+    histEl.appendChild(onlineSvg);
+
+    // Add legend
+    const legend = document.createElement('div');
+    legend.style.cssText = 'position:absolute;top:-10px;right:4px;display:flex;align-items:center;gap:3px;font-size:7px;font-family:"JetBrains Mono",monospace;color:#22c55e;opacity:0.7;pointer-events:none;z-index:3;';
+    legend.innerHTML = `<svg width="12" height="6"><line x1="0" y1="3" x2="12" y2="3" stroke="#22c55e" stroke-width="1.5"/></svg>Online`;
+    histEl.appendChild(legend);
   }
 
   // State
@@ -9415,14 +9517,17 @@ async function _tlInit() {
       // Reset live counters
       _tlLiveLastTime = null;
       _tlLiveLastPoll = 0;
+      // In LIVE mode, start all users as visible — poll will update who's really online
+      userNodes.forEach(n=>{n.targetOpacity=1;n.targetScale=1;});
       // Show andon button
       if (andonBtn) andonBtn.style.display = 'flex';
     } else {
       if (controlsEl) controlsEl.style.display = '';
       if (timelineEl) timelineEl.style.display = '';
-      // Reset replay
+      // Reset replay — all users start offline
       currentTime = T_START; eventIndex = 0;
       counters = {commits:0,bugs:0,releases:0,agents:0};
+      userNodes.forEach(n=>{n.opacity=0;n.targetOpacity=0.08;n.scale=0.4;n.targetScale=0.4;n.lastActiveTime=0;});
       _tlUpdateCounters();
       const comments = document.getElementById('tlComments');
       if (comments) comments.innerHTML = '';
@@ -9434,26 +9539,52 @@ async function _tlInit() {
     }
   };
 
+  // Horizontal wheel scroll on timeline
+  const _tlTimelineEl = document.getElementById('tlTimeline');
+  if(_tlTimelineEl){
+    _tlTimelineEl.addEventListener('wheel', function(e){
+      if(Math.abs(e.deltaY)>Math.abs(e.deltaX)){
+        e.preventDefault();
+        this.scrollLeft += e.deltaY;
+      }
+    }, {passive:false});
+  }
+
   window._tlSetSpeed = function(s){
     speed=s;
     document.querySelectorAll('#tlSpeedBtns button').forEach(b=>b.classList.toggle('active',parseFloat(b.textContent)===s));
   };
 
   window._tlTimelineClick = function(e){
-    const rect=e.currentTarget.getBoundingClientRect();
+    const inner = document.getElementById('tlTimelineInner');
+    const rect = inner ? inner.getBoundingClientRect() : e.currentTarget.getBoundingClientRect();
     const pct=Math.max(0,Math.min(1,(e.clientX-rect.left)/rect.width));
     currentTime=T_START+pct*T_SPAN;
     eventIndex=0;counters={commits:0,bugs:0,releases:0,agents:0};
+    // Reset all user nodes to offline, then replay which ones were active
+    userNodes.forEach(n=>{n.targetOpacity=0.08;n.opacity=0.08;n.scale=0.4;n.targetScale=0.4;n.lastActiveTime=0;});
     while(eventIndex<tlEvents.length&&tlEvents[eventIndex].t<=currentTime){
       const ev=tlEvents[eventIndex];
       if(ev.type==='commit')counters.commits++;else if(ev.type==='bug')counters.bugs++;else if(ev.type==='release')counters.releases++;else if(ev.type==='ai_action')counters.agents++;
+      // Track which users were active (without animation on seek)
+      const d=ev.data;
+      if(ev.type==='bug'&&d.reporter){const rp=findUser(d.reporter);if(rp){rp.lastActiveTime=ev.t;rp.targetOpacity=1;rp.opacity=1;rp.scale=1;rp.targetScale=1;}}
+      if(ev.type==='user_action'&&d.user){const un=findUser(d.user);if(un){un.lastActiveTime=ev.t;un.targetOpacity=1;un.opacity=1;un.scale=1;un.targetScale=1;}}
       eventIndex++;
     }
+    // Fade out users who haven't been active recently at seek position
+    userNodes.forEach(n=>{
+      if(n.lastActiveTime>0 && (currentTime-n.lastActiveTime)>OFFLINE_TIMEOUT){
+        n.targetOpacity=0.08;n.opacity=0.08;n.scale=0.4;n.targetScale=0.4;
+      }
+    });
     _tlUpdateCounters();
   };
 
   function _tlUpdateCounters(){
     const el=id=>document.getElementById(id);
+    const onEl = el('tlOnline');
+    if(onEl) onEl.textContent = _tlOnlineCount;
     el('tlCommits').textContent=counters.commits;
     el('tlBugs').textContent=counters.bugs;
     el('tlReleases').textContent=counters.releases;
@@ -9501,9 +9632,12 @@ async function _tlInit() {
     if (!container) return;
     const bubble = document.createElement('div');
     bubble.className = 'tl-bubble';
-    const initials = name.split(' ').map(w=>w[0]).join('').slice(0,2);
+    // Find full name for avatar lookup
+    const teamMember = TL_TEAM.find(u => u.name === name);
+    const fullName = teamMember ? teamMember.fullName : name;
+    const avatarUrl = _avatar(fullName, 26);
     bubble.innerHTML = `
-      <div class="tl-bubble-avatar" style="background:${color};">${initials}</div>
+      <div class="tl-bubble-avatar" style="background:${color};"><img src="${avatarUrl}" alt="${esc(name)}"></div>
       <div class="tl-bubble-body">
         <div class="tl-bubble-name" style="color:${color};">${esc(name)}${isAi?'<span style="font-size:8px;margin-left:4px;padding:1px 4px;border-radius:3px;background:rgba(124,58,237,0.3);color:#c084fc;">AI</span>':''}</div>
         <div class="tl-bubble-msg">${esc(msg)}</div>
@@ -9515,15 +9649,22 @@ async function _tlInit() {
     while (container.children.length > 20) container.lastChild.remove();
   }
 
-  function _tlAddEmoji() {
+  function _tlAddEmoji(userName) {
     const container = document.getElementById('tlComments');
     if (!container) return;
     const wrap = container.closest('.lm-tl-canvas-wrap');
     if (!wrap) return;
     const emoji = document.createElement('div');
     emoji.className = 'tl-bubble-emoji';
-    emoji.textContent = _tlEmojis[Math.floor(Math.random() * _tlEmojis.length)];
-    const wrapRect = wrap.getBoundingClientRect();
+    // Add user thumbnail next to emoji
+    const emojiChar = _tlEmojis[Math.floor(Math.random() * _tlEmojis.length)];
+    if (userName) {
+      const teamMember = TL_TEAM.find(u => u.name === userName);
+      const fullName = teamMember ? teamMember.fullName : userName;
+      emoji.innerHTML = `<img src="${_avatar(fullName, 20)}" style="width:18px;height:18px;border-radius:50%;vertical-align:middle;margin-right:3px;">${emojiChar}`;
+    } else {
+      emoji.textContent = emojiChar;
+    }
     emoji.style.left = (50 + Math.random() * 280) + 'px';
     emoji.style.bottom = '10px';
     wrap.appendChild(emoji);
@@ -9541,7 +9682,7 @@ async function _tlInit() {
     _tlAddBubble(sm.user, sm.msg, sm.color, false);
     // Sometimes add emoji reactions
     if (Math.random() > 0.5) {
-      setTimeout(() => _tlAddEmoji(), 300 + Math.random() * 800);
+      setTimeout(() => _tlAddEmoji(sm.user), 300 + Math.random() * 800);
     }
   }
 
@@ -9586,26 +9727,26 @@ async function _tlInit() {
       case 'commit':{
         counters.commits++;
         const ai=findAi('Claude');
-        if(ai){ai.activate(0.8);emit(ai,centerNode,'#c084fc',3);}
+        if(ai){ai.activate(0.8);ai.setOnline(true);ai.lastActiveTime=ev.t;emit(ai,centerNode,'#c084fc',3);}
         centerNode.activate(0.5);
         _tlAddBubble('Claude', 'committed: '+d.msg, '#c084fc', true);
-        if(Math.random()>0.6) setTimeout(()=>_tlAddEmoji(), 400);
+        if(Math.random()>0.6) setTimeout(()=>_tlAddEmoji('Claude'), 400);
         break;
       }
       case 'release':{
         counters.releases++;
         const ver=document.getElementById('tlVersion');
         if(ver){ver.textContent=d.v+' RELEASED';ver.classList.add('show');setTimeout(()=>ver.classList.remove('show'),3000);}
-        centerNode.activate(1);allNodes.forEach(n=>n.activate(0.3));
+        centerNode.activate(1);allNodes.forEach(n=>{n.activate(0.3);});
         _tlAddBubble('System', d.v+' deployed! '+d.fixes+' fixes', '#10b981', false);
-        for(let i=0;i<3;i++) setTimeout(()=>_tlAddEmoji(), i*300);
+        for(let i=0;i<3;i++){const rndUser=TL_TEAM[Math.floor(Math.random()*TL_TEAM.length)];setTimeout(()=>_tlAddEmoji(rndUser.name), i*300);}
         break;
       }
       case 'bug':{
         counters.bugs++;
         const rp=findUser(d.reporter);const fx=findAi(d.fixer)||findAi('Claude');
-        if(rp){rp.activate(0.7);emit(rp,centerNode,'#f87171',2.5);}
-        if(fx){fx.activate(0.5);emit(centerNode,fx,'#4ade80',2.5);}
+        if(rp){rp.setOnline(true);rp.lastActiveTime=ev.t;rp.activate(0.7);emit(rp,centerNode,'#f87171',2.5);}
+        if(fx){fx.setOnline(true);fx.lastActiveTime=ev.t;fx.activate(0.5);emit(centerNode,fx,'#4ade80',2.5);}
         _tlAddBubble(d.reporter, 'reported '+d.key+' → fixed by '+d.fixer, '#f87171', false);
         // Animate ticket from reporter to Open kanban column
         _tlEmitKanbanTicket(d.key || 'BUG', null, 'open', rp ? rp.color : '#f87171', rp || null);
@@ -9613,7 +9754,7 @@ async function _tlInit() {
       }
       case 'user_action':{
         const un=findUser(d.user);
-        if(un){un.activate(0.4);emit(un,centerNode,un.color||'#38bdf8',2);}
+        if(un){un.setOnline(true);un.lastActiveTime=ev.t;un.activate(0.4);emit(un,centerNode,un.color||'#38bdf8',2);}
         _tlAddBubble(d.user, d.action, un?un.color:'#38bdf8', false);
         // Check for kanban movement — from API data or parsed from text
         if (d.kanban_from || d.kanban_to) {
@@ -9627,7 +9768,7 @@ async function _tlInit() {
       case 'ai_action':{
         counters.agents++;
         const an=findAi(d.agent);
-        if(an){an.activate(0.6);emit(an,centerNode,an.color||'#a78bfa',2.5);}
+        if(an){an.setOnline(true);an.lastActiveTime=ev.t;an.activate(0.6);emit(an,centerNode,an.color||'#a78bfa',2.5);}
         _tlAddBubble(d.agent, d.action, an?an.color:'#a78bfa', true);
         break;
       }
@@ -9653,14 +9794,24 @@ async function _tlInit() {
         const arr = [..._tlLiveSeenKeys];
         _tlLiveSeenKeys = new Set(arr.slice(arr.length - 100));
       }
+      // Update user online/offline states from active_users
+      const activeNames = new Set((data.active_users || []).map(u => u.split(' ')[0]));
+      userNodes.forEach(n => {
+        if (activeNames.has(n.name)) n.setOnline(true);
+        else n.setOffline();
+      });
+      _tlOnlineCount = activeNames.size;
+      const onEl = document.getElementById('tlOnline');
+      if(onEl) onEl.textContent = _tlOnlineCount;
+
       for (const ev of events) {
         const meta = ev.meta || {};
         const isAgent = meta.is_agent;
         const name = (ev.user || 'System').split(' ')[0];
         const un = findUser(name);
         const an = findAi(name) || (isAgent ? findAi('Claude') : null);
-        if (an) { an.activate(0.6); emit(an, centerNode, an.color, 2.5); }
-        else if (un) { un.activate(0.5); emit(un, centerNode, un.color, 2); }
+        if (an) { an.setOnline(true); an.activate(0.6); emit(an, centerNode, an.color, 2.5); }
+        else if (un) { un.setOnline(true); un.activate(0.5); emit(un, centerNode, un.color, 2); }
         centerNode.activate(0.3);
         const color = an ? an.color : (un ? un.color : '#64748b');
         _tlAddBubble(ev.user || 'System', ev.action || '', color, !!isAgent);
@@ -9693,14 +9844,36 @@ async function _tlInit() {
     if (!_tlAndonStopped) {
     if (_tlMode === 'replay') {
       currentTime+=dt*TIME_SCALE*speed;
-      if(currentTime>T_END+60000){currentTime=T_START;eventIndex=0;counters={commits:0,bugs:0,releases:0,agents:0};}
+      if(currentTime>T_END+60000){
+        currentTime=T_START;eventIndex=0;counters={commits:0,bugs:0,releases:0,agents:0};
+        // Reset all user nodes to offline on loop
+        userNodes.forEach(n=>{n.opacity=0;n.targetOpacity=0.08;n.scale=0.4;n.targetScale=0.4;n.lastActiveTime=0;});
+      }
       while(eventIndex<tlEvents.length&&tlEvents[eventIndex].t<=currentTime){processEvent(tlEvents[eventIndex]);eventIndex++;}
+      // Check for inactivity — fade users who haven't been active
+      _tlOnlineCount = 0;
+      userNodes.forEach(n=>{
+        if(n.lastActiveTime>0 && (currentTime-n.lastActiveTime)>OFFLINE_TIMEOUT){
+          n.setOffline();
+        }
+        if(n.targetOpacity>0.5) _tlOnlineCount++;
+      });
       _tlMaybeSlackBubble();
       const el=id=>document.getElementById(id);
       const pct=(currentTime-T_START)/T_SPAN*100;
       el('tlClock').textContent=formatTlDate(currentTime);
       el('tlProgress').style.width=pct+'%';
       el('tlPlayhead').style.left=pct+'%';
+      // Auto-scroll timeline to keep playhead visible
+      const tlOuter = document.getElementById('tlTimeline');
+      const tlInner = document.getElementById('tlTimelineInner');
+      if(tlOuter && tlInner){
+        const innerW = tlInner.scrollWidth;
+        const outerW = tlOuter.clientWidth;
+        const playheadX = (pct/100) * innerW;
+        const scrollLeft = playheadX - outerW * 0.6;
+        tlOuter.scrollLeft = Math.max(0, scrollLeft);
+      }
     } else {
       // LIVE mode
       const clockEl = document.getElementById('tlClock');
@@ -9783,8 +9956,8 @@ async function _tlInit() {
       ctx.fill();
     }
 
-    // Connections (user/ai to center)
-    allNodes.forEach(n=>{if(n===centerNode)return;const a=0.06+n.glow*0.15;
+    // Connections (user/ai to center) — fade with node opacity
+    allNodes.forEach(n=>{if(n===centerNode||n.opacity<0.1)return;const a=(0.06+n.glow*0.15)*n.opacity;
       ctx.strokeStyle=dark?'rgba(71,85,105,'+a+')':'rgba(148,163,184,'+(a+0.05)+')';
       ctx.lineWidth=0.8;ctx.beginPath();ctx.moveTo(centerNode.x,centerNode.y);ctx.lineTo(n.x,n.y);ctx.stroke();});
 

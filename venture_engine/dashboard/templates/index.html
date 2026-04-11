@@ -11,7 +11,6 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://d3js.org/d3.v7.min.js"></script>
-<script src="https://unpkg.com/force-graph@1.43.5/dist/force-graph.min.js"></script>
 <style>
 :root {
   --bg: #ffffff;
@@ -1066,42 +1065,6 @@ html.dark .sl-msg-wrap:hover { background:rgba(255,255,255,.08); }
   .lb-podium { flex-direction:column; align-items:center; }
   .lb-podium-card { min-width:0; width:100%; max-width:280px; }
 }
-/* ─── Knowledge Graph ─────────────────────────────── */
-#graphCanvas { width:100%; background:var(--bg); border-radius:var(--radius); }
-#graphCanvas svg { width:100%; height:100%; display:block; }
-/* Stretch graph to full available screen */
-.graph-fullscreen { display:flex; height:calc(100vh - 56px); margin:-16px; overflow:hidden; }
-.graph-canvas-wrap { flex:1; min-width:0; position:relative; background:#1a1b2e; }
-.graph-canvas-wrap canvas { display:block; }
-.graph-legend { display:flex; gap:10px; padding:8px 16px; font-size:11px; color:#ccc; flex-wrap:wrap; position:absolute; bottom:12px; left:12px; z-index:10; background:rgba(20,20,40,.9); backdrop-filter:blur(8px); border-radius:10px; border:1px solid rgba(255,255,255,.1); }
-.graph-legend-item { display:flex; align-items:center; gap:4px; }
-.graph-legend-dot { width:10px; height:10px; border-radius:50%; }
-/* ── File/Page View Panel ── */
-.graph-file-panel { width:380px; min-width:320px; border-left:1px solid var(--border); background:var(--card); display:flex; flex-direction:column; overflow:hidden; }
-.graph-file-header { display:flex; align-items:center; gap:8px; padding:14px 16px; border-bottom:1px solid var(--border); flex-shrink:0; }
-.graph-file-icon { font-size:18px; }
-.graph-file-title { font-size:15px; font-weight:800; color:var(--text); flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.graph-file-type { font-size:11px; padding:2px 8px; border-radius:var(--radius-pill); font-weight:600; }
-.graph-file-close { background:none; border:none; color:var(--text3); font-size:18px; cursor:pointer; padding:4px 8px; border-radius:6px; }
-.graph-file-close:hover { background:var(--bg2); color:var(--text); }
-.graph-file-body { flex:1; overflow-y:auto; padding:16px; }
-.graph-file-meta { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:14px; }
-.graph-file-meta-item { font-size:12px; padding:3px 10px; border-radius:var(--radius-pill); background:var(--bg2); color:var(--text2); }
-.graph-file-section { margin-bottom:16px; }
-.graph-file-section-title { font-size:12px; font-weight:700; color:var(--text3); text-transform:uppercase; letter-spacing:.5px; margin-bottom:8px; }
-.graph-file-content { font-size:14px; line-height:1.6; color:var(--text); }
-.graph-file-links { list-style:none; padding:0; margin:0; }
-.graph-file-links li { padding:6px 10px; border-radius:6px; font-size:13px; cursor:pointer; color:var(--accent); display:flex; align-items:center; gap:6px; }
-.graph-file-links li:hover { background:var(--bg2); }
-.graph-file-links li::before { content:''; width:8px; height:8px; border-radius:50%; flex-shrink:0; }
-.graph-file-empty { display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; color:var(--text3); gap:8px; }
-.graph-file-empty-icon { font-size:40px; opacity:.4; }
-.graph-file-empty-text { font-size:13px; }
-.graph-search { position:absolute; top:12px; left:12px; z-index:10; display:flex; gap:6px; align-items:center; }
-.graph-search input { padding:8px 14px; border-radius:var(--radius-pill); border:1px solid rgba(255,255,255,.12); background:rgba(26,27,46,.9); color:#e5e5e5; font-size:12px; width:220px; font-family:inherit; backdrop-filter:blur(8px); }
-.graph-search input:focus { outline:none; border-color:rgba(196,167,255,.5); box-shadow:0 0 12px rgba(196,167,255,.15); }
-.graph-search input::placeholder { color:rgba(255,255,255,.35); }
-@media(max-width:768px) { .graph-file-panel { display:none; } }
 .ann-compose-submit { background:linear-gradient(135deg,#f59e0b,#d97706); color:#fff; }
 @media(max-width:768px) {
   .reader-body { flex-direction:column; }
@@ -1689,10 +1652,6 @@ html.dark .sl-msg-wrap:hover { background:rgba(255,255,255,.08); }
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
         Bugs
         <span class="nav-badge" id="bugsBadge" style="display:none;">0</span>
-      </button>
-      <button class="sidebar-nav-item" data-tab="graph" onclick="switchTab('graph')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/><circle cx="18" cy="6" r="3"/><line x1="8.5" y1="7.5" x2="15.5" y2="16.5"/><line x1="8.5" y1="6" x2="15.5" y2="6"/></svg>
-        Graph
       </button>
       <button class="sidebar-nav-item" data-tab="slack" onclick="switchTab('slack')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 2a2.5 2.5 0 00-2.5 2.5V9h4.5A2.5 2.5 0 0014.5 2z"/><path d="M9.5 2A2.5 2.5 0 007 4.5V9h4.5V4.5A2.5 2.5 0 009.5 2z" opacity=".5"/><path d="M22 9.5a2.5 2.5 0 00-2.5-2.5H15v4.5a2.5 2.5 0 002.5 2.5H22V9.5z" opacity=".5"/><path d="M2 14.5A2.5 2.5 0 004.5 17H9v-4.5A2.5 2.5 0 006.5 10H2v4.5z" opacity=".5"/></svg>
@@ -2621,7 +2580,7 @@ function switchTab(tab, skipHash) {
     b.classList.toggle('active', b.dataset.tab === tab);
   });
   // Show/hide context-sensitive elements
-  const isVentureTab = !['news','threads','bugs','graph','slack','activity','sim-users','leaderboard','release-notes','live','ic'].includes(tab);
+  const isVentureTab = !['news','threads','bugs','slack','activity','sim-users','leaderboard','release-notes','live','ic'].includes(tab);
   document.getElementById('suggestTabBtn').style.display = isVentureTab ? '' : 'none';
   document.getElementById('newsPostBar').style.display = (tab === 'news') ? '' : 'none';
   document.getElementById('ventureSearchBar').style.display = isVentureTab ? '' : 'none';
@@ -2643,7 +2602,6 @@ function switchTab(tab, skipHash) {
   if (tab === 'threads') { loadThreads(); }
   else if (tab === 'news') { loadNews(); }
   else if (tab === 'bugs') { loadBugs(); }
-  else if (tab === 'graph') { loadGraph(); }
   else if (tab === 'slack') { loadSlack(); }
   else if (tab === 'activity') { loadActivity(); }
   else if (tab === 'sim-users') { loadSimUsers(); }
@@ -2684,7 +2642,7 @@ function readHash() {
     return;
   }
   const ventureId = parts[1];
-  const validTabs = ['news','venture','stealth','flip','customer','missing_piece','training','threads','bugs','graph','slack','activity','sim-users','leaderboard','release-notes','live','ic'];
+  const validTabs = ['news','venture','stealth','flip','customer','missing_piece','training','threads','bugs','slack','activity','sim-users','leaderboard','release-notes','live','ic'];
   if (validTabs.includes(tab)) {
     switchTab(tab, true);
     if (ventureId) setTimeout(() => openDetail(ventureId, true), 300);
@@ -2716,7 +2674,7 @@ window.addEventListener('popstate', (e) => {
     return;
   }
   const ventureId = parts[1];
-  const validTabs = ['news','venture','stealth','flip','customer','missing_piece','training','threads','bugs','graph','slack','activity','sim-users','leaderboard','release-notes','live','ic'];
+  const validTabs = ['news','venture','stealth','flip','customer','missing_piece','training','threads','bugs','slack','activity','sim-users','leaderboard','release-notes','live','ic'];
   if (validTabs.includes(tab) && tab !== currentTab) switchTab(tab, true);
   if (ventureId) openDetail(ventureId, true);
   else closeDetailPanel(true);
@@ -7957,10 +7915,6 @@ async function _simUpdatePersonas(btn) {
 }
 
 
-// ─── Knowledge Graph (2D Logseq-style) ──────────────────────────────────
-
-let _graph2d = null;
-let _graphData = null;
 
 // ── Release Notes View ──
 async function loadReleaseNotes() {
@@ -8413,323 +8367,6 @@ async function _lmLoadChart() {
     wrap.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3);font-size:12px;">Chart unavailable</div>';
   }
 }
-
-async function loadGraph() {
-  const el = document.getElementById('ventureList');
-  el.innerHTML = `
-    <div class="graph-fullscreen">
-      <div class="graph-canvas-wrap">
-        <div class="graph-search">
-          <input type="text" id="graphSearchInput" placeholder="Search nodes..." oninput="_graphFilter(this.value)">
-        </div>
-        <div id="graphCanvas" style="width:100%;height:100%;"></div>
-        <div class="graph-legend">
-          <span class="graph-legend-item"><span class="graph-legend-dot" style="background:#c4a7ff;"></span> Ventures</span>
-          <span class="graph-legend-item"><span class="graph-legend-dot" style="background:#7ee8d6;"></span> Thought Leaders</span>
-          <span class="graph-legend-item"><span class="graph-legend-dot" style="background:#fbbf24;"></span> Insights</span>
-          <span class="graph-legend-item"><span class="graph-legend-dot" style="background:#f87171;"></span> Problems</span>
-          <span class="graph-legend-item"><span class="graph-legend-dot" style="background:#4ade80;"></span> Opportunities</span>
-          <span class="graph-legend-item"><span class="graph-legend-dot" style="background:#a78bfa;"></span> Bugs</span>
-        </div>
-      </div>
-      <div class="graph-file-panel" id="graphFilePanel">
-        <div class="graph-file-empty">
-          <div class="graph-file-empty-icon">&#128196;</div>
-          <div class="graph-file-empty-text">Click a node to view details</div>
-        </div>
-      </div>
-    </div>
-  `;
-  try {
-    const resp = await fetch(`${API}/api/graph`);
-    const data = await resp.json();
-    // Smart node selection: take balanced types so edges connect
-    const MAX_NODES = 150, MAX_EDGES = 400;
-    if (data.nodes && data.nodes.length > MAX_NODES) {
-      // Group by type, take proportional mix
-      const byType = {};
-      data.nodes.forEach(n => { (byType[n.type] = byType[n.type] || []).push(n); });
-      const quotas = { venture: 40, thought_leader: 25, bug: 25, problem: 15, opportunity: 15, insight: 15, tag: 15 };
-      let picked = [];
-      for (const [type, nodes] of Object.entries(byType)) {
-        const q = quotas[type] || 10;
-        picked = picked.concat(nodes.slice(0, q));
-      }
-      // Fill remaining slots with whatever has most connections
-      const pickedIds = new Set(picked.map(n => n.id));
-      const linkCounts = {};
-      (data.edges || []).forEach(e => {
-        linkCounts[e.source] = (linkCounts[e.source] || 0) + 1;
-        linkCounts[e.target] = (linkCounts[e.target] || 0) + 1;
-      });
-      const remaining = data.nodes.filter(n => !pickedIds.has(n.id));
-      remaining.sort((a, b) => (linkCounts[b.id] || 0) - (linkCounts[a.id] || 0));
-      picked = picked.concat(remaining.slice(0, MAX_NODES - picked.length));
-      data.nodes = picked;
-      const keepIds = new Set(data.nodes.map(n => n.id));
-      data.edges = (data.edges || []).filter(e => keepIds.has(e.source) && keepIds.has(e.target));
-    }
-    if (data.edges && data.edges.length > MAX_EDGES) {
-      data.edges.sort((a, b) => (b.weight || 0) - (a.weight || 0));
-      data.edges = data.edges.slice(0, MAX_EDGES);
-    }
-    _graphData = data;
-    renderForceGraph(data);
-  } catch(e) {
-    console.error('Graph load error:', e);
-    el.innerHTML = '<div class="loading">Failed to load graph data.</div>';
-  }
-}
-
-function renderForceGraph(data) {
-  const container = document.getElementById('graphCanvas');
-  if (!container || typeof ForceGraph === 'undefined') {
-    container.innerHTML = '<div class="loading">Loading graph engine...</div>';
-    return;
-  }
-
-  const colorMap = {
-    venture: '#c4a7ff', thought_leader: '#7ee8d6', insight: '#fbbf24',
-    problem: '#f87171', opportunity: '#4ade80', tag: '#94a3b8', bug: '#a78bfa'
-  };
-
-  // Build link map for connection counts
-  const linkCounts = {};
-  (data.edges || []).forEach(e => {
-    linkCounts[e.source] = (linkCounts[e.source] || 0) + 1;
-    linkCounts[e.target] = (linkCounts[e.target] || 0) + 1;
-  });
-
-  const graphData = {
-    nodes: data.nodes.map(n => ({
-      ...n,
-      color: colorMap[n.type] || '#666',
-      val: n.type === 'venture' ? 12 : n.type === 'thought_leader' ? 8 : n.type === 'tag' ? 2 : 4,
-    })),
-    links: (data.edges || []).map(e => ({
-      source: e.source,
-      target: e.target,
-      weight: e.weight || 0.5,
-    }))
-  };
-
-  if (_graph2d) {
-    _graph2d._destructor && _graph2d._destructor();
-    _graph2d = null;
-  }
-  container.innerHTML = '';
-
-  let _hoverNode = null;
-  const _neighborSet = new Set();
-  const _linkSet = new Set();
-
-  function _updateHighlight(node) {
-    _neighborSet.clear();
-    _linkSet.clear();
-    if (node) {
-      graphData.links.forEach(l => {
-        const sid = typeof l.source === 'object' ? l.source.id : l.source;
-        const tid = typeof l.target === 'object' ? l.target.id : l.target;
-        if (sid === node.id || tid === node.id) {
-          _neighborSet.add(sid);
-          _neighborSet.add(tid);
-          _linkSet.add(l);
-        }
-      });
-      _neighborSet.add(node.id);
-    }
-  }
-
-  _graph2d = ForceGraph()(container)
-    .graphData(graphData)
-    .width(container.clientWidth || 800)
-    .height(container.clientHeight || 600)
-    .backgroundColor('#1a1b2e')
-    .enableNodeDrag(true)
-    .enableZoomInteraction(true)
-    .enablePanInteraction(true)
-    // Node rendering with labels
-    .nodeRelSize(6)
-    .nodeVal(d => d.val)
-    .nodeLabel(d => `${d.label || d.id} (${d.type})`)
-    .nodeCanvasObjectMode(() => 'after')
-    .nodeCanvasObject((node, ctx, globalScale) => {
-      const label = node.label || node.id || '';
-      if (!label) return;
-      const fontSize = 11 / globalScale;
-      // Hide labels when too zoomed out (would be unreadable)
-      if (fontSize > 14) return;
-      ctx.font = `600 ${fontSize}px Sans-Serif`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'top';
-      const nodeR = Math.sqrt(node.val || 4) * 3;
-      // Dim label if not highlighted
-      if (_hoverNode && !_neighborSet.has(node.id)) {
-        ctx.fillStyle = 'rgba(255,255,255,0.06)';
-      } else {
-        // Background pill for readability
-        const txt = label.length > 22 ? label.slice(0, 22) + '…' : label;
-        const tw = ctx.measureText(txt).width;
-        const px = 3 / globalScale, py = 1.5 / globalScale;
-        ctx.fillStyle = 'rgba(26,27,46,0.75)';
-        ctx.beginPath();
-        const rx = node.x - tw/2 - px, ry = node.y + nodeR + 2/globalScale;
-        const rw = tw + px*2, rh = fontSize + py*2, cr = 3/globalScale;
-        ctx.moveTo(rx + cr, ry);
-        ctx.lineTo(rx + rw - cr, ry);
-        ctx.quadraticCurveTo(rx + rw, ry, rx + rw, ry + cr);
-        ctx.lineTo(rx + rw, ry + rh - cr);
-        ctx.quadraticCurveTo(rx + rw, ry + rh, rx + rw - cr, ry + rh);
-        ctx.lineTo(rx + cr, ry + rh);
-        ctx.quadraticCurveTo(rx, ry + rh, rx, ry + rh - cr);
-        ctx.lineTo(rx, ry + cr);
-        ctx.quadraticCurveTo(rx, ry, rx + cr, ry);
-        ctx.fill();
-        ctx.fillStyle = 'rgba(255,255,255,0.9)';
-        ctx.fillText(txt, node.x, ry + py);
-        return;
-      }
-      const txt = label.length > 22 ? label.slice(0, 22) + '…' : label;
-      ctx.fillText(txt, node.x, node.y + nodeR + 2/globalScale);
-    })
-    .nodeColor(d => {
-      if (_hoverNode) {
-        if (d.id === _hoverNode.id) return d.color;
-        if (_neighborSet.has(d.id)) return d.color;
-        return d.color + '15';
-      }
-      return d.color;
-    })
-    // Links
-    .linkWidth(d => _linkSet.has(d) ? 2.5 : 0.5)
-    .linkColor(d => {
-      if (_linkSet.has(d)) return 'rgba(255,177,0,0.7)';
-      if (_hoverNode) return 'rgba(255,255,255,0.02)';
-      return 'rgba(255,255,255,0.06)';
-    })
-    .linkCurvature(0.2)
-    .linkDirectionalParticles(d => _linkSet.has(d) ? 3 : 0)
-    .linkDirectionalParticleWidth(2.5)
-    .linkDirectionalParticleSpeed(0.006)
-    .linkDirectionalParticleColor(() => '#FFB100')
-    // Forces
-    .d3Force('charge', d3.forceManyBody().strength(-100).distanceMax(300))
-    .d3Force('link', d3.forceLink().distance(50).strength(0.4))
-    .d3Force('center', d3.forceCenter(0, 0).strength(0.05))
-    .d3Force('collide', d3.forceCollide().radius(d => Math.sqrt(d.val) * 6 + 3).strength(0.7))
-    .warmupTicks(80)
-    .cooldownTicks(200)
-    .onEngineStop(() => { _graph2d.zoomToFit(400, 40); })
-    // Interactions
-    .onNodeHover(node => {
-      _hoverNode = node;
-      _updateHighlight(node);
-      container.style.cursor = node ? 'pointer' : 'default';
-    })
-    .onNodeClick(node => {
-      _graphShowFile(node);
-      _graph2d.centerAt(node.x, node.y, 600);
-      _graph2d.zoom(3, 600);
-    });
-
-  // Resize
-  const resizeObs = new ResizeObserver(() => {
-    if (_graph2d && container.clientWidth && container.clientHeight) {
-      _graph2d.width(container.clientWidth).height(container.clientHeight);
-    }
-  });
-  resizeObs.observe(container);
-}
-
-// ── File/Page View Panel ──
-function _graphShowFile(node) {
-  const panel = document.getElementById('graphFilePanel');
-  if (!panel || !node) return;
-
-  const typeLabels = {venture:'Venture',thought_leader:'Thought Leader',insight:'Insight',problem:'Problem',opportunity:'Opportunity',bug:'Bug',tag:'Tag'};
-  const typeIcons = {venture:'💡',thought_leader:'🧠',insight:'📰',problem:'⚠️',opportunity:'🚀',bug:'🐛',tag:'🏷️'};
-  const colorMap = {venture:'#FFB100',thought_leader:'#4ecdc4',insight:'#f59e0b',problem:'#ef4444',opportunity:'#22c55e',tag:'#6b7280',bug:'#8b5cf6'};
-
-  // Find connected nodes
-  const connections = [];
-  if (_graphData) {
-    const edges = _graphData.edges || [];
-    const nodeMap = {};
-    (_graphData.nodes || []).forEach(n => nodeMap[n.id] = n);
-    edges.forEach(e => {
-      if (e.source === node.id && nodeMap[e.target]) {
-        connections.push({ node: nodeMap[e.target], label: e.label, dir: 'out' });
-      } else if (e.target === node.id && nodeMap[e.source]) {
-        connections.push({ node: nodeMap[e.source], label: e.label, dir: 'in' });
-      }
-    });
-  }
-
-  const meta = node.meta || {};
-  let metaHtml = '';
-  if (meta.status) metaHtml += `<span class="graph-file-meta-item">Status: ${esc(meta.status)}</span>`;
-  if (meta.priority) metaHtml += `<span class="graph-file-meta-item">Priority: ${esc(meta.priority)}</span>`;
-  if (meta.domain) metaHtml += `<span class="graph-file-meta-item">Domain: ${esc(meta.domain)}</span>`;
-  if (meta.platform) metaHtml += `<span class="graph-file-meta-item">Platform: ${esc(meta.platform)}</span>`;
-  if (meta.handle) metaHtml += `<span class="graph-file-meta-item">${esc(meta.handle)}</span>`;
-  if (meta.source) metaHtml += `<span class="graph-file-meta-item">Source: ${esc(meta.source)}</span>`;
-
-  const linksHtml = connections.map(c => {
-    const col = colorMap[c.node.type] || '#999';
-    const arrow = c.dir === 'out' ? '→' : '←';
-    return `<li onclick="_graphNavigateNode('${c.node.id}')" style="--dot-color:${col};"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${col};margin-right:4px;"></span>${arrow} ${esc(c.node.label || c.node.id)} <span style="color:var(--text3);font-size:11px;">${esc(c.label || '')}</span></li>`;
-  }).join('');
-
-  let contentHtml = '';
-  if (meta.title) contentHtml += `<div class="graph-file-section"><div class="graph-file-section-title">Description</div><div class="graph-file-content">${esc(meta.title)}</div></div>`;
-  if (meta.url) contentHtml += `<div class="graph-file-section"><div class="graph-file-section-title">Source</div><div class="graph-file-content"><a href="${esc(meta.url)}" target="_blank" style="color:var(--accent);word-break:break-all;">${esc(meta.url)}</a></div></div>`;
-
-  panel.innerHTML = `
-    <div class="graph-file-header">
-      <span class="graph-file-icon">${typeIcons[node.type] || '📄'}</span>
-      <span class="graph-file-title">${esc(node.label || node.id)}</span>
-      <span class="graph-file-type" style="background:${colorMap[node.type]||'#999'}22;color:${colorMap[node.type]||'#999'};">${typeLabels[node.type] || node.type}</span>
-      <button class="graph-file-close" onclick="_graphCloseFile()">&times;</button>
-    </div>
-    <div class="graph-file-body">
-      ${metaHtml ? `<div class="graph-file-meta">${metaHtml}</div>` : ''}
-      ${contentHtml}
-      <div class="graph-file-section">
-        <div class="graph-file-section-title">Connections (${connections.length})</div>
-        ${connections.length ? `<ul class="graph-file-links">${linksHtml}</ul>` : '<div style="font-size:13px;color:var(--text3);">No connections</div>'}
-      </div>
-    </div>`;
-}
-
-function _graphCloseFile() {
-  const panel = document.getElementById('graphFilePanel');
-  if (panel) panel.innerHTML = `<div class="graph-file-empty"><div class="graph-file-empty-icon">&#128196;</div><div class="graph-file-empty-text">Click a node to view details</div></div>`;
-}
-
-function _graphNavigateNode(nodeId) {
-  if (!_graph2d || !_graphData) return;
-  const node = _graphData.nodes.find(n => n.id === nodeId);
-  if (!node) return;
-  // Find the live node in the graph
-  const gd = _graph2d.graphData();
-  const liveNode = gd.nodes.find(n => n.id === nodeId);
-  if (liveNode) {
-    _graphShowFile(liveNode);
-    _graph2d.centerAt(liveNode.x, liveNode.y, 600);
-    _graph2d.zoom(3, 600);
-  }
-}
-
-function _graphFilter(query) {
-  if (!_graph2d || !_graphData) return;
-  const q = (query || '').toLowerCase().trim();
-  const gd = _graph2d.graphData();
-  gd.nodes.forEach(n => {
-    n._filtered = q && !(n.label || '').toLowerCase().includes(q) && !(n.type || '').toLowerCase().includes(q);
-  });
-  _graph2d.nodeCanvasObject(_graph2d.nodeCanvasObject()); // force re-render
-}
-
 
 if (location.hash) {
   readHash();
@@ -9251,10 +8888,6 @@ async function loadActivity() {
     <button class="drawer-nav-btn" data-tab="bugs" onclick="switchTab('bugs');toggleMobileDrawer();">
       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
       Bugs
-    </button>
-    <button class="drawer-nav-btn" data-tab="graph" onclick="switchTab('graph');toggleMobileDrawer();">
-      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/><circle cx="18" cy="6" r="3"/><line x1="8.5" y1="7.5" x2="15.5" y2="16.5"/><line x1="8.5" y1="6" x2="15.5" y2="6"/></svg>
-      Graph
     </button>
     <button class="drawer-nav-btn" data-tab="slack" onclick="switchTab('slack');toggleMobileDrawer();">
       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 2a2.5 2.5 0 00-2.5 2.5V9h4.5A2.5 2.5 0 0014.5 2z"/><path d="M9.5 2A2.5 2.5 0 007 4.5V9h4.5V4.5A2.5 2.5 0 009.5 2z" opacity=".5"/></svg>

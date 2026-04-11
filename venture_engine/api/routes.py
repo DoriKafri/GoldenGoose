@@ -18,7 +18,7 @@ from venture_engine.db.models import (
     Venture, VentureScore, Vote, Comment, ThoughtLeader,
     TLSignal, HarvestRun, TechGap, Annotation, OfficeHoursReview,
     NewsFeedItem, PageAnnotation, PageAnnotationReply, AnnotationReaction,
-    Bug, BugComment, GraphEdge, SlackChannel, SlackMessage, Release,
+    Bug, BugComment, SlackChannel, SlackMessage, Release,
 )
 
 router = APIRouter()
@@ -4065,11 +4065,6 @@ def get_bug_proof_screenshot(bug_id: str, db: Session = Depends(get_db_dependenc
             ("Search & filtering", "Keyword search returns relevant results, source filter works"),
             ("Share & comment actions", "Share button copies link, comment input saves to DB"),
         ]),
-        (["graph"], ["graph", "knowledge", "edge", "node"], "Knowledge Graph", "graph", [
-            ("Node rendering", "All venture/signal nodes display with correct colors and labels"),
-            ("Edge connections", "Relationship edges render between connected entities"),
-            ("Zoom & pan interactions", "Canvas responds to scroll zoom and drag pan"),
-        ]),
         (["slack"], ["slack", "channel", "message"], "Slack Integration", "slack", [
             ("Channel list", "All channels load with unread counts and latest message preview"),
             ("Message thread", "Thread replies render with timestamps and agent avatars"),
@@ -4417,147 +4412,6 @@ def get_next_version(db: Session = Depends(get_db_dependency)):
         major, minor, patch = _ver_tuple(latest)
         return {"version": f"v{major}.{minor}.{patch + 1}"}
     return {"version": "v0.1.0"}
-
-
-@router.get("/api/graph")
-def get_graph(
-    types: Optional[str] = None,
-    db: Session = Depends(get_db_dependency),
-):
-    """Return nodes and edges for the knowledge graph visualization."""
-    nodes = []
-    edges = []
-    type_filter = set(types.split(",")) if types else None
-
-    # ── Ventures ──
-    if not type_filter or "venture" in type_filter:
-        ventures = db.query(Venture).all()
-        for v in ventures:
-            nodes.append({
-                "id": f"v_{v.id}", "type": "venture", "label": v.title or "",
-                "group": v.category or "venture",
-                "size": (v.score_total or 5) if hasattr(v, "score_total") else 5,
-                "meta": {"status": v.status if hasattr(v, "status") else "", "domain": v.domain if hasattr(v, "domain") else ""},
-                "image": v.logo_url if hasattr(v, "logo_url") and v.logo_url else None,
-            })
-            # Venture -> tag (domain) edge
-            if hasattr(v, "domain") and v.domain:
-                tag_id = f"tag_{v.domain.lower().replace(' ', '_')}"
-                edges.append({"source": f"v_{v.id}", "target": tag_id, "label": "domain", "weight": 0.5})
-                # Add tag node if not exists (dedup later)
-                nodes.append({"id": tag_id, "type": "tag", "label": v.domain, "group": "tag", "size": 3, "meta": {}})
-
-    # ── Thought Leaders ──
-    if not type_filter or "thought_leader" in type_filter:
-        tls = db.query(ThoughtLeader).all()
-        for tl in tls:
-            signal_count = db.query(TLSignal).filter(TLSignal.thought_leader_id == tl.id).count()
-            nodes.append({
-                "id": f"tl_{tl.id}", "type": "thought_leader", "label": tl.name or tl.handle or "",
-                "group": "thought_leader", "size": max(4, min(12, signal_count * 2)),
-                "meta": {"handle": tl.handle, "platform": tl.platform},
-                "image": tl.avatar_url if hasattr(tl, "avatar_url") and tl.avatar_url else None,
-            })
-        # TL -> Venture signals
-        signals = db.query(TLSignal).all()
-        for s in signals:
-            edges.append({
-                "source": f"tl_{s.thought_leader_id}", "target": f"v_{s.venture_id}",
-                "label": s.vote or "signal", "weight": s.confidence or 0.5,
-            })
-
-    # ── News Items (classified as insight / problem / opportunity) ──
-    if not type_filter or "news" in type_filter or "insight" in (type_filter or set()) or "problem" in (type_filter or set()) or "opportunity" in (type_filter or set()):
-        news_items = db.query(NewsFeedItem).order_by(NewsFeedItem.signal_strength.desc().nullslast()).limit(60).all()
-        _problem_kw = {"bug", "issue", "fail", "error", "crash", "broken", "problem", "vulnerability", "attack", "breach", "risk", "outage", "incident"}
-        _opp_kw = {"opportunity", "launch", "funding", "raised", "growth", "trend", "market", "startup", "release", "new", "announce", "introduce"}
-        for n in news_items:
-            title_lower = (n.title or "").lower()
-            summary_lower = (n.summary or "").lower()
-            text_combined = title_lower + " " + summary_lower
-            words = set(text_combined.split())
-            problem_score = len(words & _problem_kw)
-            opp_score = len(words & _opp_kw)
-            if problem_score > opp_score:
-                node_type = "problem"
-            elif opp_score > problem_score:
-                node_type = "opportunity"
-            else:
-                node_type = "insight"
-            nodes.append({
-                "id": f"n_{n.id}", "type": node_type, "label": (n.title or "")[:40],
-                "group": node_type, "size": max(2, (n.signal_strength or 3)),
-                "meta": {"source": n.source, "url": n.url},
-            })
-            # News -> Venture edges
-            if n.venture_ids:
-                for vid in (n.venture_ids if isinstance(n.venture_ids, list) else []):
-                    edges.append({"source": f"n_{n.id}", "target": f"v_{vid}", "label": "inspired", "weight": 0.7})
-            # News -> Tag edges (limit to 3 tags per item to keep graph manageable)
-            if n.tags:
-                for tag in (n.tags if isinstance(n.tags, list) else [])[:3]:
-                    tag_id = f"tag_{tag.lower().replace(' ', '_')}"
-                    edges.append({"source": f"n_{n.id}", "target": tag_id, "label": "tagged", "weight": 0.3})
-                    nodes.append({"id": tag_id, "type": "tag", "label": tag, "group": "tag", "size": 3, "meta": {}})
-
-    # ── Bugs ──
-    if not type_filter or "bug" in type_filter:
-        bugs = db.query(Bug).order_by(Bug.created_at.desc().nullslast()).limit(30).all()
-        for b in bugs:
-            nodes.append({
-                "id": f"bug_{b.id}", "type": "bug", "label": b.key or b.title[:20],
-                "group": "bug", "size": 4,
-                "meta": {"status": b.status, "priority": b.priority, "title": b.title},
-            })
-            if b.venture_id:
-                edges.append({"source": f"bug_{b.id}", "target": f"v_{b.venture_id}", "label": "affects", "weight": 0.8})
-
-    # ── Manual edges ──
-    manual_edges = db.query(GraphEdge).all()
-    for e in manual_edges:
-        edges.append({
-            "source": f"{e.source_type}_{e.source_id}" if not e.source_id.startswith(e.source_type) else e.source_id,
-            "target": f"{e.target_type}_{e.target_id}" if not e.target_id.startswith(e.target_type) else e.target_id,
-            "label": e.relation, "weight": e.weight or 1.0,
-        })
-
-    # Deduplicate nodes by id
-    seen = set()
-    unique_nodes = []
-    for n in nodes:
-        if n["id"] not in seen:
-            seen.add(n["id"])
-            unique_nodes.append(n)
-
-    # Filter edges to only include nodes that exist
-    node_ids = {n["id"] for n in unique_nodes}
-    valid_edges = [e for e in edges if e["source"] in node_ids and e["target"] in node_ids]
-
-    return {"nodes": unique_nodes, "edges": valid_edges}
-
-
-@router.post("/api/graph/edges")
-def create_graph_edge(
-    source_type: str = Query(...), source_id: str = Query(...),
-    target_type: str = Query(...), target_id: str = Query(...),
-    relation: str = Query("related_to"),
-    db: Session = Depends(get_db_dependency),
-):
-    edge = GraphEdge(source_type=source_type, source_id=source_id,
-                     target_type=target_type, target_id=target_id, relation=relation)
-    db.add(edge)
-    db.commit()
-    return {"id": edge.id, "status": "created"}
-
-
-@router.delete("/api/graph/edges/{edge_id}")
-def delete_graph_edge(edge_id: str, db: Session = Depends(get_db_dependency)):
-    edge = db.query(GraphEdge).filter(GraphEdge.id == edge_id).first()
-    if not edge:
-        raise HTTPException(404, "Edge not found")
-    db.delete(edge)
-    db.commit()
-    return {"status": "deleted"}
 
 
 # ─── Seed Simulated Develeap Users & Data ────────────────────────

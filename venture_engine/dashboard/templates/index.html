@@ -1789,6 +1789,18 @@ html.dark .tl-bubble { background:rgba(0,0,0,0.45); box-shadow:none; }
 .tl-bubble-msg { font-size:11px; color:rgba(30,41,59,0.8); line-height:1.3; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:230px; }
 html.dark .tl-bubble-msg { color:rgba(255,255,255,0.85); }
 .tl-bubble-emoji { font-size:20px; animation:tlEmojiFloat 3s ease-out forwards; position:absolute; pointer-events:none; display:flex; align-items:center; gap:2px; }
+.tl-bubble.release-bubble { background:linear-gradient(135deg,rgba(16,185,129,0.95),rgba(5,150,105,0.95)); padding:10px 18px 10px 12px; border-radius:16px; box-shadow:0 4px 20px rgba(16,185,129,0.35); animation:tlReleasePop 8s ease-out forwards; border:1px solid rgba(255,255,255,0.2); }
+html.dark .tl-bubble.release-bubble { background:linear-gradient(135deg,rgba(16,185,129,0.9),rgba(5,150,105,0.85)); box-shadow:0 4px 24px rgba(16,185,129,0.4); }
+.tl-bubble.release-bubble .tl-bubble-avatar { width:32px; height:32px; background:rgba(255,255,255,0.2)!important; font-size:18px; }
+.tl-bubble.release-bubble .tl-bubble-name { color:#fff!important; font-size:13px; }
+.tl-bubble.release-bubble .tl-bubble-msg { color:rgba(255,255,255,0.9)!important; font-size:12px; max-width:260px; }
+@keyframes tlReleasePop {
+  0% { opacity:0; transform:translateY(30px) scale(0.7); }
+  8% { opacity:1; transform:translateY(-5px) scale(1.05); }
+  15% { transform:translateY(0) scale(1); }
+  85% { opacity:1; transform:translateY(0) scale(1); }
+  100% { opacity:0; transform:translateY(-20px) scale(0.95); }
+}
 @keyframes tlBubbleUp {
   0% { opacity:0; transform:translateY(20px) scale(0.85); }
   5% { opacity:1; transform:translateY(0) scale(1); }
@@ -9304,6 +9316,13 @@ async function _tlInit() {
     return n;
   });
 
+  // Release node — positioned after Done column
+  const doneNode = kanbanNodes.find(n => n.colId === 'done');
+  const releaseNode = new TLNode('🚀', 'Release', '#10b981',
+    doneNode ? doneNode.x + 80 : cx + 200, doneNode ? doneNode.y : cy + 200, 5, 'kanban');
+  releaseNode.colId = 'release';
+  releaseNode.colIdx = KANBAN_COLS.length;
+
   // Ticket particles that travel between kanban columns
   class KanbanTicket {
     constructor(key, fromNode, toNode, color, user) {
@@ -9450,6 +9469,15 @@ async function _tlInit() {
       <polyline points="${svgPts}" fill="none" stroke="#22c55e" stroke-width="1.5" vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round" opacity="0.7"/>
     </svg>`;
     histEl.appendChild(onlineSvg);
+
+    // Release version markers on the timeline
+    tlEvents.filter(ev=>ev.type==='release').forEach(ev=>{
+      const pct = ((ev.t - T_START) / T_SPAN) * 100;
+      const marker = document.createElement('div');
+      marker.style.cssText = `position:absolute;bottom:0;left:${pct}%;z-index:4;transform:translateX(-50%);pointer-events:none;display:flex;flex-direction:column;align-items:center;`;
+      marker.innerHTML = `<div style="font-size:7px;font-weight:700;font-family:'JetBrains Mono',monospace;color:#10b981;white-space:nowrap;background:rgba(16,185,129,0.1);padding:1px 4px;border-radius:3px;border:1px solid rgba(16,185,129,0.3);margin-bottom:1px;">${ev.data.v}</div><div style="width:2px;height:100%;background:#10b981;opacity:0.5;"></div>`;
+      histEl.appendChild(marker);
+    });
 
     // Add legend
     const legend = document.createElement('div');
@@ -9666,6 +9694,22 @@ async function _tlInit() {
     while (container.children.length > 20) container.lastChild.remove();
   }
 
+  function _tlAddReleaseBubble(version, fixes) {
+    const container = document.getElementById('tlComments');
+    if (!container) return;
+    const bubble = document.createElement('div');
+    bubble.className = 'tl-bubble release-bubble';
+    bubble.innerHTML = `
+      <div class="tl-bubble-avatar" style="background:rgba(255,255,255,0.2);">🚀</div>
+      <div class="tl-bubble-body">
+        <div class="tl-bubble-name" style="color:#fff;">${esc(version)} RELEASED</div>
+        <div class="tl-bubble-msg" style="color:rgba(255,255,255,0.9);">Deployed to production · ${fixes} fixes included</div>
+      </div>`;
+    container.prepend(bubble);
+    setTimeout(() => bubble.remove(), 8000);
+    while (container.children.length > 20) container.lastChild.remove();
+  }
+
   function _tlAddEmoji(userName) {
     const container = document.getElementById('tlComments');
     if (!container) return;
@@ -9725,8 +9769,9 @@ async function _tlInit() {
   }
 
   function _tlEmitKanbanTicket(key, fromColId, toColId, userColor, sourceNode) {
-    const fromNode = sourceNode || (fromColId ? kanbanNodes.find(n => n.colId === fromColId) : null);
-    const toNode = kanbanNodes.find(n => n.colId === toColId);
+    const findKbNode = id => kanbanNodes.find(n => n.colId === id) || (id === 'release' ? releaseNode : null);
+    const fromNode = sourceNode || (fromColId ? findKbNode(fromColId) : null);
+    const toNode = toColId ? findKbNode(toColId) : releaseNode;
     if (!toNode) return;
     const src = fromNode || centerNode;
     const color = userColor || toNode.color;
@@ -9753,10 +9798,29 @@ async function _tlInit() {
       case 'release':{
         counters.releases++;
         const ver=document.getElementById('tlVersion');
-        if(ver){ver.textContent=d.v+' RELEASED';ver.classList.add('show');setTimeout(()=>ver.classList.remove('show'),3000);}
+        if(ver){ver.textContent=d.v+' RELEASED';ver.classList.add('show');setTimeout(()=>ver.classList.remove('show'),4000);}
+        // Light up everything — update release node label with version
         centerNode.activate(1);allNodes.forEach(n=>{n.activate(0.3);});
-        _tlAddBubble('System', d.v+' deployed! '+d.fixes+' fixes', '#10b981', false);
-        for(let i=0;i<3;i++){const rndUser=TL_TEAM[Math.floor(Math.random()*TL_TEAM.length)];setTimeout(()=>_tlAddEmoji(rndUser.name), i*300);}
+        releaseNode.activate(1);
+        releaseNode.label = d.v;
+        // Animate tickets from Done → Release node
+        const doneN = kanbanNodes.find(n=>n.colId==='done');
+        if(doneN){
+          doneN.activate(0.8);
+          for(let i=0;i<Math.min(d.fixes||3,5);i++){
+            setTimeout(()=>{
+              _tlEmitKanbanTicket(d.v, 'done', null, '#10b981');
+              // Also emit particle from Done to Release
+              emit(doneN, releaseNode, '#10b981', 3);
+            }, i*200);
+          }
+        }
+        // Particles from center to release
+        emit(centerNode, releaseNode, '#10b981', 4);
+        // Big release notification bubble
+        _tlAddReleaseBubble(d.v, d.fixes||0);
+        // Emoji celebration
+        for(let i=0;i<5;i++){const rndUser=TL_TEAM[Math.floor(Math.random()*TL_TEAM.length)];setTimeout(()=>_tlAddEmoji(rndUser.name), i*250);}
         break;
       }
       case 'bug':{
@@ -9939,32 +10003,44 @@ async function _tlInit() {
       n.ty = kbY;
       n.r = 5 * nScale;
     });
+    // Release node — after Done with a gap
+    releaseNode.tx = kbStartX + kbTotalW + kbSpacing * 0.8;
+    releaseNode.ty = kbY;
+    releaseNode.r = 6 * nScale;
 
-    // Draw kanban lane background
+    // Draw kanban lane background — extended to include release node
     const kbLaneY = kbY - 16;
     const kbLaneH = 32;
+    const kbLaneEnd = releaseNode.tx + 30;
     ctx.fillStyle = dark ? 'rgba(30,41,59,0.5)' : 'rgba(241,245,249,0.7)';
     ctx.beginPath();
-    ctx.roundRect(kbStartX - 30, kbLaneY, kbTotalW + 60, kbLaneH, 8);
+    ctx.roundRect(kbStartX - 30, kbLaneY, kbLaneEnd - kbStartX + 30, kbLaneH, 8);
     ctx.fill();
     ctx.strokeStyle = dark ? 'rgba(51,65,85,0.4)' : 'rgba(203,213,225,0.6)';
     ctx.lineWidth = 0.5;
     ctx.beginPath();
-    ctx.roundRect(kbStartX - 30, kbLaneY, kbTotalW + 60, kbLaneH, 8);
+    ctx.roundRect(kbStartX - 30, kbLaneY, kbLaneEnd - kbStartX + 30, kbLaneH, 8);
     ctx.stroke();
 
-    // Draw arrows between kanban columns
-    for (let i = 0; i < kanbanNodes.length - 1; i++) {
-      const from = kanbanNodes[i], to = kanbanNodes[i+1];
+    // Draw arrows between kanban columns + Done→Release
+    const allKbNodes = [...kanbanNodes, releaseNode];
+    for (let i = 0; i < allKbNodes.length - 1; i++) {
+      const from = allKbNodes[i], to = allKbNodes[i+1];
       const ax1 = from.x + 12, ax2 = to.x - 12;
       const ay = kbY;
-      ctx.strokeStyle = dark ? 'rgba(71,85,105,0.3)' : 'rgba(148,163,184,0.35)';
-      ctx.lineWidth = 1;
+      // Special style for Done→Release arrow
+      const isRelease = (i === allKbNodes.length - 2);
+      ctx.strokeStyle = isRelease
+        ? (dark ? 'rgba(16,185,129,0.4)' : 'rgba(16,185,129,0.35)')
+        : (dark ? 'rgba(71,85,105,0.3)' : 'rgba(148,163,184,0.35)');
+      ctx.lineWidth = isRelease ? 1.5 : 1;
       ctx.setLineDash([3, 3]);
       ctx.beginPath(); ctx.moveTo(ax1, ay); ctx.lineTo(ax2, ay); ctx.stroke();
       ctx.setLineDash([]);
       // Arrow head
-      ctx.fillStyle = dark ? 'rgba(71,85,105,0.4)' : 'rgba(148,163,184,0.4)';
+      ctx.fillStyle = isRelease
+        ? (dark ? 'rgba(16,185,129,0.5)' : 'rgba(16,185,129,0.4)')
+        : (dark ? 'rgba(71,85,105,0.4)' : 'rgba(148,163,184,0.4)');
       ctx.beginPath();
       ctx.moveTo(ax2, ay); ctx.lineTo(ax2 - 4, ay - 3); ctx.lineTo(ax2 - 4, ay + 3);
       ctx.fill();
@@ -9977,8 +10053,9 @@ async function _tlInit() {
 
     // Draw all nodes (users, AI, center)
     allNodes.forEach(n=>{n.update();n.draw(ctx);});
-    // Draw kanban column nodes
+    // Draw kanban column nodes + release node
     kanbanNodes.forEach(n=>{n.update();n.draw(ctx);});
+    releaseNode.update();releaseNode.draw(ctx);
 
     // Particles (user↔center)
     for(let i=particles.length-1;i>=0;i--){const done=particles[i].update();particles[i].draw(ctx);if(done)particles.splice(i,1);}

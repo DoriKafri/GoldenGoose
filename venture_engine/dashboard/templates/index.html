@@ -1689,6 +1689,16 @@ html.dark .sl-msg-wrap:hover { background:rgba(255,255,255,.08); }
 .lm-hero-agent-pill.running { border-color:#7c3aed; animation:lmAgentPulse 1.5s ease-in-out infinite; }
 @keyframes lmAgentPulse { 0%,100%{box-shadow:0 0 0 0 rgba(124,58,237,0.3)} 50%{box-shadow:0 0 0 4px rgba(124,58,237,0)} }
 
+/* Fullscreen button */
+.lm-tl-fullscreen-btn { background:rgba(255,255,255,0.7); backdrop-filter:blur(4px); border:none; border-radius:6px; padding:5px 7px; cursor:pointer; color:var(--text3); display:flex; align-items:center; justify-content:center; transition:all 0.15s; }
+html.dark .lm-tl-fullscreen-btn { background:rgba(30,41,59,0.7); }
+.lm-tl-fullscreen-btn:hover { background:rgba(255,255,255,0.95); color:var(--text); }
+html.dark .lm-tl-fullscreen-btn:hover { background:rgba(51,65,85,0.9); color:#e2e8f0; }
+
+/* Fullscreen timelapse */
+.lm-timelapse.tl-fullscreen { position:fixed!important; top:0; left:0; right:0; bottom:0; z-index:9999; margin:0!important; border-radius:0; border:none; }
+.lm-timelapse.tl-fullscreen .lm-tl-canvas-wrap { height:100vh!important; min-height:100vh!important; }
+
 /* Below-fold sections */
 .lm-feed { display:flex; flex-direction:column; gap:2px; }
 /* Agent buttons are now pills in the hero bar — see .lm-hero-agent-pill */
@@ -8607,6 +8617,10 @@ async function loadLiveMonitor() {
           <div style="position:absolute;top:14px;right:14px;z-index:3;display:flex;align-items:center;gap:8px;">
             <span class="lm-tl-version" id="tlVersion"></span>
             <span class="lm-tl-clock" id="tlClock" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text3);background:rgba(255,255,255,0.7);padding:3px 10px;border-radius:6px;backdrop-filter:blur(4px);"></span>
+            <button class="lm-tl-fullscreen-btn" onclick="_tlToggleFullscreen()" title="Toggle fullscreen">
+              <svg id="tlFsIconExpand" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 00-2 2v3m18 0V5a2 2 0 00-2-2h-3m0 18h3a2 2 0 002-2v-3M3 16v3a2 2 0 002 2h3"/></svg>
+              <svg id="tlFsIconShrink" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><path d="M4 14h6v6m10-10h-6V4m0 6l7-7M3 21l7-7"/></svg>
+            </button>
           </div>
           <div class="lm-tl-stats-overlay">
             <div class="tl-ov-stat"><div class="tl-ov-val" id="tlCommits" style="color:#2563eb;">0</div><div class="tl-ov-label">Commits</div></div>
@@ -9296,6 +9310,35 @@ async function _tlInit() {
   let _tlLiveLastPoll = 0;
   let _tlLiveLastTime = null;
   let _tlLiveSeenKeys = new Set();
+
+  window._tlToggleFullscreen = function() {
+    const tl = document.querySelector('.lm-timelapse');
+    if (!tl) return;
+    const isFs = tl.classList.toggle('tl-fullscreen');
+    const expand = document.getElementById('tlFsIconExpand');
+    const shrink = document.getElementById('tlFsIconShrink');
+    if (expand) expand.style.display = isFs ? 'none' : '';
+    if (shrink) shrink.style.display = isFs ? '' : 'none';
+    // Hide/show timeline and controls in fullscreen
+    const timeline = document.getElementById('tlTimeline');
+    const controls = document.querySelector('.lm-tl-controls');
+    if (timeline) timeline.style.display = isFs ? 'none' : '';
+    if (controls) controls.style.display = isFs ? 'none' : '';
+    // ESC to exit
+    if (isFs) {
+      const escHandler = function(e) {
+        if (e.key === 'Escape') {
+          tl.classList.remove('tl-fullscreen');
+          if (expand) expand.style.display = '';
+          if (shrink) shrink.style.display = 'none';
+          if (timeline) timeline.style.display = '';
+          if (controls) controls.style.display = '';
+          document.removeEventListener('keydown', escHandler);
+        }
+      };
+      document.addEventListener('keydown', escHandler);
+    }
+  };
 
   window._tlSwitchMode = function(mode) {
     _tlMode = mode;

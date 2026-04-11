@@ -9665,15 +9665,15 @@ async function _tlInit() {
         const color = an ? an.color : (un ? un.color : '#64748b');
         _tlAddBubble(ev.user || 'System', ev.action || '', color, !!isAgent);
         // Check for kanban movement in live events
-        if (ev.type === 'bug' && meta.status === 'open') {
-          // Bug just created — animate from reporter node to Open kanban column
+        if (ev.type === 'bug') {
+          // Every bug/CR event — animate from user node to Open kanban column
           const srcNode = un || an || null;
           const bugKey = (ev.action || '').match(/[A-Z]+-\d+/)?.[0] || 'BUG';
           _tlEmitKanbanTicket(bugKey, null, 'open', color, srcNode);
-        } else {
-          const kb = _tlParseKanban(ev.action || '');
-          if (kb) _tlEmitKanbanTicket(kb.key, kb.fromCol, kb.toCol, color);
         }
+        // Also check for kanban transitions in action text
+        const kb = _tlParseKanban(ev.action || '');
+        if (kb) _tlEmitKanbanTicket(kb.key, kb.fromCol, kb.toCol, color);
       }
       // Use latest event time as cursor to avoid re-fetching future-timestamped events
       const evTimes = (data.events || []).map(e => e.time).filter(Boolean);

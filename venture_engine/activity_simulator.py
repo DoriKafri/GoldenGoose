@@ -1305,7 +1305,7 @@ def auto_release(db: Session) -> dict:
         new_version = "v0.14.0"
 
     # Build release entry
-    date_str = now.strftime("%Y-%m-%d %H:%M UTC")
+    date_str = datetime.now(IST).strftime("%Y-%m-%d %H:%M IST")
     bug_lines = []
     critical_count = high_count = medium_count = low_count = 0
     for bug in fixed_bugs:

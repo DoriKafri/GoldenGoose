@@ -1740,7 +1740,7 @@ html.dark .lm-tl-fullscreen-btn:hover { background:rgba(51,65,85,0.95); color:#e
 .lm-range-btn.active { background:var(--accent); color:#1a1a1a; }
 
 /* Timelapse stats overlay (bottom-right of canvas) */
-.lm-tl-stats-overlay { position:absolute; bottom:80px; right:12px; display:flex; gap:12px; padding:8px 14px; background:rgba(255,255,255,0.85); backdrop-filter:blur(8px); border-radius:10px; z-index:3; box-shadow:0 2px 8px rgba(0,0,0,0.08); }
+.lm-tl-stats-overlay { display:flex; gap:12px; padding:6px 14px; background:rgba(255,255,255,0.85); backdrop-filter:blur(8px); border-radius:10px; box-shadow:0 2px 8px rgba(0,0,0,0.08); }
 html.dark .lm-tl-stats-overlay { background:rgba(15,23,42,0.75); }
 .lm-tl-stats-overlay .tl-ov-stat { text-align:center; }
 .lm-tl-stats-overlay .tl-ov-val { font-family:'JetBrains Mono',monospace; font-size:16px; font-weight:700; line-height:1; }
@@ -8695,7 +8695,14 @@ async function loadLiveMonitor() {
             <button class="lm-tl-mode-btn active" data-mode="replay" onclick="_tlSwitchMode('replay')">⏪ REPLAY</button>
             <button class="lm-tl-mode-btn" data-mode="live" onclick="_tlSwitchMode('live')"><span class="lm-tl-live-dot"></span>LIVE</button>
           </div>
-          <div style="position:absolute;top:14px;right:14px;z-index:3;display:flex;align-items:center;gap:8px;">
+          <div style="position:absolute;top:14px;right:14px;z-index:3;display:flex;align-items:center;gap:10px;">
+            <div class="lm-tl-stats-overlay">
+              <div class="tl-ov-stat"><div class="tl-ov-val" id="tlOnline" style="color:#22c55e;">0</div><div class="tl-ov-label">Online</div></div>
+              <div class="tl-ov-stat"><div class="tl-ov-val" id="tlCommits" style="color:#2563eb;">0</div><div class="tl-ov-label">Commits</div></div>
+              <div class="tl-ov-stat"><div class="tl-ov-val" id="tlBugs" style="color:#dc2626;">0</div><div class="tl-ov-label">Bugs</div></div>
+              <div class="tl-ov-stat"><div class="tl-ov-val" id="tlReleases" style="color:#059669;">0</div><div class="tl-ov-label">Releases</div></div>
+              <div class="tl-ov-stat"><div class="tl-ov-val" id="tlAgents" style="color:#7c3aed;">0</div><div class="tl-ov-label">AI Actions</div></div>
+            </div>
             <span class="lm-tl-version" id="tlVersion"></span>
             <span class="lm-tl-clock" id="tlClock" style="font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:700;color:var(--text);background:rgba(255,255,255,0.85);padding:6px 16px;border-radius:10px;backdrop-filter:blur(8px);box-shadow:0 2px 12px rgba(0,0,0,0.08);letter-spacing:1.5px;"></span>
             <button class="lm-tl-fullscreen-btn" onclick="_tlToggleFullscreen()" title="Fullscreen">
@@ -8716,13 +8723,6 @@ async function loadLiveMonitor() {
               <div class="lm-andon-sub">Pull the cord to resume</div>
               <button class="lm-andon-resume" onclick="_tlAndonToggle()">▶ RESUME</button>
             </div>
-          </div>
-          <div class="lm-tl-stats-overlay">
-            <div class="tl-ov-stat"><div class="tl-ov-val" id="tlOnline" style="color:#22c55e;">0</div><div class="tl-ov-label">Online</div></div>
-            <div class="tl-ov-stat"><div class="tl-ov-val" id="tlCommits" style="color:#2563eb;">0</div><div class="tl-ov-label">Commits</div></div>
-            <div class="tl-ov-stat"><div class="tl-ov-val" id="tlBugs" style="color:#dc2626;">0</div><div class="tl-ov-label">Bugs</div></div>
-            <div class="tl-ov-stat"><div class="tl-ov-val" id="tlReleases" style="color:#059669;">0</div><div class="tl-ov-label">Releases</div></div>
-            <div class="tl-ov-stat"><div class="tl-ov-val" id="tlAgents" style="color:#7c3aed;">0</div><div class="tl-ov-label">AI Actions</div></div>
           </div>
           <div id="tlComments"></div>
         </div>

@@ -1703,8 +1703,16 @@ html.dark .sl-msg-wrap:hover { background:rgba(255,255,255,.08); }
 .lm-range-btn { border:none; background:var(--bg2); color:var(--text3); font-size:10px; font-weight:600; font-family:inherit; padding:3px 8px; border-radius:4px; cursor:pointer; transition:all .15s; }
 .lm-range-btn:hover { color:var(--text2); }
 .lm-range-btn.active { background:var(--accent); color:#1a1a1a; }
+/* Live Monitor Tabs */
+.lm-tabs { display:flex; gap:2px; margin-bottom:16px; background:var(--bg2); border-radius:var(--radius); padding:3px; border:1px solid var(--border); }
+.lm-tab-btn { flex:1; padding:8px 16px; border:none; background:transparent; color:var(--text3); font-size:13px; font-weight:600; font-family:inherit; cursor:pointer; border-radius:calc(var(--radius) - 2px); transition:all 0.15s; display:flex; align-items:center; justify-content:center; gap:6px; }
+.lm-tab-btn:hover { color:var(--text2); background:rgba(148,163,184,0.08); }
+.lm-tab-btn.active { background:var(--card); color:var(--text); box-shadow:0 1px 3px rgba(0,0,0,0.1); }
+.lm-tab-content { display:none; }
+.lm-tab-content.active { display:block; }
+
 /* Timelapse embed in Live Monitor */
-.lm-timelapse { background:var(--card); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; margin-bottom:16px; position:relative; }
+.lm-timelapse { background:var(--card); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; position:relative; }
 .lm-tl-header { display:flex; align-items:center; justify-content:space-between; padding:12px 16px 8px; }
 .lm-tl-title { font-size:13px; font-weight:700; color:var(--text); display:flex; align-items:center; gap:8px; }
 .lm-tl-clock { font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text3); }
@@ -1725,6 +1733,25 @@ html.dark .sl-msg-wrap:hover { background:rgba(255,255,255,.08); }
 .lm-tl-speed button:hover, .lm-tl-speed button.active { background:rgba(56,189,248,0.2); color:#38bdf8; border-color:#38bdf8; }
 .lm-tl-version { font-family:'JetBrains Mono',monospace; font-size:12px; font-weight:700; color:#10b981; opacity:0; transition:opacity 0.5s; }
 .lm-tl-version.show { opacity:1; }
+
+/* Periscope-style floating comments */
+#tlComments { position:absolute; bottom:12px; left:12px; width:320px; pointer-events:none; display:flex; flex-direction:column; justify-content:flex-end; max-height:60%; overflow:hidden; }
+.tl-bubble { display:flex; align-items:center; gap:8px; padding:5px 12px 5px 6px; margin-bottom:4px; background:rgba(0,0,0,0.45); backdrop-filter:blur(6px); border-radius:20px; animation:tlBubbleUp 6s ease-out forwards; transform-origin:bottom left; max-width:fit-content; }
+.tl-bubble-avatar { width:26px; height:26px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; color:#fff; }
+.tl-bubble-body { display:flex; flex-direction:column; min-width:0; }
+.tl-bubble-name { font-size:10px; font-weight:700; line-height:1.2; }
+.tl-bubble-msg { font-size:11px; color:rgba(255,255,255,0.85); line-height:1.3; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:230px; }
+.tl-bubble-emoji { font-size:20px; animation:tlEmojiFloat 3s ease-out forwards; position:absolute; pointer-events:none; }
+@keyframes tlBubbleUp {
+  0% { opacity:0; transform:translateY(20px) scale(0.85); }
+  8% { opacity:1; transform:translateY(0) scale(1); }
+  75% { opacity:1; }
+  100% { opacity:0; transform:translateY(-30px); }
+}
+@keyframes tlEmojiFloat {
+  0% { opacity:1; transform:translateY(0) scale(1); }
+  100% { opacity:0; transform:translateY(-120px) scale(1.5); }
+}
 @media(max-width:768px) {
   .lm-wrap { flex-direction:column; padding:16px; }
   .lm-side { width:100%; }
@@ -8523,51 +8550,26 @@ async function loadLiveMonitor() {
   _lmHistory = [];
   const el = document.getElementById('ventureList');
   el.innerHTML = `
-    <div class="lm-wrap">
-      <div class="lm-main">
-        <div class="lm-header">
-          <div class="lm-pulse"></div>
-          <div class="lm-title">Live Monitor</div>
-          <div class="lm-subtitle" id="lmClock"></div>
-        </div>
-        <div class="lm-stats" id="lmStats"></div>
-        <div class="lm-timelapse">
-          <div class="lm-tl-header">
-            <div class="lm-tl-title">🎬 Development Timelapse</div>
-            <div style="display:flex;align-items:center;gap:12px;">
-              <span class="lm-tl-version" id="tlVersion"></span>
-              <span class="lm-tl-clock" id="tlClock"></span>
-            </div>
-          </div>
-          <div class="lm-tl-canvas-wrap">
-            <canvas id="tlCanvas"></canvas>
-            <div id="tlFeed" style="position:absolute;bottom:8px;left:16px;width:340px;max-height:220px;overflow:hidden;pointer-events:none;"></div>
-          </div>
-          <div class="lm-tl-stats">
-            <div><div class="lm-tl-stat-val" id="tlCommits" style="color:#38bdf8;">0</div><div class="lm-tl-stat-label">Commits</div></div>
-            <div><div class="lm-tl-stat-val" id="tlBugs" style="color:#f87171;">0</div><div class="lm-tl-stat-label">Bugs Fixed</div></div>
-            <div><div class="lm-tl-stat-val" id="tlReleases" style="color:#10b981;">0</div><div class="lm-tl-stat-label">Releases</div></div>
-            <div><div class="lm-tl-stat-val" id="tlAgents" style="color:#a78bfa;">0</div><div class="lm-tl-stat-label">AI Actions</div></div>
-          </div>
-          <div class="lm-tl-timeline" id="tlTimeline" onclick="_tlTimelineClick(event)">
-            <div class="lm-tl-histogram" id="tlHistogram"></div>
-            <div class="lm-tl-playhead" id="tlPlayhead"></div>
-            <div class="lm-tl-progress" id="tlProgress"></div>
-          </div>
-          <div class="lm-tl-controls">
-            <div class="lm-tl-speed" id="tlSpeedBtns">
-              <button onclick="_tlSetSpeed(0.5)">0.5×</button>
-              <button onclick="_tlSetSpeed(1)" class="active">1×</button>
-              <button onclick="_tlSetSpeed(2)">2×</button>
-              <button onclick="_tlSetSpeed(5)">5×</button>
-            </div>
-            <div style="font-size:9px;color:rgba(148,163,184,0.5);">Click timeline to jump</div>
-          </div>
-        </div>
-        <div class="lm-feed" id="lmFeed">
-          <div style="text-align:center;padding:40px;color:var(--text3);">Connecting...</div>
-        </div>
+    <div style="padding:24px;max-width:1400px;margin:0 auto;">
+      <div class="lm-header">
+        <div class="lm-pulse"></div>
+        <div class="lm-title">Live Monitor</div>
+        <div class="lm-subtitle" id="lmClock"></div>
       </div>
+      <div class="lm-tabs">
+        <button class="lm-tab-btn active" onclick="_lmSwitchView('dashboard',this)">📊 Dashboard</button>
+        <button class="lm-tab-btn" onclick="_lmSwitchView('timelapse',this)">🎬 Timelapse</button>
+      </div>
+
+      <!-- Dashboard tab -->
+      <div class="lm-tab-content active" id="lmViewDashboard">
+        <div class="lm-wrap" style="padding:0;">
+          <div class="lm-main">
+            <div class="lm-stats" id="lmStats"></div>
+            <div class="lm-feed" id="lmFeed">
+              <div style="text-align:center;padding:40px;color:var(--text3);">Connecting...</div>
+            </div>
+          </div>
       <div class="lm-side">
         <div class="lm-card">
           <div class="lm-card-title"><span style="color:#22c55e;">●</span> Active Now</div>
@@ -8607,15 +8609,63 @@ async function loadLiveMonitor() {
           <div id="lmChartWrap"></div>
         </div>
       </div>
+        </div>
+      </div>
+
+      <!-- Timelapse tab -->
+      <div class="lm-tab-content" id="lmViewTimelapse">
+        <div class="lm-timelapse">
+          <div class="lm-tl-header">
+            <div class="lm-tl-title">🎬 Development Timelapse</div>
+            <div style="display:flex;align-items:center;gap:12px;">
+              <span class="lm-tl-version" id="tlVersion"></span>
+              <span class="lm-tl-clock" id="tlClock"></span>
+            </div>
+          </div>
+          <div class="lm-tl-canvas-wrap">
+            <canvas id="tlCanvas"></canvas>
+            <div id="tlComments"></div>
+          </div>
+          <div class="lm-tl-stats">
+            <div><div class="lm-tl-stat-val" id="tlCommits" style="color:#38bdf8;">0</div><div class="lm-tl-stat-label">Commits</div></div>
+            <div><div class="lm-tl-stat-val" id="tlBugs" style="color:#f87171;">0</div><div class="lm-tl-stat-label">Bugs Fixed</div></div>
+            <div><div class="lm-tl-stat-val" id="tlReleases" style="color:#10b981;">0</div><div class="lm-tl-stat-label">Releases</div></div>
+            <div><div class="lm-tl-stat-val" id="tlAgents" style="color:#a78bfa;">0</div><div class="lm-tl-stat-label">AI Actions</div></div>
+          </div>
+          <div class="lm-tl-timeline" id="tlTimeline" onclick="_tlTimelineClick(event)">
+            <div class="lm-tl-histogram" id="tlHistogram"></div>
+            <div class="lm-tl-playhead" id="tlPlayhead"></div>
+            <div class="lm-tl-progress" id="tlProgress"></div>
+          </div>
+          <div class="lm-tl-controls">
+            <div class="lm-tl-speed" id="tlSpeedBtns">
+              <button onclick="_tlSetSpeed(0.5)">0.5×</button>
+              <button onclick="_tlSetSpeed(1)" class="active">1×</button>
+              <button onclick="_tlSetSpeed(2)">2×</button>
+              <button onclick="_tlSetSpeed(5)">5×</button>
+            </div>
+            <div style="font-size:9px;color:rgba(148,163,184,0.5);">Click timeline to jump</div>
+          </div>
+        </div>
+      </div>
     </div>`;
   await _lmPoll();
   _lmLoadChart();
   _lmPollTimer = setInterval(_lmPoll, 8000);
-  // 1-second ticker to keep timestamps and clock live
   _lmTickTimer = setInterval(_lmTick, 1000);
-  // Init timelapse animation
-  _tlInited = false;
-  setTimeout(() => _tlInit(), 100);
+}
+
+let _lmActiveView = 'dashboard';
+function _lmSwitchView(view, btn) {
+  _lmActiveView = view;
+  document.querySelectorAll('.lm-tab-btn').forEach(b => b.classList.toggle('active', b === btn));
+  document.querySelectorAll('.lm-tab-content').forEach(c => c.classList.remove('active'));
+  const target = document.getElementById(view === 'timelapse' ? 'lmViewTimelapse' : 'lmViewDashboard');
+  if (target) target.classList.add('active');
+  if (view === 'timelapse') {
+    _tlInited = false;
+    setTimeout(() => _tlInit(), 50);
+  }
 }
 
 function _lmTimeAgo(iso) {
@@ -9140,31 +9190,131 @@ function _tlInit() {
     return `${pad(d.getDate())} Apr ${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
   }
 
-  function _tlAddFeed(html){
-    const feed=document.getElementById('tlFeed');
-    if(!feed)return;
-    const item=document.createElement('div');
-    item.style.cssText='padding:4px 0;font-size:11px;line-height:1.4;opacity:0;transform:translateY(8px);animation:feedIn 0.4s forwards;border-bottom:1px solid rgba(51,65,85,0.2);color:#e2e8f0;';
-    const time=formatTlDate(currentTime).split(' ').pop();
-    item.innerHTML=`<span style="font-family:'JetBrains Mono',monospace;color:rgba(100,116,139,0.7);font-size:9px;margin-right:6px;">${time}</span>${html}`;
-    feed.prepend(item);
-    while(feed.children.length>10)feed.lastChild.remove();
+  // Periscope / Meerkat style floating comments
+  const _tlEmojis = ['💜','🔥','👏','🚀','✨','💪','🎯','⚡','👀','💡','🙌','❤️','😍','🤖','💻'];
+  const _tlSlackMsgs = [
+    { user:'Kobi', msg:'looking great! shipping fast 🚀', color:'#38bdf8' },
+    { user:'Gilad', msg:'PR approved, nice refactor', color:'#818cf8' },
+    { user:'Saar', msg:'love the new UX flow', color:'#34d399' },
+    { user:'Omri', msg:'impressive velocity', color:'#f472b6' },
+    { user:'Efi', msg:'infra looks solid 💪', color:'#fb923c' },
+    { user:'Shoshi', msg:'deploy pipeline is clean', color:'#a78bfa' },
+    { user:'Kobi', msg:'can we ship this today?', color:'#38bdf8' },
+    { user:'Gilad', msg:'tests passing, merge it', color:'#818cf8' },
+    { user:'Saar', msg:'users will love this', color:'#34d399' },
+    { user:'Omri', msg:'this is what autonomy looks like', color:'#f472b6' },
+    { user:'Efi', msg:'zero downtime deploy ✅', color:'#fb923c' },
+    { user:'Kobi', msg:'Claude is on fire today 🔥', color:'#38bdf8' },
+    { user:'Gilad', msg:'clean code, well structured', color:'#818cf8' },
+    { user:'Saar', msg:'feature looks production-ready', color:'#34d399' },
+    { user:'Shoshi', msg:'monitoring looks normal', color:'#a78bfa' },
+    { user:'Kobi', msg:'another release! 🎉', color:'#38bdf8' },
+    { user:'Omri', msg:'the AI agents are working great', color:'#f472b6' },
+    { user:'Gilad', msg:'no regressions, ship it', color:'#818cf8' },
+    { user:'Efi', msg:'Railway health check: all green', color:'#fb923c' },
+    { user:'Saar', msg:'mobile looks perfect now', color:'#34d399' },
+  ];
+  let _tlSlackIdx = 0;
+  let _tlLastBubbleTime = 0;
+
+  function _tlAddBubble(name, msg, color, isAi) {
+    const container = document.getElementById('tlComments');
+    if (!container) return;
+    const bubble = document.createElement('div');
+    bubble.className = 'tl-bubble';
+    const initials = name.split(' ').map(w=>w[0]).join('').slice(0,2);
+    bubble.innerHTML = `
+      <div class="tl-bubble-avatar" style="background:${color};">${initials}</div>
+      <div class="tl-bubble-body">
+        <div class="tl-bubble-name" style="color:${color};">${esc(name)}${isAi?'<span style="font-size:8px;margin-left:4px;padding:1px 4px;border-radius:3px;background:rgba(124,58,237,0.3);color:#c084fc;">AI</span>':''}</div>
+        <div class="tl-bubble-msg">${esc(msg)}</div>
+      </div>`;
+    container.appendChild(bubble);
+    // Remove after animation
+    setTimeout(() => bubble.remove(), 6200);
+    // Keep container manageable
+    while (container.children.length > 8) container.firstChild.remove();
+  }
+
+  function _tlAddEmoji() {
+    const container = document.getElementById('tlComments');
+    if (!container) return;
+    const wrap = container.closest('.lm-tl-canvas-wrap');
+    if (!wrap) return;
+    const emoji = document.createElement('div');
+    emoji.className = 'tl-bubble-emoji';
+    emoji.textContent = _tlEmojis[Math.floor(Math.random() * _tlEmojis.length)];
+    const wrapRect = wrap.getBoundingClientRect();
+    emoji.style.left = (50 + Math.random() * 280) + 'px';
+    emoji.style.bottom = '10px';
+    wrap.appendChild(emoji);
+    setTimeout(() => emoji.remove(), 3200);
+  }
+
+  function _tlMaybeSlackBubble() {
+    // Add a "Slack message" comment bubble periodically between events
+    const now = performance.now();
+    if (now - _tlLastBubbleTime < 2000) return; // min 2s between slack msgs
+    if (Math.random() > 0.35) return; // 35% chance
+    _tlLastBubbleTime = now;
+    const sm = _tlSlackMsgs[_tlSlackIdx % _tlSlackMsgs.length];
+    _tlSlackIdx++;
+    _tlAddBubble(sm.user, sm.msg, sm.color, false);
+    // Sometimes add emoji reactions
+    if (Math.random() > 0.5) {
+      setTimeout(() => _tlAddEmoji(), 300 + Math.random() * 800);
+    }
   }
 
   function processEvent(ev){
     const d=ev.data;
     switch(ev.type){
-      case 'commit':{counters.commits++;const ai=findAi('Claude');if(ai){ai.activate(0.8);emit(ai,centerNode,'#c084fc',3);}centerNode.activate(0.5);_tlAddFeed(`<span style="font-weight:700;color:#c084fc;">Claude</span> <span style="color:rgba(203,213,225,0.8);">committed</span> <span style="color:#fbbf24;font-weight:600;">${esc(d.msg)}</span>`);break;}
-      case 'release':{counters.releases++;const ver=document.getElementById('tlVersion');if(ver){ver.textContent=d.v+' RELEASED';ver.classList.add('show');setTimeout(()=>ver.classList.remove('show'),3000);}centerNode.activate(1);allNodes.forEach(n=>n.activate(0.3));_tlAddFeed(`<span style="font-weight:700;color:#10b981;">System</span> <span style="color:rgba(203,213,225,0.8);">deployed</span> <span style="color:#fbbf24;font-weight:600;">${esc(d.v)}</span>`);break;}
-      case 'bug':{counters.bugs++;const rp=findUser(d.reporter);const fx=findAi(d.fixer)||findAi('Claude');if(rp){rp.activate(0.7);emit(rp,centerNode,'#f87171',2.5);}if(fx){fx.activate(0.5);emit(centerNode,fx,'#4ade80',2.5);}_tlAddFeed(`<span style="font-weight:700;color:#38bdf8;">${esc(d.reporter)}</span> <span style="color:rgba(203,213,225,0.8);">reported</span> <span style="color:#fbbf24;font-weight:600;">${esc(d.key)}</span> <span style="color:rgba(203,213,225,0.8);">→ fixed by</span> <span style="font-weight:700;color:#c084fc;">${esc(d.fixer)}</span>`);break;}
-      case 'user_action':{const un=findUser(d.user);if(un){un.activate(0.4);emit(un,centerNode,un.color||'#38bdf8',2);}_tlAddFeed(`<span style="font-weight:700;color:#38bdf8;">${esc(d.user)}</span> <span style="color:rgba(203,213,225,0.8);">${esc(d.action)}</span>`);break;}
-      case 'ai_action':{counters.agents++;const an=findAi(d.agent);if(an){an.activate(0.6);emit(an,centerNode,an.color||'#a78bfa',2.5);}_tlAddFeed(`<span style="font-weight:700;color:#a78bfa;">${esc(d.agent)}</span> <span style="color:rgba(203,213,225,0.8);">${esc(d.action)}</span>`);break;}
+      case 'commit':{
+        counters.commits++;
+        const ai=findAi('Claude');
+        if(ai){ai.activate(0.8);emit(ai,centerNode,'#c084fc',3);}
+        centerNode.activate(0.5);
+        _tlAddBubble('Claude', 'committed: '+d.msg, '#c084fc', true);
+        if(Math.random()>0.6) setTimeout(()=>_tlAddEmoji(), 400);
+        break;
+      }
+      case 'release':{
+        counters.releases++;
+        const ver=document.getElementById('tlVersion');
+        if(ver){ver.textContent=d.v+' RELEASED';ver.classList.add('show');setTimeout(()=>ver.classList.remove('show'),3000);}
+        centerNode.activate(1);allNodes.forEach(n=>n.activate(0.3));
+        _tlAddBubble('System', d.v+' deployed! '+d.fixes+' fixes', '#10b981', false);
+        // Emoji burst on release
+        for(let i=0;i<3;i++) setTimeout(()=>_tlAddEmoji(), i*300);
+        break;
+      }
+      case 'bug':{
+        counters.bugs++;
+        const rp=findUser(d.reporter);const fx=findAi(d.fixer)||findAi('Claude');
+        if(rp){rp.activate(0.7);emit(rp,centerNode,'#f87171',2.5);}
+        if(fx){fx.activate(0.5);emit(centerNode,fx,'#4ade80',2.5);}
+        _tlAddBubble(d.reporter, 'reported '+d.key+' → fixed by '+d.fixer, '#f87171', false);
+        break;
+      }
+      case 'user_action':{
+        const un=findUser(d.user);
+        if(un){un.activate(0.4);emit(un,centerNode,un.color||'#38bdf8',2);}
+        _tlAddBubble(d.user, d.action, un?un.color:'#38bdf8', false);
+        break;
+      }
+      case 'ai_action':{
+        counters.agents++;
+        const an=findAi(d.agent);
+        if(an){an.activate(0.6);emit(an,centerNode,an.color||'#a78bfa',2.5);}
+        _tlAddBubble(d.agent, d.action, an?an.color:'#a78bfa', true);
+        break;
+      }
     }
     _tlUpdateCounters();
   }
 
   function tlFrame(now){
-    if(currentTab!=='live'){_tlAnimId=null;return;}
+    if(currentTab!=='live'||_lmActiveView!=='timelapse'){_tlAnimId=null;return;}
     _tlAnimId=requestAnimationFrame(tlFrame);
 
     const dt=lastFrame?(now-lastFrame)/1000:0;
@@ -9173,6 +9323,9 @@ function _tlInit() {
     if(currentTime>T_END+60000){currentTime=T_START;eventIndex=0;counters={commits:0,bugs:0,releases:0,agents:0};}
 
     while(eventIndex<tlEvents.length&&tlEvents[eventIndex].t<=currentTime){processEvent(tlEvents[eventIndex]);eventIndex++;}
+
+    // Periodic Slack-style comments between events
+    _tlMaybeSlackBubble();
 
     // Clock & progress
     const el=id=>document.getElementById(id);

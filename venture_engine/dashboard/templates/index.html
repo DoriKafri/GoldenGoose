@@ -2499,8 +2499,8 @@ if (location.hash && location.hash.startsWith('#news/read/')) {
             <div class="dim-desc">Intelligent sprint planning powered by Claude. Sends the top 15 open tickets to Claude for evaluation, which assigns business_value (1&ndash;10), story_points (Fibonacci), and sprint_priority (1&ndash;100) with written reasoning for each. Real bugs (tagged <code>real</code>) get a <strong>2.5&times; priority boost</strong>. Selects top tickets within velocity cap (40 SP) and sprint capacity (10 tickets). Posts sprint summary to Slack #general. Runs <strong>every hour</strong>.</div>
           </div>
           <div class="help-dim-card">
-            <div class="dim-name">AutoFix AI &mdash; Bug Fixer</div>
-            <div class="dim-desc">Picks up real bugs in <code>sprint</code> or <code>in_progress</code> status, reads the actual source file, uses Claude to generate a minimal targeted fix, and <strong>applies the fix to the live codebase</strong>. Records the full diff in a bug comment for review. Moves the bug to <code>review</code> status. Runs <strong>every 2 hours</strong>, fixing up to 2 bugs per run.</div>
+            <div class="dim-name">AutoFix AI &mdash; Bug Fixer (Red/Green TDD)</div>
+            <div class="dim-desc">Follows strict Red/Green TDD for every fix: <strong>(1) RED</strong> &mdash; generates a pytest that reproduces the bug and confirms it fails. <strong>(2) GREEN</strong> &mdash; generates a minimal code fix and confirms the test passes. If the test doesn't pass after the fix, the change is <strong>reverted</strong>. Each phase is recorded as a bug comment with the test code, failure output, diff, and pass confirmation. Runs <strong>every 2 hours</strong>.</div>
           </div>
         </div>
 
@@ -2509,7 +2509,7 @@ if (location.hash && location.hash.startsWith('#news/read/')) {
           <li><strong>Discovery</strong> &mdash; CodeHawk scans source code; PixelEye screenshots the UI. Both create real Bug entries tagged <code>real</code>.</li>
           <li><strong>Scoring</strong> &mdash; Maya (PO) evaluates all open tickets with Claude, assigning compound value/effort scores. Real bugs are boosted 2.5&times; over simulated ones.</li>
           <li><strong>Sprint Planning</strong> &mdash; Maya picks the highest-scored tickets into the sprint, respecting velocity (40 SP max) and capacity (10 tickets max). Posts reasoning to Slack.</li>
-          <li><strong>Auto-Fix</strong> &mdash; AutoFix picks up real sprint bugs, reads the relevant source file, generates a fix with Claude, and writes it to disk. The diff is recorded as a comment.</li>
+          <li><strong>Auto-Fix (TDD)</strong> &mdash; AutoFix picks up real sprint bugs and runs a Red/Green cycle: writes a failing test (RED), confirms it fails, generates a fix (GREEN), confirms the test passes. If the fix doesn't pass, it's reverted. Test + diff + output recorded as comments.</li>
           <li><strong>Review &amp; Release</strong> &mdash; Fixed bugs move to <code>review</code> &rarr; <code>done</code> &rarr; <code>next_version</code> &rarr; <code>closed</code> via the standard release pipeline (auto-release every 6 hours).</li>
         </ol>
 

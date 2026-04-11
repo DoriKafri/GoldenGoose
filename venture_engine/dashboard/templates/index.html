@@ -2466,6 +2466,8 @@ let currentPage = 0;
 const PAGE_SIZE = 25;
 let totalVentures = 0;
 let currentTab = 'news';
+// Disable browser's automatic scroll restoration — we handle it manually
+if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
 // Brain-rot anonymous identities
 const BRAINROT_NAMES = [
   ["Sigma Capybara","\u{1F9AB}"],["Rizzy Axolotl","\u{1F98E}"],["Skibidi Penguin","\u{1F427}"],["Ohio Raccoon","\u{1F99D}"],["Bussin Narwhal","\u{1F9A1}"],
@@ -2715,6 +2717,10 @@ function readHash() {
   }
 }
 window.addEventListener('popstate', (e) => {
+  // Recover scroll position from history state if available
+  if (e.state && typeof e.state.scrollY === 'number') {
+    _newsFeedScrollY = e.state.scrollY;
+  }
   // If reader overlay is open, close it and restore news feed
   if (document.getElementById('readerOverlay').classList.contains('open')) {
     closeReader(true);
@@ -3965,6 +3971,16 @@ function _fmtTime(sec) {
 function openReader(url, title, newsItemId) {
   // Save scroll position so we can restore it when closing
   _newsFeedScrollY = window.scrollY || window.pageYOffset || 0;
+  // Look up annotation count from cached news items
+  var _initAnnCount = 0;
+  var _initAnnFirst = null;
+  if (newsItemId && _newsItems.length) {
+    var _ni = _newsItems.find(function(i){ return i.id === newsItemId; });
+    if (_ni) {
+      _initAnnCount = _ni.annotation_count || 0;
+      if (_ni.annotations && _ni.annotations.length) _initAnnFirst = _ni.annotations[0];
+    }
+  }
   _readerUrl = url;
   _readerNewsItemId = newsItemId || null;
   _readerAnnotations = [];
@@ -4036,10 +4052,12 @@ function openReader(url, title, newsItemId) {
         <div class="yt-comments-preview" id="ytCommentsPreview" onclick="_ytOpenCommentsSheet()">
           <div>
             <span class="yt-comments-preview-title">Comments</span>
-            <span class="yt-comments-preview-count" id="ytCommentsPreviewCount">0</span>
+            <span class="yt-comments-preview-count" id="ytCommentsPreviewCount">${_initAnnCount}</span>
           </div>
           <div class="yt-comments-preview-body" id="ytCommentsPreviewBody">
-            <span class="yt-comments-preview-text" style="color:var(--text3);">No comments yet</span>
+            ${_initAnnFirst
+              ? '<img class="yt-comments-preview-avatar" src="https://api.dicebear.com/7.x/bottts/svg?seed='+encodeURIComponent(_initAnnFirst.author_name||_initAnnFirst.author_id||'')+'&backgroundColor=b6e3f4" alt=""><span class="yt-comments-preview-text">'+esc((_initAnnFirst.body||'').substring(0,80))+'</span>'
+              : '<span class="yt-comments-preview-text" style="color:var(--text3);">No comments yet</span>'}
           </div>
           <span class="yt-comments-preview-arrow">&#9662;</span>
         </div>
@@ -4178,9 +4196,11 @@ function openReader(url, title, newsItemId) {
   document.getElementById('readerOverlay').classList.add('open');
   var readerHash = '#news/read/' + encodeURIComponent(url);
   if (location.hash.startsWith('#news/read/')) {
-    history.replaceState({reader: true}, '', readerHash);
+    history.replaceState({reader: true, scrollY: _newsFeedScrollY}, '', readerHash);
   } else {
     window._preReaderHash = location.hash || '#news';
+    // Save scroll position in the current history entry before pushing
+    history.replaceState({scrollY: _newsFeedScrollY}, '', location.href);
     history.pushState({reader: true}, '', readerHash);
   }
 }
@@ -5503,9 +5523,13 @@ function closeReader(fromPopstate) {
   } else {
     switchTab(activeTab, true);
   }
-  // Restore scroll position after all UI is settled
+  // Restore scroll position after all UI is settled — multiple attempts for mobile
   var savedScroll = _newsFeedScrollY;
-  requestAnimationFrame(function() { window.scrollTo(0, savedScroll); });
+  window.scrollTo(0, savedScroll);
+  requestAnimationFrame(function() {
+    window.scrollTo(0, savedScroll);
+    setTimeout(function() { window.scrollTo(0, savedScroll); }, 50);
+  });
 }
 
 async function loadReaderAnnotations() {

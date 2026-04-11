@@ -4949,23 +4949,6 @@ async function _ytLoadTranscript() {
     return;
   }
 
-  // Quick cache probe — if server has transcript cached, render instantly (no spinner)
-  try {
-    const _probeResp = await fetch(`${API}/api/youtube-transcript?video_id=${vid}`, {signal: AbortSignal.timeout(3000)});
-    if (_probeResp.ok) {
-      const _probeData = await _probeResp.json();
-      if (_probeData.segments && _probeData.segments.length) {
-        _ytTranscriptData = _probeData.segments;
-        _ytTranscriptVideoId = vid;
-        _ytRenderTranscript(_ytTranscriptData);
-        _tabSetReady('transcript');
-        _ytPreFetchInsights(vid);
-        return;
-      }
-    }
-  } catch(e) { /* probe failed — fall through to full loading */ }
-
-  // Not cached — spinner already set upfront, show loading text
   contentEl.innerHTML = '<div class="yt-transcript-loading">Loading transcript...</div>';
 
   // Two-phase loading:

@@ -2694,8 +2694,7 @@ window.addEventListener('popstate', (e) => {
   // If reader overlay is open, close it and restore news feed
   if (document.getElementById('readerOverlay').classList.contains('open')) {
     closeReader(true);
-    // Always restore news feed after closing reader
-    switchTab('news', true);
+    // closeReader already handles restoring news tab + scroll position
     if (!location.hash || !location.hash.startsWith('#news')) {
       history.replaceState(null, '', '#news');
     }
@@ -5480,8 +5479,12 @@ function closeReader(fromPopstate) {
     document.getElementById('ventureSearchBar').style.display = 'none';
     const filtersEl = document.getElementById('sidebarFilters');
     if (filtersEl) filtersEl.style.display = 'none';
-    // Restore scroll position after a tick (DOM needs to settle)
-    requestAnimationFrame(() => { window.scrollTo(0, _savedScrollY); });
+    // Restore scroll position — use multiple attempts to handle layout settling
+    var _scrollTarget = _savedScrollY;
+    window.scrollTo(0, _scrollTarget);
+    requestAnimationFrame(() => { window.scrollTo(0, _scrollTarget); });
+    setTimeout(() => { window.scrollTo(0, _scrollTarget); }, 50);
+    setTimeout(() => { window.scrollTo(0, _scrollTarget); }, 150);
   } else {
     switchTab(activeTab, true);
   }

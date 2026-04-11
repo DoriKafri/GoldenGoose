@@ -4059,6 +4059,14 @@ def trigger_bug_fix(db: Session = Depends(get_db_dependency)):
     return result
 
 
+@router.post("/api/bugs/trigger-ui-inspect")
+def trigger_ui_inspect(db: Session = Depends(get_db_dependency)):
+    """Manually trigger the AI UI inspector to screenshot pages and find UI/UX bugs."""
+    from venture_engine.agents.ui_inspector import inspect_ui
+    result = inspect_ui(db)
+    return result
+
+
 @router.post("/api/bugs/{bug_id}/auto-fix")
 def auto_fix_single_bug(bug_id: str, db: Session = Depends(get_db_dependency)):
     """Manually trigger an AI fix for a specific bug."""

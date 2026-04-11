@@ -123,6 +123,12 @@ def _run_bug_fixer():
     run_bug_fixer()
 
 
+def _run_ui_inspector():
+    """Job 10c: AI agent uses Playwright + Claude Vision to find UI/UX bugs."""
+    from venture_engine.agents.ui_inspector import run_ui_inspector
+    run_ui_inspector()
+
+
 def _daily_agent_voting():
     """Job 10: Daily agent voting on new ventures."""
     logger.info("=== SCHEDULED: Daily agent voting ===")
@@ -320,6 +326,13 @@ def start_scheduler():
         replace_existing=True,
     )
     scheduler.add_job(
+        _run_ui_inspector,
+        "interval",
+        hours=6,
+        id="ui_inspector",
+        replace_existing=True,
+    )
+    scheduler.add_job(
         _daily_agent_voting,
         "cron",
         hour=9,
@@ -352,7 +365,7 @@ def start_scheduler():
         f"TL sync every {settings.tl_sync_interval_hours}h, "
         f"digest {settings.weekly_digest_day} {settings.weekly_digest_hour}:00, "
         f"activity sim every 30min, sprint planning every 1h, auto-release every 6h, "
-        f"bug hunter every 4h, bug fixer every 2h"
+        f"bug hunter every 4h, bug fixer every 2h, UI inspector every 6h"
     )
 
 

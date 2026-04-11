@@ -8400,6 +8400,15 @@ async function loadLiveMonitor() {
           <div class="lm-users" id="lmUsers"></div>
         </div>
         <div class="lm-card">
+          <div class="lm-card-title"><span style="color:#7c3aed;">●</span> AI Agents</div>
+          <div style="display:flex;flex-direction:column;gap:6px;" id="lmAgents">
+            <div class="lm-user"><div class="lm-user-dot" style="background:#7c3aed;"></div><span class="lm-user-name" style="font-size:12px;">🔍 CodeHawk — Bug Hunter (4h)</span></div>
+            <div class="lm-user"><div class="lm-user-dot" style="background:#7c3aed;"></div><span class="lm-user-name" style="font-size:12px;">👁️ PixelEye — UI Inspector (6h)</span></div>
+            <div class="lm-user"><div class="lm-user-dot" style="background:#7c3aed;"></div><span class="lm-user-name" style="font-size:12px;">📋 Maya Levi — PO Agent (1h)</span></div>
+            <div class="lm-user"><div class="lm-user-dot" style="background:#7c3aed;"></div><span class="lm-user-name" style="font-size:12px;">🔧 AutoFix — Bug Fixer (2h)</span></div>
+          </div>
+        </div>
+        <div class="lm-card">
           <div class="lm-card-title" style="justify-content:space-between;">
             <span>📊 Activity</span>
             <div style="display:flex;gap:3px;" id="lmChartTabs">
@@ -8456,8 +8465,8 @@ async function _lmPoll() {
     if (statsEl) statsEl.innerHTML = `
       <div class="lm-stat"><div class="lm-stat-val">${st.active_count||0}</div><div class="lm-stat-label">Active Users</div></div>
       <div class="lm-stat"><div class="lm-stat-val">${st.total_bugs||0}</div><div class="lm-stat-label">Total Bugs</div></div>
-      <div class="lm-stat"><div class="lm-stat-val">${st.open_bugs||0}</div><div class="lm-stat-label">Open Bugs</div></div>
-      <div class="lm-stat"><div class="lm-stat-val">${st.total_slack||0}</div><div class="lm-stat-label">Slack Messages</div></div>
+      <div class="lm-stat"><div class="lm-stat-val" style="color:#7c3aed;">${st.real_bugs||0}</div><div class="lm-stat-label">Real Bugs (AI)</div></div>
+      <div class="lm-stat"><div class="lm-stat-val" style="color:#22c55e;">${st.real_fixed||0}</div><div class="lm-stat-label">Real Fixed</div></div>
     `;
 
     // Active users
@@ -8484,15 +8493,24 @@ async function _lmPoll() {
         feedEl.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text3);">No activity yet. The simulation will generate events shortly.</div>';
       } else if (events.length > 0) {
         const isFirst = !_lmLastTime;
-        const newHtml = events.map(ev => `
-          <div class="lm-event${isFirst ? '' : ' new'}">
+        const newHtml = events.map(ev => {
+          const meta = ev.meta || {};
+          const isAgent = meta.is_agent;
+          const isReal = meta.is_real;
+          let badge = '';
+          if (isAgent) badge = '<span style="font-size:9px;font-weight:700;padding:1px 5px;border-radius:4px;background:rgba(124,58,237,0.15);color:#7c3aed;margin-left:4px;">AI AGENT</span>';
+          if (isReal) badge += '<span style="font-size:9px;font-weight:700;padding:1px 5px;border-radius:4px;background:rgba(239,68,68,0.12);color:#ef4444;margin-left:4px;">REAL</span>';
+          const borderColor = isAgent ? 'border-left:3px solid #7c3aed;' : isReal ? 'border-left:3px solid #ef4444;' : '';
+          return `
+          <div class="lm-event${isFirst ? '' : ' new'}" style="${borderColor}">
             <div class="lm-ev-icon">${ev.icon||'📌'}</div>
             <div class="lm-ev-body">
-              <div><span class="lm-ev-user">${esc(ev.user||'System')}</span> <span class="lm-ev-action">${esc(ev.action||'')}</span></div>
+              <div><span class="lm-ev-user">${esc(ev.user||'System')}</span>${badge} <span class="lm-ev-action">${esc(ev.action||'')}</span></div>
               ${ev.body ? `<div class="lm-ev-detail">${esc(ev.body)}</div>` : ''}
             </div>
             <div class="lm-ev-time" data-ts="${ev.time||''}">${_lmTimeAgo(ev.time)}</div>
-          </div>`).join('');
+          </div>`;
+        }).join('');
         if (isFirst) {
           feedEl.innerHTML = newHtml;
         } else {

@@ -5564,35 +5564,50 @@ def get_live_feed(since: Optional[str] = None, limit: int = 30, db: Session = De
             "time": m.created_at.isoformat() if m.created_at else None,
         })
 
-    # Bug reports
+    # Bug reports — with agent identification
+    agent_emails = {"codehawk@develeap.com", "autofix@develeap.com", "pixeleye@develeap.com", "maya@develeap.com"}
     q = db.query(Bug).order_by(Bug.created_at.desc())
     if cutoff:
         q = q.filter(Bug.created_at > cutoff)
     for b in q.limit(limit).all():
+        is_agent = b.reporter_email in agent_emails
+        is_real = b.labels and "real" in b.labels
         action_map = {"open": "reported", "sprint": "moved to sprint", "in_progress": "started working on",
                       "review": "submitted for review", "done": "completed", "next_version": "queued for release",
                       "closed": "closed"}
+        icon = "🤖" if is_agent else "🐛"
+        if is_real and b.labels and "ui-ux" in b.labels:
+            icon = "👁️"
+        elif is_real:
+            icon = "🔍"
         events.append({
-            "type": "bug", "icon": "🐛", "color": "#8b5cf6",
+            "type": "bug", "icon": icon, "color": "#8b5cf6",
             "user": b.reporter_name or b.reporter_email or "Unknown",
             "action": f"{action_map.get(b.status, 'filed')} {b.key}",
             "body": (b.title or "")[:120],
             "time": b.created_at.isoformat() if b.created_at else None,
-            "meta": {"priority": b.priority, "status": b.status},
+            "meta": {"priority": b.priority, "status": b.status, "is_agent": is_agent, "is_real": is_real},
         })
 
-    # Bug comments
+    # Bug comments — with agent identification
     q = db.query(BugComment).order_by(BugComment.created_at.desc())
     if cutoff:
         q = q.filter(BugComment.created_at > cutoff)
     for bc in q.limit(limit).all():
         bug = db.query(Bug).filter(Bug.id == bc.bug_id).first()
+        is_agent = bc.author_email in agent_emails
+        icon = "🤖" if is_agent else "💬"
+        if is_agent and bc.author_email == "autofix@develeap.com":
+            icon = "🔧"
+        elif is_agent and bc.author_email == "maya@develeap.com":
+            icon = "📋"
         events.append({
-            "type": "bug_comment", "icon": "💬", "color": "#6366f1",
+            "type": "bug_comment", "icon": icon, "color": "#6366f1",
             "user": bc.author_name or bc.author_email or "Unknown",
             "action": f"commented on {bug.key if bug else 'a bug'}",
             "body": (bc.body or "")[:120],
             "time": bc.created_at.isoformat() if bc.created_at else None,
+            "meta": {"is_agent": is_agent},
         })
 
     # Article comments
@@ -5634,6 +5649,11 @@ def get_live_feed(since: Optional[str] = None, limit: int = 30, db: Session = De
     total_slack = db.query(func.count(SlackMessage.id)).scalar() or 0
     total_comments = db.query(func.count(PageAnnotation.id)).scalar() or 0
 
+    # Agent-specific counts
+    all_bugs = db.query(Bug).all()
+    real_bugs = sum(1 for b in all_bugs if b.labels and "real" in b.labels)
+    real_fixed = sum(1 for b in all_bugs if b.labels and "real" in b.labels and b.status in ("done", "next_version", "closed"))
+
     return {
         "events": events[:limit],
         "active_users": sorted(active_users),
@@ -5643,6 +5663,8 @@ def get_live_feed(since: Optional[str] = None, limit: int = 30, db: Session = De
             "total_slack": total_slack,
             "total_comments": total_comments,
             "active_count": len(active_users),
+            "real_bugs": real_bugs,
+            "real_fixed": real_fixed,
         },
         "server_time": datetime.utcnow().isoformat(),
     }

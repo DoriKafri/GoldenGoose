@@ -8966,7 +8966,14 @@ function _renderSlackWorkspace(channels) {
     </div>`;
   }).join('');
 
-  el.innerHTML = `<div class="sl-workspace">
+  // On mobile, append workspace to <body> to escape .main overflow:hidden clipping
+  const _isMobile = window.innerWidth <= 768;
+  const _wsContainer = _isMobile ? document.body : el;
+  // Remove any previous workspace
+  const _oldWs = document.querySelector('.sl-workspace');
+  if (_oldWs) _oldWs.remove();
+  const _wsDiv = document.createElement('div');
+  _wsDiv.innerHTML = `<div class="sl-workspace">
     <div class="sl-sidebar-overlay" onclick="_slToggleMobileSidebar()"></div>
     <div class="sl-sidebar">
       <div class="sl-sidebar-header">
@@ -9018,6 +9025,8 @@ function _renderSlackWorkspace(channels) {
       </div>
     </div>
   </div>`;
+  _wsContainer.appendChild(_wsDiv.firstElementChild);
+  if (!_isMobile) el.innerHTML = '';  // clear loading text on desktop
 }
 
 function _slToggleMobileSidebar() {

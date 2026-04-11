@@ -1837,7 +1837,16 @@ ANNOTATION_IFRAME_SCRIPT = """
 
 # ─── YouTube Frame Extraction ────────────────────────────────────
 # In-memory cache for storyboard spec data (parsed from YouTube page HTML)
+_YT_STORYBOARD_CACHE_MAX = 50  # Evict oldest entries beyond this limit
 _yt_storyboard_cache: dict = {}  # video_id -> {spec_data, fetched_at}
+
+
+def _yt_storyboard_cache_put(key: str, value: dict):
+    """Add to storyboard cache with LRU eviction to prevent unbounded memory growth."""
+    _yt_storyboard_cache[key] = value
+    if len(_yt_storyboard_cache) > _YT_STORYBOARD_CACHE_MAX:
+        oldest_key = min(_yt_storyboard_cache, key=lambda k: _yt_storyboard_cache[k].get("fetched_at", 0))
+        _yt_storyboard_cache.pop(oldest_key, None)
 
 
 def _fetch_storyboard_spec_html(video_id: str):
@@ -1978,7 +1987,7 @@ def _fetch_storyboard_spec(video_id: str):
     # Try direct HTML parsing first (faster)
     try:
         spec_data = _fetch_storyboard_spec_html(video_id)
-        _yt_storyboard_cache[video_id] = {"spec_data": spec_data, "fetched_at": _time.time()}
+        _yt_storyboard_cache_put(video_id, {"spec_data": spec_data, "fetched_at": _time.time()})
         return spec_data
     except Exception as exc:
         logger.info(f"HTML storyboard fetch failed for {video_id}: {exc}, trying yt-dlp")
@@ -1986,7 +1995,7 @@ def _fetch_storyboard_spec(video_id: str):
     # Fall back to yt-dlp (better at bypassing bot detection)
     try:
         spec_data = _fetch_storyboard_spec_ytdlp(video_id)
-        _yt_storyboard_cache[video_id] = {"spec_data": spec_data, "fetched_at": _time.time()}
+        _yt_storyboard_cache_put(video_id, {"spec_data": spec_data, "fetched_at": _time.time()})
         return spec_data
     except Exception as exc:
         logger.warning(f"yt-dlp storyboard fetch also failed for {video_id}: {exc}")
@@ -2609,8 +2618,8 @@ async def youtube_transcript_cache_put(video_id: str, request: Request):
     if not segments:
         raise HTTPException(400, "segments required")
 
+    db = SessionLocal()
     try:
-        db = SessionLocal()
         existing = db.query(TranscriptCache).filter(TranscriptCache.video_id == video_id).first()
         if existing:
             existing.segments = segments
@@ -2618,10 +2627,12 @@ async def youtube_transcript_cache_put(video_id: str, request: Request):
         else:
             db.add(TranscriptCache(video_id=video_id, language=language, segments=segments))
         db.commit()
-        db.close()
         return {"status": "cached", "count": len(segments)}
     except Exception as e:
+        logger.error(f"Failed to cache transcript for {video_id}: {e}")
         raise HTTPException(500, str(e))
+    finally:
+        db.close()
 
 
 def _get_transcript_text(video_id: str) -> str:
@@ -2635,15 +2646,16 @@ def _get_transcript_text(video_id: str) -> str:
     segments = None
 
     # Check cache only — no live fetch (it blocks for too long in background threads)
+    db = SessionLocal()
     try:
-        db = SessionLocal()
         cached = db.query(TranscriptCache).filter(TranscriptCache.video_id == video_id).first()
         if cached and cached.segments:
             segments = cached.segments
             logger.info(f"Transcript text from cache for {video_id}: {len(segments)} segments")
-        db.close()
     except Exception as e:
         logger.warning(f"Transcript cache lookup failed for {video_id}: {e}")
+    finally:
+        db.close()
 
     if not segments:
         logger.info(f"No cached transcript for {video_id} — takeaways/DOPI will retry later")

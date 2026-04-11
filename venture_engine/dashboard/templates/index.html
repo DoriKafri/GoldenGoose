@@ -4250,8 +4250,11 @@ function openReader(url, title, newsItemId) {
         const s = document.createElement('script');
         s.id = 'ytApiScript';
         s.src = 'https://www.youtube.com/iframe_api';
+        s.onerror = function() { console.error('YouTube API script failed to load'); _ytShowPlayerFallback(ytVideoId); };
         document.head.appendChild(s);
       }
+      // Fallback if API never fires ready
+      setTimeout(() => { if (!window.YT || !window.YT.Player) _ytShowPlayerFallback(ytVideoId); }, 10000);
     }
 
     // Eager-fetch transcript, takeaways, DOPI in parallel
@@ -4351,20 +4354,49 @@ function openReader(url, title, newsItemId) {
 
 function _createYTPlayer(videoId) {
   if (_ytPlayer) { try { _ytPlayer.destroy(); } catch(e){} }
-  _ytPlayer = new YT.Player('ytPlayerDiv', {
-    videoId: videoId,
-    playerVars: { autoplay: 0, modestbranding: 1, rel: 0 },
-    events: {
-      onReady: function() {
-        _ytPlayerReady = true;
-        // Start time update interval
-        if (_ytTimeInterval) clearInterval(_ytTimeInterval);
-        _ytTimeInterval = setInterval(_ytUpdateTime, 500);
-        // Render DOPI segments if already loaded
-        _renderDpoiTimelineSegments();
+  const playerDiv = document.getElementById('ytPlayerDiv');
+  if (!playerDiv) return;
+  try {
+    _ytPlayer = new YT.Player('ytPlayerDiv', {
+      videoId: videoId,
+      playerVars: { autoplay: 0, modestbranding: 1, rel: 0, origin: location.origin },
+      events: {
+        onReady: function() {
+          _ytPlayerReady = true;
+          if (_ytTimeInterval) clearInterval(_ytTimeInterval);
+          _ytTimeInterval = setInterval(_ytUpdateTime, 500);
+          _renderDpoiTimelineSegments();
+        },
+        onError: function(e) {
+          console.warn('YouTube player error:', e.data);
+          _ytShowPlayerFallback(videoId);
+        }
       }
+    });
+  } catch(err) {
+    console.error('Failed to create YT player:', err);
+    _ytShowPlayerFallback(videoId);
+  }
+  // Timeout fallback — if player doesn't become ready in 8s, show direct link
+  setTimeout(() => {
+    if (!_ytPlayerReady && document.getElementById('ytPlayerDiv')) {
+      const el = document.getElementById('ytPlayerDiv');
+      if (el && !el.querySelector('iframe')) _ytShowPlayerFallback(videoId);
     }
-  });
+  }, 8000);
+}
+function _ytShowPlayerFallback(videoId) {
+  const container = document.querySelector('.yt-player-container');
+  if (!container) return;
+  container.innerHTML = `
+    <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#000;gap:12px;">
+      <a href="https://www.youtube.com/watch?v=${videoId}" target="_blank" rel="noopener"
+         style="display:flex;align-items:center;gap:8px;padding:12px 24px;background:#f00;color:#fff;border-radius:8px;font-weight:700;font-size:14px;text-decoration:none;font-family:inherit;">
+        <svg viewBox="0 0 24 24" fill="white" style="width:20px;height:20px;"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        Watch on YouTube
+      </a>
+      <span style="color:rgba(255,255,255,0.5);font-size:11px;">Video embed unavailable — click to watch directly</span>
+    </div>`;
 }
 
 function _ytUpdateTime() {

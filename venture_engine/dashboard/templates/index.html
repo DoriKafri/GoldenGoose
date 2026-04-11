@@ -1717,7 +1717,7 @@ html.dark .lm-tl-fullscreen-btn:hover { background:rgba(51,65,85,0.95); color:#e
 /* Fullscreen timelapse */
 .lm-timelapse.tl-fullscreen { position:fixed!important; top:0; left:0; width:100vw; height:100vh; z-index:9999; margin:0!important; border-radius:0; border:none; display:flex!important; flex-direction:column; overflow:visible; }
 .lm-timelapse.tl-fullscreen .lm-tl-canvas-wrap { flex:1 1 0%!important; height:0!important; min-height:0!important; }
-.lm-timelapse.tl-fullscreen .lm-tl-timeline { flex-shrink:0; height:48px; }
+.lm-timelapse.tl-fullscreen .lm-tl-timeline { flex-shrink:0; height:54px; }
 .lm-timelapse.tl-fullscreen .lm-tl-controls { flex-shrink:0; }
 
 /* Below-fold sections */
@@ -1752,23 +1752,12 @@ html.dark .lm-tl-stats-overlay { background:rgba(15,23,42,0.75); }
 html.dark .lm-tl-canvas-wrap { background:#0a0e17; }
 .lm-tl-canvas-wrap canvas { width:100%; height:100%; display:block; }
 /* Old stats row replaced by .lm-tl-stats-overlay on canvas */
-.lm-tl-timeline { position:relative; height:44px; background:rgba(241,245,249,0.9); border-top:1px solid var(--border); overflow-x:scroll; overflow-y:hidden; scrollbar-width:thin; scrollbar-color:rgba(148,163,184,0.3) transparent; -webkit-overflow-scrolling:touch; }
-.lm-tl-timeline::-webkit-scrollbar { height:5px; }
-.lm-tl-timeline::-webkit-scrollbar-thumb { background:rgba(148,163,184,0.4); border-radius:3px; }
-.lm-tl-timeline::-webkit-scrollbar-track { background:rgba(148,163,184,0.1); }
+.lm-tl-timeline { position:relative; height:54px; background:rgba(241,245,249,0.9); border-top:1px solid var(--border); overflow:hidden; cursor:pointer; }
 html.dark .lm-tl-timeline { background:rgba(15,23,42,0.8); border-top-color:rgba(51,65,85,0.3); }
-html.dark .lm-tl-timeline::-webkit-scrollbar-thumb { background:rgba(148,163,184,0.25); }
-.lm-tl-timeline-inner { position:relative; height:100%; width:250%; cursor:grab; }
-.lm-tl-scroll-arrow { position:absolute; top:0; width:24px; height:100%; z-index:5; display:flex; align-items:center; justify-content:center; cursor:pointer; border:none; padding:0; font-size:14px; color:var(--text2); opacity:0.5; transition:opacity 0.15s; }
-.lm-tl-scroll-arrow:hover { opacity:1; }
-.lm-tl-scroll-arrow.left { left:0; background:linear-gradient(90deg,rgba(241,245,249,0.95) 60%,transparent); }
-.lm-tl-scroll-arrow.right { right:0; background:linear-gradient(270deg,rgba(241,245,249,0.95) 60%,transparent); }
-html.dark .lm-tl-scroll-arrow.left { background:linear-gradient(90deg,rgba(15,23,42,0.95) 60%,transparent); }
-html.dark .lm-tl-scroll-arrow.right { background:linear-gradient(270deg,rgba(15,23,42,0.95) 60%,transparent); }
-.lm-tl-histogram { position:absolute; bottom:3px; left:0; right:0; height:38px; display:flex; align-items:flex-end; gap:1px; padding:0 2px; overflow:visible; }
-.lm-tl-bar { flex:1; min-width:0; opacity:0.65; position:relative; border-radius:2px 2px 0 0; transition:opacity 0.12s; }
+.lm-tl-histogram { position:absolute; bottom:3px; left:0; right:0; height:46px; display:flex; align-items:flex-end; gap:1px; padding:0 2px; overflow:visible; }
+.lm-tl-bar { flex:1; min-width:0; opacity:0.75; position:relative; z-index:2; border-radius:2px 2px 0 0; transition:opacity 0.12s; background:rgba(148,163,184,0.15); }
 .lm-tl-bar:hover { opacity:1; }
-.lm-tl-playhead { position:absolute; bottom:0; width:2px; height:44px; background:#2563eb; z-index:2; pointer-events:none; box-shadow:0 0 6px rgba(37,99,235,0.4); }
+.lm-tl-playhead { position:absolute; bottom:0; width:2px; height:54px; background:#2563eb; z-index:3; pointer-events:none; box-shadow:0 0 6px rgba(37,99,235,0.4); }
 html.dark .lm-tl-playhead { background:#38bdf8; box-shadow:0 0 8px rgba(56,189,248,0.5); }
 .lm-tl-progress { position:absolute; bottom:0; left:0; height:3px; background:linear-gradient(90deg,#10b981,#38bdf8,#a78bfa); }
 .lm-tl-controls { display:flex; align-items:center; justify-content:space-between; padding:6px 16px; background:rgba(241,245,249,0.9); border-top:1px solid var(--border); }
@@ -8678,16 +8667,10 @@ async function loadLiveMonitor() {
           </div>
           <div id="tlComments"></div>
         </div>
-        <div style="position:relative;">
-          <button class="lm-tl-scroll-arrow left" onclick="document.getElementById('tlTimeline').scrollBy({left:-150,behavior:'smooth'})" title="Scroll left">◀</button>
-          <button class="lm-tl-scroll-arrow right" onclick="document.getElementById('tlTimeline').scrollBy({left:150,behavior:'smooth'})" title="Scroll right">▶</button>
-          <div class="lm-tl-timeline" id="tlTimeline">
-            <div class="lm-tl-timeline-inner" id="tlTimelineInner">
-              <div class="lm-tl-histogram" id="tlHistogram"></div>
-              <div class="lm-tl-playhead" id="tlPlayhead"></div>
-              <div class="lm-tl-progress" id="tlProgress"></div>
-            </div>
-          </div>
+        <div class="lm-tl-timeline" id="tlTimeline" onclick="_tlTimelineClick(event)">
+          <div class="lm-tl-histogram" id="tlHistogram"></div>
+          <div class="lm-tl-playhead" id="tlPlayhead"></div>
+          <div class="lm-tl-progress" id="tlProgress"></div>
         </div>
         <div class="lm-tl-controls">
           <div class="lm-tl-speed" id="tlSpeedBtns">
@@ -9422,18 +9405,19 @@ async function _tlInit() {
     let prevDate=-1;
     binDays.forEach((bd,i)=>{if(bd.date!==prevDate){dayStarts.add(i);prevDate=bd.date;}});
 
+    const barMax = 40; // max bar height in px
     histEl.innerHTML=histBins.map((bin,i)=>{
-      const tH=(bin.total/maxBin*34);const cH=(bin.commits/maxBin*34);const bH=(bin.bugs/maxBin*34);const rH=(bin.releases/maxBin*34);const oH=tH-cH-bH-rH;
+      const tH=(bin.total/maxBin*barMax);const cH=(bin.commits/maxBin*barMax);const bH=(bin.bugs/maxBin*barMax);const rH=(bin.releases/maxBin*barMax);const oH=tH-cH-bH-rH;
       let p='';let bot=0;
-      if(oH>0){p+=`<div style="position:absolute;bottom:${bot}px;width:100%;height:${oH}px;background:rgba(148,163,184,0.3);border-radius:1px;"></div>`;bot+=oH;}
-      if(cH>0){p+=`<div style="position:absolute;bottom:${bot}px;width:100%;height:${cH}px;background:rgba(56,189,248,0.7);border-radius:1px;"></div>`;bot+=cH;}
-      if(bH>0){p+=`<div style="position:absolute;bottom:${bot}px;width:100%;height:${bH}px;background:rgba(248,113,113,0.8);border-radius:1px;"></div>`;bot+=bH;}
+      if(oH>0){p+=`<div style="position:absolute;bottom:${bot}px;width:100%;height:${oH}px;background:rgba(148,163,184,0.4);border-radius:1px;"></div>`;bot+=oH;}
+      if(cH>0){p+=`<div style="position:absolute;bottom:${bot}px;width:100%;height:${cH}px;background:rgba(56,189,248,0.8);border-radius:1px;"></div>`;bot+=cH;}
+      if(bH>0){p+=`<div style="position:absolute;bottom:${bot}px;width:100%;height:${bH}px;background:rgba(248,113,113,0.85);border-radius:1px;"></div>`;bot+=bH;}
       if(rH>0){p+=`<div style="position:absolute;bottom:${bot}px;width:100%;height:${rH}px;background:rgba(16,185,129,0.9);border-radius:1px;"></div>`;bot+=rH;}
-      // Day label on first bin of each day
-      const dayLabel=dayStarts.has(i)?`<div style="position:absolute;top:-12px;left:0;font-size:7px;font-family:'JetBrains Mono',monospace;color:rgba(148,163,184,0.6);white-space:nowrap;letter-spacing:0.5px;">${dayNames[binDays[i].day]} ${binDays[i].date}</div>`:'';
+      // Day label — positioned at top of histogram area
+      const dayLabel=dayStarts.has(i)?`<div style="position:absolute;bottom:${barMax+2}px;left:0;font-size:8px;font-weight:600;font-family:'JetBrains Mono',monospace;color:rgba(100,116,139,0.7);white-space:nowrap;letter-spacing:0.5px;">${dayNames[binDays[i].day]} ${binDays[i].date}</div>`:'';
       // Day separator line
-      const sep=dayStarts.has(i)&&i>0?`<div style="position:absolute;top:-12px;left:-1px;width:1px;height:calc(100% + 12px);background:rgba(100,116,139,0.25);"></div>`:'';
-      return `<div class="lm-tl-bar" style="height:${Math.max(tH,1)}px;position:relative;overflow:visible;">${p}${dayLabel}${sep}</div>`;
+      const sep=dayStarts.has(i)&&i>0?`<div style="position:absolute;bottom:0;left:-1px;width:1px;height:${barMax+6}px;background:rgba(100,116,139,0.3);"></div>`:'';
+      return `<div class="lm-tl-bar" style="height:${bin.total>0?Math.max(tH,4):2}px;position:relative;overflow:visible;">${p}${dayLabel}${sep}</div>`;
     }).join('');
 
     // Add SVG online users line overlay
@@ -9442,14 +9426,14 @@ async function _tlInit() {
       const y = 100 - (b.onlineUsers / maxOnline) * 100;
       return `${x},${y}`;
     }).join(' ');
+    // Online users line — rendered as a separate absolutely positioned layer
     const onlineSvg = document.createElement('div');
-    onlineSvg.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:2;';
+    onlineSvg.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:1;';
     onlineSvg.innerHTML = `<svg viewBox="0 0 100 100" preserveAspectRatio="none" style="width:100%;height:100%;overflow:visible;">
-      <defs><linearGradient id="onlineGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#22c55e" stop-opacity="0.3"/><stop offset="100%" stop-color="#22c55e" stop-opacity="0.02"/></linearGradient></defs>
+      <defs><linearGradient id="onlineGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#22c55e" stop-opacity="0.25"/><stop offset="100%" stop-color="#22c55e" stop-opacity="0.02"/></linearGradient></defs>
       <polygon points="0,100 ${svgPts} 100,100" fill="url(#onlineGrad)" />
-      <polyline points="${svgPts}" fill="none" stroke="#22c55e" stroke-width="1.5" vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round" opacity="0.8"/>
+      <polyline points="${svgPts}" fill="none" stroke="#22c55e" stroke-width="1.5" vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round" opacity="0.7"/>
     </svg>`;
-    histEl.style.position = 'relative';
     histEl.appendChild(onlineSvg);
 
     // Add legend
@@ -9552,42 +9536,15 @@ async function _tlInit() {
     }
   };
 
-  // Timeline: drag to scroll left/right, click to seek
+  // Mouse wheel on timeline → scrub time forward/backward
   const _tlTimelineEl = document.getElementById('tlTimeline');
   if(_tlTimelineEl){
-    // Mouse wheel → horizontal scroll
     _tlTimelineEl.addEventListener('wheel', function(e){
       e.preventDefault();
-      this.scrollLeft += (e.deltaY || e.deltaX);
+      const delta = (e.deltaY || e.deltaX);
+      const step = T_SPAN * 0.02 * Math.sign(delta); // 2% of total span per scroll tick
+      currentTime = Math.max(T_START, Math.min(T_END, currentTime + step));
     }, {passive:false});
-
-    // Drag to scroll — plain mouse drag slides the timeline
-    // If drag distance < 5px it's treated as a click (seek)
-    let _tlDragging = false, _tlDragStartX = 0, _tlDragScrollStart = 0, _tlDragMoved = false;
-    _tlTimelineEl.addEventListener('mousedown', function(e){
-      if(e.button !== 0) return; // left click only
-      _tlDragging = true;
-      _tlDragMoved = false;
-      _tlDragStartX = e.clientX;
-      _tlDragScrollStart = this.scrollLeft;
-      this.style.cursor = 'grabbing';
-      e.preventDefault();
-    });
-    window.addEventListener('mousemove', function(e){
-      if(!_tlDragging) return;
-      const dx = e.clientX - _tlDragStartX;
-      if(Math.abs(dx) > 4) _tlDragMoved = true;
-      _tlTimelineEl.scrollLeft = _tlDragScrollStart - dx;
-    });
-    window.addEventListener('mouseup', function(e){
-      if(!_tlDragging) return;
-      _tlDragging = false;
-      _tlTimelineEl.style.cursor = '';
-      // If barely moved, treat as click → seek
-      if(!_tlDragMoved) {
-        _tlTimelineClick(e);
-      }
-    });
   }
 
   window._tlSetSpeed = function(s){
@@ -9596,8 +9553,7 @@ async function _tlInit() {
   };
 
   window._tlTimelineClick = function(e){
-    const inner = document.getElementById('tlTimelineInner');
-    const rect = inner ? inner.getBoundingClientRect() : e.currentTarget.getBoundingClientRect();
+    const rect = e.currentTarget.getBoundingClientRect();
     const pct=Math.max(0,Math.min(1,(e.clientX-rect.left)/rect.width));
     currentTime=T_START+pct*T_SPAN;
     eventIndex=0;counters={commits:0,bugs:0,releases:0,agents:0};
@@ -9910,16 +9866,7 @@ async function _tlInit() {
       el('tlClock').textContent=formatTlDate(currentTime);
       el('tlProgress').style.width=pct+'%';
       el('tlPlayhead').style.left=pct+'%';
-      // Auto-scroll timeline to keep playhead visible
-      const tlOuter = document.getElementById('tlTimeline');
-      const tlInner = document.getElementById('tlTimelineInner');
-      if(tlOuter && tlInner){
-        const innerW = tlInner.scrollWidth;
-        const outerW = tlOuter.clientWidth;
-        const playheadX = (pct/100) * innerW;
-        const scrollLeft = playheadX - outerW * 0.6;
-        tlOuter.scrollLeft = Math.max(0, scrollLeft);
-      }
+      // (timeline fits 100% width, no scrolling needed)
     } else {
       // LIVE mode
       const clockEl = document.getElementById('tlClock');

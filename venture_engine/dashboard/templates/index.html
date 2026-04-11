@@ -9202,15 +9202,15 @@ async function _tlInit() {
     }
     activate(i=1) { this.glow=Math.min(1,this.glow+i); this.pulse=1; }
     setOnline(animate) {
-      if (this.targetOpacity < 0.5) {
-        // Was offline → coming online
-        this.targetOpacity=1; this.targetScale=1;
-        if (animate) { this.entryPulse=1; this.pulse=1; this.glow=1; }
-      }
+      const wasOffline = this.targetOpacity < 0.5;
       this.targetOpacity=1; this.targetScale=1;
+      if (wasOffline && animate) { this.entryPulse=1; this.pulse=1; this.glow=1; }
+      return wasOffline; // true = state changed
     }
-    setOffline(animate) {
+    setOffline() {
+      const wasOnline = this.targetOpacity > 0.5;
       this.targetOpacity=0.08; this.targetScale=0.4;
+      return wasOnline; // true = state changed
     }
     update() {
       this.glow*=0.97; this.pulse*=0.94; this.entryPulse*=0.96;
@@ -9727,7 +9727,7 @@ async function _tlInit() {
       case 'commit':{
         counters.commits++;
         const ai=findAi('Claude');
-        if(ai){ai.activate(0.8);ai.setOnline(true);ai.lastActiveTime=ev.t;emit(ai,centerNode,'#c084fc',3);}
+        if(ai){const came=ai.setOnline(true);ai.lastActiveTime=ev.t;ai.activate(0.8);emit(ai,centerNode,'#c084fc',3);if(came)_tlAddBubble('Claude','is online 🟢','#22c55e',true);}
         centerNode.activate(0.5);
         _tlAddBubble('Claude', 'committed: '+d.msg, '#c084fc', true);
         if(Math.random()>0.6) setTimeout(()=>_tlAddEmoji('Claude'), 400);
@@ -9745,8 +9745,8 @@ async function _tlInit() {
       case 'bug':{
         counters.bugs++;
         const rp=findUser(d.reporter);const fx=findAi(d.fixer)||findAi('Claude');
-        if(rp){rp.setOnline(true);rp.lastActiveTime=ev.t;rp.activate(0.7);emit(rp,centerNode,'#f87171',2.5);}
-        if(fx){fx.setOnline(true);fx.lastActiveTime=ev.t;fx.activate(0.5);emit(centerNode,fx,'#4ade80',2.5);}
+        if(rp){const came=rp.setOnline(true);rp.lastActiveTime=ev.t;rp.activate(0.7);emit(rp,centerNode,'#f87171',2.5);if(came)_tlAddBubble(d.reporter,'is online 🟢',rp.color,false);}
+        if(fx){const came=fx.setOnline(true);fx.lastActiveTime=ev.t;fx.activate(0.5);emit(centerNode,fx,'#4ade80',2.5);if(came)_tlAddBubble(d.fixer||'Claude','is online 🟢','#22c55e',true);}
         _tlAddBubble(d.reporter, 'reported '+d.key+' → fixed by '+d.fixer, '#f87171', false);
         // Animate ticket from reporter to Open kanban column
         _tlEmitKanbanTicket(d.key || 'BUG', null, 'open', rp ? rp.color : '#f87171', rp || null);
@@ -9754,7 +9754,7 @@ async function _tlInit() {
       }
       case 'user_action':{
         const un=findUser(d.user);
-        if(un){un.setOnline(true);un.lastActiveTime=ev.t;un.activate(0.4);emit(un,centerNode,un.color||'#38bdf8',2);}
+        if(un){const came=un.setOnline(true);un.lastActiveTime=ev.t;un.activate(0.4);emit(un,centerNode,un.color||'#38bdf8',2);if(came)_tlAddBubble(d.user,'is online 🟢',un.color,false);}
         _tlAddBubble(d.user, d.action, un?un.color:'#38bdf8', false);
         // Check for kanban movement — from API data or parsed from text
         if (d.kanban_from || d.kanban_to) {
@@ -9768,7 +9768,7 @@ async function _tlInit() {
       case 'ai_action':{
         counters.agents++;
         const an=findAi(d.agent);
-        if(an){an.setOnline(true);an.lastActiveTime=ev.t;an.activate(0.6);emit(an,centerNode,an.color||'#a78bfa',2.5);}
+        if(an){const came=an.setOnline(true);an.lastActiveTime=ev.t;an.activate(0.6);emit(an,centerNode,an.color||'#a78bfa',2.5);if(came)_tlAddBubble(d.agent,'is online 🟢',an.color,true);}
         _tlAddBubble(d.agent, d.action, an?an.color:'#a78bfa', true);
         break;
       }
@@ -9797,8 +9797,13 @@ async function _tlInit() {
       // Update user online/offline states from active_users
       const activeNames = new Set((data.active_users || []).map(u => u.split(' ')[0]));
       userNodes.forEach(n => {
-        if (activeNames.has(n.name)) n.setOnline(true);
-        else n.setOffline();
+        if (activeNames.has(n.name)) {
+          const came = n.setOnline(true);
+          if(came) _tlAddBubble(n.name, 'is online 🟢', n.color, false);
+        } else {
+          const went = n.setOffline();
+          if(went) _tlAddBubble(n.name, 'went offline 🔴', '#94a3b8', false);
+        }
       });
       _tlOnlineCount = activeNames.size;
       const onEl = document.getElementById('tlOnline');
@@ -9810,8 +9815,8 @@ async function _tlInit() {
         const name = (ev.user || 'System').split(' ')[0];
         const un = findUser(name);
         const an = findAi(name) || (isAgent ? findAi('Claude') : null);
-        if (an) { an.setOnline(true); an.activate(0.6); emit(an, centerNode, an.color, 2.5); }
-        else if (un) { un.setOnline(true); un.activate(0.5); emit(un, centerNode, un.color, 2); }
+        if (an) { const came=an.setOnline(true); an.activate(0.6); emit(an, centerNode, an.color, 2.5); if(came)_tlAddBubble(name,'is online 🟢',an.color,true); }
+        else if (un) { const came=un.setOnline(true); un.activate(0.5); emit(un, centerNode, un.color, 2); if(came)_tlAddBubble(name,'is online 🟢',un.color,false); }
         centerNode.activate(0.3);
         const color = an ? an.color : (un ? un.color : '#64748b');
         _tlAddBubble(ev.user || 'System', ev.action || '', color, !!isAgent);
@@ -9854,7 +9859,8 @@ async function _tlInit() {
       _tlOnlineCount = 0;
       userNodes.forEach(n=>{
         if(n.lastActiveTime>0 && (currentTime-n.lastActiveTime)>OFFLINE_TIMEOUT){
-          n.setOffline();
+          const went = n.setOffline();
+          if(went) _tlAddBubble(n.name, 'went offline 🔴', '#94a3b8', false);
         }
         if(n.targetOpacity>0.5) _tlOnlineCount++;
       });

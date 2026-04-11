@@ -5028,6 +5028,18 @@ def post_news_url(req: NewsPostRequest, db: Session = Depends(get_db_dependency)
     db.add(news_item)
     db.flush()
 
+    # Pre-fetch YouTube transcript in background so it's cached when user opens reader
+    if url and _yt_id:
+        import threading
+        def _prefetch_yt_transcript(yt_vid_id):
+            try:
+                logger.info(f"Background transcript pre-fetch started for {yt_vid_id}")
+                youtube_transcript(video_id=yt_vid_id)
+                logger.info(f"Background transcript pre-fetch completed for {yt_vid_id}")
+            except Exception as _e:
+                logger.warning(f"Background transcript pre-fetch failed for {yt_vid_id}: {_e}")
+        threading.Thread(target=_prefetch_yt_transcript, args=(_yt_id,), daemon=True).start()
+
     # Trigger venture generation from this news item in background
     news_id = news_item.id
     news_title = news_item.title

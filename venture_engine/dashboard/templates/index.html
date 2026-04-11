@@ -4700,9 +4700,14 @@ async function _ytLoadTranscript() {
     return;
   }
 
-  // Already loading — wait for the in-progress load instead of starting a new race
+  // Already loading — wait for the in-progress load, then render from cache
   if (_ytTranscriptLoadingPromise) {
     await _ytTranscriptLoadingPromise;
+    // After the loading promise resolves, render from cache if available
+    if (_ytTranscriptData && _ytTranscriptVideoId === vid) {
+      _ytRenderTranscript(_ytTranscriptData);
+      _tabSetReady('transcript');
+    }
     return;
   }
 
@@ -4746,6 +4751,7 @@ async function _ytLoadTranscript() {
     // ── Phase 2: if phase 1 failed, show "loading" and wait for full server response ──
     if (!segments || !segments.length) {
       console.log('Phase 1 failed, starting phase 2 (full server fetch, up to 55s)...');
+      _tabSetLoading('transcript');  // Keep spinner visible during Phase 2
       contentEl.innerHTML = '<div class="yt-transcript-loading">Loading transcript<span class="dot-pulse">...</span></div>';
       try {
         segments = await _serverFetch(55000);

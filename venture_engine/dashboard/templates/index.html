@@ -8983,9 +8983,10 @@ async function _tlInit() {
   // Theme detection
   function _tlIsDark() { return document.documentElement.classList.contains('dark'); }
 
-  // Use live active users from dashboard, with fallback colors
+  // Full team — always show all members on the graph
   const _tlUserColors = ['#2563eb','#7c3aed','#059669','#d97706','#db2777','#6366f1','#0891b2','#dc2626','#4f46e5','#0d9488'];
-  const TL_TEAM = (_lmActiveUsers.length > 0 ? _lmActiveUsers : ['Kobi Avshalom','Gilad Neiger','Saar Cohen','Efi Shimon','Omri Spector','Shoshi Revivo']).map((name,i) => ({
+  const _TL_FULL_TEAM = ['Kobi Avshalom','Gilad Neiger','Saar Cohen','Efi Shimon','Omri Spector','Shoshi Revivo','Eran Levy','Tom Ronen','Boris Tsigelman','Idan Korkidi'];
+  const TL_TEAM = _TL_FULL_TEAM.map((name,i) => ({
     name: name.split(' ')[0],
     fullName: name,
     role: '',
@@ -9221,7 +9222,7 @@ async function _tlInit() {
     }
     setOffline() {
       const wasOnline = this.targetOpacity > 0.5;
-      this.targetOpacity=0.08; this.targetScale=0.4;
+      this.targetOpacity=0.3; this.targetScale=0.7;
       return wasOnline; // true = state changed
     }
     update() {
@@ -9282,7 +9283,7 @@ async function _tlInit() {
   // Constrain orbits to stay within canvas bounds (leave 40px margin for labels)
   const maxUserOrbit = Math.min(Math.min(W,H)*0.35, 160);
   const maxAiOrbit = Math.min(Math.min(W,H)*0.2, 90);
-  const userNodes = TL_TEAM.map((u,i)=>{const a=(i/TL_TEAM.length)*Math.PI*2-Math.PI/2;const d=maxUserOrbit;const n=new TLNode(u.name,u.role,u.color,cx+Math.cos(a)*d,cy+Math.sin(a)*d,9,'user');n.opacity=0;n.targetOpacity=0.08;n.scale=0.4;n.targetScale=0.4;return n;});
+  const userNodes = TL_TEAM.map((u,i)=>{const a=(i/TL_TEAM.length)*Math.PI*2-Math.PI/2;const d=maxUserOrbit;const n=new TLNode(u.name,u.role,u.color,cx+Math.cos(a)*d,cy+Math.sin(a)*d,9,'user');n.opacity=0.3;n.targetOpacity=0.3;n.scale=0.7;n.targetScale=0.7;return n;});
   const aiNodes = TL_AI.map((a,i)=>{const ang=(i/TL_AI.length)*Math.PI*2-Math.PI/4;const d=maxAiOrbit;return new TLNode(a.name,a.role,a.color,cx+Math.cos(ang)*d,cy+Math.sin(ang)*d,7,'ai');});
   const allNodes = [centerNode,...userNodes,...aiNodes];
   // Track online user count for replay
@@ -9539,7 +9540,7 @@ async function _tlInit() {
       // Reset replay — all users start offline
       currentTime = T_START; eventIndex = 0;
       counters = {commits:0,bugs:0,releases:0,agents:0};
-      userNodes.forEach(n=>{n.opacity=0;n.targetOpacity=0.08;n.scale=0.4;n.targetScale=0.4;n.lastActiveTime=0;});
+      userNodes.forEach(n=>{n.opacity=0.3;n.targetOpacity=0.3;n.scale=0.7;n.targetScale=0.7;n.lastActiveTime=0;});
       _tlUpdateCounters();
       const comments = document.getElementById('tlComments');
       if (comments) comments.innerHTML = '';
@@ -9595,7 +9596,7 @@ async function _tlInit() {
     currentTime=T_START+pct*T_SPAN;
     eventIndex=0;counters={commits:0,bugs:0,releases:0,agents:0};
     // Reset all user nodes to offline, then replay which ones were active
-    userNodes.forEach(n=>{n.targetOpacity=0.08;n.opacity=0.08;n.scale=0.4;n.targetScale=0.4;n.lastActiveTime=0;});
+    userNodes.forEach(n=>{n.targetOpacity=0.3;n.opacity=0.3;n.scale=0.7;n.targetScale=0.7;n.lastActiveTime=0;});
     while(eventIndex<tlEvents.length&&tlEvents[eventIndex].t<=currentTime){
       const ev=tlEvents[eventIndex];
       if(ev.type==='commit')counters.commits++;else if(ev.type==='bug')counters.bugs++;else if(ev.type==='release')counters.releases++;else if(ev.type==='ai_action')counters.agents++;
@@ -9608,7 +9609,7 @@ async function _tlInit() {
     // Fade out users who haven't been active recently at seek position
     userNodes.forEach(n=>{
       if(n.lastActiveTime>0 && (currentTime-n.lastActiveTime)>OFFLINE_TIMEOUT){
-        n.targetOpacity=0.08;n.opacity=0.08;n.scale=0.4;n.targetScale=0.4;
+        n.targetOpacity=0.3;n.opacity=0.3;n.scale=0.7;n.targetScale=0.7;
       }
     });
     _tlUpdateCounters();
@@ -9885,7 +9886,7 @@ async function _tlInit() {
       if(currentTime>T_END+60000){
         currentTime=T_START;eventIndex=0;counters={commits:0,bugs:0,releases:0,agents:0};
         // Reset all user nodes to offline on loop
-        userNodes.forEach(n=>{n.opacity=0;n.targetOpacity=0.08;n.scale=0.4;n.targetScale=0.4;n.lastActiveTime=0;});
+        userNodes.forEach(n=>{n.opacity=0.3;n.targetOpacity=0.3;n.scale=0.7;n.targetScale=0.7;n.lastActiveTime=0;});
       }
       while(eventIndex<tlEvents.length&&tlEvents[eventIndex].t<=currentTime){processEvent(tlEvents[eventIndex]);eventIndex++;}
       // Check for inactivity — fade users who haven't been active

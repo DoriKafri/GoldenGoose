@@ -611,9 +611,8 @@ html.dark .sl-msg-wrap:hover { background:rgba(255,255,255,.08); }
     overflow:hidden; align-items:center;
     background:var(--sidebar-bg);
   }
-  /* Hide everything except hamburger and logo */
-  .sidebar-spacer, .sidebar-section, .sidebar-info,
-  .sidebar-nav, .sidebar-btn, #anonIdentity, .theme-toggle {
+  /* Hide everything except hamburger, logo, and mobile actions */
+  .sidebar > *:not(.mobile-menu-btn):not(.sidebar-logo):not(.mobile-topbar-actions) {
     display:none !important;
   }
   .sidebar-logo { flex-shrink:0; gap:6px; margin-left:6px; }

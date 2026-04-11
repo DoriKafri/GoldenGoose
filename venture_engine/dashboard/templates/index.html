@@ -5502,6 +5502,8 @@ async function loadReaderAnnotations() {
   }
   renderReaderAnnotations();
   highlightAnnotationsInIframe();
+  // Always update mobile comments preview/sheet after loading
+  _ytUpdateMobileComments();
 }
 
 function highlightAnnotationsInIframe() {
@@ -5670,6 +5672,7 @@ function renderReaderAnnotations() {
       : 'No annotations yet. Select text on the page to add one.';
     el.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text3);font-size:12px;">' + hint + '</div>';
     if (_isYouTube) _renderYtTimelineMarkers();
+    _ytUpdateMobileComments();
     return;
   }
 
@@ -5896,6 +5899,8 @@ function _ytRenderSheetComments() {
 function _ytOpenCommentsSheet() {
   const sheet = document.getElementById('ytCommentsSheet');
   if (!sheet) return;
+  // Refresh sheet content and preview before opening
+  _ytUpdateMobileComments();
   sheet.style.display = 'block';
   // Set compose avatar
   const avatarEl = document.getElementById('ytComposeAvatar');

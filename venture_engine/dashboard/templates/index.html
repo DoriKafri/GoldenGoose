@@ -1740,10 +1740,9 @@ html.dark .lm-tl-speed button:hover, html.dark .lm-tl-speed button.active { back
 .lm-tl-version { font-family:'JetBrains Mono',monospace; font-size:12px; font-weight:700; color:#10b981; opacity:0; transition:opacity 0.5s; }
 .lm-tl-version.show { opacity:1; }
 
-/* LIVE badge */
-.lm-tl-live-badge { position:absolute; top:14px; left:14px; display:flex; align-items:center; gap:6px; background:rgba(220,38,38,0.9); color:#fff; padding:4px 12px 4px 8px; border-radius:4px; font-size:11px; font-weight:700; font-family:'JetBrains Mono',monospace; letter-spacing:1px; z-index:3; cursor:default; box-shadow:0 2px 8px rgba(220,38,38,0.4); text-transform:uppercase; }
-.lm-tl-live-dot { width:8px; height:8px; border-radius:50%; background:#fff; animation:lmLivePulse 1.5s ease-in-out infinite; }
-@keyframes lmLivePulse { 0%,100%{ opacity:1; box-shadow:0 0 0 0 rgba(255,255,255,0.6); } 50%{ opacity:0.7; box-shadow:0 0 0 5px rgba(255,255,255,0); } }
+/* Timelapse replay badge */
+.lm-tl-replay-badge { position:absolute; top:14px; left:14px; display:flex; align-items:center; gap:6px; background:rgba(99,102,241,0.9); color:#fff; padding:4px 12px 4px 8px; border-radius:4px; font-size:11px; font-weight:700; font-family:'JetBrains Mono',monospace; letter-spacing:1px; z-index:3; cursor:default; box-shadow:0 2px 8px rgba(99,102,241,0.3); text-transform:uppercase; }
+.lm-tl-replay-icon { font-size:12px; }
 
 /* Periscope-style floating comments */
 #tlComments { position:absolute; bottom:12px; left:12px; width:320px; pointer-events:none; display:flex; flex-direction:column-reverse; top:0; overflow:hidden; -webkit-mask-image:linear-gradient(to bottom, transparent 0%, black 15%); mask-image:linear-gradient(to bottom, transparent 0%, black 15%); }
@@ -8638,7 +8637,7 @@ async function loadLiveMonitor() {
           </div>
           <div class="lm-tl-canvas-wrap">
             <canvas id="tlCanvas"></canvas>
-            <div class="lm-tl-live-badge"><div class="lm-tl-live-dot"></div>LIVE</div>
+            <div class="lm-tl-replay-badge"><span class="lm-tl-replay-icon">⏪</span>REPLAY</div>
             <div id="tlComments"></div>
           </div>
           <div class="lm-tl-stats">

@@ -1038,9 +1038,10 @@ html.dark .sl-msg-wrap:hover { background:rgba(255,255,255,.08); }
 .yt-timeline-dopi-seg.problem { background:linear-gradient(90deg,rgba(239,68,68,0.8),rgba(220,38,38,0.9)); }
 .yt-timeline-dopi-seg.decision { background:linear-gradient(90deg,rgba(99,102,241,0.8),rgba(79,70,229,0.9)); }
 .yt-timeline-dopi-seg.insight { background:linear-gradient(90deg,rgba(245,158,11,0.8),rgba(217,119,6,0.9)); }
-.yt-dopi-seg-tooltip { position:absolute; bottom:18px; left:50%; transform:translateX(-50%); background:rgba(15,23,42,0.95); color:#fff; padding:8px 14px; border-radius:8px; font-size:12px; font-weight:600; white-space:nowrap; opacity:0; transition:opacity 0.15s; pointer-events:none; box-shadow:0 4px 12px rgba(0,0,0,0.3); }
-.yt-dopi-seg-tooltip .dopi-seg-type { font-size:9px; text-transform:uppercase; letter-spacing:0.5px; opacity:0.7; margin-right:6px; }
-.yt-timeline-dopi-seg:hover .yt-dopi-seg-tooltip { opacity:1; }
+.yt-dopi-seg-tooltip { display:none; }
+#dopiGlobalTooltip { position:fixed; z-index:99999; background:rgba(15,23,42,0.95); color:#fff; padding:8px 14px; border-radius:8px; font-size:12px; font-weight:600; white-space:nowrap; pointer-events:none; box-shadow:0 4px 16px rgba(0,0,0,0.4); opacity:0; transition:opacity 0.12s; }
+#dopiGlobalTooltip.visible { opacity:1; }
+#dopiGlobalTooltip .dopi-seg-type { font-size:9px; text-transform:uppercase; letter-spacing:0.5px; opacity:0.7; margin-right:6px; }
 /* Timestamp badge in annotation cards */
 .ann-timestamp { display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:var(--radius-pill); background:rgba(245,158,11,0.12); color:#d97706; font-size:11px; font-weight:700; cursor:pointer; border:1px solid rgba(245,158,11,0.25); margin-bottom:6px; font-variant-numeric:tabular-nums; transition:background 0.15s; }
 .ann-timestamp:hover { background:rgba(245,158,11,0.25); }
@@ -5584,10 +5585,28 @@ function _renderDpoiTimelineSegments() {
     const typeLabel = typeCls.charAt(0).toUpperCase() + typeCls.slice(1);
     const timeRange = (item.start_time || _fmtTime(startSec)) + ' – ' + (item.end_time || _fmtTime(endSec));
     const title = esc(item.title || '');
-    return `<div class="yt-timeline-dopi-seg ${typeCls}" style="left:${leftPct}%;width:${widthPct}%;" onclick="event.stopPropagation();_ytSeekTo(${startSec});" data-dopi-idx="${idx}">
-      <div class="yt-dopi-seg-tooltip"><span class="dopi-seg-type">${typeLabel}</span>${timeRange} — ${title}</div>
+    return `<div class="yt-timeline-dopi-seg ${typeCls}" style="left:${leftPct}%;width:${widthPct}%;" onclick="event.stopPropagation();_ytSeekTo(${startSec});" data-dopi-idx="${idx}" data-dopi-tip="${typeLabel}|${timeRange} — ${title}" onmouseenter="_dopiTipShow(event)" onmouseleave="_dopiTipHide()">
     </div>`;
   }).join('');
+}
+
+// ── Global DOPI timeline tooltip (avoids overflow clipping) ──
+function _dopiTipShow(e) {
+  let tip = document.getElementById('dopiGlobalTooltip');
+  if (!tip) { tip = document.createElement('div'); tip.id = 'dopiGlobalTooltip'; document.body.appendChild(tip); }
+  const data = e.currentTarget.dataset.dopiTip || '';
+  const [typeLabel, ...rest] = data.split('|');
+  tip.innerHTML = '<span class="dopi-seg-type">' + (typeLabel||'') + '</span>' + (rest.join('|')||'');
+  tip.classList.add('visible');
+  const rect = e.currentTarget.getBoundingClientRect();
+  let left = rect.left + rect.width / 2 - tip.offsetWidth / 2;
+  left = Math.max(8, Math.min(left, window.innerWidth - tip.offsetWidth - 8));
+  tip.style.left = left + 'px';
+  tip.style.top = (rect.top - tip.offsetHeight - 8) + 'px';
+}
+function _dopiTipHide() {
+  const tip = document.getElementById('dopiGlobalTooltip');
+  if (tip) tip.classList.remove('visible');
 }
 
 async function shareArticle() {

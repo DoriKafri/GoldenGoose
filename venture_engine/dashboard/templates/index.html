@@ -303,7 +303,7 @@ html.dark .sl-msg-wrap:hover { background:rgba(255,255,255,.08); }
 .sl-composer-send { background:none;border:none;padding:4px 8px;cursor:pointer;border-radius:4px;margin-left:auto;color:var(--text3);font-size:18px; }
 .sl-composer-send:hover { color:var(--accent); }
 @media(max-width:768px) {
-  .sl-workspace { left:0 !important;width:100vw !important;top:48px !important;height:calc(100vh - 48px) !important;height:calc(100dvh - 48px) !important; }
+  .sl-workspace { position:fixed !important;left:0 !important;top:0 !important;width:100vw !important;height:100vh !important;height:100dvh !important;z-index:100 !important; }
   .sl-sidebar { display:none !important; }
   .sl-main { width:100%; }
   .sl-channel-header { padding:8px 12px;gap:6px; }

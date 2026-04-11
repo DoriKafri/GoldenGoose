@@ -9,7 +9,7 @@
 <title>Develeap · Venture Intelligence Engine</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 128 128'%3E%3Crect width='128' height='128' rx='24' fill='%23ffffff'/%3E%3Cpath d='M68 22C91 22 108 39 108 62C108 85 91 102 68 102V22Z' fill='%2305323C'/%3E%3Crect x='22' y='68' width='38' height='34' rx='3' fill='%2305323C'/%3E%3Ccircle cx='41' cy='41' r='19' fill='%23FFB100'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
 <script src="https://d3js.org/d3.v7.min.js"></script>
 <script src="https://unpkg.com/force-graph@1.43.5/dist/force-graph.min.js"></script>
 <style>
@@ -1030,6 +1030,18 @@ html.dark .sl-msg-wrap:hover { background:rgba(255,255,255,.08); }
 .yt-timeline-marker:hover { transform:translateX(-50%) scale(1.3); }
 .yt-timeline-marker-tooltip { position:absolute; bottom:20px; left:50%; transform:translateX(-50%); background:var(--teal); color:#fff; padding:3px 8px; border-radius:6px; font-size:10px; font-weight:600; white-space:nowrap; opacity:0; transition:opacity 0.15s; pointer-events:none; }
 .yt-timeline-marker:hover .yt-timeline-marker-tooltip { opacity:1; }
+/* DOPI segments on timeline */
+.yt-timeline-dopi-layer { position:absolute; inset:0; pointer-events:none; z-index:1; }
+.yt-timeline-dopi-seg { position:absolute; top:-3px; height:12px; border-radius:6px; cursor:pointer; pointer-events:all; transition:opacity 0.15s, transform 0.15s; opacity:0.7; }
+.yt-timeline-dopi-seg:hover { opacity:1; transform:scaleY(1.6); z-index:5; }
+.yt-timeline-dopi-seg.opportunity { background:linear-gradient(90deg,rgba(16,185,129,0.8),rgba(5,150,105,0.9)); }
+.yt-timeline-dopi-seg.problem { background:linear-gradient(90deg,rgba(239,68,68,0.8),rgba(220,38,38,0.9)); }
+.yt-timeline-dopi-seg.decision { background:linear-gradient(90deg,rgba(99,102,241,0.8),rgba(79,70,229,0.9)); }
+.yt-timeline-dopi-seg.insight { background:linear-gradient(90deg,rgba(245,158,11,0.8),rgba(217,119,6,0.9)); }
+.yt-dopi-seg-tooltip { display:none; }
+#dopiGlobalTooltip { position:fixed; z-index:99999; background:rgba(15,23,42,0.95); color:#fff; padding:8px 14px; border-radius:8px; font-size:12px; font-weight:600; pointer-events:none; box-shadow:0 4px 16px rgba(0,0,0,0.4); opacity:0; transition:opacity 0.12s; max-width:min(500px, 90vw); white-space:normal; word-wrap:break-word; line-height:1.4; }
+#dopiGlobalTooltip.visible { opacity:1; }
+#dopiGlobalTooltip .dopi-seg-type { font-size:9px; text-transform:uppercase; letter-spacing:0.5px; opacity:0.7; margin-right:6px; }
 /* Timestamp badge in annotation cards */
 .ann-timestamp { display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:var(--radius-pill); background:rgba(245,158,11,0.12); color:#d97706; font-size:11px; font-weight:700; cursor:pointer; border:1px solid rgba(245,158,11,0.25); margin-bottom:6px; font-variant-numeric:tabular-nums; transition:background 0.15s; }
 .ann-timestamp:hover { background:rgba(245,158,11,0.25); }
@@ -1650,28 +1662,67 @@ html.dark .sl-msg-wrap:hover { background:rgba(255,255,255,.08); }
 .lm-wrap { display:flex; gap:20px; padding:24px; max-width:1400px; margin:0 auto; }
 .lm-main { flex:1; min-width:0; }
 .lm-side { width:320px; flex-shrink:0; display:flex; flex-direction:column; gap:16px; }
-.lm-header { display:flex; align-items:center; gap:12px; margin-bottom:20px; }
-.lm-pulse { width:12px; height:12px; border-radius:50%; background:#22c55e; animation:lmPulse 2s ease-in-out infinite; flex-shrink:0; }
-@keyframes lmPulse { 0%,100%{box-shadow:0 0 0 0 rgba(34,197,94,.5)} 50%{box-shadow:0 0 0 8px rgba(34,197,94,0)} }
-.lm-title { font-size:18px; font-weight:700; color:var(--text); }
-.lm-subtitle { font-size:12px; color:var(--text3); margin-left:auto; }
-.lm-stats { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:20px; }
-.lm-stat { background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:16px; text-align:center; }
-.lm-stat-val { font-size:28px; font-weight:700; color:var(--accent); line-height:1; }
-.lm-stat-label { font-size:11px; color:var(--text3); margin-top:4px; text-transform:uppercase; letter-spacing:.3px; }
+
+/* Hero header bar — two rows */
+.lm-hero-bar { display:flex; flex-wrap:wrap; align-items:center; gap:8px 16px; margin-bottom:16px; padding:10px 16px; background:var(--card); border:1px solid var(--border); border-radius:var(--radius); }
+.lm-hero-left { display:flex; align-items:center; gap:8px; flex-shrink:0; }
+.lm-pulse { width:8px; height:8px; border-radius:50%; background:#22c55e; animation:lmPulse 2s ease-in-out infinite; flex-shrink:0; }
+@keyframes lmPulse { 0%,100%{box-shadow:0 0 0 0 rgba(34,197,94,.5)} 50%{box-shadow:0 0 0 6px rgba(34,197,94,0)} }
+.lm-hero-title { font-size:14px; font-weight:800; color:var(--text); letter-spacing:-0.3px; }
+.lm-hero-clock { font-family:'JetBrains Mono',monospace; font-size:10px; color:var(--text3); }
+.lm-hero-divider { width:1px; height:24px; background:var(--border); flex-shrink:0; }
+.lm-hero-stats { display:flex; gap:12px; align-items:center; flex-shrink:0; }
+.lm-hero-stat { text-align:center; min-width:36px; }
+.lm-hero-stat-val { font-family:'JetBrains Mono',monospace; font-size:16px; font-weight:700; line-height:1; }
+.lm-hero-stat-label { font-size:7px; text-transform:uppercase; letter-spacing:0.7px; color:var(--text3); margin-top:1px; }
+.lm-hero-right { display:flex; align-items:center; gap:10px; margin-left:auto; }
+.lm-hero-users { display:flex; align-items:center; gap:0; flex-shrink:0; }
+.lm-hero-avatar { width:22px; height:22px; border-radius:50%; border:2px solid var(--card); margin-left:-6px; object-fit:cover; flex-shrink:0; }
+.lm-hero-avatar:first-child { margin-left:0; }
+.lm-hero-count { font-size:9px; font-weight:700; color:var(--text3); margin-left:3px; background:var(--bg2); border-radius:8px; padding:2px 6px; white-space:nowrap; flex-shrink:0; }
+
+/* Agent pills in header */
+.lm-hero-agents { display:flex; gap:4px; align-items:center; flex-shrink:0; }
+.lm-hero-agent-pill { display:flex; align-items:center; gap:2px; padding:2px 7px; border-radius:var(--radius-pill); background:rgba(124,58,237,0.06); border:1px solid rgba(124,58,237,0.15); font-size:9px; font-weight:600; color:#7c3aed; cursor:pointer; transition:all 0.15s; white-space:nowrap; }
+.lm-hero-agent-pill:hover { background:rgba(124,58,237,0.14); border-color:rgba(124,58,237,0.3); }
+.lm-hero-agent-pill .pill-icon { font-size:10px; }
+.lm-hero-agent-pill.running { border-color:#7c3aed; animation:lmAgentPulse 1.5s ease-in-out infinite; }
+@keyframes lmAgentPulse { 0%,100%{box-shadow:0 0 0 0 rgba(124,58,237,0.3)} 50%{box-shadow:0 0 0 4px rgba(124,58,237,0)} }
+
+/* Andon stop button (Toyota production line style) */
+.lm-andon-btn { position:absolute; bottom:60px; left:14px; z-index:4; display:none; align-items:center; gap:6px; padding:8px 16px; border:2px solid #dc2626; border-radius:10px; background:rgba(220,38,38,0.12); color:#dc2626; font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:800; letter-spacing:1px; cursor:pointer; transition:all 0.2s; backdrop-filter:blur(6px); box-shadow:0 2px 10px rgba(220,38,38,0.2); }
+.lm-andon-btn:hover { background:rgba(220,38,38,0.25); box-shadow:0 4px 16px rgba(220,38,38,0.35); transform:scale(1.03); }
+.lm-andon-btn.stopped { border-color:#22c55e; background:rgba(34,197,94,0.12); color:#16a34a; box-shadow:0 2px 10px rgba(34,197,94,0.2); }
+.lm-andon-btn.stopped:hover { background:rgba(34,197,94,0.25); box-shadow:0 4px 16px rgba(34,197,94,0.35); }
+.lm-andon-icon { font-size:14px; }
+.lm-andon-label { line-height:1; }
+
+/* Andon overlay */
+.lm-andon-overlay { display:none; position:absolute; inset:0; z-index:5; background:rgba(0,0,0,0.4); backdrop-filter:blur(2px); align-items:center; justify-content:center; }
+.lm-andon-overlay.active { display:flex; }
+.lm-andon-banner { text-align:center; padding:32px 48px; border-radius:16px; background:rgba(30,30,30,0.92); border:3px solid #dc2626; box-shadow:0 0 40px rgba(220,38,38,0.3), 0 0 80px rgba(220,38,38,0.1); }
+.lm-andon-lamp { width:18px; height:18px; border-radius:50%; background:#dc2626; margin:0 auto 12px; box-shadow:0 0 16px rgba(220,38,38,0.7); animation:andonBlink 1s ease-in-out infinite; }
+@keyframes andonBlink { 0%,100%{opacity:1;box-shadow:0 0 16px rgba(220,38,38,0.7)} 50%{opacity:0.3;box-shadow:0 0 6px rgba(220,38,38,0.3)} }
+.lm-andon-msg { font-family:'JetBrains Mono',monospace; font-size:22px; font-weight:900; color:#fca5a5; letter-spacing:4px; margin-bottom:6px; }
+.lm-andon-sub { font-family:'JetBrains Mono',monospace; font-size:11px; color:rgba(255,255,255,0.4); letter-spacing:1px; margin-bottom:20px; }
+.lm-andon-resume { padding:10px 28px; border:2px solid #22c55e; border-radius:8px; background:rgba(34,197,94,0.15); color:#4ade80; font-family:'JetBrains Mono',monospace; font-size:13px; font-weight:800; letter-spacing:2px; cursor:pointer; transition:all 0.2s; }
+.lm-andon-resume:hover { background:rgba(34,197,94,0.3); box-shadow:0 0 20px rgba(34,197,94,0.3); transform:scale(1.05); }
+
+/* Fullscreen button */
+.lm-tl-fullscreen-btn { background:rgba(255,255,255,0.85); backdrop-filter:blur(6px); border:1px solid rgba(0,0,0,0.1); border-radius:6px; padding:6px 8px; cursor:pointer; color:#475569; display:flex; align-items:center; justify-content:center; transition:all 0.15s; box-shadow:0 1px 4px rgba(0,0,0,0.1); }
+html.dark .lm-tl-fullscreen-btn { background:rgba(30,41,59,0.8); border-color:rgba(255,255,255,0.1); color:#94a3b8; }
+.lm-tl-fullscreen-btn:hover { background:#fff; color:#1e293b; box-shadow:0 2px 8px rgba(0,0,0,0.15); transform:scale(1.05); }
+html.dark .lm-tl-fullscreen-btn:hover { background:rgba(51,65,85,0.95); color:#e2e8f0; }
+
+/* Fullscreen timelapse */
+.lm-timelapse.tl-fullscreen { position:fixed!important; top:0; left:0; width:100vw; height:100vh; z-index:9999; margin:0!important; border-radius:0; border:none; display:flex!important; flex-direction:column; overflow:visible; }
+.lm-timelapse.tl-fullscreen .lm-tl-canvas-wrap { flex:1 1 0%!important; height:0!important; min-height:0!important; }
+.lm-timelapse.tl-fullscreen .lm-tl-timeline { flex-shrink:0; height:54px; }
+.lm-timelapse.tl-fullscreen .lm-tl-controls { flex-shrink:0; }
+
+/* Below-fold sections */
 .lm-feed { display:flex; flex-direction:column; gap:2px; }
-.lm-agent-row { display:flex; align-items:center; justify-content:space-between; padding:8px 10px; background:var(--bg2); border:1px solid var(--border); border-radius:var(--radius); gap:8px; }
-.lm-agent-row.running { border-color:#7c3aed; background:rgba(124,58,237,0.06); }
-.lm-agent-row.done { border-color:#22c55e; }
-.lm-agent-info { display:flex; align-items:center; gap:8px; flex:1; min-width:0; }
-.lm-agent-icon { font-size:18px; flex-shrink:0; }
-.lm-agent-name { font-size:13px; font-weight:700; color:var(--text); }
-.lm-agent-desc { font-size:10px; color:var(--text3); }
-.lm-agent-btn { padding:4px 12px; border-radius:var(--radius-pill); border:1px solid rgba(124,58,237,0.3); background:rgba(124,58,237,0.08); color:#7c3aed; font-size:11px; font-weight:600; cursor:pointer; font-family:inherit; white-space:nowrap; transition:all 0.15s; }
-.lm-agent-btn:hover { background:rgba(124,58,237,0.18); }
-.lm-agent-btn:disabled { opacity:0.6; cursor:wait; }
-.lm-agent-btn.success { background:rgba(34,197,94,0.1); border-color:rgba(34,197,94,0.3); color:#16a34a; }
-.lm-agent-result { font-size:10px; color:var(--text3); margin-top:2px; }
+/* Agent buttons are now pills in the hero bar — see .lm-hero-agent-pill */
 .lm-event { display:flex; align-items:flex-start; gap:10px; padding:10px 14px; background:var(--card); border:1px solid var(--border); border-radius:var(--radius); transition:all .3s; }
 .lm-event.new { animation:lmSlideIn .4s ease-out; border-left:3px solid var(--accent); }
 @keyframes lmSlideIn { from{opacity:0;transform:translateY(-10px)} to{opacity:1;transform:translateY(0)} }
@@ -1683,14 +1734,83 @@ html.dark .sl-msg-wrap:hover { background:rgba(255,255,255,.08); }
 .lm-ev-time { font-size:11px; color:var(--text3); white-space:nowrap; flex-shrink:0; margin-top:2px; }
 .lm-card { background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:16px; }
 .lm-card-title { font-size:13px; font-weight:700; color:var(--text); margin-bottom:12px; display:flex; align-items:center; gap:6px; }
-.lm-users { display:flex; flex-wrap:wrap; gap:8px; }
-.lm-user { display:flex; align-items:center; gap:6px; padding:4px 8px; border-radius:var(--radius-pill); background:var(--bg2); border:1px solid var(--border); }
-.lm-user img { width:24px; height:24px; border-radius:50%; }
-.lm-user-name { font-size:11px; color:var(--text2); font-weight:500; max-width:100px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.lm-user-dot { width:8px; height:8px; border-radius:50%; background:#22c55e; flex-shrink:0; }
+/* Active users are now stacked avatars in hero bar — see .lm-hero-avatar */
 .lm-range-btn { border:none; background:var(--bg2); color:var(--text3); font-size:10px; font-weight:600; font-family:inherit; padding:3px 8px; border-radius:4px; cursor:pointer; transition:all .15s; }
 .lm-range-btn:hover { color:var(--text2); }
 .lm-range-btn.active { background:var(--accent); color:#1a1a1a; }
+
+/* Timelapse stats overlay (bottom-right of canvas) */
+.lm-tl-stats-overlay { position:absolute; bottom:80px; right:12px; display:flex; gap:12px; padding:8px 14px; background:rgba(255,255,255,0.85); backdrop-filter:blur(8px); border-radius:10px; z-index:3; box-shadow:0 2px 8px rgba(0,0,0,0.08); }
+html.dark .lm-tl-stats-overlay { background:rgba(15,23,42,0.75); }
+.lm-tl-stats-overlay .tl-ov-stat { text-align:center; }
+.lm-tl-stats-overlay .tl-ov-val { font-family:'JetBrains Mono',monospace; font-size:16px; font-weight:700; line-height:1; }
+.lm-tl-stats-overlay .tl-ov-label { font-size:7px; text-transform:uppercase; letter-spacing:0.8px; color:var(--text3); margin-top:2px; }
+/* Timelapse embed in Live Monitor */
+.lm-timelapse { background:var(--card); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; position:relative; }
+/* Title and clock now in hero bar and canvas overlay — see .lm-hero-title, .lm-hero-clock */
+.lm-tl-canvas-wrap { position:relative; width:100%; height:calc(100vh - 320px); min-height:420px; background:#f8fafc; }
+html.dark .lm-tl-canvas-wrap { background:#0a0e17; }
+.lm-tl-canvas-wrap canvas { width:100%; height:100%; display:block; }
+/* Old stats row replaced by .lm-tl-stats-overlay on canvas */
+.lm-tl-timeline { position:relative; height:54px; background:rgba(241,245,249,0.9); border-top:1px solid var(--border); overflow:hidden; cursor:pointer; }
+html.dark .lm-tl-timeline { background:rgba(15,23,42,0.8); border-top-color:rgba(51,65,85,0.3); }
+.lm-tl-histogram { position:absolute; bottom:3px; left:0; right:0; height:46px; display:flex; align-items:flex-end; gap:1px; padding:0 2px; overflow:visible; }
+.lm-tl-bar { flex:1; min-width:0; opacity:0.75; position:relative; z-index:2; border-radius:2px 2px 0 0; transition:opacity 0.12s; background:rgba(148,163,184,0.15); }
+.lm-tl-bar:hover { opacity:1; }
+.lm-tl-playhead { position:absolute; bottom:0; width:2px; height:54px; background:#2563eb; z-index:3; pointer-events:none; box-shadow:0 0 6px rgba(37,99,235,0.4); }
+html.dark .lm-tl-playhead { background:#38bdf8; box-shadow:0 0 8px rgba(56,189,248,0.5); }
+.lm-tl-progress { position:absolute; bottom:0; left:0; height:3px; background:linear-gradient(90deg,#10b981,#38bdf8,#a78bfa); }
+.lm-tl-controls { display:flex; align-items:center; justify-content:space-between; padding:6px 16px; background:rgba(241,245,249,0.9); border-top:1px solid var(--border); }
+html.dark .lm-tl-controls { background:rgba(15,23,42,0.6); border-top-color:transparent; }
+.lm-tl-speed { display:flex; gap:4px; }
+.lm-tl-speed button { background:var(--bg2); border:1px solid var(--border); color:var(--text3); padding:2px 8px; border-radius:4px; font-size:10px; font-family:'JetBrains Mono',monospace; cursor:pointer; transition:all 0.15s; }
+.lm-tl-speed button:hover, .lm-tl-speed button.active { background:rgba(37,99,235,0.1); color:#2563eb; border-color:#2563eb; }
+html.dark .lm-tl-speed button:hover, html.dark .lm-tl-speed button.active { background:rgba(56,189,248,0.2); color:#38bdf8; border-color:#38bdf8; }
+.lm-tl-version { font-family:'JetBrains Mono',monospace; font-size:12px; font-weight:700; color:#10b981; opacity:0; transition:opacity 0.5s; }
+.lm-tl-version.show { opacity:1; }
+
+/* Timelapse mode toggle */
+.lm-tl-mode-toggle { position:absolute; top:14px; left:14px; display:flex; border-radius:6px; overflow:hidden; z-index:3; box-shadow:0 2px 8px rgba(0,0,0,0.15); font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:700; letter-spacing:0.5px; cursor:pointer; }
+.lm-tl-mode-btn { padding:6px 14px; border:none; color:rgba(255,255,255,0.6); font-family:inherit; font-size:inherit; font-weight:inherit; letter-spacing:inherit; cursor:pointer; transition:all 0.2s; display:flex; align-items:center; gap:5px; background:rgba(100,116,139,0.5); }
+.lm-tl-mode-btn.active { color:#fff; }
+.lm-tl-mode-btn.active[data-mode="replay"] { background:rgba(99,102,241,0.9); }
+.lm-tl-mode-btn.active[data-mode="live"] { background:rgba(220,38,38,0.9); }
+.lm-tl-live-dot { width:7px; height:7px; border-radius:50%; background:#fff; animation:lmLivePulse 1.5s ease-in-out infinite; }
+@keyframes lmLivePulse { 0%,100%{ opacity:1; } 50%{ opacity:0.4; } }
+
+/* Periscope-style floating comments */
+#tlComments { position:absolute; bottom:12px; left:12px; width:320px; pointer-events:none; display:flex; flex-direction:column-reverse; top:0; overflow:hidden; -webkit-mask-image:linear-gradient(to bottom, transparent 0%, black 15%); mask-image:linear-gradient(to bottom, transparent 0%, black 15%); }
+.tl-bubble { display:flex; align-items:center; gap:8px; padding:5px 12px 5px 6px; margin-bottom:4px; background:rgba(255,255,255,0.85); backdrop-filter:blur(6px); border-radius:20px; animation:tlBubbleUp 10s ease-out forwards; transform-origin:bottom left; max-width:fit-content; box-shadow:0 1px 4px rgba(0,0,0,0.1); }
+html.dark .tl-bubble { background:rgba(0,0,0,0.45); box-shadow:none; }
+.tl-bubble-avatar { width:26px; height:26px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; color:#fff; overflow:hidden; }
+.tl-bubble-avatar img { width:100%; height:100%; border-radius:50%; object-fit:cover; }
+.tl-bubble-body { display:flex; flex-direction:column; min-width:0; }
+.tl-bubble-name { font-size:10px; font-weight:700; line-height:1.2; }
+.tl-bubble-msg { font-size:11px; color:rgba(30,41,59,0.8); line-height:1.3; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:230px; }
+html.dark .tl-bubble-msg { color:rgba(255,255,255,0.85); }
+.tl-bubble-emoji { font-size:20px; animation:tlEmojiFloat 3s ease-out forwards; position:absolute; pointer-events:none; display:flex; align-items:center; gap:2px; }
+.tl-bubble.release-bubble { background:linear-gradient(135deg,rgba(16,185,129,0.95),rgba(5,150,105,0.95)); padding:10px 18px 10px 12px; border-radius:16px; box-shadow:0 4px 20px rgba(16,185,129,0.35); animation:tlReleasePop 8s ease-out forwards; border:1px solid rgba(255,255,255,0.2); }
+html.dark .tl-bubble.release-bubble { background:linear-gradient(135deg,rgba(16,185,129,0.9),rgba(5,150,105,0.85)); box-shadow:0 4px 24px rgba(16,185,129,0.4); }
+.tl-bubble.release-bubble .tl-bubble-avatar { width:32px; height:32px; background:rgba(255,255,255,0.2)!important; font-size:18px; }
+.tl-bubble.release-bubble .tl-bubble-name { color:#fff!important; font-size:13px; }
+.tl-bubble.release-bubble .tl-bubble-msg { color:rgba(255,255,255,0.9)!important; font-size:12px; max-width:260px; }
+@keyframes tlReleasePop {
+  0% { opacity:0; transform:translateY(30px) scale(0.7); }
+  8% { opacity:1; transform:translateY(-5px) scale(1.05); }
+  15% { transform:translateY(0) scale(1); }
+  85% { opacity:1; transform:translateY(0) scale(1); }
+  100% { opacity:0; transform:translateY(-20px) scale(0.95); }
+}
+@keyframes tlBubbleUp {
+  0% { opacity:0; transform:translateY(20px) scale(0.85); }
+  5% { opacity:1; transform:translateY(0) scale(1); }
+  85% { opacity:1; }
+  100% { opacity:0; transform:translateY(-20px); }
+}
+@keyframes tlEmojiFloat {
+  0% { opacity:1; transform:translateY(0) scale(1); }
+  100% { opacity:0; transform:translateY(-120px) scale(1.5); }
+}
 @media(max-width:768px) {
   .lm-wrap { flex-direction:column; padding:10px; gap:12px; }
   .lm-side { width:100%; order:1; }
@@ -4190,13 +4310,13 @@ function openReader(url, title, newsItemId) {
         <button class="yt-tab active" data-tab="video" onclick="_ytSwitchTab('video')">
           <svg class="yt-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>Video
         </button>
-        <button class="yt-tab loading" data-tab="transcript" onclick="_ytSwitchTab('transcript')">
+        <button class="yt-tab ${_ytTranscriptData && _ytTranscriptVideoId === ytVideoId ? 'ready' : ''}" data-tab="transcript" onclick="_ytSwitchTab('transcript')">
           <span class="tab-spinner"></span><svg class="yt-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>Transcript
         </button>
-        <button class="yt-tab loading" data-tab="takeaways" onclick="_ytSwitchTab('takeaways')">
+        <button class="yt-tab ${_ytTakeawaysData && _ytTakeawaysVideoId === ytVideoId ? 'ready' : ''}" data-tab="takeaways" onclick="_ytSwitchTab('takeaways')">
           <span class="tab-spinner"></span><svg class="yt-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>Takeaways
         </button>
-        <button class="yt-tab loading" data-tab="dpoi" onclick="_ytSwitchTab('dpoi')">
+        <button class="yt-tab ${_ytDpoiData && _ytDpoiVideoId === ytVideoId ? 'ready' : ''}" data-tab="dpoi" onclick="_ytSwitchTab('dpoi')">
           <span class="tab-spinner"></span><svg class="yt-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>DOPI
         </button>
       </div>
@@ -4206,6 +4326,7 @@ function openReader(url, title, newsItemId) {
           <span class="yt-time-display" id="ytTimeDisplay">0:00</span>
           <div class="yt-timeline" id="ytTimeline" onclick="_ytSeekClick(event)">
             <div class="yt-timeline-fill" id="ytTimelineFill" style="width:0%"></div>
+            <div class="yt-timeline-dopi-layer" id="ytTimelineDopi"></div>
             <div class="yt-timeline-markers" id="ytTimelineMarkers"></div>
           </div>
           <button class="yt-mark-btn" onclick="_ytMarkTimestamp()" title="Add comment at current timestamp">
@@ -4236,26 +4357,19 @@ function openReader(url, title, newsItemId) {
         </div>
       </div>
       <div class="yt-panel" id="ytTakeawaysPanel">
-        <div class="yt-ai-panel" id="ytTakeawaysContent">
-          <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:48px 24px;gap:12px;">
-            <div class="tab-spinner" style="display:inline-block;width:28px;height:28px;border-width:3px;"></div>
-            <div style="font-size:14px;font-weight:600;color:var(--text);opacity:0.7;">Loading Takeaways...</div>
-          </div>
-        </div>
+        <div class="yt-ai-panel" id="ytTakeawaysContent"></div>
       </div>
       <div class="yt-panel" id="ytDpoiPanel">
-        <div class="yt-ai-panel" id="ytDpoiContent">
-          <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:48px 24px;gap:12px;">
-            <div class="tab-spinner" style="display:inline-block;width:28px;height:28px;border-width:3px;"></div>
-            <div style="font-size:14px;font-weight:600;color:var(--text);opacity:0.7;">Loading DOPI...</div>
-          </div>
-        </div>
+        <div class="yt-ai-panel" id="ytDpoiContent"></div>
       </div>
     `;
     contentEl.appendChild(wrap);
-    _ytTranscriptData = null; // reset caches so tabs reload fresh
-    _ytTakeawaysData = null; _ytTakeawaysVideoId = null;
-    _ytDpoiData = null; _ytDpoiVideoId = null;
+    // Only reset caches if video changed — preserve cached data for same video
+    if (_ytTranscriptVideoId !== ytVideoId) {
+      _ytTranscriptData = null;
+      _ytTakeawaysData = null; _ytTakeawaysVideoId = null;
+      _ytDpoiData = null; _ytDpoiVideoId = null;
+    }
 
     // Update sidebar hint for video
     const sidebarHint = document.querySelector('.reader-sidebar-header span:last-child');
@@ -4378,12 +4492,28 @@ function _createYTPlayer(videoId) {
     events: {
       onReady: function() {
         _ytPlayerReady = true;
-        // Start time update interval
         if (_ytTimeInterval) clearInterval(_ytTimeInterval);
         _ytTimeInterval = setInterval(_ytUpdateTime, 500);
+        _renderDpoiTimelineSegments();
+      },
+      onError: function(e) {
+        console.warn('YouTube player error code:', e.data);
       }
     }
   });
+}
+function _ytShowPlayerFallback(videoId) {
+  const container = document.querySelector('.yt-player-container');
+  if (!container) return;
+  container.innerHTML = `
+    <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#000;gap:12px;">
+      <a href="https://www.youtube.com/watch?v=${videoId}" target="_blank" rel="noopener"
+         style="display:flex;align-items:center;gap:8px;padding:12px 24px;background:#f00;color:#fff;border-radius:8px;font-weight:700;font-size:14px;text-decoration:none;font-family:inherit;">
+        <svg viewBox="0 0 24 24" fill="white" style="width:20px;height:20px;"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        Watch on YouTube
+      </a>
+      <span style="color:rgba(255,255,255,0.5);font-size:11px;">Video embed unavailable — click to watch directly</span>
+    </div>`;
 }
 
 function _ytUpdateTime() {
@@ -4690,46 +4820,74 @@ function _ytPollUntilReady(tabName, url, vid, onSuccess, attempt) {
   });
 }
 
+// ── Takeaways fetch: try immediately (cached?), poll only if not ready ──
+function _ytFetchTakeawaysWithFallback(vid) {
+  const tkUrl = `${API}/api/youtube-key-takeaways?video_id=${vid}`;
+  fetch(tkUrl + '&_t=' + Date.now()).then(r => r.ok ? r.json() : null).then(d => {
+    if (d && !d.error && !d.detail) {
+      _ytTakeawaysData = d.takeaways || d; _ytTakeawaysVideoId = vid;
+      _tabSetReady('takeaways');
+      const activeTab = document.querySelector('.yt-tab.active[data-tab="takeaways"]');
+      if (activeTab) _ytRenderTakeaways(_ytTakeawaysData);
+      return;
+    }
+    // Not cached — spinner already showing, poll
+    _ytPollUntilReady('takeaways', tkUrl, vid,
+      d => { _ytTakeawaysData = d.takeaways || d; _ytTakeawaysVideoId = vid; });
+  }).catch(() => {
+    _ytPollUntilReady('takeaways', tkUrl, vid,
+      d => { _ytTakeawaysData = d.takeaways || d; _ytTakeawaysVideoId = vid; });
+  });
+}
+
+// ── DOPI fetch: try immediately (cached?), stagger-poll only if not ready ──
+function _ytFetchDpoiWithFallback(vid) {
+  const dopiUrl = `${API}/api/youtube-dpoi?video_id=${vid}`;
+  fetch(dopiUrl + '&_t=' + Date.now()).then(r => r.ok ? r.json() : null).then(d => {
+    if (d && !d.error && !d.detail) {
+      // Server had it cached — use immediately, no stagger needed
+      _ytDpoiData = d.insights || d; _ytDpoiVideoId = vid;
+      _tabSetReady('dpoi');
+      const activeTab = document.querySelector('.yt-tab.active[data-tab="dpoi"]');
+      if (activeTab) _ytRenderDpoi(_ytDpoiData);
+      _renderDpoiTimelineSegments();
+      return;
+    }
+    // Not cached yet — spinner already showing, stagger by 15s then poll
+    setTimeout(() => {
+      _ytPollUntilReady('dpoi', dopiUrl, vid,
+        d => { _ytDpoiData = d.insights || d; _ytDpoiVideoId = vid; });
+    }, 15000);
+  }).catch(() => {
+    setTimeout(() => {
+      _ytPollUntilReady('dpoi', dopiUrl, vid,
+        d => { _ytDpoiData = d.insights || d; _ytDpoiVideoId = vid; });
+    }, 15000);
+  });
+}
+
 // ── Eager pre-fetch all tabs in parallel when reader opens ──
 function _ytEagerFetchAll(vid) {
   if (!vid) return;
   // Transcript — run the full load (server + client-side + embedded cache)
   // This also sets _ytTranscriptFailed if all approaches fail, which stops takeaways/DOPI polling
+  // Always try instant cache fetch for takeaways/DOPI in parallel with transcript
+  // If server has cached data, they render immediately without waiting for transcript
+  // Show spinners immediately, then instant-cancel if cache probe succeeds
+  if (!_ytTakeawaysData || _ytTakeawaysVideoId !== vid) {
+    _tabSetLoading('takeaways');
+    _ytFetchTakeawaysWithFallback(vid);
+  } else { _tabSetReady('takeaways'); }
+  if (!_ytDpoiData || _ytDpoiVideoId !== vid) {
+    _tabSetLoading('dpoi');
+    _ytFetchDpoiWithFallback(vid);
+  } else { _tabSetReady('dpoi'); }
+
   if (!_ytTranscriptData || _ytTranscriptVideoId !== vid) {
     _tabSetLoading('transcript');
-    _tabSetLoading('takeaways');
-    _tabSetLoading('dpoi');
-    // Load transcript first, THEN start polling for takeaways/DOPI
-    _ytLoadTranscript().then(() => {
-      if (_ytTranscriptFailed) return; // transcript failed — tabs already marked failed
-      // Now transcript is cached on server — start polling for AI-generated content
-      // Stagger DOPI by 15s to avoid Gemini rate-limit collision with takeaways
-      if (!_ytTakeawaysData || _ytTakeawaysVideoId !== vid) {
-        _ytPollUntilReady('takeaways', `${API}/api/youtube-key-takeaways?video_id=${vid}`, vid,
-          d => { _ytTakeawaysData = d.takeaways || d; _ytTakeawaysVideoId = vid; });
-      } else { _tabSetReady('takeaways'); }
-      if (!_ytDpoiData || _ytDpoiVideoId !== vid) {
-        setTimeout(() => {
-          _ytPollUntilReady('dpoi', `${API}/api/youtube-dpoi?video_id=${vid}`, vid,
-            d => { _ytDpoiData = d.insights || d; _ytDpoiVideoId = vid; });
-        }, 15000);
-      } else { _tabSetReady('dpoi'); }
-    });
+    _ytLoadTranscript();
   } else {
     _tabSetReady('transcript');
-    // Transcript already cached — start polling immediately
-    if (!_ytTakeawaysData || _ytTakeawaysVideoId !== vid) {
-      _tabSetLoading('takeaways');
-      _ytPollUntilReady('takeaways', `${API}/api/youtube-key-takeaways?video_id=${vid}`, vid,
-        d => { _ytTakeawaysData = d.takeaways || d; _ytTakeawaysVideoId = vid; });
-    } else { _tabSetReady('takeaways'); }
-    if (!_ytDpoiData || _ytDpoiVideoId !== vid) {
-      _tabSetLoading('dpoi');
-      setTimeout(() => {
-        _ytPollUntilReady('dpoi', `${API}/api/youtube-dpoi?video_id=${vid}`, vid,
-          d => { _ytDpoiData = d.insights || d; _ytDpoiVideoId = vid; });
-      }, 15000);
-    } else { _tabSetReady('dpoi'); }
   }
 }
 
@@ -5433,6 +5591,8 @@ function _ytRenderDpoi(items) {
   }).join('') + '</div>';
   // Store items for research handler
   window._dopiItems = items;
+  // Render DOPI segments on the video timeline
+  _renderDpoiTimelineSegments();
 }
 
 async function _dopiResearchVenture(idx, isArticle) {
@@ -5538,6 +5698,45 @@ function _renderYtTimelineMarkers() {
       <div class="yt-timeline-marker-tooltip">${_fmtTime(a.timestamp_seconds)} — ${(a.body||'').slice(0,30)}${(a.body||'').length>30?'...':''}</div>
     </div>`;
   }).join('');
+}
+
+function _renderDpoiTimelineSegments() {
+  const layerEl = document.getElementById('ytTimelineDopi');
+  if (!layerEl) return;
+  if (!_ytDpoiData || !_ytPlayer || !_ytPlayerReady) { layerEl.innerHTML = ''; return; }
+  const dur = _ytPlayer.getDuration() || 1;
+  const items = Array.isArray(_ytDpoiData) ? _ytDpoiData : [];
+  layerEl.innerHTML = items.map((item, idx) => {
+    const startSec = item.start_seconds || 0;
+    const endSec = item.end_seconds || startSec;
+    const leftPct = (startSec / dur * 100).toFixed(2);
+    const widthPct = Math.max(0.8, ((endSec - startSec) / dur * 100)).toFixed(2);
+    const typeCls = (item.type || 'insight').toLowerCase();
+    const typeLabel = typeCls.charAt(0).toUpperCase() + typeCls.slice(1);
+    const timeRange = (item.start_time || _fmtTime(startSec)) + ' – ' + (item.end_time || _fmtTime(endSec));
+    const title = esc(item.title || '');
+    return `<div class="yt-timeline-dopi-seg ${typeCls}" style="left:${leftPct}%;width:${widthPct}%;" onclick="event.stopPropagation();_ytSeekTo(${startSec});" data-dopi-idx="${idx}" data-dopi-tip="${typeLabel}|${timeRange} — ${title}" onmouseenter="_dopiTipShow(event)" onmouseleave="_dopiTipHide()">
+    </div>`;
+  }).join('');
+}
+
+// ── Global DOPI timeline tooltip (avoids overflow clipping) ──
+function _dopiTipShow(e) {
+  let tip = document.getElementById('dopiGlobalTooltip');
+  if (!tip) { tip = document.createElement('div'); tip.id = 'dopiGlobalTooltip'; document.body.appendChild(tip); }
+  const data = e.currentTarget.dataset.dopiTip || '';
+  const [typeLabel, ...rest] = data.split('|');
+  tip.innerHTML = '<span class="dopi-seg-type">' + (typeLabel||'') + '</span>' + (rest.join('|')||'');
+  tip.classList.add('visible');
+  const rect = e.currentTarget.getBoundingClientRect();
+  let left = rect.left + rect.width / 2 - tip.offsetWidth / 2;
+  left = Math.max(8, Math.min(left, window.innerWidth - tip.offsetWidth - 8));
+  tip.style.left = left + 'px';
+  tip.style.top = (rect.top - tip.offsetHeight - 8) + 'px';
+}
+function _dopiTipHide() {
+  const tip = document.getElementById('dopiGlobalTooltip');
+  if (tip) tip.classList.remove('visible');
 }
 
 async function shareArticle() {
@@ -8231,6 +8430,8 @@ let _lmPollTimer = null;
 let _lmTickTimer = null;
 let _lmLastTime = null;
 let _lmHistory = [];
+let _lmSeenEvents = new Set();
+let _lmActiveUsers = []; // shared with timelapse
 // ── Investment Committee View ─────────────────────────────────────────
 async function loadInvestmentCommittee() {
   const el = document.getElementById('ventureList');
@@ -8434,73 +8635,132 @@ async function loadLiveMonitor() {
   if (_lmTickTimer) { clearInterval(_lmTickTimer); _lmTickTimer = null; }
   _lmLastTime = null;
   _lmHistory = [];
+  _lmSeenEvents = new Set();
   const el = document.getElementById('ventureList');
   el.innerHTML = `
-    <div class="lm-wrap">
-      <div class="lm-main">
-        <div class="lm-header">
+    <div style="padding:16px 24px;max-width:1400px;margin:0 auto;">
+
+      <!-- Hero bar: title + stats | agents + users -->
+      <div class="lm-hero-bar">
+        <div class="lm-hero-left">
           <div class="lm-pulse"></div>
-          <div class="lm-title">Live Monitor</div>
-          <div class="lm-subtitle" id="lmClock"></div>
+          <div class="lm-hero-title">Live Monitor</div>
+          <div class="lm-hero-clock" id="lmClock"></div>
         </div>
-        <div class="lm-stats" id="lmStats"></div>
-        <div class="lm-feed" id="lmFeed">
-          <div style="text-align:center;padding:40px;color:var(--text3);">Connecting...</div>
+        <div class="lm-hero-divider"></div>
+        <div class="lm-hero-stats" id="lmStats">
+          <div class="lm-hero-stat"><div class="lm-hero-stat-val" style="color:var(--accent);">–</div><div class="lm-hero-stat-label">Active</div></div>
+          <div class="lm-hero-stat"><div class="lm-hero-stat-val" style="color:var(--text);">–</div><div class="lm-hero-stat-label">Bugs</div></div>
+          <div class="lm-hero-stat"><div class="lm-hero-stat-val" style="color:#7c3aed;">–</div><div class="lm-hero-stat-label">AI Found</div></div>
+          <div class="lm-hero-stat"><div class="lm-hero-stat-val" style="color:#22c55e;">–</div><div class="lm-hero-stat-label">Fixed</div></div>
+        </div>
+        <div class="lm-hero-right">
+          <div class="lm-hero-agents">
+            <div class="lm-hero-agent-pill" id="lmAgent-hunt" onclick="_lmRunAgent('hunt')"><span class="pill-icon">🔍</span>CodeHawk</div>
+            <div class="lm-hero-agent-pill" id="lmAgent-ui" onclick="_lmRunAgent('ui')"><span class="pill-icon">👁️</span>PixelEye</div>
+            <div class="lm-hero-agent-pill" id="lmAgent-sprint" onclick="_lmRunAgent('sprint')"><span class="pill-icon">📋</span>Maya</div>
+            <div class="lm-hero-agent-pill" id="lmAgent-fix" onclick="_lmRunAgent('fix')"><span class="pill-icon">🔧</span>AutoFix</div>
+          </div>
+          <div class="lm-hero-divider"></div>
+          <div class="lm-hero-users" id="lmUsers"></div>
         </div>
       </div>
-      <div class="lm-side">
-        <div class="lm-card">
-          <div class="lm-card-title"><span style="color:#22c55e;">●</span> Active Now</div>
-          <div class="lm-users" id="lmUsers"></div>
-        </div>
-        <div class="lm-card">
-          <div class="lm-card-title"><span style="color:#7c3aed;">●</span> AI Agents</div>
-          <div style="display:flex;flex-direction:column;gap:8px;" id="lmAgents">
-            <div class="lm-agent-row" id="lmAgent-hunt">
-              <div class="lm-agent-info"><span class="lm-agent-icon">🔍</span><div><div class="lm-agent-name">CodeHawk</div><div class="lm-agent-desc">Bug Hunter · every 4h</div></div></div>
-              <button class="lm-agent-btn" onclick="_lmRunAgent('hunt',this)">Run</button>
-            </div>
-            <div class="lm-agent-row" id="lmAgent-ui">
-              <div class="lm-agent-info"><span class="lm-agent-icon">👁️</span><div><div class="lm-agent-name">PixelEye</div><div class="lm-agent-desc">UI Inspector · every 6h</div></div></div>
-              <button class="lm-agent-btn" onclick="_lmRunAgent('ui',this)">Run</button>
-            </div>
-            <div class="lm-agent-row" id="lmAgent-sprint">
-              <div class="lm-agent-info"><span class="lm-agent-icon">📋</span><div><div class="lm-agent-name">Maya Levi</div><div class="lm-agent-desc">Sprint Planner · every 1h</div></div></div>
-              <button class="lm-agent-btn" onclick="_lmRunAgent('sprint',this)">Run</button>
-            </div>
-            <div class="lm-agent-row" id="lmAgent-fix">
-              <div class="lm-agent-info"><span class="lm-agent-icon">🔧</span><div><div class="lm-agent-name">AutoFix</div><div class="lm-agent-desc">TDD Bug Fixer · every 2h</div></div></div>
-              <button class="lm-agent-btn" onclick="_lmRunAgent('fix',this)">Run</button>
+
+      <!-- Timelapse — hero area -->
+      <div class="lm-timelapse" style="margin-bottom:20px;">
+        <div class="lm-tl-canvas-wrap">
+          <canvas id="tlCanvas"></canvas>
+          <div class="lm-tl-mode-toggle">
+            <button class="lm-tl-mode-btn active" data-mode="replay" onclick="_tlSwitchMode('replay')">⏪ REPLAY</button>
+            <button class="lm-tl-mode-btn" data-mode="live" onclick="_tlSwitchMode('live')"><span class="lm-tl-live-dot"></span>LIVE</button>
+          </div>
+          <div style="position:absolute;top:14px;right:14px;z-index:3;display:flex;align-items:center;gap:8px;">
+            <span class="lm-tl-version" id="tlVersion"></span>
+            <span class="lm-tl-clock" id="tlClock" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text3);background:rgba(255,255,255,0.7);padding:3px 10px;border-radius:6px;backdrop-filter:blur(4px);"></span>
+            <button class="lm-tl-fullscreen-btn" onclick="_tlToggleFullscreen()" title="Fullscreen">
+              <svg id="tlFsIconExpand" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 00-2 2v3m18 0V5a2 2 0 00-2-2h-3m0 18h3a2 2 0 002-2v-3M3 16v3a2 2 0 002 2h3"/></svg>
+              <svg id="tlFsIconShrink" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><path d="M4 14h6v6m10-10h-6V4m0 6l7-7M3 21l7-7"/></svg>
+            </button>
+          </div>
+          <!-- Andon: stop/resume button (Toyota-style) -->
+          <button class="lm-andon-btn" id="lmAndonBtn" onclick="_tlAndonToggle()" title="Stop the line (Andon)">
+            <span class="lm-andon-icon" id="lmAndonIcon">⏸</span>
+            <span class="lm-andon-label" id="lmAndonLabel">STOP</span>
+          </button>
+          <!-- Andon overlay when stopped -->
+          <div class="lm-andon-overlay" id="lmAndonOverlay">
+            <div class="lm-andon-banner">
+              <div class="lm-andon-lamp"></div>
+              <div class="lm-andon-msg">LINE STOPPED</div>
+              <div class="lm-andon-sub">Pull the cord to resume</div>
+              <button class="lm-andon-resume" onclick="_tlAndonToggle()">▶ RESUME</button>
             </div>
           </div>
-        </div>
-        <div class="lm-card">
-          <div class="lm-card-title" style="justify-content:space-between;">
-            <span>📊 Activity</span>
-            <div style="display:flex;gap:3px;" id="lmChartTabs">
-              <button class="lm-range-btn active" onclick="_lmSwitchRange('1h')">1H</button>
-              <button class="lm-range-btn" onclick="_lmSwitchRange('6h')">6H</button>
-              <button class="lm-range-btn" onclick="_lmSwitchRange('24h')">24H</button>
-              <button class="lm-range-btn" onclick="_lmSwitchRange('7d')">7D</button>
-            </div>
+          <div class="lm-tl-stats-overlay">
+            <div class="tl-ov-stat"><div class="tl-ov-val" id="tlOnline" style="color:#22c55e;">0</div><div class="tl-ov-label">Online</div></div>
+            <div class="tl-ov-stat"><div class="tl-ov-val" id="tlCommits" style="color:#2563eb;">0</div><div class="tl-ov-label">Commits</div></div>
+            <div class="tl-ov-stat"><div class="tl-ov-val" id="tlBugs" style="color:#dc2626;">0</div><div class="tl-ov-label">Bugs</div></div>
+            <div class="tl-ov-stat"><div class="tl-ov-val" id="tlReleases" style="color:#059669;">0</div><div class="tl-ov-label">Releases</div></div>
+            <div class="tl-ov-stat"><div class="tl-ov-val" id="tlAgents" style="color:#7c3aed;">0</div><div class="tl-ov-label">AI Actions</div></div>
           </div>
-          <div id="lmChartWrap"></div>
+          <div id="tlComments"></div>
+        </div>
+        <div class="lm-tl-timeline" id="tlTimeline" onclick="_tlTimelineClick(event)">
+          <div class="lm-tl-histogram" id="tlHistogram"></div>
+          <div class="lm-tl-playhead" id="tlPlayhead"></div>
+          <div class="lm-tl-progress" id="tlProgress"></div>
+        </div>
+        <div class="lm-tl-controls">
+          <div class="lm-tl-speed" id="tlSpeedBtns">
+            <button onclick="_tlSetSpeed(0.5)">0.5×</button>
+            <button onclick="_tlSetSpeed(1)" class="active">1×</button>
+            <button onclick="_tlSetSpeed(2)">2×</button>
+            <button onclick="_tlSetSpeed(5)">5×</button>
+          </div>
+          <div style="font-size:9px;color:var(--text3);">Click timeline to jump</div>
+        </div>
+      </div>
+
+      <!-- Below fold: feed + activity chart side by side -->
+      <div class="lm-wrap" style="padding:0;">
+        <div class="lm-main">
+          <div class="lm-feed" id="lmFeed">
+            <div style="text-align:center;padding:40px;color:var(--text3);">Connecting...</div>
+          </div>
+        </div>
+        <div class="lm-side">
+          <div class="lm-card">
+            <div class="lm-card-title" style="justify-content:space-between;">
+              <span>📊 Activity</span>
+              <div style="display:flex;gap:3px;" id="lmChartTabs">
+                <button class="lm-range-btn active" onclick="_lmSwitchRange('1h')">1H</button>
+                <button class="lm-range-btn" onclick="_lmSwitchRange('6h')">6H</button>
+                <button class="lm-range-btn" onclick="_lmSwitchRange('24h')">24H</button>
+                <button class="lm-range-btn" onclick="_lmSwitchRange('7d')">7D</button>
+              </div>
+            </div>
+            <div id="lmChartWrap"></div>
+          </div>
         </div>
       </div>
     </div>`;
   await _lmPoll();
   _lmLoadChart();
   _lmPollTimer = setInterval(_lmPoll, 8000);
-  // 1-second ticker to keep timestamps and clock live
   _lmTickTimer = setInterval(_lmTick, 1000);
+  // Init timelapse directly (no tab switch needed)
+  _tlInited = false;
+  setTimeout(() => _tlInit(), 100);
 }
 
 function _lmTimeAgo(iso) {
   if (!iso) return '';
-  const d = new Date(iso + 'Z');
+  // Try both with and without Z suffix for timezone handling
+  let d = new Date(iso);
+  if (isNaN(d.getTime())) d = new Date(iso + 'Z');
   const s = Math.floor((Date.now() - d.getTime()) / 1000);
-  if (s < 5) return 'just now';
-  if (s < 60) return s + 's ago';
+  if (s < 0) return d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+  if (s < 60) return 'just now';
   if (s < 3600) return Math.floor(s/60) + 'm ago';
   if (s < 86400) return Math.floor(s/3600) + 'h ago';
   return Math.floor(s/86400) + 'd ago';
@@ -8525,40 +8785,54 @@ async function _lmPoll() {
     const resp = await fetch(url);
     const data = await resp.json();
 
-    // Stats
+    // Stats — render into hero bar format
     const st = data.stats || {};
     const statsEl = document.getElementById('lmStats');
     if (statsEl) statsEl.innerHTML = `
-      <div class="lm-stat"><div class="lm-stat-val">${st.active_count||0}</div><div class="lm-stat-label">Active Users</div></div>
-      <div class="lm-stat"><div class="lm-stat-val">${st.total_bugs||0}</div><div class="lm-stat-label">Total Bugs</div></div>
-      <div class="lm-stat"><div class="lm-stat-val" style="color:#7c3aed;">${st.real_bugs||0}</div><div class="lm-stat-label">Real Bugs (AI)</div></div>
-      <div class="lm-stat"><div class="lm-stat-val" style="color:#22c55e;">${st.real_fixed||0}</div><div class="lm-stat-label">Real Fixed</div></div>
+      <div class="lm-hero-stat"><div class="lm-hero-stat-val" style="color:var(--accent);">${st.active_count||0}</div><div class="lm-hero-stat-label">Active</div></div>
+      <div class="lm-hero-stat"><div class="lm-hero-stat-val" style="color:var(--text);">${st.total_bugs||0}</div><div class="lm-hero-stat-label">Bugs</div></div>
+      <div class="lm-hero-stat"><div class="lm-hero-stat-val" style="color:#7c3aed;">${st.real_bugs||0}</div><div class="lm-hero-stat-label">AI Found</div></div>
+      <div class="lm-hero-stat"><div class="lm-hero-stat-val" style="color:#22c55e;">${st.real_fixed||0}</div><div class="lm-hero-stat-label">Fixed</div></div>
     `;
 
-    // Active users
+    // Active users — render as stacked avatars in hero bar
+    _lmActiveUsers = data.active_users || [];
     const usersEl = document.getElementById('lmUsers');
     if (usersEl) {
-      const users = data.active_users || [];
+      const users = _lmActiveUsers;
       if (users.length === 0) {
-        usersEl.innerHTML = '<div style="font-size:12px;color:var(--text3);padding:4px;">No active users right now</div>';
+        usersEl.innerHTML = '<span class="lm-hero-users-label">Offline</span>';
       } else {
-        usersEl.innerHTML = users.map(u => `
-          <div class="lm-user">
-            <div class="lm-user-dot"></div>
-            <img src="${_avatar(u, 24)}" alt="">
-            <span class="lm-user-name">${esc(u)}</span>
-          </div>`).join('');
+        const maxShow = 4;
+        const shown = users.slice(0, maxShow);
+        const extra = users.length - maxShow;
+        usersEl.innerHTML =
+          shown.map(u => `<img class="lm-hero-avatar" src="${_avatar(u, 24)}" alt="${esc(u)}" title="${esc(u)}">`).join('') +
+          (extra > 0 ? `<span class="lm-hero-count">+${extra}</span>` : '');
       }
     }
 
-    // Events feed
+    // Events feed — with deduplication
     const feedEl = document.getElementById('lmFeed');
     if (feedEl) {
-      const events = data.events || [];
-      if (events.length === 0 && !_lmLastTime) {
+      let events = data.events || [];
+      // Deduplicate: create a key from type+user+action+time
+      const isFirst = !_lmLastTime;
+      if (isFirst) _lmSeenEvents.clear();
+      events = events.filter(ev => {
+        const key = `${ev.type||''}|${ev.user||''}|${ev.action||''}|${ev.time||''}`;
+        if (_lmSeenEvents.has(key)) return false;
+        _lmSeenEvents.add(key);
+        return true;
+      });
+      // Cap seen set to prevent memory leak
+      if (_lmSeenEvents.size > 500) {
+        const arr = [..._lmSeenEvents];
+        _lmSeenEvents = new Set(arr.slice(arr.length - 200));
+      }
+      if (events.length === 0 && isFirst) {
         feedEl.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text3);">No activity yet. The simulation will generate events shortly.</div>';
       } else if (events.length > 0) {
-        const isFirst = !_lmLastTime;
         const newHtml = events.map(ev => {
           const meta = ev.meta || {};
           const isAgent = meta.is_agent;
@@ -8591,7 +8865,15 @@ async function _lmPoll() {
     // Refresh activity chart
     _lmLoadChart();
 
-    if (data.server_time) _lmLastTime = data.server_time;
+    // Use latest event time as cursor (not server_time) to avoid re-fetching
+    // events whose timestamps are ahead of server clock
+    const allTimes = (data.events || []).map(e => e.time).filter(Boolean);
+    if (allTimes.length > 0) {
+      allTimes.sort();
+      _lmLastTime = allTimes[allTimes.length - 1];
+    } else if (data.server_time) {
+      _lmLastTime = data.server_time;
+    }
   } catch(e) {
     console.warn('Live feed poll error:', e);
   }
@@ -8606,7 +8888,7 @@ async function _lmSwitchRange(range) {
   await _lmLoadChart();
 }
 
-async function _lmRunAgent(type, btn) {
+async function _lmRunAgent(type) {
   const endpoints = {
     hunt: '/api/bugs/trigger-hunt',
     ui: '/api/bugs/trigger-ui-inspect',
@@ -8615,24 +8897,22 @@ async function _lmRunAgent(type, btn) {
   };
   const url = endpoints[type];
   if (!url) return;
-  const row = btn.closest('.lm-agent-row');
-  btn.disabled = true;
-  btn.textContent = 'Running...';
-  row.classList.add('running');
-  row.classList.remove('done');
-  // Remove old result
-  const oldResult = row.querySelector('.lm-agent-result');
-  if (oldResult) oldResult.remove();
+  const pill = document.getElementById(`lmAgent-${type}`);
+  if (!pill) return;
+  if (pill.classList.contains('running')) return; // prevent double-click
+
+  pill.classList.add('running');
+  pill.style.opacity = '0.7';
+  pill.style.pointerEvents = 'none';
 
   try {
     const resp = await fetch(`${API}${url}`, {method:'POST', headers:{'X-API-Key':'develeap2024'}});
     const data = await resp.json();
-    btn.textContent = 'Done';
-    btn.classList.add('success');
-    row.classList.remove('running');
-    row.classList.add('done');
+    pill.classList.remove('running');
+    pill.classList.add('done');
+    pill.style.opacity = '1';
 
-    // Show result summary
+    // Show result summary as tooltip
     let summary = '';
     if (type === 'hunt') summary = `Scanned ${data.scanned||0} files, found ${data.bugs_created||0} bugs`;
     else if (type === 'ui') summary = `Inspected ${data.inspected||0} views, found ${data.bugs_created||0} UI bugs`;
@@ -8640,28 +8920,26 @@ async function _lmRunAgent(type, btn) {
     else if (type === 'fix') summary = `Fixed: ${data.fixed||0}, Skipped: ${data.skipped||0}, Failed: ${data.fix_failed||0}`;
     if (data.error) summary = `Error: ${data.error}`;
 
-    const resultEl = document.createElement('div');
-    resultEl.className = 'lm-agent-result';
-    resultEl.textContent = summary;
-    row.querySelector('.lm-agent-info > div').appendChild(resultEl);
+    pill.title = summary;
+    pill.style.borderColor = '#22c55e';
+    pill.style.background = 'rgba(34,197,94,0.1)';
 
     // Refresh the live feed to show new events
     _lmLastTime = null;
     await _lmPoll();
   } catch(e) {
-    btn.textContent = 'Error';
-    row.classList.remove('running');
-    const resultEl = document.createElement('div');
-    resultEl.className = 'lm-agent-result';
-    resultEl.textContent = e.message;
-    resultEl.style.color = '#ef4444';
-    row.querySelector('.lm-agent-info > div').appendChild(resultEl);
+    pill.classList.remove('running');
+    pill.style.opacity = '1';
+    pill.title = `Error: ${e.message}`;
+    pill.style.borderColor = '#ef4444';
+    pill.style.background = 'rgba(239,68,68,0.1)';
   }
   setTimeout(() => {
-    btn.disabled = false;
-    btn.textContent = 'Run';
-    btn.classList.remove('success');
-    row.classList.remove('done');
+    pill.classList.remove('done');
+    pill.style.pointerEvents = '';
+    pill.style.borderColor = '';
+    pill.style.background = '';
+    pill.title = '';
   }, 8000);
 }
 
@@ -8711,6 +8989,1128 @@ async function _lmLoadChart() {
     console.warn('Activity chart error:', e);
     wrap.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3);font-size:12px;">Chart unavailable</div>';
   }
+}
+
+// ═══════════════════════════════════════════
+// TIMELAPSE — Force-graph development visualization
+// ═══════════════════════════════════════════
+let _tlAnimId = null;
+let _tlInited = false;
+
+async function _tlInit() {
+  if (_tlInited) return;
+  _tlInited = true;
+
+  // Theme detection
+  function _tlIsDark() { return document.documentElement.classList.contains('dark'); }
+
+  // Full team — always show all members on the graph
+  const _tlUserColors = ['#2563eb','#7c3aed','#059669','#d97706','#db2777','#6366f1','#0891b2','#dc2626','#4f46e5','#0d9488'];
+  const _TL_FULL_TEAM = ['Kobi Avshalom','Gilad Neiger','Saar Cohen','Efi Shimon','Omri Spector','Shoshi Revivo','Eran Levy','Tom Ronen','Boris Tsigelman','Idan Korkidi'];
+  const TL_TEAM = _TL_FULL_TEAM.map((name,i) => ({
+    name: name.split(' ')[0],
+    fullName: name,
+    role: '',
+    color: _tlUserColors[i % _tlUserColors.length],
+  }));
+  const TL_AI = [
+    { name:'Claude', role:'AI Engineer', color:'#7c3aed' },
+    { name:'Bug Hunter', role:'Scanner', color:'#dc2626' },
+    { name:'PixelEye', role:'UI Inspector', color:'#0891b2' },
+    { name:'AutoFix', role:'TDD Agent', color:'#059669' },
+  ];
+
+  // ── Fetch real events from API ──
+  let _tlRealEvents = [];
+  try {
+    const resp = await fetch(`${API}/api/timelapse-events`);
+    const data = await resp.json();
+    _tlRealEvents = data.events || [];
+  } catch(e) { console.warn('Failed to fetch timelapse events:', e); }
+
+  // Build timeline from real API data
+  const tlEvents = [];
+  for (const ev of _tlRealEvents) {
+    const t = new Date(ev.t).getTime();
+    if (isNaN(t)) continue;
+    if (ev.type === 'slack') {
+      tlEvents.push({ t, type:'user_action', data:{ user:ev.user.split(' ')[0], action:ev.action + (ev.body ? ': ' + ev.body.slice(0,50) : '') }});
+    } else if (ev.type === 'bug') {
+      tlEvents.push({ t, type:'bug', data:{ key:ev.key, title:ev.title, reporter:ev.reporter, fixer:ev.fixer||'Claude', status:ev.status }});
+    } else if (ev.type === 'user_action') {
+      const d = { user:ev.user, action:ev.action };
+      if (ev.kanban_from) { d.kanban_from = ev.kanban_from; d.kanban_to = ev.kanban_to; d.bug_key = ev.bug_key; }
+      tlEvents.push({ t, type:'user_action', data:d });
+    } else if (ev.type === 'ai_action') {
+      tlEvents.push({ t, type:'ai_action', data:{ agent:ev.agent||ev.user, action:ev.action }});
+    }
+  }
+  // Always include releases (not tracked in DB yet)
+  const TL_RELEASES_ALWAYS = [
+    { t:'2026-04-09T13:22:00', v:'v0.14.0', fixes:12 },
+    { t:'2026-04-10T03:19:00', v:'v0.14.1', fixes:5 },
+    { t:'2026-04-11T11:10:00', v:'v0.14.2', fixes:9 },
+    { t:'2026-04-11T11:19:00', v:'v0.14.3', fixes:3 },
+    { t:'2026-04-11T11:29:00', v:'v0.14.4', fixes:3 },
+  ];
+  TL_RELEASES_ALWAYS.forEach(r => tlEvents.push({ t:new Date(r.t).getTime(), type:'release', data:r }));
+  tlEvents.sort((a,b) => a.t - b.t);
+
+  // Fallback if no events from API — use hardcoded data
+  if (tlEvents.length <= TL_RELEASES_ALWAYS.length) {
+  const TL_COMMITS = [
+    { t:'2026-04-09T10:00:00', msg:'Initial venture engine scaffold' },
+    { t:'2026-04-09T13:22:00', msg:'Core news feed + YouTube reader' },
+    { t:'2026-04-10T03:19:00', msg:'Transcript + Gemini AI pipeline' },
+    { t:'2026-04-10T17:50:00', msg:'Add InnerTube transcript fallback' },
+    { t:'2026-04-10T20:47:00', msg:'TVHTML5_EMBEDDED bypass LOGIN_REQUIRED' },
+    { t:'2026-04-10T20:51:00', msg:'Watch-page API key extraction' },
+    { t:'2026-04-11T07:00:00', msg:'Two-phase transcript loading' },
+    { t:'2026-04-11T07:07:00', msg:'Red X failed state for unavailable tabs' },
+    { t:'2026-04-11T07:18:00', msg:'Wait for transcript before polling AI tabs' },
+    { t:'2026-04-11T07:38:00', msg:'Pre-fetch transcript on upload' },
+    { t:'2026-04-11T07:42:00', msg:'Fix DOPI spinning: stagger Gemini calls' },
+    { t:'2026-04-11T08:18:00', msg:'Restore scroll position on reader close' },
+    { t:'2026-04-11T08:26:00', msg:'Fix YouTube comments preview count' },
+    { t:'2026-04-11T08:30:00', msg:'Fix release pipeline weekend stalling' },
+    { t:'2026-04-11T08:34:00', msg:'Redesign Slack for mobile' },
+    { t:'2026-04-11T08:55:00', msg:'Redesign mobile top bar' },
+    { t:'2026-04-11T10:04:00', msg:'Fix mobile sidebar display' },
+    { t:'2026-04-11T10:52:00', msg:'DOPI Research Venture on mobile' },
+    { t:'2026-04-11T11:07:00', msg:'Remove graph feature entirely' },
+    { t:'2026-04-11T11:16:00', msg:'Disable simulated bugs — real tracker' },
+    { t:'2026-04-11T11:19:00', msg:'Fix 3 real bugs: DB session leaks' },
+    { t:'2026-04-11T11:25:00', msg:'Playwright: SSL 502 + input validation' },
+    { t:'2026-04-11T12:03:00', msg:'AI Bug Hunter + Bug Fixer agents' },
+    { t:'2026-04-11T12:09:00', msg:'PixelEye: Playwright + Claude Vision' },
+    { t:'2026-04-11T12:21:00', msg:'AI Product Owner sprint planner' },
+    { t:'2026-04-11T12:52:00', msg:'Live Monitor with AI agent badges' },
+    { t:'2026-04-11T13:02:00', msg:'AutoFix Red/Green TDD cycle' },
+    { t:'2026-04-11T13:12:00', msg:'Proof/evidence on TDD-fixed bugs' },
+    { t:'2026-04-11T13:15:00', msg:'IST timezone in release notes' },
+    { t:'2026-04-11T13:32:00', msg:'Fix Slack mobile: full-screen workspace' },
+    { t:'2026-04-11T13:55:00', msg:'Slack mobile: escape overflow:hidden' },
+    { t:'2026-04-11T14:35:00', msg:'Live Monitor AI Agents run buttons' },
+    { t:'2026-04-11T18:03:00', msg:'Add DOPI segment markers on timeline' },
+    { t:'2026-04-11T18:10:00', msg:'Fix DOPI cache: instant fetch, no stagger' },
+    { t:'2026-04-11T18:12:00', msg:'Preserve cache for same video reload' },
+    { t:'2026-04-11T18:14:00', msg:'Parallel fetch: transcript + AI tabs' },
+    { t:'2026-04-11T18:15:00', msg:'No spinners when data is cached' },
+    { t:'2026-04-11T18:17:00', msg:'Remove hardcoded spinner HTML' },
+    { t:'2026-04-11T18:19:00', msg:'Remove hardcoded loading class on tabs' },
+    { t:'2026-04-11T18:22:00', msg:'Tab ready state in template' },
+    { t:'2026-04-11T18:24:00', msg:'Transcript quick cache probe' },
+    { t:'2026-04-11T18:30:00', msg:'Enlarge DOPI tooltip, full text' },
+    { t:'2026-04-11T18:33:00', msg:'Fix tooltip clipping: global fixed tooltip' },
+  ];
+  const TL_RELEASES = [
+    { t:'2026-04-09T13:22:00', v:'v0.14.0', fixes:12 },
+    { t:'2026-04-10T03:19:00', v:'v0.14.1', fixes:5 },
+    { t:'2026-04-11T11:10:00', v:'v0.14.2', fixes:9 },
+    { t:'2026-04-11T11:19:00', v:'v0.14.3', fixes:3 },
+    { t:'2026-04-11T11:29:00', v:'v0.14.4', fixes:3 },
+  ];
+  const TL_BUGS = [
+    { t:'2026-04-11T11:18:00', key:'BUG-228', title:'DB session leak in transcript cache', reporter:'Kobi', fixer:'Claude' },
+    { t:'2026-04-11T11:18:00', key:'BUG-229', title:'DB session leak in _get_transcript_text', reporter:'Gilad', fixer:'Claude' },
+    { t:'2026-04-11T11:18:00', key:'BUG-230', title:'Unbounded storyboard cache memory leak', reporter:'Saar', fixer:'Claude' },
+    { t:'2026-04-11T11:24:00', key:'BUG-234', title:'Article-insights 502 SSL error', reporter:'Kobi', fixer:'Claude' },
+    { t:'2026-04-11T11:24:00', key:'BUG-235', title:'Empty title accepted in bug creation', reporter:'Gilad', fixer:'Claude' },
+    { t:'2026-04-11T11:24:00', key:'BUG-236', title:'Invalid priority accepted', reporter:'Saar', fixer:'Claude' },
+  ];
+
+  // Real user & AI actions
+  const TL_USER_ACTIONS = [
+    { t:'2026-04-09T09:30:00', user:'Kobi', action:'kicked off venture engine project' },
+    { t:'2026-04-09T10:15:00', user:'Omri', action:'reviewed initial scaffold PR' },
+    { t:'2026-04-09T13:10:00', user:'Gilad', action:'approved news feed architecture' },
+    { t:'2026-04-09T13:25:00', user:'Kobi', action:'triggered v0.14.0 deployment' },
+    { t:'2026-04-10T03:25:00', user:'Kobi', action:'triggered v0.14.1 deployment' },
+    { t:'2026-04-10T08:00:00', user:'Saar', action:'tested YouTube reader flow' },
+    { t:'2026-04-10T09:30:00', user:'Efi', action:'checked Railway deployment logs' },
+    { t:'2026-04-10T14:00:00', user:'Gilad', action:'reviewed transcript pipeline PR' },
+    { t:'2026-04-10T17:55:00', user:'Kobi', action:'tested InnerTube fallback' },
+    { t:'2026-04-10T20:55:00', user:'Kobi', action:'verified LOGIN_REQUIRED bypass' },
+    { t:'2026-04-11T07:05:00', user:'Saar', action:'reported transcript loading issues' },
+    { t:'2026-04-11T07:45:00', user:'Kobi', action:'tested pre-fetch transcript flow' },
+    { t:'2026-04-11T08:20:00', user:'Omri', action:'reviewed scroll restore UX' },
+    { t:'2026-04-11T08:35:00', user:'Shoshi', action:'validated Slack mobile redesign' },
+    { t:'2026-04-11T10:10:00', user:'Efi', action:'tested mobile sidebar on iPhone' },
+    { t:'2026-04-11T10:55:00', user:'Saar', action:'reviewed DOPI research on mobile' },
+    { t:'2026-04-11T11:12:00', user:'Kobi', action:'triggered v0.14.2 deployment' },
+    { t:'2026-04-11T11:20:00', user:'Gilad', action:'reviewed DB session leak fix' },
+    { t:'2026-04-11T11:30:00', user:'Kobi', action:'triggered v0.14.4 deployment' },
+    { t:'2026-04-11T12:05:00', user:'Omri', action:'reviewed AI Bug Hunter agent' },
+    { t:'2026-04-11T12:15:00', user:'Saar', action:'tested PixelEye UI inspection' },
+    { t:'2026-04-11T12:55:00', user:'Kobi', action:'verified live monitor badges' },
+    { t:'2026-04-11T13:10:00', user:'Gilad', action:'reviewed TDD proof evidence' },
+    { t:'2026-04-11T13:35:00', user:'Shoshi', action:'tested Slack mobile full-screen' },
+    { t:'2026-04-11T14:40:00', user:'Efi', action:'tested AI agent run buttons' },
+    { t:'2026-04-11T18:05:00', user:'Kobi', action:'tested DOPI timeline segments' },
+    { t:'2026-04-11T18:20:00', user:'Saar', action:'verified no-spinner cache behavior' },
+    { t:'2026-04-11T18:35:00', user:'Kobi', action:'verified tooltip fix' },
+    // Kanban & CR status changes
+    { t:'2026-04-09T09:45:00', user:'Kobi', action:'moved CR-101 to In Progress' },
+    { t:'2026-04-09T12:00:00', user:'Gilad', action:'moved CR-101 to Code Review' },
+    { t:'2026-04-09T13:15:00', user:'Gilad', action:'approved CR-101, moved to Done' },
+    { t:'2026-04-10T07:30:00', user:'Kobi', action:'created CR-102: transcript pipeline' },
+    { t:'2026-04-10T15:00:00', user:'Gilad', action:'moved CR-102 to Code Review' },
+    { t:'2026-04-10T17:00:00', user:'Gilad', action:'approved CR-102, moved to Done' },
+    { t:'2026-04-11T08:00:00', user:'Saar', action:'created CR-105: mobile redesign' },
+    { t:'2026-04-11T10:00:00', user:'Kobi', action:'moved CR-105 to Code Review' },
+    { t:'2026-04-11T10:30:00', user:'Omri', action:'approved CR-105, moved to Done' },
+    { t:'2026-04-11T11:00:00', user:'Kobi', action:'created CR-106: bug tracker' },
+    { t:'2026-04-11T11:30:00', user:'Gilad', action:'moved CR-106 to Code Review' },
+    { t:'2026-04-11T12:00:00', user:'Gilad', action:'approved CR-106, moved to Done' },
+    { t:'2026-04-11T14:00:00', user:'Kobi', action:'created CR-108: DOPI segments' },
+    { t:'2026-04-11T18:00:00', user:'Saar', action:'moved CR-108 to Code Review' },
+    { t:'2026-04-11T18:30:00', user:'Omri', action:'approved CR-108, moved to Done' },
+  ];
+  const TL_AI_ACTIONS = [
+    { t:'2026-04-10T03:15:00', agent:'Claude', action:'built Gemini AI pipeline' },
+    { t:'2026-04-10T17:45:00', agent:'Claude', action:'implemented InnerTube fallback' },
+    { t:'2026-04-11T07:00:00', agent:'Claude', action:'designed two-phase transcript loader' },
+    { t:'2026-04-11T08:25:00', agent:'Claude', action:'fixed YouTube comments preview' },
+    { t:'2026-04-11T11:16:00', agent:'Bug Hunter', action:'scanned codebase for DB leaks' },
+    { t:'2026-04-11T11:17:00', agent:'Bug Hunter', action:'found 3 session leak bugs' },
+    { t:'2026-04-11T11:18:00', agent:'Claude', action:'fixed DB session leaks' },
+    { t:'2026-04-11T11:23:00', agent:'Bug Hunter', action:'ran Playwright bug scan' },
+    { t:'2026-04-11T11:24:00', agent:'AutoFix', action:'applied SSL + validation fixes' },
+    { t:'2026-04-11T12:00:00', agent:'Claude', action:'built AI Bug Hunter agent' },
+    { t:'2026-04-11T12:08:00', agent:'PixelEye', action:'inspected UI with Claude Vision' },
+    { t:'2026-04-11T12:20:00', agent:'Claude', action:'built AI Product Owner agent' },
+    { t:'2026-04-11T12:50:00', agent:'Claude', action:'added live monitor AI badges' },
+    { t:'2026-04-11T13:00:00', agent:'AutoFix', action:'ran Red/Green TDD cycle' },
+    { t:'2026-04-11T13:11:00', agent:'AutoFix', action:'generated proof evidence' },
+    { t:'2026-04-11T18:02:00', agent:'Claude', action:'built DOPI timeline segments' },
+    { t:'2026-04-11T18:09:00', agent:'Claude', action:'optimized cache fetch strategy' },
+    { t:'2026-04-11T18:16:00', agent:'Claude', action:'eliminated spinner flash' },
+    { t:'2026-04-11T18:32:00', agent:'Claude', action:'fixed tooltip clipping bug' },
+    // E2E testing actions
+    { t:'2026-04-10T08:30:00', agent:'AutoFix', action:'ran E2E test: news feed rendering' },
+    { t:'2026-04-10T16:00:00', agent:'AutoFix', action:'ran E2E test: YouTube player embed' },
+    { t:'2026-04-11T07:50:00', agent:'AutoFix', action:'ran E2E test: transcript loading' },
+    { t:'2026-04-11T09:00:00', agent:'PixelEye', action:'visual regression test: mobile layout' },
+    { t:'2026-04-11T11:25:00', agent:'AutoFix', action:'ran E2E test: bug creation validation' },
+    { t:'2026-04-11T13:05:00', agent:'AutoFix', action:'ran E2E test: TDD red/green cycle' },
+    { t:'2026-04-11T14:30:00', agent:'PixelEye', action:'visual regression test: live monitor' },
+    { t:'2026-04-11T18:25:00', agent:'AutoFix', action:'ran E2E test: DOPI cache behavior' },
+  ];
+
+  // Build sorted timeline from fallback data
+  TL_COMMITS.forEach(c => tlEvents.push({ t:new Date(c.t).getTime(), type:'commit', data:c }));
+  TL_RELEASES.forEach(r => tlEvents.push({ t:new Date(r.t).getTime(), type:'release', data:r }));
+  TL_BUGS.forEach(b => tlEvents.push({ t:new Date(b.t).getTime(), type:'bug', data:b }));
+  TL_USER_ACTIONS.forEach(a => tlEvents.push({ t:new Date(a.t).getTime(), type:'user_action', data:a }));
+  TL_AI_ACTIONS.forEach(a => tlEvents.push({ t:new Date(a.t).getTime(), type:'ai_action', data:a }));
+  tlEvents.sort((a,b) => a.t - b.t);
+  } // end fallback
+
+  if (tlEvents.length === 0) { console.warn('No timelapse events'); return; }
+
+  const T_START = tlEvents[0].t;
+  const T_END = tlEvents[tlEvents.length - 1].t;
+  const T_SPAN = T_END - T_START;
+
+  // Canvas
+  const canvas = document.getElementById('tlCanvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const wrap = canvas.parentElement;
+  let W, H, cx, cy;
+
+  function tlResize() {
+    const dpr = window.devicePixelRatio || 1;
+    const rect = wrap.getBoundingClientRect();
+    W = rect.width; H = rect.height;
+    canvas.width = W * dpr; canvas.height = H * dpr;
+    canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    cx = W / 2; cy = (H - 60) / 2; // offset for kanban lane at bottom
+  }
+  window.addEventListener('resize', tlResize);
+  tlResize();
+
+  // Nodes
+  class TLNode {
+    constructor(name, label, color, x, y, r, type) {
+      this.name=name; this.label=label; this.color=color;
+      this.x=x; this.y=y; this.tx=x; this.ty=y; this.r=r; this.type=type;
+      this.glow=0; this.pulse=0;
+      // Online/offline visibility
+      this.opacity=1; this.targetOpacity=1;
+      this.scale=1; this.targetScale=1;
+      this.lastActiveTime=0; // timeline timestamp of last activity
+      this.entryPulse=0; // special "came online" pulse
+    }
+    activate(i=1) { this.glow=Math.min(1,this.glow+i); this.pulse=1; }
+    setOnline(animate) {
+      const wasOffline = this.targetOpacity < 0.5;
+      this.targetOpacity=1; this.targetScale=1;
+      if (wasOffline && animate) { this.entryPulse=1; this.pulse=1; this.glow=1; }
+      return wasOffline; // true = state changed
+    }
+    setOffline() {
+      const wasOnline = this.targetOpacity > 0.5;
+      this.targetOpacity=0.3; this.targetScale=0.7;
+      return wasOnline; // true = state changed
+    }
+    update() {
+      this.glow*=0.97; this.pulse*=0.94; this.entryPulse*=0.96;
+      this.x+=(this.tx-this.x)*0.03; this.y+=(this.ty-this.y)*0.03;
+      // Smooth opacity & scale transitions
+      this.opacity+=(this.targetOpacity-this.opacity)*0.045;
+      this.scale+=(this.targetScale-this.scale)*0.045;
+    }
+    draw(c) {
+      if (this.opacity < 0.02) return; // fully hidden, skip draw
+      const dark = _tlIsDark();
+      const op = this.opacity;
+      const sc = this.scale;
+      const drawR = this.r * sc;
+      // Entry pulse — expanding ring when coming online
+      if(this.entryPulse>0.05){
+        const epR = drawR + (1-this.entryPulse)*35;
+        const epA = Math.floor(this.entryPulse*180);
+        c.strokeStyle=this.color+epA.toString(16).padStart(2,'0');
+        c.lineWidth=2.5;c.beginPath();c.arc(this.x,this.y,epR,0,Math.PI*2);c.stroke();
+      }
+      // Glow halo
+      if(this.glow>0.01){const g=c.createRadialGradient(this.x,this.y,drawR,this.x,this.y,drawR*3.5);g.addColorStop(0,this.color+Math.floor(this.glow*op*70).toString(16).padStart(2,'0'));g.addColorStop(1,'transparent');c.fillStyle=g;c.beginPath();c.arc(this.x,this.y,drawR*3.5,0,Math.PI*2);c.fill();}
+      // Pulse ring
+      if(this.pulse>0.05){c.strokeStyle=this.color+Math.floor(this.pulse*op*100).toString(16).padStart(2,'0');c.lineWidth=1.5;c.beginPath();c.arc(this.x,this.y,drawR+(1-this.pulse)*20,0,Math.PI*2);c.stroke();}
+      // Main circle
+      const nodeAlpha = Math.floor(op * 0x88).toString(16).padStart(2,'0');
+      const bg=c.createRadialGradient(this.x-drawR*0.3,this.y-drawR*0.3,drawR*0.1,this.x,this.y,drawR);
+      bg.addColorStop(0,this.color);bg.addColorStop(1,this.color+nodeAlpha);
+      c.fillStyle=bg;c.beginPath();c.arc(this.x,this.y,drawR,0,Math.PI*2);c.fill();
+      // Shadow for light mode
+      if(!dark&&op>0.3){c.strokeStyle='rgba(0,0,0,'+(0.08*op)+')';c.lineWidth=1;c.beginPath();c.arc(this.x,this.y,drawR,0,Math.PI*2);c.stroke();}
+      // Online indicator dot (green dot when fully online)
+      if(this.type==='user'&&op>0.7){
+        const dotR=Math.max(2.5,drawR*0.28);
+        c.fillStyle='#22c55e';c.beginPath();c.arc(this.x+drawR*0.65,this.y-drawR*0.65,dotR,0,Math.PI*2);c.fill();
+        c.strokeStyle=dark?'#0f172a':'#f8fafc';c.lineWidth=1.2;c.beginPath();c.arc(this.x+drawR*0.65,this.y-drawR*0.65,dotR,0,Math.PI*2);c.stroke();
+      }
+      // Label text
+      const txtAlpha = op * (dark ? (0.5+this.glow*0.5) : (0.7+this.glow*0.3));
+      if(txtAlpha<0.03) return;
+      c.fillStyle = dark ? 'rgba(148,163,184,'+txtAlpha+')' : 'rgba(30,41,59,'+txtAlpha+')';
+      const isKanban = this.type==='kanban';
+      const fs = isKanban ? Math.max(10, Math.round(drawR * 1.8)) : Math.max(8, Math.round(drawR * (this.type==='center'?0.7:0.9)));
+      const fsLabel = isKanban ? Math.max(9, Math.round(fs * 0.85)) : Math.max(6, Math.round(fs * 0.7));
+      c.font=(isKanban?'700 ':'600 ')+fs+'px Inter';c.textAlign='center';
+      if(isKanban){c.fillText(this.name,this.x,this.y-drawR-4);}
+      else{c.fillText(this.name,this.x,this.y+drawR+fs+3);}
+      if(this.label){c.fillStyle=dark?'rgba(100,116,139,'+(0.5*op)+')':'rgba(100,116,139,'+(0.7*op)+')';c.font='600 '+fsLabel+'px Inter';
+        if(isKanban){c.fillText(this.label,this.x,this.y+drawR+fsLabel+5);}
+        else{c.fillText(this.label,this.x,this.y+drawR+fs+fsLabel+4);}
+      }
+    }
+  }
+
+  const centerNode = new TLNode('System','Venture Engine','#38bdf8',cx,cy,16,'center');
+  // Constrain orbits to stay within canvas bounds (leave 40px margin for labels)
+  const maxUserOrbit = Math.min(Math.min(W,H)*0.35, 160);
+  const maxAiOrbit = Math.min(Math.min(W,H)*0.2, 90);
+  const userNodes = TL_TEAM.map((u,i)=>{const a=(i/TL_TEAM.length)*Math.PI*2-Math.PI/2;const d=maxUserOrbit;const n=new TLNode(u.name,u.role,u.color,cx+Math.cos(a)*d,cy+Math.sin(a)*d,9,'user');n.opacity=0.3;n.targetOpacity=0.3;n.scale=0.7;n.targetScale=0.7;return n;});
+  const aiNodes = TL_AI.map((a,i)=>{const ang=(i/TL_AI.length)*Math.PI*2-Math.PI/4;const d=maxAiOrbit;return new TLNode(a.name,a.role,a.color,cx+Math.cos(ang)*d,cy+Math.sin(ang)*d,7,'ai');});
+  const allNodes = [centerNode,...userNodes,...aiNodes];
+  // Track online user count for replay
+  let _tlOnlineCount = 0;
+  const OFFLINE_TIMEOUT = 10 * 60 * 1000; // 10 minutes of inactivity → fade out
+
+  // Particles
+  const particles = [];
+  class TLParticle {
+    constructor(f,t,col,sz=2.5){this.sx=f.x;this.sy=f.y;this.tx=t.x;this.ty=t.y;this.x=f.x;this.y=f.y;this.color=col;this.size=sz;this.p=0;this.spd=0.018+Math.random()*0.012;this.trail=[];}
+    update(){this.p+=this.spd;const t=this.p,mt=1-t;const cpx=(this.sx+this.tx)/2+(this.ty-this.sy)*0.2;const cpy=(this.sy+this.ty)/2-(this.tx-this.sx)*0.2;this.x=mt*mt*this.sx+2*mt*t*cpx+t*t*this.tx;this.y=mt*mt*this.sy+2*mt*t*cpy+t*t*this.ty;this.trail.push({x:this.x,y:this.y});if(this.trail.length>10)this.trail.shift();return this.p>=1;}
+    draw(c){for(let i=0;i<this.trail.length;i++){const a=(i/this.trail.length)*0.35;c.fillStyle=this.color+Math.floor(a*255).toString(16).padStart(2,'0');c.beginPath();c.arc(this.trail[i].x,this.trail[i].y,this.size*(i/this.trail.length),0,Math.PI*2);c.fill();}c.fillStyle=this.color;c.beginPath();c.arc(this.x,this.y,this.size,0,Math.PI*2);c.fill();}
+  }
+  function emit(f,t,col,sz){particles.push(new TLParticle(f,t,col,sz||2.5));}
+
+  // ── Kanban columns ─────────────────────────────────────
+  const KANBAN_COLS = [
+    { id:'open',        label:'Open',        color:'#94a3b8', icon:'○' },
+    { id:'sprint',      label:'Sprint',      color:'#818cf8', icon:'◎' },
+    { id:'in_progress', label:'In Progress', color:'#f59e0b', icon:'●' },
+    { id:'review',      label:'Review',      color:'#38bdf8', icon:'◈' },
+    { id:'done',        label:'Done',        color:'#22c55e', icon:'✓' },
+  ];
+
+  // Kanban lane — small column markers at the bottom of the canvas
+  const kanbanNodes = KANBAN_COLS.map((col, i) => {
+    const spacing = Math.min(W * 0.12, 80);
+    const totalW = (KANBAN_COLS.length - 1) * spacing;
+    const startX = cx - totalW / 2;
+    const kx = startX + i * spacing;
+    const ky = cy + Math.min(H * 0.42, 220);
+    const n = new TLNode(col.icon, col.label, col.color, kx, ky, 5, 'kanban');
+    n.colId = col.id;
+    n.colIdx = i;
+    return n;
+  });
+
+  // Release node — positioned after Done column
+  const doneNode = kanbanNodes.find(n => n.colId === 'done');
+  const releaseNode = new TLNode('🚀', 'Release', '#10b981',
+    doneNode ? doneNode.x + 80 : cx + 200, doneNode ? doneNode.y : cy + 200, 5, 'kanban');
+  releaseNode.colId = 'release';
+  releaseNode.colIdx = KANBAN_COLS.length;
+
+  // Ticket particles that travel between kanban columns
+  class KanbanTicket {
+    constructor(key, fromNode, toNode, color, user) {
+      this.key = key;
+      this.fromNode = fromNode;
+      this.toNode = toNode;
+      this.color = color;
+      this.user = user;
+      this.p = 0;
+      this.spd = 0.008 + Math.random() * 0.006;
+      this.x = fromNode.x;
+      this.y = fromNode.y;
+      this.trail = [];
+      this.labelAlpha = 1;
+      this.done = false;
+    }
+    update() {
+      if (this.done) return true;
+      this.p += this.spd;
+      if (this.p >= 1) { this.p = 1; this.done = true; this.labelAlpha = 1; }
+      const t = this.p, mt = 1 - t;
+      // Arc upward between columns
+      const cpx = (this.fromNode.x + this.toNode.x) / 2;
+      const dist = Math.abs(this.toNode.x - this.fromNode.x);
+      const cpy = Math.min(this.fromNode.y, this.toNode.y) - dist * 0.3 - 20;
+      this.x = mt*mt*this.fromNode.x + 2*mt*t*cpx + t*t*this.toNode.x;
+      this.y = mt*mt*this.fromNode.y + 2*mt*t*cpy + t*t*this.toNode.y;
+      this.trail.push({x:this.x, y:this.y, a:1});
+      if (this.trail.length > 16) this.trail.shift();
+      // Fade out after landing
+      if (this.done) this.labelAlpha *= 0.96;
+      return this.done && this.labelAlpha < 0.05;
+    }
+    draw(c) {
+      const dark = _tlIsDark();
+      // Trail
+      for (let i = 0; i < this.trail.length; i++) {
+        const a = (i / this.trail.length) * 0.4;
+        c.fillStyle = this.color + Math.floor(a * 255).toString(16).padStart(2,'0');
+        c.beginPath();
+        c.arc(this.trail[i].x, this.trail[i].y, 2.5 * (i / this.trail.length), 0, Math.PI*2);
+        c.fill();
+      }
+      // Ticket badge
+      const sz = this.done ? 3 : 4;
+      c.fillStyle = this.color;
+      c.beginPath();
+      c.roundRect(this.x - 12, this.y - 6, 24, 12, 3);
+      c.fill();
+      // Ticket key label
+      const la = Math.min(1, this.labelAlpha);
+      c.fillStyle = dark ? `rgba(255,255,255,${la*0.9})` : `rgba(255,255,255,${la*0.95})`;
+      c.font = '600 6px "JetBrains Mono", monospace';
+      c.textAlign = 'center';
+      c.fillText(this.key, this.x, this.y + 2.5);
+    }
+  }
+  const kanbanTickets = [];
+
+  // Stars
+  const stars=Array.from({length:60},()=>({x:Math.random()*W,y:Math.random()*H,s:Math.random()*1+0.3,tw:Math.random()*Math.PI*2,sp:Math.random()*0.02+0.005}));
+
+  // Histogram
+  const NUM_BINS=60;
+  const histBins=Array.from({length:NUM_BINS},()=>({commits:0,bugs:0,releases:0,slack:0,ai:0,total:0,onlineUsers:0}));
+  tlEvents.forEach(ev=>{
+    const pct=(ev.t-T_START)/T_SPAN;
+    const bin=Math.min(NUM_BINS-1,Math.max(0,Math.floor(pct*NUM_BINS)));
+    histBins[bin].total++;
+    if(ev.type==='commit') histBins[bin].commits++;
+    else if(ev.type==='bug') histBins[bin].bugs++;
+    else if(ev.type==='release') histBins[bin].releases++;
+    else if(ev.type==='user_action') histBins[bin].slack++;
+    else if(ev.type==='ai_action') histBins[bin].ai++;
+  });
+  const maxBin=Math.max(1,...histBins.map(b=>b.total));
+
+  // Pre-compute online users per bin for the timeline graph
+  const _userLastActive = {}; // name → timestamp
+  const teamNames = TL_TEAM.map(u=>u.name);
+  let evIdx=0;
+  for(let bin=0;bin<NUM_BINS;bin++){
+    const binTime = T_START + (bin + 0.5) / NUM_BINS * T_SPAN;
+    // Process events up to this bin's time
+    while(evIdx<tlEvents.length && tlEvents[evIdx].t<=binTime){
+      const ev=tlEvents[evIdx]; const d=ev.data;
+      if(ev.type==='bug'&&d.reporter){_userLastActive[d.reporter]=ev.t;}
+      if(ev.type==='user_action'&&d.user){_userLastActive[d.user]=ev.t;}
+      evIdx++;
+    }
+    // Count how many team members are online at this bin
+    let online=0;
+    for(const name of teamNames){
+      const la=_userLastActive[name];
+      if(la && (binTime-la)<=OFFLINE_TIMEOUT) online++;
+    }
+    histBins[bin].onlineUsers=online;
+  }
+  const maxOnline=Math.max(1,...histBins.map(b=>b.onlineUsers));
+
+  const histEl=document.getElementById('tlHistogram');
+  if(histEl){
+    // Compute day boundaries for labels
+    const dayNames=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    const binDays=histBins.map((_,i)=>{const t=T_START+(i/NUM_BINS)*T_SPAN;const d=new Date(t);return{day:d.getDay(),date:d.getDate(),hour:d.getHours()};});
+    // Find first bin of each new day
+    const dayStarts=new Set();
+    let prevDate=-1;
+    binDays.forEach((bd,i)=>{if(bd.date!==prevDate){dayStarts.add(i);prevDate=bd.date;}});
+
+    const barMax = 38; // max bar height in px
+    histEl.innerHTML=histBins.map((bin,i)=>{
+      const tH=(bin.total/maxBin*barMax);
+      const slH=(bin.slack/maxBin*barMax);   // user actions / slack — purple
+      const aiH=(bin.ai/maxBin*barMax);      // AI actions — violet
+      const cH=(bin.commits/maxBin*barMax);  // commits — blue
+      const bH=(bin.bugs/maxBin*barMax);     // bugs — red
+      const rH=(bin.releases/maxBin*barMax); // releases — green
+      let p='';let bot=0;
+      if(slH>0){p+=`<div style="position:absolute;bottom:${bot}px;width:100%;height:${slH}px;background:rgba(79,70,229,0.75);border-radius:1px;"></div>`;bot+=slH;}
+      if(aiH>0){p+=`<div style="position:absolute;bottom:${bot}px;width:100%;height:${aiH}px;background:rgba(124,58,237,0.8);border-radius:1px;"></div>`;bot+=aiH;}
+      if(cH>0){p+=`<div style="position:absolute;bottom:${bot}px;width:100%;height:${cH}px;background:rgba(56,189,248,0.85);border-radius:1px;"></div>`;bot+=cH;}
+      if(bH>0){p+=`<div style="position:absolute;bottom:${bot}px;width:100%;height:${bH}px;background:rgba(248,113,113,0.85);border-radius:1px;"></div>`;bot+=bH;}
+      if(rH>0){p+=`<div style="position:absolute;bottom:${bot}px;width:100%;height:${rH}px;background:rgba(16,185,129,0.9);border-radius:1px;"></div>`;bot+=rH;}
+      // Day label — positioned at top of histogram area
+      const dayLabel=dayStarts.has(i)?`<div style="position:absolute;bottom:${barMax+2}px;left:0;font-size:8px;font-weight:600;font-family:'JetBrains Mono',monospace;color:rgba(100,116,139,0.7);white-space:nowrap;letter-spacing:0.5px;">${dayNames[binDays[i].day]} ${binDays[i].date}</div>`:'';
+      // Day separator line
+      const sep=dayStarts.has(i)&&i>0?`<div style="position:absolute;bottom:0;left:-1px;width:1px;height:${barMax+6}px;background:rgba(100,116,139,0.3);"></div>`:'';
+      return `<div class="lm-tl-bar" style="height:${bin.total>0?Math.max(tH,4):2}px;position:relative;overflow:visible;">${p}${dayLabel}${sep}</div>`;
+    }).join('');
+
+    // Add SVG online users line overlay
+    const svgPts = histBins.map((b,i) => {
+      const x = ((i + 0.5) / NUM_BINS) * 100;
+      const y = 100 - (b.onlineUsers / maxOnline) * 100;
+      return `${x},${y}`;
+    }).join(' ');
+    // Online users line — rendered as a separate absolutely positioned layer
+    const onlineSvg = document.createElement('div');
+    onlineSvg.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:1;';
+    onlineSvg.innerHTML = `<svg viewBox="0 0 100 100" preserveAspectRatio="none" style="width:100%;height:100%;overflow:visible;">
+      <defs><linearGradient id="onlineGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#22c55e" stop-opacity="0.25"/><stop offset="100%" stop-color="#22c55e" stop-opacity="0.02"/></linearGradient></defs>
+      <polygon points="0,100 ${svgPts} 100,100" fill="url(#onlineGrad)" />
+      <polyline points="${svgPts}" fill="none" stroke="#22c55e" stroke-width="1.5" vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round" opacity="0.7"/>
+    </svg>`;
+    histEl.appendChild(onlineSvg);
+
+    // Release version markers on the timeline — appended to the timeline container
+    const tlContainer = document.getElementById('tlTimeline');
+    if(tlContainer){
+      tlEvents.filter(ev=>ev.type==='release').forEach(ev=>{
+        const pct = ((ev.t - T_START) / T_SPAN) * 100;
+        const marker = document.createElement('div');
+        marker.style.cssText = `position:absolute;top:0;left:${pct}%;height:100%;z-index:4;transform:translateX(-50%);pointer-events:none;display:flex;flex-direction:column;align-items:center;`;
+        marker.innerHTML = `<div style="font-size:8px;font-weight:700;font-family:'JetBrains Mono',monospace;color:#10b981;white-space:nowrap;background:rgba(16,185,129,0.12);padding:2px 5px;border-radius:3px;border:1px solid rgba(16,185,129,0.35);">${ev.data.v}</div><div style="width:1.5px;flex:1;background:rgba(16,185,129,0.4);"></div>`;
+        tlContainer.appendChild(marker);
+      });
+    }
+
+    // Add legend
+    const legend = document.createElement('div');
+    legend.style.cssText = 'position:absolute;top:-10px;right:4px;display:flex;align-items:center;gap:3px;font-size:7px;font-family:"JetBrains Mono",monospace;color:#22c55e;opacity:0.7;pointer-events:none;z-index:3;';
+    legend.innerHTML = `<svg width="12" height="6"><line x1="0" y1="3" x2="12" y2="3" stroke="#22c55e" stroke-width="1.5"/></svg>Online`;
+    histEl.appendChild(legend);
+  }
+
+  // State
+  let currentTime=T_START, eventIndex=0, speed=1;
+  let counters={commits:0,bugs:0,releases:0,agents:0};
+  const TIME_SCALE=120000; // 1s real = 2min simulated
+  let lastFrame=0;
+  let _tlMode = 'replay'; // 'replay' or 'live'
+  let _tlLiveLastPoll = 0;
+  let _tlLiveLastTime = null;
+  let _tlLiveSeenKeys = new Set();
+
+  // ── Andon: Toyota-style stop/resume ──
+  let _tlAndonStopped = false;
+  window._tlAndonToggle = function() {
+    _tlAndonStopped = !_tlAndonStopped;
+    const btn = document.getElementById('lmAndonBtn');
+    const overlay = document.getElementById('lmAndonOverlay');
+    const icon = document.getElementById('lmAndonIcon');
+    const label = document.getElementById('lmAndonLabel');
+    if (_tlAndonStopped) {
+      btn.classList.add('stopped');
+      icon.textContent = '▶';
+      label.textContent = 'RESUME';
+      overlay.classList.add('active');
+    } else {
+      btn.classList.remove('stopped');
+      icon.textContent = '⏸';
+      label.textContent = 'STOP';
+      overlay.classList.remove('active');
+    }
+  };
+
+  function _tlSetFullscreen(on) {
+    const tl = document.querySelector('.lm-timelapse');
+    if (!tl) return;
+    if (on) tl.classList.add('tl-fullscreen'); else tl.classList.remove('tl-fullscreen');
+    const expand = document.getElementById('tlFsIconExpand');
+    const shrink = document.getElementById('tlFsIconShrink');
+    if (expand) expand.style.display = on ? 'none' : '';
+    if (shrink) shrink.style.display = on ? '' : 'none';
+    try { localStorage.setItem('tl_fullscreen', on ? '1' : '0'); } catch(e){}
+  }
+
+  window._tlToggleFullscreen = function() {
+    const tl = document.querySelector('.lm-timelapse');
+    if (!tl) return;
+    const isFs = !tl.classList.contains('tl-fullscreen');
+    _tlSetFullscreen(isFs);
+    // ESC to exit
+    if (isFs) {
+      const escHandler = function(e) {
+        if (e.key === 'Escape') {
+          _tlSetFullscreen(false);
+          document.removeEventListener('keydown', escHandler);
+        }
+      };
+      document.addEventListener('keydown', escHandler);
+    }
+  };
+
+  window._tlSwitchMode = function(mode) {
+    _tlMode = mode;
+    document.querySelectorAll('.lm-tl-mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+    const controlsEl = document.querySelector('.lm-tl-controls');
+    const timelineEl = document.getElementById('tlTimeline');
+    const andonBtn = document.getElementById('lmAndonBtn');
+    if (mode === 'live') {
+      // Hide replay controls, show live clock
+      if (controlsEl) controlsEl.style.display = 'none';
+      if (timelineEl) timelineEl.style.display = 'none';
+      const clockEl = document.getElementById('tlClock');
+      if (clockEl) clockEl.textContent = new Date().toLocaleTimeString();
+      // Clear replay bubbles
+      const comments = document.getElementById('tlComments');
+      if (comments) comments.innerHTML = '';
+      // Reset live counters
+      _tlLiveLastTime = null;
+      _tlLiveLastPoll = 0;
+      // In LIVE mode, start all users as visible — poll will update who's really online
+      userNodes.forEach(n=>{n.targetOpacity=1;n.targetScale=1;});
+      // Show andon button
+      if (andonBtn) andonBtn.style.display = 'flex';
+    } else {
+      if (controlsEl) controlsEl.style.display = '';
+      if (timelineEl) timelineEl.style.display = '';
+      // Reset replay — all users start offline
+      currentTime = T_START; eventIndex = 0;
+      counters = {commits:0,bugs:0,releases:0,agents:0};
+      userNodes.forEach(n=>{n.opacity=0.3;n.targetOpacity=0.3;n.scale=0.7;n.targetScale=0.7;n.lastActiveTime=0;});
+      _tlUpdateCounters();
+      const comments = document.getElementById('tlComments');
+      if (comments) comments.innerHTML = '';
+      // Hide andon button, reset state
+      if (andonBtn) andonBtn.style.display = 'none';
+      _tlAndonStopped = false;
+      const overlay = document.getElementById('lmAndonOverlay');
+      if (overlay) overlay.classList.remove('active');
+    }
+  };
+
+  // Mouse wheel on timeline → scrub time forward/backward
+  const _tlTimelineEl = document.getElementById('tlTimeline');
+  if(_tlTimelineEl){
+    _tlTimelineEl.addEventListener('wheel', function(e){
+      e.preventDefault();
+      const delta = (e.deltaY || e.deltaX);
+      const step = T_SPAN * 0.02 * Math.sign(delta); // 2% of total span per scroll tick
+      currentTime = Math.max(T_START, Math.min(T_END, currentTime + step));
+    }, {passive:false});
+  }
+
+  window._tlSetSpeed = function(s){
+    speed=s;
+    document.querySelectorAll('#tlSpeedBtns button').forEach(b=>b.classList.toggle('active',parseFloat(b.textContent)===s));
+  };
+
+  window._tlTimelineClick = function(e){
+    const rect = e.currentTarget.getBoundingClientRect();
+    const pct=Math.max(0,Math.min(1,(e.clientX-rect.left)/rect.width));
+    currentTime=T_START+pct*T_SPAN;
+    eventIndex=0;counters={commits:0,bugs:0,releases:0,agents:0};
+    // Reset all user nodes to offline, then replay which ones were active
+    userNodes.forEach(n=>{n.targetOpacity=0.3;n.opacity=0.3;n.scale=0.7;n.targetScale=0.7;n.lastActiveTime=0;});
+    while(eventIndex<tlEvents.length&&tlEvents[eventIndex].t<=currentTime){
+      const ev=tlEvents[eventIndex];
+      if(ev.type==='commit')counters.commits++;else if(ev.type==='bug')counters.bugs++;else if(ev.type==='release')counters.releases++;else if(ev.type==='ai_action')counters.agents++;
+      // Track which users were active (without animation on seek)
+      const d=ev.data;
+      if(ev.type==='bug'&&d.reporter){const rp=findUser(d.reporter);if(rp){rp.lastActiveTime=ev.t;rp.targetOpacity=1;rp.opacity=1;rp.scale=1;rp.targetScale=1;}}
+      if(ev.type==='user_action'&&d.user){const un=findUser(d.user);if(un){un.lastActiveTime=ev.t;un.targetOpacity=1;un.opacity=1;un.scale=1;un.targetScale=1;}}
+      eventIndex++;
+    }
+    // Fade out users who haven't been active recently at seek position
+    userNodes.forEach(n=>{
+      if(n.lastActiveTime>0 && (currentTime-n.lastActiveTime)>OFFLINE_TIMEOUT){
+        n.targetOpacity=0.3;n.opacity=0.3;n.scale=0.7;n.targetScale=0.7;
+      }
+    });
+    _tlUpdateCounters();
+  };
+
+  function _tlUpdateCounters(){
+    const el=id=>document.getElementById(id);
+    const onEl = el('tlOnline');
+    if(onEl) onEl.textContent = _tlOnlineCount;
+    el('tlCommits').textContent=counters.commits;
+    el('tlBugs').textContent=counters.bugs;
+    el('tlReleases').textContent=counters.releases;
+    el('tlAgents').textContent=counters.agents;
+  }
+
+  function findUser(name){return userNodes.find(n=>n.name===name);}
+  function findAi(name){return aiNodes.find(n=>n.name===name);}
+
+  function formatTlDate(ts){
+    const d=new Date(ts);
+    const pad=n=>n.toString().padStart(2,'0');
+    return `${pad(d.getDate())} Apr ${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  }
+
+  // Periscope / Meerkat style floating comments
+  const _tlEmojis = ['💜','🔥','👏','🚀','✨','💪','🎯','⚡','👀','💡','🙌','❤️','😍','🤖','💻'];
+  const _tlSlackMsgs = [
+    { user:'Kobi', msg:'looking great! shipping fast 🚀', color:'#38bdf8' },
+    { user:'Gilad', msg:'PR approved, nice refactor', color:'#818cf8' },
+    { user:'Saar', msg:'love the new UX flow', color:'#34d399' },
+    { user:'Omri', msg:'impressive velocity', color:'#f472b6' },
+    { user:'Efi', msg:'infra looks solid 💪', color:'#fb923c' },
+    { user:'Shoshi', msg:'deploy pipeline is clean', color:'#a78bfa' },
+    { user:'Kobi', msg:'can we ship this today?', color:'#38bdf8' },
+    { user:'Gilad', msg:'tests passing, merge it', color:'#818cf8' },
+    { user:'Saar', msg:'users will love this', color:'#34d399' },
+    { user:'Omri', msg:'this is what autonomy looks like', color:'#f472b6' },
+    { user:'Efi', msg:'zero downtime deploy ✅', color:'#fb923c' },
+    { user:'Kobi', msg:'Claude is on fire today 🔥', color:'#38bdf8' },
+    { user:'Gilad', msg:'clean code, well structured', color:'#818cf8' },
+    { user:'Saar', msg:'feature looks production-ready', color:'#34d399' },
+    { user:'Shoshi', msg:'monitoring looks normal', color:'#a78bfa' },
+    { user:'Kobi', msg:'another release! 🎉', color:'#38bdf8' },
+    { user:'Omri', msg:'the AI agents are working great', color:'#f472b6' },
+    { user:'Gilad', msg:'no regressions, ship it', color:'#818cf8' },
+    { user:'Efi', msg:'Railway health check: all green', color:'#fb923c' },
+    { user:'Saar', msg:'mobile looks perfect now', color:'#34d399' },
+  ];
+  let _tlSlackIdx = 0;
+  let _tlLastBubbleTime = 0;
+
+  function _tlAddBubble(name, msg, color, isAi) {
+    const container = document.getElementById('tlComments');
+    if (!container) return;
+    const bubble = document.createElement('div');
+    bubble.className = 'tl-bubble';
+    // Find full name for avatar lookup
+    const teamMember = TL_TEAM.find(u => u.name === name);
+    const fullName = teamMember ? teamMember.fullName : name;
+    const avatarUrl = _avatar(fullName, 26);
+    bubble.innerHTML = `
+      <div class="tl-bubble-avatar" style="background:${color};"><img src="${avatarUrl}" alt="${esc(name)}"></div>
+      <div class="tl-bubble-body">
+        <div class="tl-bubble-name" style="color:${color};">${esc(name)}${isAi?'<span style="font-size:8px;margin-left:4px;padding:1px 4px;border-radius:3px;background:rgba(124,58,237,0.3);color:#c084fc;">AI</span>':''}</div>
+        <div class="tl-bubble-msg">${esc(msg)}</div>
+      </div>`;
+    container.prepend(bubble);
+    // Remove after animation
+    setTimeout(() => bubble.remove(), 10000);
+    // Keep container manageable — remove oldest (last child in column-reverse)
+    while (container.children.length > 20) container.lastChild.remove();
+  }
+
+  function _tlAddReleaseBubble(version, fixes) {
+    const container = document.getElementById('tlComments');
+    if (!container) return;
+    const bubble = document.createElement('div');
+    bubble.className = 'tl-bubble release-bubble';
+    bubble.innerHTML = `
+      <div class="tl-bubble-avatar" style="background:rgba(255,255,255,0.2);">🚀</div>
+      <div class="tl-bubble-body">
+        <div class="tl-bubble-name" style="color:#fff;">${esc(version)} RELEASED</div>
+        <div class="tl-bubble-msg" style="color:rgba(255,255,255,0.9);">Deployed to production · ${fixes} fixes included</div>
+      </div>`;
+    container.prepend(bubble);
+    setTimeout(() => bubble.remove(), 8000);
+    while (container.children.length > 20) container.lastChild.remove();
+  }
+
+  function _tlAddEmoji(userName) {
+    const container = document.getElementById('tlComments');
+    if (!container) return;
+    const wrap = container.closest('.lm-tl-canvas-wrap');
+    if (!wrap) return;
+    const emoji = document.createElement('div');
+    emoji.className = 'tl-bubble-emoji';
+    // Add user thumbnail next to emoji
+    const emojiChar = _tlEmojis[Math.floor(Math.random() * _tlEmojis.length)];
+    if (userName) {
+      const teamMember = TL_TEAM.find(u => u.name === userName);
+      const fullName = teamMember ? teamMember.fullName : userName;
+      emoji.innerHTML = `<img src="${_avatar(fullName, 20)}" style="width:18px;height:18px;border-radius:50%;vertical-align:middle;margin-right:3px;">${emojiChar}`;
+    } else {
+      emoji.textContent = emojiChar;
+    }
+    emoji.style.left = (50 + Math.random() * 280) + 'px';
+    emoji.style.bottom = '10px';
+    wrap.appendChild(emoji);
+    setTimeout(() => emoji.remove(), 3200);
+  }
+
+  function _tlMaybeSlackBubble() {
+    // Add a "Slack message" comment bubble periodically between events
+    const now = performance.now();
+    if (now - _tlLastBubbleTime < 2000) return; // min 2s between slack msgs
+    if (Math.random() > 0.35) return; // 35% chance
+    _tlLastBubbleTime = now;
+    const sm = _tlSlackMsgs[_tlSlackIdx % _tlSlackMsgs.length];
+    _tlSlackIdx++;
+    _tlAddBubble(sm.user, sm.msg, sm.color, false);
+    // Sometimes add emoji reactions
+    if (Math.random() > 0.5) {
+      setTimeout(() => _tlAddEmoji(sm.user), 300 + Math.random() * 800);
+    }
+  }
+
+  // Parse kanban movements from user action text
+  function _tlParseKanban(action) {
+    // Patterns: "moved CR-xxx to In Progress", "approved CR-xxx, moved to Done", "created CR-xxx: ..."
+    const crMatch = action.match(/CR-\d+/i);
+    if (!crMatch) return null;
+    const key = crMatch[0];
+    const lower = action.toLowerCase();
+    let toCol = null;
+    if (lower.includes('moved to done') || lower.includes('approved')) toCol = 'done';
+    else if (lower.includes('code review') || lower.includes('review')) toCol = 'review';
+    else if (lower.includes('in progress')) toCol = 'in_progress';
+    else if (lower.includes('sprint')) toCol = 'sprint';
+    else if (lower.includes('created')) toCol = 'open';
+    if (!toCol) return null;
+    // Determine from column (previous state)
+    const colOrder = ['open','sprint','in_progress','review','done'];
+    const toIdx = colOrder.indexOf(toCol);
+    const fromCol = lower.includes('created') ? null : (toIdx > 0 ? colOrder[toIdx - 1] : 'open');
+    return { key, fromCol, toCol };
+  }
+
+  function _tlEmitKanbanTicket(key, fromColId, toColId, userColor, sourceNode) {
+    const findKbNode = id => kanbanNodes.find(n => n.colId === id) || (id === 'release' ? releaseNode : null);
+    const fromNode = sourceNode || (fromColId ? findKbNode(fromColId) : null);
+    const toNode = toColId ? findKbNode(toColId) : releaseNode;
+    if (!toNode) return;
+    const src = fromNode || centerNode;
+    const color = userColor || toNode.color;
+    kanbanTickets.push(new KanbanTicket(key, src, toNode, color, ''));
+    if (fromNode && fromNode !== sourceNode) fromNode.activate(0.5);
+    toNode.activate(0.8);
+    centerNode.activate(0.2);
+    // Also emit a particle from source to kanban for visual connection
+    if (sourceNode) emit(sourceNode, toNode, color, 2);
+  }
+
+  function processEvent(ev){
+    const d=ev.data;
+    switch(ev.type){
+      case 'commit':{
+        counters.commits++;
+        const ai=findAi('Claude');
+        if(ai){const came=ai.setOnline(true);ai.lastActiveTime=ev.t;ai.activate(0.8);emit(ai,centerNode,'#c084fc',3);if(came)_tlAddBubble('Claude','is online 🟢','#22c55e',true);}
+        centerNode.activate(0.5);
+        _tlAddBubble('Claude', 'committed: '+d.msg, '#c084fc', true);
+        if(Math.random()>0.6) setTimeout(()=>_tlAddEmoji('Claude'), 400);
+        break;
+      }
+      case 'release':{
+        counters.releases++;
+        const ver=document.getElementById('tlVersion');
+        if(ver){ver.textContent=d.v+' RELEASED';ver.classList.add('show');setTimeout(()=>ver.classList.remove('show'),4000);}
+        // Light up everything — update release node label with version
+        centerNode.activate(1);allNodes.forEach(n=>{n.activate(0.3);});
+        releaseNode.activate(1);
+        releaseNode.label = d.v;
+        // Animate tickets from Done → Release node
+        const doneN = kanbanNodes.find(n=>n.colId==='done');
+        if(doneN){
+          doneN.activate(0.8);
+          for(let i=0;i<Math.min(d.fixes||3,5);i++){
+            setTimeout(()=>{
+              _tlEmitKanbanTicket(d.v, 'done', null, '#10b981');
+              // Also emit particle from Done to Release
+              emit(doneN, releaseNode, '#10b981', 3);
+            }, i*200);
+          }
+        }
+        // Particles from center to release
+        emit(centerNode, releaseNode, '#10b981', 4);
+        // Big release notification bubble
+        _tlAddReleaseBubble(d.v, d.fixes||0);
+        // Emoji celebration
+        for(let i=0;i<5;i++){const rndUser=TL_TEAM[Math.floor(Math.random()*TL_TEAM.length)];setTimeout(()=>_tlAddEmoji(rndUser.name), i*250);}
+        break;
+      }
+      case 'bug':{
+        counters.bugs++;
+        const rp=findUser(d.reporter);const fx=findAi(d.fixer)||findAi('Claude');
+        if(rp){const came=rp.setOnline(true);rp.lastActiveTime=ev.t;rp.activate(0.7);emit(rp,centerNode,'#f87171',2.5);if(came)_tlAddBubble(d.reporter,'is online 🟢',rp.color,false);}
+        if(fx){const came=fx.setOnline(true);fx.lastActiveTime=ev.t;fx.activate(0.5);emit(centerNode,fx,'#4ade80',2.5);if(came)_tlAddBubble(d.fixer||'Claude','is online 🟢','#22c55e',true);}
+        _tlAddBubble(d.reporter, 'reported '+d.key+' → fixed by '+d.fixer, '#f87171', false);
+        // Animate ticket from reporter to Open kanban column
+        _tlEmitKanbanTicket(d.key || 'BUG', null, 'open', rp ? rp.color : '#f87171', rp || null);
+        break;
+      }
+      case 'user_action':{
+        const un=findUser(d.user);
+        if(un){const came=un.setOnline(true);un.lastActiveTime=ev.t;un.activate(0.4);emit(un,centerNode,un.color||'#38bdf8',2);if(came)_tlAddBubble(d.user,'is online 🟢',un.color,false);}
+        _tlAddBubble(d.user, d.action, un?un.color:'#38bdf8', false);
+        // Check for kanban movement — from API data or parsed from text
+        if (d.kanban_from || d.kanban_to) {
+          _tlEmitKanbanTicket(d.bug_key || d.key || '?', d.kanban_from, d.kanban_to, un ? un.color : '#38bdf8');
+        } else {
+          const kb = _tlParseKanban(d.action);
+          if (kb) _tlEmitKanbanTicket(kb.key, kb.fromCol, kb.toCol, un ? un.color : '#38bdf8');
+        }
+        break;
+      }
+      case 'ai_action':{
+        counters.agents++;
+        const an=findAi(d.agent);
+        if(an){const came=an.setOnline(true);an.lastActiveTime=ev.t;an.activate(0.6);emit(an,centerNode,an.color||'#a78bfa',2.5);if(came)_tlAddBubble(d.agent,'is online 🟢',an.color,true);}
+        _tlAddBubble(d.agent, d.action, an?an.color:'#a78bfa', true);
+        break;
+      }
+    }
+    _tlUpdateCounters();
+  }
+
+  // LIVE mode: poll server for real events
+  async function _tlLivePoll() {
+    try {
+      let url = `${API}/api/live-feed?limit=10`;
+      if (_tlLiveLastTime) url += `&since=${encodeURIComponent(_tlLiveLastTime)}`;
+      const resp = await fetch(url);
+      const data = await resp.json();
+      const events = (data.events || []).filter(ev => {
+        const key = `${ev.type||''}|${ev.user||''}|${ev.action||''}|${ev.time||''}`;
+        if (_tlLiveSeenKeys.has(key)) return false;
+        _tlLiveSeenKeys.add(key);
+        return true;
+      });
+      // Cap seen set
+      if (_tlLiveSeenKeys.size > 300) {
+        const arr = [..._tlLiveSeenKeys];
+        _tlLiveSeenKeys = new Set(arr.slice(arr.length - 100));
+      }
+      // Update user online/offline states from active_users
+      const activeNames = new Set((data.active_users || []).map(u => u.split(' ')[0]));
+      userNodes.forEach(n => {
+        if (activeNames.has(n.name)) {
+          const came = n.setOnline(true);
+          if(came) _tlAddBubble(n.name, 'is online 🟢', n.color, false);
+        } else {
+          const went = n.setOffline();
+          if(went) _tlAddBubble(n.name, 'went offline 🔴', '#94a3b8', false);
+        }
+      });
+      _tlOnlineCount = activeNames.size;
+      const onEl = document.getElementById('tlOnline');
+      if(onEl) onEl.textContent = _tlOnlineCount;
+
+      for (const ev of events) {
+        const meta = ev.meta || {};
+        const isAgent = meta.is_agent;
+        const name = (ev.user || 'System').split(' ')[0];
+        const un = findUser(name);
+        const an = findAi(name) || (isAgent ? findAi('Claude') : null);
+        if (an) { const came=an.setOnline(true); an.activate(0.6); emit(an, centerNode, an.color, 2.5); if(came)_tlAddBubble(name,'is online 🟢',an.color,true); }
+        else if (un) { const came=un.setOnline(true); un.activate(0.5); emit(un, centerNode, un.color, 2); if(came)_tlAddBubble(name,'is online 🟢',un.color,false); }
+        centerNode.activate(0.3);
+        const color = an ? an.color : (un ? un.color : '#64748b');
+        _tlAddBubble(ev.user || 'System', ev.action || '', color, !!isAgent);
+        // Check for kanban movement in live events
+        if (ev.type === 'bug') {
+          // Every bug/CR event — animate from user node to Open kanban column
+          const srcNode = un || an || null;
+          const bugKey = (ev.action || '').match(/[A-Z]+-\d+/)?.[0] || 'BUG';
+          _tlEmitKanbanTicket(bugKey, null, 'open', color, srcNode);
+        }
+        // Also check for kanban transitions in action text
+        const kb = _tlParseKanban(ev.action || '');
+        if (kb) _tlEmitKanbanTicket(kb.key, kb.fromCol, kb.toCol, color);
+      }
+      // Use latest event time as cursor to avoid re-fetching future-timestamped events
+      const evTimes = (data.events || []).map(e => e.time).filter(Boolean);
+      if (evTimes.length > 0) { evTimes.sort(); _tlLiveLastTime = evTimes[evTimes.length - 1]; }
+      else if (data.server_time) _tlLiveLastTime = data.server_time;
+    } catch(e) { /* ignore */ }
+  }
+
+  function tlFrame(now){
+    if(currentTab!=='live'){_tlAnimId=null;return;}
+    _tlAnimId=requestAnimationFrame(tlFrame);
+
+    const dt=lastFrame?(now-lastFrame)/1000:0;
+    lastFrame=now;
+
+    // Andon stop — skip event processing and polling, but still render
+    if (!_tlAndonStopped) {
+    if (_tlMode === 'replay') {
+      currentTime+=dt*TIME_SCALE*speed;
+      if(currentTime>T_END+60000){
+        currentTime=T_START;eventIndex=0;counters={commits:0,bugs:0,releases:0,agents:0};
+        // Reset all user nodes to offline on loop
+        userNodes.forEach(n=>{n.opacity=0.3;n.targetOpacity=0.3;n.scale=0.7;n.targetScale=0.7;n.lastActiveTime=0;});
+      }
+      while(eventIndex<tlEvents.length&&tlEvents[eventIndex].t<=currentTime){processEvent(tlEvents[eventIndex]);eventIndex++;}
+      // Check for inactivity — fade users who haven't been active
+      _tlOnlineCount = 0;
+      userNodes.forEach(n=>{
+        if(n.lastActiveTime>0 && (currentTime-n.lastActiveTime)>OFFLINE_TIMEOUT){
+          const went = n.setOffline();
+          if(went) _tlAddBubble(n.name, 'went offline 🔴', '#94a3b8', false);
+        }
+        if(n.targetOpacity>0.5) _tlOnlineCount++;
+      });
+      _tlMaybeSlackBubble();
+      const el=id=>document.getElementById(id);
+      const pct=(currentTime-T_START)/T_SPAN*100;
+      el('tlClock').textContent=formatTlDate(currentTime);
+      el('tlProgress').style.width=pct+'%';
+      el('tlPlayhead').style.left=pct+'%';
+      // (timeline fits 100% width, no scrolling needed)
+    } else {
+      // LIVE mode
+      const clockEl = document.getElementById('tlClock');
+      if (clockEl) clockEl.textContent = new Date().toLocaleTimeString();
+      // Poll every 5 seconds
+      if (now - _tlLiveLastPoll > 5000) { _tlLiveLastPoll = now; _tlLivePoll(); }
+    }
+    } // end andon check
+
+    // Resize check
+    const rect=wrap.getBoundingClientRect();
+    if(Math.abs(rect.width-W)>2||Math.abs(rect.height-H)>2)tlResize();
+
+    ctx.clearRect(0,0,W,H);
+
+    const dark = _tlIsDark();
+
+    // Background
+    const bgG=ctx.createRadialGradient(cx,cy,0,cx,cy,Math.max(W,H)*0.7);
+    if(dark){bgG.addColorStop(0,'rgba(15,23,42,1)');bgG.addColorStop(1,'rgba(2,6,23,1)');}
+    else{bgG.addColorStop(0,'rgba(248,250,252,1)');bgG.addColorStop(1,'rgba(226,232,240,1)');}
+    ctx.fillStyle=bgG;ctx.fillRect(0,0,W,H);
+
+    // Stars / dots
+    stars.forEach(s=>{s.tw+=s.sp;const a=0.2+Math.sin(s.tw)*0.15;
+      ctx.fillStyle=dark?`rgba(148,163,184,${a})`:`rgba(148,163,184,${a*0.5})`;
+      ctx.beginPath();ctx.arc(s.x,s.y,s.s,0,Math.PI*2);ctx.fill();});
+
+    // Orbits — scale with canvas size, leave margin for labels
+    const time=now*0.0003;
+    const uCount=userNodes.length||1;
+    const availR = Math.min(W, H - 80) / 2 - 40; // subtract kanban lane + label margin
+    const curMaxUser = Math.max(80, availR * 0.75);
+    const curMaxAi = Math.max(45, availR * 0.42);
+    // Scale node radii with canvas
+    const nScale = Math.max(1, Math.min(availR / 140, 2.2));
+    centerNode.r = 16 * nScale;
+    userNodes.forEach((n,i)=>{n.r=9*nScale; const a=(i/uCount)*Math.PI*2-Math.PI/2+Math.sin(time+i)*0.08;const d=curMaxUser+Math.sin(time*0.7+i*2)*8;n.tx=cx+Math.cos(a)*d;n.ty=cy+Math.sin(a)*d;});
+    aiNodes.forEach((n,i)=>{n.r=7*nScale; const a=(i/TL_AI.length)*Math.PI*2-Math.PI/4+Math.sin(time*1.2+i)*0.1;const d=curMaxAi+Math.sin(time*0.9+i*3)*6;n.tx=cx+Math.cos(a)*d;n.ty=cy+Math.sin(a)*d;});
+    centerNode.tx=cx;centerNode.ty=cy;
+
+    // Kanban lane — position at bottom, scale with canvas
+    const kbY = H - 38;
+    const kbSpacing = Math.min(W * 0.14, W > 1200 ? 160 : 100);
+    const kbTotalW = (KANBAN_COLS.length - 1) * kbSpacing;
+    const kbStartX = cx - kbTotalW / 2;
+    kanbanNodes.forEach((n, i) => {
+      n.tx = kbStartX + i * kbSpacing;
+      n.ty = kbY;
+      n.r = 5 * nScale;
+    });
+    // Release node — after Done with a gap
+    releaseNode.tx = kbStartX + kbTotalW + kbSpacing * 0.8;
+    releaseNode.ty = kbY;
+    releaseNode.r = 6 * nScale;
+
+    // Draw kanban lane background — extended to include release node
+    const kbLaneY = kbY - 16;
+    const kbLaneH = 32;
+    const kbLaneEnd = releaseNode.tx + 30;
+    ctx.fillStyle = dark ? 'rgba(30,41,59,0.5)' : 'rgba(241,245,249,0.7)';
+    ctx.beginPath();
+    ctx.roundRect(kbStartX - 30, kbLaneY, kbLaneEnd - kbStartX + 30, kbLaneH, 8);
+    ctx.fill();
+    ctx.strokeStyle = dark ? 'rgba(51,65,85,0.4)' : 'rgba(203,213,225,0.6)';
+    ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    ctx.roundRect(kbStartX - 30, kbLaneY, kbLaneEnd - kbStartX + 30, kbLaneH, 8);
+    ctx.stroke();
+
+    // Draw arrows between kanban columns + Done→Release
+    const allKbNodes = [...kanbanNodes, releaseNode];
+    for (let i = 0; i < allKbNodes.length - 1; i++) {
+      const from = allKbNodes[i], to = allKbNodes[i+1];
+      const ax1 = from.x + 12, ax2 = to.x - 12;
+      const ay = kbY;
+      // Special style for Done→Release arrow
+      const isRelease = (i === allKbNodes.length - 2);
+      ctx.strokeStyle = isRelease
+        ? (dark ? 'rgba(16,185,129,0.4)' : 'rgba(16,185,129,0.35)')
+        : (dark ? 'rgba(71,85,105,0.3)' : 'rgba(148,163,184,0.35)');
+      ctx.lineWidth = isRelease ? 1.5 : 1;
+      ctx.setLineDash([3, 3]);
+      ctx.beginPath(); ctx.moveTo(ax1, ay); ctx.lineTo(ax2, ay); ctx.stroke();
+      ctx.setLineDash([]);
+      // Arrow head
+      ctx.fillStyle = isRelease
+        ? (dark ? 'rgba(16,185,129,0.5)' : 'rgba(16,185,129,0.4)')
+        : (dark ? 'rgba(71,85,105,0.4)' : 'rgba(148,163,184,0.4)');
+      ctx.beginPath();
+      ctx.moveTo(ax2, ay); ctx.lineTo(ax2 - 4, ay - 3); ctx.lineTo(ax2 - 4, ay + 3);
+      ctx.fill();
+    }
+
+    // Connections (user/ai to center) — fade with node opacity
+    allNodes.forEach(n=>{if(n===centerNode||n.opacity<0.1)return;const a=(0.06+n.glow*0.15)*n.opacity;
+      ctx.strokeStyle=dark?'rgba(71,85,105,'+a+')':'rgba(148,163,184,'+(a+0.05)+')';
+      ctx.lineWidth=0.8;ctx.beginPath();ctx.moveTo(centerNode.x,centerNode.y);ctx.lineTo(n.x,n.y);ctx.stroke();});
+
+    // Draw all nodes (users, AI, center)
+    allNodes.forEach(n=>{n.update();n.draw(ctx);});
+    // Draw kanban column nodes + release node
+    kanbanNodes.forEach(n=>{n.update();n.draw(ctx);});
+    releaseNode.update();releaseNode.draw(ctx);
+
+    // Particles (user↔center)
+    for(let i=particles.length-1;i>=0;i--){const done=particles[i].update();particles[i].draw(ctx);if(done)particles.splice(i,1);}
+    // Kanban tickets
+    for(let i=kanbanTickets.length-1;i>=0;i--){const rm=kanbanTickets[i].update();kanbanTickets[i].draw(ctx);if(rm)kanbanTickets.splice(i,1);}
+  }
+
+  // Restore fullscreen state from previous session
+  try {
+    if (localStorage.getItem('tl_fullscreen') === '1') {
+      _tlSetFullscreen(true);
+    }
+  } catch(e){}
+
+  // Start animation
+  lastFrame=0;
+  _tlAnimId=requestAnimationFrame(tlFrame);
 }
 
 async function loadGraph() {
@@ -9135,8 +10535,8 @@ function _renderSlackWorkspace(channels) {
       </div>
     </div>
   </div>`;
+  if (!_isMobile) el.innerHTML = '';  // clear loading text on desktop before appending
   _wsContainer.appendChild(_wsDiv.firstElementChild);
-  if (!_isMobile) el.innerHTML = '';  // clear loading text on desktop
 }
 
 function _slToggleMobileSidebar() {

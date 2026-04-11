@@ -821,6 +821,10 @@ html.dark .sl-msg-wrap:hover { background:rgba(255,255,255,.08); }
 .yt-tab.loading .tab-spinner { display:inline-block; }
 .yt-tab.loading .yt-tab-icon { display:none; }
 .yt-tab.ready .yt-tab-icon { color:#22c55e; }
+.yt-tab.failed { opacity:0.45; cursor:not-allowed; pointer-events:none; }
+.yt-tab.failed .yt-tab-icon { display:none; }
+.yt-tab.failed .tab-spinner { display:none; }
+.yt-tab.failed::before { content:'✕'; color:#ef4444; font-weight:700; font-size:13px; margin-right:4px; }
 @keyframes tabSpin { to { transform:rotate(360deg); } }
 .dopi-research-btn { display:none; position:absolute; bottom:8px; right:8px; padding:4px 10px; font-size:11px; font-weight:600; color:#7c3aed; background:rgba(124,58,237,0.08); border:1px solid rgba(124,58,237,0.25); border-radius:6px; cursor:pointer; align-items:center; gap:4px; transition:all 0.2s; z-index:2; }
 .dopi-item { position:relative; }
@@ -4402,21 +4406,27 @@ async function _runPrefetchQueue() {
 // ── Tab loading state helpers ──
 function _tabSetReady(tabName) {
   document.querySelectorAll(`.yt-tab[data-tab="${tabName}"]`).forEach(t => {
-    t.classList.remove('loading');
+    t.classList.remove('loading', 'failed');
     t.classList.add('ready');
   });
 }
 function _tabSetLoading(tabName) {
   document.querySelectorAll(`.yt-tab[data-tab="${tabName}"]`).forEach(t => {
     t.classList.add('loading');
-    t.classList.remove('ready');
+    t.classList.remove('ready', 'failed');
+  });
+}
+function _tabSetFailed(tabName) {
+  document.querySelectorAll(`.yt-tab[data-tab="${tabName}"]`).forEach(t => {
+    t.classList.remove('loading', 'ready');
+    t.classList.add('failed');
   });
 }
 
 // Poll an API endpoint until it returns data; keep tab in loading state until success
 const _ytPollTimers = {};
 function _ytPollStopAndShowUnavailable(tabName) {
-  _tabSetReady(tabName);
+  _tabSetFailed(tabName);
   // Also update the content panel so the "Building..." hourglass goes away
   const panelId = tabName === 'takeaways' ? 'ytTakeawaysContent' :
                   tabName === 'dpoi' ? 'ytDpoiContent' :
@@ -4664,7 +4674,7 @@ async function _ytLoadTranscript() {
   // Already failed – show unavailable immediately, don't re-race
   if (_ytTranscriptFailed) {
     contentEl.innerHTML = '<div class="yt-transcript-error">Transcript unavailable for this video.</div>';
-    _tabSetReady('transcript');
+    _tabSetFailed('transcript');
     return;
   }
 
@@ -4745,14 +4755,14 @@ async function _ytLoadTranscript() {
       _ytRenderTranscript(_ytTranscriptData);
       _ytPreFetchInsights(vid);
     } else {
-      _tabSetReady('transcript');
+      _tabSetFailed('transcript');
       contentEl.innerHTML = '<div class="yt-transcript-error">Transcript unavailable for this video.</div>';
       _ytTranscriptFailed = true;
       clearTimeout(_ytTakeawaysRetryTimer);
       clearTimeout(_ytDpoiRetryTimer);
       Object.keys(_ytPollTimers).forEach(k => { clearTimeout(_ytPollTimers[k]); delete _ytPollTimers[k]; });
-      _tabSetReady('takeaways');
-      _tabSetReady('dpoi');
+      _tabSetFailed('takeaways');
+      _tabSetFailed('dpoi');
       const tkEl = document.getElementById('ytTakeawaysContent');
       const dpEl = document.getElementById('ytDpoiContent');
       if (tkEl) tkEl.innerHTML = _ytUnavailableHTML('Takeaways', '_ytTranscriptFailed=false;_ytTakeawaysRetries=0;_ytLoadTakeaways()');
@@ -4993,7 +5003,7 @@ async function _ytLoadTakeaways() {
 
   // If transcript has failed, no point trying
   if (_ytTranscriptFailed) {
-    _tabSetReady('takeaways');
+    _tabSetFailed('takeaways');
     contentEl.innerHTML = _ytUnavailableHTML('Takeaways', '_ytTranscriptFailed=false;_ytTakeawaysRetries=0;_ytLoadTakeaways()');
     return;
   }
@@ -5103,7 +5113,7 @@ async function _ytLoadDpoi() {
 
   // If transcript has failed, no point trying
   if (_ytTranscriptFailed) {
-    _tabSetReady('dpoi');
+    _tabSetFailed('dpoi');
     contentEl.innerHTML = _ytUnavailableHTML('DOPI Insights', '_ytTranscriptFailed=false;_ytDpoiRetries=0;_ytLoadDpoi()');
     return;
   }
@@ -5408,6 +5418,7 @@ function closeReader(fromPopstate) {
   clearTimeout(_ytDpoiRetryTimer); _ytDpoiRetries = 0;
   _ytTranscriptFailed = false;
   _ytTranscriptLoadingPromise = null;
+  document.querySelectorAll('.yt-tab.failed').forEach(t => t.classList.remove('failed'));
   Object.keys(_ytPollTimers).forEach(k => { clearTimeout(_ytPollTimers[k]); delete _ytPollTimers[k]; });
   const oldWrap = document.getElementById('readerContent')?.querySelector('.yt-player-wrap');
   if (oldWrap) oldWrap.remove();

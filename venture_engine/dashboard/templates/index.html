@@ -1689,6 +1689,25 @@ html.dark .sl-msg-wrap:hover { background:rgba(255,255,255,.08); }
 .lm-hero-agent-pill.running { border-color:#7c3aed; animation:lmAgentPulse 1.5s ease-in-out infinite; }
 @keyframes lmAgentPulse { 0%,100%{box-shadow:0 0 0 0 rgba(124,58,237,0.3)} 50%{box-shadow:0 0 0 4px rgba(124,58,237,0)} }
 
+/* Andon stop button (Toyota production line style) */
+.lm-andon-btn { position:absolute; bottom:60px; left:14px; z-index:4; display:none; align-items:center; gap:6px; padding:8px 16px; border:2px solid #dc2626; border-radius:10px; background:rgba(220,38,38,0.12); color:#dc2626; font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:800; letter-spacing:1px; cursor:pointer; transition:all 0.2s; backdrop-filter:blur(6px); box-shadow:0 2px 10px rgba(220,38,38,0.2); }
+.lm-andon-btn:hover { background:rgba(220,38,38,0.25); box-shadow:0 4px 16px rgba(220,38,38,0.35); transform:scale(1.03); }
+.lm-andon-btn.stopped { border-color:#22c55e; background:rgba(34,197,94,0.12); color:#16a34a; box-shadow:0 2px 10px rgba(34,197,94,0.2); }
+.lm-andon-btn.stopped:hover { background:rgba(34,197,94,0.25); box-shadow:0 4px 16px rgba(34,197,94,0.35); }
+.lm-andon-icon { font-size:14px; }
+.lm-andon-label { line-height:1; }
+
+/* Andon overlay */
+.lm-andon-overlay { display:none; position:absolute; inset:0; z-index:5; background:rgba(0,0,0,0.4); backdrop-filter:blur(2px); align-items:center; justify-content:center; }
+.lm-andon-overlay.active { display:flex; }
+.lm-andon-banner { text-align:center; padding:32px 48px; border-radius:16px; background:rgba(30,30,30,0.92); border:3px solid #dc2626; box-shadow:0 0 40px rgba(220,38,38,0.3), 0 0 80px rgba(220,38,38,0.1); }
+.lm-andon-lamp { width:18px; height:18px; border-radius:50%; background:#dc2626; margin:0 auto 12px; box-shadow:0 0 16px rgba(220,38,38,0.7); animation:andonBlink 1s ease-in-out infinite; }
+@keyframes andonBlink { 0%,100%{opacity:1;box-shadow:0 0 16px rgba(220,38,38,0.7)} 50%{opacity:0.3;box-shadow:0 0 6px rgba(220,38,38,0.3)} }
+.lm-andon-msg { font-family:'JetBrains Mono',monospace; font-size:22px; font-weight:900; color:#fca5a5; letter-spacing:4px; margin-bottom:6px; }
+.lm-andon-sub { font-family:'JetBrains Mono',monospace; font-size:11px; color:rgba(255,255,255,0.4); letter-spacing:1px; margin-bottom:20px; }
+.lm-andon-resume { padding:10px 28px; border:2px solid #22c55e; border-radius:8px; background:rgba(34,197,94,0.15); color:#4ade80; font-family:'JetBrains Mono',monospace; font-size:13px; font-weight:800; letter-spacing:2px; cursor:pointer; transition:all 0.2s; }
+.lm-andon-resume:hover { background:rgba(34,197,94,0.3); box-shadow:0 0 20px rgba(34,197,94,0.3); transform:scale(1.05); }
+
 /* Fullscreen button */
 .lm-tl-fullscreen-btn { background:rgba(255,255,255,0.85); backdrop-filter:blur(6px); border:1px solid rgba(0,0,0,0.1); border-radius:6px; padding:6px 8px; cursor:pointer; color:#475569; display:flex; align-items:center; justify-content:center; transition:all 0.15s; box-shadow:0 1px 4px rgba(0,0,0,0.1); }
 html.dark .lm-tl-fullscreen-btn { background:rgba(30,41,59,0.8); border-color:rgba(255,255,255,0.1); color:#94a3b8; }
@@ -1696,9 +1715,9 @@ html.dark .lm-tl-fullscreen-btn { background:rgba(30,41,59,0.8); border-color:rg
 html.dark .lm-tl-fullscreen-btn:hover { background:rgba(51,65,85,0.95); color:#e2e8f0; }
 
 /* Fullscreen timelapse */
-.lm-timelapse.tl-fullscreen { position:fixed!important; top:0; left:0; right:0; bottom:0; z-index:9999; margin:0!important; border-radius:0; border:none; display:flex; flex-direction:column; }
-.lm-timelapse.tl-fullscreen .lm-tl-canvas-wrap { flex:1; height:auto!important; min-height:0!important; }
-.lm-timelapse.tl-fullscreen .lm-tl-timeline { flex-shrink:0; }
+.lm-timelapse.tl-fullscreen { position:fixed!important; top:0; left:0; width:100vw; height:100vh; z-index:9999; margin:0!important; border-radius:0; border:none; display:flex!important; flex-direction:column; overflow:visible; }
+.lm-timelapse.tl-fullscreen .lm-tl-canvas-wrap { flex:1 1 0%!important; height:0!important; min-height:0!important; }
+.lm-timelapse.tl-fullscreen .lm-tl-timeline { flex-shrink:0; height:48px; }
 .lm-timelapse.tl-fullscreen .lm-tl-controls { flex-shrink:0; }
 
 /* Below-fold sections */
@@ -8624,6 +8643,20 @@ async function loadLiveMonitor() {
               <svg id="tlFsIconShrink" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><path d="M4 14h6v6m10-10h-6V4m0 6l7-7M3 21l7-7"/></svg>
             </button>
           </div>
+          <!-- Andon: stop/resume button (Toyota-style) -->
+          <button class="lm-andon-btn" id="lmAndonBtn" onclick="_tlAndonToggle()" title="Stop the line (Andon)">
+            <span class="lm-andon-icon" id="lmAndonIcon">⏸</span>
+            <span class="lm-andon-label" id="lmAndonLabel">STOP</span>
+          </button>
+          <!-- Andon overlay when stopped -->
+          <div class="lm-andon-overlay" id="lmAndonOverlay">
+            <div class="lm-andon-banner">
+              <div class="lm-andon-lamp"></div>
+              <div class="lm-andon-msg">LINE STOPPED</div>
+              <div class="lm-andon-sub">Pull the cord to resume</div>
+              <button class="lm-andon-resume" onclick="_tlAndonToggle()">▶ RESUME</button>
+            </div>
+          </div>
           <div class="lm-tl-stats-overlay">
             <div class="tl-ov-stat"><div class="tl-ov-val" id="tlCommits" style="color:#2563eb;">0</div><div class="tl-ov-label">Commits</div></div>
             <div class="tl-ov-stat"><div class="tl-ov-val" id="tlBugs" style="color:#dc2626;">0</div><div class="tl-ov-label">Bugs</div></div>
@@ -9315,6 +9348,27 @@ async function _tlInit() {
   let _tlLiveLastTime = null;
   let _tlLiveSeenKeys = new Set();
 
+  // ── Andon: Toyota-style stop/resume ──
+  let _tlAndonStopped = false;
+  window._tlAndonToggle = function() {
+    _tlAndonStopped = !_tlAndonStopped;
+    const btn = document.getElementById('lmAndonBtn');
+    const overlay = document.getElementById('lmAndonOverlay');
+    const icon = document.getElementById('lmAndonIcon');
+    const label = document.getElementById('lmAndonLabel');
+    if (_tlAndonStopped) {
+      btn.classList.add('stopped');
+      icon.textContent = '▶';
+      label.textContent = 'RESUME';
+      overlay.classList.add('active');
+    } else {
+      btn.classList.remove('stopped');
+      icon.textContent = '⏸';
+      label.textContent = 'STOP';
+      overlay.classList.remove('active');
+    }
+  };
+
   window._tlToggleFullscreen = function() {
     const tl = document.querySelector('.lm-timelapse');
     if (!tl) return;
@@ -9342,6 +9396,7 @@ async function _tlInit() {
     document.querySelectorAll('.lm-tl-mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
     const controlsEl = document.querySelector('.lm-tl-controls');
     const timelineEl = document.getElementById('tlTimeline');
+    const andonBtn = document.getElementById('lmAndonBtn');
     if (mode === 'live') {
       // Hide replay controls, show live clock
       if (controlsEl) controlsEl.style.display = 'none';
@@ -9354,6 +9409,8 @@ async function _tlInit() {
       // Reset live counters
       _tlLiveLastTime = null;
       _tlLiveLastPoll = 0;
+      // Show andon button
+      if (andonBtn) andonBtn.style.display = 'flex';
     } else {
       if (controlsEl) controlsEl.style.display = '';
       if (timelineEl) timelineEl.style.display = '';
@@ -9363,6 +9420,11 @@ async function _tlInit() {
       _tlUpdateCounters();
       const comments = document.getElementById('tlComments');
       if (comments) comments.innerHTML = '';
+      // Hide andon button, reset state
+      if (andonBtn) andonBtn.style.display = 'none';
+      _tlAndonStopped = false;
+      const overlay = document.getElementById('lmAndonOverlay');
+      if (overlay) overlay.classList.remove('active');
     }
   };
 
@@ -9612,6 +9674,8 @@ async function _tlInit() {
     const dt=lastFrame?(now-lastFrame)/1000:0;
     lastFrame=now;
 
+    // Andon stop — skip event processing and polling, but still render
+    if (!_tlAndonStopped) {
     if (_tlMode === 'replay') {
       currentTime+=dt*TIME_SCALE*speed;
       if(currentTime>T_END+60000){currentTime=T_START;eventIndex=0;counters={commits:0,bugs:0,releases:0,agents:0};}
@@ -9629,6 +9693,7 @@ async function _tlInit() {
       // Poll every 5 seconds
       if (now - _tlLiveLastPoll > 5000) { _tlLiveLastPoll = now; _tlLivePoll(); }
     }
+    } // end andon check
 
     // Resize check
     const rect=wrap.getBoundingClientRect();

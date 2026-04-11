@@ -1734,6 +1734,11 @@ html.dark .sl-msg-wrap:hover { background:rgba(255,255,255,.08); }
 .lm-tl-version { font-family:'JetBrains Mono',monospace; font-size:12px; font-weight:700; color:#10b981; opacity:0; transition:opacity 0.5s; }
 .lm-tl-version.show { opacity:1; }
 
+/* LIVE badge */
+.lm-tl-live-badge { position:absolute; top:14px; left:14px; display:flex; align-items:center; gap:6px; background:rgba(220,38,38,0.9); color:#fff; padding:4px 12px 4px 8px; border-radius:4px; font-size:11px; font-weight:700; font-family:'JetBrains Mono',monospace; letter-spacing:1px; z-index:3; cursor:default; box-shadow:0 2px 8px rgba(220,38,38,0.4); text-transform:uppercase; }
+.lm-tl-live-dot { width:8px; height:8px; border-radius:50%; background:#fff; animation:lmLivePulse 1.5s ease-in-out infinite; }
+@keyframes lmLivePulse { 0%,100%{ opacity:1; box-shadow:0 0 0 0 rgba(255,255,255,0.6); } 50%{ opacity:0.7; box-shadow:0 0 0 5px rgba(255,255,255,0); } }
+
 /* Periscope-style floating comments */
 #tlComments { position:absolute; bottom:12px; left:12px; width:320px; pointer-events:none; display:flex; flex-direction:column; justify-content:flex-end; max-height:60%; overflow:hidden; }
 .tl-bubble { display:flex; align-items:center; gap:8px; padding:5px 12px 5px 6px; margin-bottom:4px; background:rgba(0,0,0,0.45); backdrop-filter:blur(6px); border-radius:20px; animation:tlBubbleUp 6s ease-out forwards; transform-origin:bottom left; max-width:fit-content; }
@@ -8624,6 +8629,7 @@ async function loadLiveMonitor() {
           </div>
           <div class="lm-tl-canvas-wrap">
             <canvas id="tlCanvas"></canvas>
+            <div class="lm-tl-live-badge"><div class="lm-tl-live-dot"></div>LIVE</div>
             <div id="tlComments"></div>
           </div>
           <div class="lm-tl-stats">

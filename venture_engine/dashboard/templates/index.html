@@ -1663,28 +1663,29 @@ html.dark .sl-msg-wrap:hover { background:rgba(255,255,255,.08); }
 .lm-main { flex:1; min-width:0; }
 .lm-side { width:320px; flex-shrink:0; display:flex; flex-direction:column; gap:16px; }
 
-/* Hero header bar */
-.lm-hero-bar { display:flex; align-items:center; gap:12px; margin-bottom:16px; padding:12px 16px; background:var(--card); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; flex-wrap:nowrap; }
-.lm-hero-left { display:flex; align-items:center; gap:10px; flex-shrink:0; }
-.lm-pulse { width:10px; height:10px; border-radius:50%; background:#22c55e; animation:lmPulse 2s ease-in-out infinite; flex-shrink:0; }
-@keyframes lmPulse { 0%,100%{box-shadow:0 0 0 0 rgba(34,197,94,.5)} 50%{box-shadow:0 0 0 8px rgba(34,197,94,0)} }
-.lm-hero-title { font-size:16px; font-weight:800; color:var(--text); letter-spacing:-0.3px; }
-.lm-hero-clock { font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text3); }
-.lm-hero-divider { width:1px; height:28px; background:var(--border); flex-shrink:0; }
-.lm-hero-stats { display:flex; gap:10px; align-items:center; flex-shrink:0; }
-.lm-hero-stat { text-align:center; min-width:40px; }
-.lm-hero-stat-val { font-family:'JetBrains Mono',monospace; font-size:18px; font-weight:700; line-height:1; }
-.lm-hero-stat-label { font-size:8px; text-transform:uppercase; letter-spacing:0.8px; color:var(--text3); margin-top:2px; }
-.lm-hero-users { display:flex; align-items:center; gap:0; margin-left:auto; flex-shrink:1; overflow:hidden; }
-.lm-hero-avatar { width:26px; height:26px; border-radius:50%; border:2px solid var(--card); margin-left:-7px; object-fit:cover; flex-shrink:0; }
+/* Hero header bar — two rows */
+.lm-hero-bar { display:flex; flex-wrap:wrap; align-items:center; gap:8px 16px; margin-bottom:16px; padding:10px 16px; background:var(--card); border:1px solid var(--border); border-radius:var(--radius); }
+.lm-hero-left { display:flex; align-items:center; gap:8px; flex-shrink:0; }
+.lm-pulse { width:8px; height:8px; border-radius:50%; background:#22c55e; animation:lmPulse 2s ease-in-out infinite; flex-shrink:0; }
+@keyframes lmPulse { 0%,100%{box-shadow:0 0 0 0 rgba(34,197,94,.5)} 50%{box-shadow:0 0 0 6px rgba(34,197,94,0)} }
+.lm-hero-title { font-size:14px; font-weight:800; color:var(--text); letter-spacing:-0.3px; }
+.lm-hero-clock { font-family:'JetBrains Mono',monospace; font-size:10px; color:var(--text3); }
+.lm-hero-divider { width:1px; height:24px; background:var(--border); flex-shrink:0; }
+.lm-hero-stats { display:flex; gap:12px; align-items:center; flex-shrink:0; }
+.lm-hero-stat { text-align:center; min-width:36px; }
+.lm-hero-stat-val { font-family:'JetBrains Mono',monospace; font-size:16px; font-weight:700; line-height:1; }
+.lm-hero-stat-label { font-size:7px; text-transform:uppercase; letter-spacing:0.7px; color:var(--text3); margin-top:1px; }
+.lm-hero-right { display:flex; align-items:center; gap:10px; margin-left:auto; }
+.lm-hero-users { display:flex; align-items:center; gap:0; flex-shrink:0; }
+.lm-hero-avatar { width:22px; height:22px; border-radius:50%; border:2px solid var(--card); margin-left:-6px; object-fit:cover; flex-shrink:0; }
 .lm-hero-avatar:first-child { margin-left:0; }
-.lm-hero-count { font-size:10px; font-weight:700; color:var(--text3); margin-left:4px; background:var(--bg2); border-radius:10px; padding:2px 7px; white-space:nowrap; flex-shrink:0; }
+.lm-hero-count { font-size:9px; font-weight:700; color:var(--text3); margin-left:3px; background:var(--bg2); border-radius:8px; padding:2px 6px; white-space:nowrap; flex-shrink:0; }
 
 /* Agent pills in header */
-.lm-hero-agents { display:flex; gap:4px; align-items:center; flex-shrink:1; min-width:0; overflow:hidden; }
-.lm-hero-agent-pill { display:flex; align-items:center; gap:3px; padding:3px 8px; border-radius:var(--radius-pill); background:rgba(124,58,237,0.08); border:1px solid rgba(124,58,237,0.2); font-size:9px; font-weight:600; color:#7c3aed; cursor:pointer; transition:all 0.15s; white-space:nowrap; flex-shrink:0; }
-.lm-hero-agent-pill:hover { background:rgba(124,58,237,0.16); }
-.lm-hero-agent-pill .pill-icon { font-size:12px; }
+.lm-hero-agents { display:flex; gap:4px; align-items:center; flex-shrink:0; }
+.lm-hero-agent-pill { display:flex; align-items:center; gap:2px; padding:2px 7px; border-radius:var(--radius-pill); background:rgba(124,58,237,0.06); border:1px solid rgba(124,58,237,0.15); font-size:9px; font-weight:600; color:#7c3aed; cursor:pointer; transition:all 0.15s; white-space:nowrap; }
+.lm-hero-agent-pill:hover { background:rgba(124,58,237,0.14); border-color:rgba(124,58,237,0.3); }
+.lm-hero-agent-pill .pill-icon { font-size:10px; }
 .lm-hero-agent-pill.running { border-color:#7c3aed; animation:lmAgentPulse 1.5s ease-in-out infinite; }
 @keyframes lmAgentPulse { 0%,100%{box-shadow:0 0 0 0 rgba(124,58,237,0.3)} 50%{box-shadow:0 0 0 4px rgba(124,58,237,0)} }
 
@@ -8569,7 +8570,7 @@ async function loadLiveMonitor() {
   el.innerHTML = `
     <div style="padding:16px 24px;max-width:1400px;margin:0 auto;">
 
-      <!-- Hero bar: title + stats + active users + agents -->
+      <!-- Hero bar: title + stats | agents + users -->
       <div class="lm-hero-bar">
         <div class="lm-hero-left">
           <div class="lm-pulse"></div>
@@ -8583,16 +8584,15 @@ async function loadLiveMonitor() {
           <div class="lm-hero-stat"><div class="lm-hero-stat-val" style="color:#7c3aed;">–</div><div class="lm-hero-stat-label">AI Found</div></div>
           <div class="lm-hero-stat"><div class="lm-hero-stat-val" style="color:#22c55e;">–</div><div class="lm-hero-stat-label">Fixed</div></div>
         </div>
-        <div class="lm-hero-divider"></div>
-        <div class="lm-hero-agents">
-          <div class="lm-hero-agent-pill" id="lmAgent-hunt" onclick="_lmRunAgent('hunt')"><span class="pill-icon">🔍</span>CodeHawk</div>
-          <div class="lm-hero-agent-pill" id="lmAgent-ui" onclick="_lmRunAgent('ui')"><span class="pill-icon">👁️</span>PixelEye</div>
-          <div class="lm-hero-agent-pill" id="lmAgent-sprint" onclick="_lmRunAgent('sprint')"><span class="pill-icon">📋</span>Maya</div>
-          <div class="lm-hero-agent-pill" id="lmAgent-fix" onclick="_lmRunAgent('fix')"><span class="pill-icon">🔧</span>AutoFix</div>
-        </div>
-        <div class="lm-hero-divider"></div>
-        <div class="lm-hero-users" id="lmUsers">
-          <span class="lm-hero-users-label">Online</span>
+        <div class="lm-hero-right">
+          <div class="lm-hero-agents">
+            <div class="lm-hero-agent-pill" id="lmAgent-hunt" onclick="_lmRunAgent('hunt')"><span class="pill-icon">🔍</span>CodeHawk</div>
+            <div class="lm-hero-agent-pill" id="lmAgent-ui" onclick="_lmRunAgent('ui')"><span class="pill-icon">👁️</span>PixelEye</div>
+            <div class="lm-hero-agent-pill" id="lmAgent-sprint" onclick="_lmRunAgent('sprint')"><span class="pill-icon">📋</span>Maya</div>
+            <div class="lm-hero-agent-pill" id="lmAgent-fix" onclick="_lmRunAgent('fix')"><span class="pill-icon">🔧</span>AutoFix</div>
+          </div>
+          <div class="lm-hero-divider"></div>
+          <div class="lm-hero-users" id="lmUsers"></div>
         </div>
       </div>
 

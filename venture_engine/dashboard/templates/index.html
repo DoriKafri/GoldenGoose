@@ -4250,11 +4250,8 @@ function openReader(url, title, newsItemId) {
         const s = document.createElement('script');
         s.id = 'ytApiScript';
         s.src = 'https://www.youtube.com/iframe_api';
-        s.onerror = function() { console.error('YouTube API script failed to load'); _ytShowPlayerFallback(ytVideoId); };
         document.head.appendChild(s);
       }
-      // Fallback if API never fires ready
-      setTimeout(() => { if (!window.YT || !window.YT.Player) _ytShowPlayerFallback(ytVideoId); }, 10000);
     }
 
     // Eager-fetch transcript, takeaways, DOPI in parallel
@@ -4354,36 +4351,21 @@ function openReader(url, title, newsItemId) {
 
 function _createYTPlayer(videoId) {
   if (_ytPlayer) { try { _ytPlayer.destroy(); } catch(e){} }
-  const playerDiv = document.getElementById('ytPlayerDiv');
-  if (!playerDiv) return;
-  try {
-    _ytPlayer = new YT.Player('ytPlayerDiv', {
-      videoId: videoId,
-      playerVars: { autoplay: 0, modestbranding: 1, rel: 0, origin: location.origin },
-      events: {
-        onReady: function() {
-          _ytPlayerReady = true;
-          if (_ytTimeInterval) clearInterval(_ytTimeInterval);
-          _ytTimeInterval = setInterval(_ytUpdateTime, 500);
-          _renderDpoiTimelineSegments();
-        },
-        onError: function(e) {
-          console.warn('YouTube player error:', e.data);
-          _ytShowPlayerFallback(videoId);
-        }
+  _ytPlayer = new YT.Player('ytPlayerDiv', {
+    videoId: videoId,
+    playerVars: { autoplay: 0, modestbranding: 1, rel: 0 },
+    events: {
+      onReady: function() {
+        _ytPlayerReady = true;
+        if (_ytTimeInterval) clearInterval(_ytTimeInterval);
+        _ytTimeInterval = setInterval(_ytUpdateTime, 500);
+        _renderDpoiTimelineSegments();
+      },
+      onError: function(e) {
+        console.warn('YouTube player error code:', e.data);
       }
-    });
-  } catch(err) {
-    console.error('Failed to create YT player:', err);
-    _ytShowPlayerFallback(videoId);
-  }
-  // Timeout fallback — if player doesn't become ready in 8s, show direct link
-  setTimeout(() => {
-    if (!_ytPlayerReady && document.getElementById('ytPlayerDiv')) {
-      const el = document.getElementById('ytPlayerDiv');
-      if (el && !el.querySelector('iframe')) _ytShowPlayerFallback(videoId);
     }
-  }, 8000);
+  });
 }
 function _ytShowPlayerFallback(videoId) {
   const container = document.querySelector('.yt-player-container');

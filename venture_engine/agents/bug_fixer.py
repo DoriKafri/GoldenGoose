@@ -178,6 +178,49 @@ def _run_test(test_file: Path, timeout: int = 30) -> tuple[bool, str]:
         return False, f"Failed to run test: {exc}"
 
 
+def _try_git_commit(filepath: str, test_filename: str, bug_key: str, summary: str) -> str | None:
+    """Try to create a git commit for the fix. Returns commit SHA or None."""
+    try:
+        # Check if we're in a git repo
+        result = subprocess.run(
+            ["git", "rev-parse", "--is-inside-work-tree"],
+            capture_output=True, text=True, timeout=5,
+            cwd=str(PROJECT_ROOT),
+        )
+        if result.returncode != 0:
+            return None
+
+        # Stage the fixed file and the test
+        subprocess.run(
+            ["git", "add", filepath, f"tests/{test_filename}"],
+            capture_output=True, timeout=5, cwd=str(PROJECT_ROOT),
+        )
+
+        # Commit
+        msg = f"fix({bug_key}): {summary}"
+        result = subprocess.run(
+            ["git", "commit", "-m", msg],
+            capture_output=True, text=True, timeout=10,
+            cwd=str(PROJECT_ROOT),
+        )
+        if result.returncode != 0:
+            logger.warning(f"Git commit failed: {result.stderr}")
+            return None
+
+        # Get the commit SHA
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            capture_output=True, text=True, timeout=5,
+            cwd=str(PROJECT_ROOT),
+        )
+        sha = result.stdout.strip()
+        logger.info(f"Bug fixer: committed fix as {sha[:8]}")
+        return sha
+    except Exception as exc:
+        logger.warning(f"Git commit skipped: {exc}")
+        return None
+
+
 def _add_comment(db: Session, bug: Bug, body: str):
     """Add a comment from the fixer agent."""
     comment = BugComment(
@@ -372,10 +415,39 @@ def fix_bug(db: Session, bug: Bug) -> dict:
             f"```diff\n{diff_preview}\n```\n\n"
             f"**Test output:**\n```\n{green_output[-1000:]}\n```"
         )
+
+        # ── Populate Proof / Evidence of Done ──
         bug.status = "review"
         bug.updated_at = datetime.utcnow()
         bug.assignee_email = FIXER_AGENT["email"]
         bug.assignee_name = FIXER_AGENT["name"]
+
+        # Proof URL → proof-screenshot endpoint (renders contextual evidence page)
+        bug.proof_url = f"/api/bugs/{bug.id}/proof-screenshot"
+        bug.proof_type = "test_report"
+
+        # Proof description → TDD verification steps
+        bug.proof_description = (
+            f"TDD Red/Green — verified by AutoFix AI\n"
+            f"────────────────────────────────────\n"
+            f"1. RED:   Test `{test_filename}` written to reproduce bug\n"
+            f"2. RED:   Test executed — FAILED (bug confirmed)\n"
+            f"3. GREEN: Fix applied to `{filepath}`\n"
+            f"4. GREEN: Test executed — PASSED (fix verified)\n"
+            f"────────────────────────────────────\n"
+            f"Summary: {changes_summary}\n"
+            f"Lines changed: {lines_changed}\n"
+            f"Test file: tests/{test_filename}\n"
+            f"Fixed file: {filepath}\n"
+            f"Verified: {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}"
+        )
+
+        # Try to create a real git commit for the fix
+        commit_sha = _try_git_commit(filepath, test_filename, bug.key, changes_summary)
+        if commit_sha:
+            bug.commit_sha = commit_sha[:8]
+
+        bug.deployed_at = datetime.utcnow()
         db.commit()
 
         return {
@@ -385,6 +457,7 @@ def fix_bug(db: Session, bug: Bug) -> dict:
             "test_file": test_filename,
             "summary": changes_summary,
             "lines_changed": lines_changed,
+            "commit_sha": commit_sha,
         }
     else:
         # Fix didn't make the test pass — revert

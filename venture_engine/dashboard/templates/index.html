@@ -4677,6 +4677,33 @@ function _ytPollUntilReady(tabName, url, vid, onSuccess, attempt) {
   });
 }
 
+// ── DOPI fetch: try immediately (cached?), stagger-poll only if not ready ──
+function _ytFetchDpoiWithFallback(vid) {
+  const dopiUrl = `${API}/api/youtube-dpoi?video_id=${vid}`;
+  fetch(dopiUrl + '&_t=' + Date.now()).then(r => r.ok ? r.json() : null).then(d => {
+    if (d && !d.error && !d.detail) {
+      // Server had it cached — use immediately, no stagger needed
+      _ytDpoiData = d.insights || d; _ytDpoiVideoId = vid;
+      _tabSetReady('dpoi');
+      const activeTab = document.querySelector('.yt-tab.active[data-tab="dpoi"]');
+      if (activeTab) _ytRenderDpoi(_ytDpoiData);
+      _renderDpoiTimelineSegments();
+      return;
+    }
+    // Not cached yet — stagger by 15s to avoid Gemini rate-limit, then poll
+    setTimeout(() => {
+      _ytPollUntilReady('dpoi', dopiUrl, vid,
+        d => { _ytDpoiData = d.insights || d; _ytDpoiVideoId = vid; });
+    }, 15000);
+  }).catch(() => {
+    // Network error — fall back to staggered polling
+    setTimeout(() => {
+      _ytPollUntilReady('dpoi', dopiUrl, vid,
+        d => { _ytDpoiData = d.insights || d; _ytDpoiVideoId = vid; });
+    }, 15000);
+  });
+}
+
 // ── Eager pre-fetch all tabs in parallel when reader opens ──
 function _ytEagerFetchAll(vid) {
   if (!vid) return;
@@ -4696,10 +4723,7 @@ function _ytEagerFetchAll(vid) {
           d => { _ytTakeawaysData = d.takeaways || d; _ytTakeawaysVideoId = vid; });
       } else { _tabSetReady('takeaways'); }
       if (!_ytDpoiData || _ytDpoiVideoId !== vid) {
-        setTimeout(() => {
-          _ytPollUntilReady('dpoi', `${API}/api/youtube-dpoi?video_id=${vid}`, vid,
-            d => { _ytDpoiData = d.insights || d; _ytDpoiVideoId = vid; });
-        }, 15000);
+        _ytFetchDpoiWithFallback(vid);
       } else { _tabSetReady('dpoi'); }
     });
   } else {
@@ -4712,10 +4736,7 @@ function _ytEagerFetchAll(vid) {
     } else { _tabSetReady('takeaways'); }
     if (!_ytDpoiData || _ytDpoiVideoId !== vid) {
       _tabSetLoading('dpoi');
-      setTimeout(() => {
-        _ytPollUntilReady('dpoi', `${API}/api/youtube-dpoi?video_id=${vid}`, vid,
-          d => { _ytDpoiData = d.insights || d; _ytDpoiVideoId = vid; });
-      }, 15000);
+      _ytFetchDpoiWithFallback(vid);
     } else { _tabSetReady('dpoi'); }
   }
 }

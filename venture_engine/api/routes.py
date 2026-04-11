@@ -2855,14 +2855,15 @@ def youtube_key_takeaways(video_id: str = Query(..., min_length=11, max_length=1
     from venture_engine.db.models import TakeawaysCache
 
     if not refresh:
+        _tk_db = SessionLocal()
         try:
-            db = SessionLocal()
-            cached = db.query(TakeawaysCache).filter(TakeawaysCache.video_id == video_id).first()
-            db.close()
+            cached = _tk_db.query(TakeawaysCache).filter(TakeawaysCache.video_id == video_id).first()
             if cached and cached.data:
                 return cached.data
         except Exception as e:
             logger.warning(f"Takeaways cache lookup failed: {e}")
+        finally:
+            _tk_db.close()
 
     # Kick off background generation instead of blocking the request
     _bg_key = f"takeaways_{video_id}"
@@ -2914,14 +2915,15 @@ def youtube_dpoi(video_id: str = Query(..., min_length=11, max_length=11), refre
     from venture_engine.db.models import DpoiCache
 
     if not refresh:
+        _dpoi_db = SessionLocal()
         try:
-            db = SessionLocal()
-            cached = db.query(DpoiCache).filter(DpoiCache.video_id == video_id).first()
-            db.close()
+            cached = _dpoi_db.query(DpoiCache).filter(DpoiCache.video_id == video_id).first()
             if cached and cached.data:
                 return cached.data
         except Exception as e:
             logger.warning(f"DPOI cache lookup failed: {e}")
+        finally:
+            _dpoi_db.close()
 
     # Kick off background generation instead of blocking the request
     _bg_key = f"dpoi_{video_id}"

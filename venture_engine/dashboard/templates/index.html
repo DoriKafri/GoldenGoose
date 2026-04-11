@@ -9368,8 +9368,17 @@ async function _tlInit() {
 
   // Histogram
   const NUM_BINS=60;
-  const histBins=Array.from({length:NUM_BINS},()=>({commits:0,bugs:0,releases:0,total:0,onlineUsers:0}));
-  tlEvents.forEach(ev=>{const pct=(ev.t-T_START)/T_SPAN;const bin=Math.min(NUM_BINS-1,Math.max(0,Math.floor(pct*NUM_BINS)));histBins[bin].total++;if(ev.type==='commit')histBins[bin].commits++;else if(ev.type==='bug')histBins[bin].bugs++;else if(ev.type==='release')histBins[bin].releases++;});
+  const histBins=Array.from({length:NUM_BINS},()=>({commits:0,bugs:0,releases:0,slack:0,ai:0,total:0,onlineUsers:0}));
+  tlEvents.forEach(ev=>{
+    const pct=(ev.t-T_START)/T_SPAN;
+    const bin=Math.min(NUM_BINS-1,Math.max(0,Math.floor(pct*NUM_BINS)));
+    histBins[bin].total++;
+    if(ev.type==='commit') histBins[bin].commits++;
+    else if(ev.type==='bug') histBins[bin].bugs++;
+    else if(ev.type==='release') histBins[bin].releases++;
+    else if(ev.type==='user_action') histBins[bin].slack++;
+    else if(ev.type==='ai_action') histBins[bin].ai++;
+  });
   const maxBin=Math.max(1,...histBins.map(b=>b.total));
 
   // Pre-compute online users per bin for the timeline graph
@@ -9405,12 +9414,18 @@ async function _tlInit() {
     let prevDate=-1;
     binDays.forEach((bd,i)=>{if(bd.date!==prevDate){dayStarts.add(i);prevDate=bd.date;}});
 
-    const barMax = 40; // max bar height in px
+    const barMax = 38; // max bar height in px
     histEl.innerHTML=histBins.map((bin,i)=>{
-      const tH=(bin.total/maxBin*barMax);const cH=(bin.commits/maxBin*barMax);const bH=(bin.bugs/maxBin*barMax);const rH=(bin.releases/maxBin*barMax);const oH=tH-cH-bH-rH;
+      const tH=(bin.total/maxBin*barMax);
+      const slH=(bin.slack/maxBin*barMax);   // user actions / slack — purple
+      const aiH=(bin.ai/maxBin*barMax);      // AI actions — violet
+      const cH=(bin.commits/maxBin*barMax);  // commits — blue
+      const bH=(bin.bugs/maxBin*barMax);     // bugs — red
+      const rH=(bin.releases/maxBin*barMax); // releases — green
       let p='';let bot=0;
-      if(oH>0){p+=`<div style="position:absolute;bottom:${bot}px;width:100%;height:${oH}px;background:rgba(148,163,184,0.4);border-radius:1px;"></div>`;bot+=oH;}
-      if(cH>0){p+=`<div style="position:absolute;bottom:${bot}px;width:100%;height:${cH}px;background:rgba(56,189,248,0.8);border-radius:1px;"></div>`;bot+=cH;}
+      if(slH>0){p+=`<div style="position:absolute;bottom:${bot}px;width:100%;height:${slH}px;background:rgba(79,70,229,0.75);border-radius:1px;"></div>`;bot+=slH;}
+      if(aiH>0){p+=`<div style="position:absolute;bottom:${bot}px;width:100%;height:${aiH}px;background:rgba(124,58,237,0.8);border-radius:1px;"></div>`;bot+=aiH;}
+      if(cH>0){p+=`<div style="position:absolute;bottom:${bot}px;width:100%;height:${cH}px;background:rgba(56,189,248,0.85);border-radius:1px;"></div>`;bot+=cH;}
       if(bH>0){p+=`<div style="position:absolute;bottom:${bot}px;width:100%;height:${bH}px;background:rgba(248,113,113,0.85);border-radius:1px;"></div>`;bot+=bH;}
       if(rH>0){p+=`<div style="position:absolute;bottom:${bot}px;width:100%;height:${rH}px;background:rgba(16,185,129,0.9);border-radius:1px;"></div>`;bot+=rH;}
       // Day label — positioned at top of histogram area

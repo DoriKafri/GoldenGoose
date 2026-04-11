@@ -9199,10 +9199,16 @@ async function _tlInit() {
       if(!dark){c.strokeStyle='rgba(0,0,0,0.08)';c.lineWidth=1;c.beginPath();c.arc(this.x,this.y,this.r,0,Math.PI*2);c.stroke();}
       const txtAlpha = dark ? (0.5+this.glow*0.5) : (0.7+this.glow*0.3);
       c.fillStyle = dark ? 'rgba(148,163,184,'+txtAlpha+')' : 'rgba(30,41,59,'+txtAlpha+')';
-      const fs = Math.max(8, Math.round(this.r * (this.type==='center'?0.7:0.9)));
-      const fsLabel = Math.max(6, Math.round(fs * 0.7));
-      c.font='600 '+fs+'px Inter';c.textAlign='center';c.fillText(this.name,this.x,this.y+this.r+fs+3);
-      if(this.label){c.fillStyle=dark?'rgba(100,116,139,0.4)':'rgba(100,116,139,0.6)';c.font='600 '+fsLabel+'px Inter';c.fillText(this.label,this.x,this.y+this.r+fs+fsLabel+4);}
+      const isKanban = this.type==='kanban';
+      const fs = isKanban ? Math.max(10, Math.round(this.r * 1.8)) : Math.max(8, Math.round(this.r * (this.type==='center'?0.7:0.9)));
+      const fsLabel = isKanban ? Math.max(9, Math.round(fs * 0.85)) : Math.max(6, Math.round(fs * 0.7));
+      c.font=(isKanban?'700 ':'600 ')+fs+'px Inter';c.textAlign='center';
+      if(isKanban){c.fillText(this.name,this.x,this.y-this.r-4);}
+      else{c.fillText(this.name,this.x,this.y+this.r+fs+3);}
+      if(this.label){c.fillStyle=dark?'rgba(100,116,139,0.5)':'rgba(100,116,139,0.7)';c.font='600 '+fsLabel+'px Inter';
+        if(isKanban){c.fillText(this.label,this.x,this.y+this.r+fsLabel+5);}
+        else{c.fillText(this.label,this.x,this.y+this.r+fs+fsLabel+4);}
+      }
     }
   }
 

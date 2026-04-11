@@ -782,7 +782,7 @@ html.dark .sl-msg-wrap:hover { background:rgba(255,255,255,.08); }
   .npt-action span { display:none; }
 }
 /* ─── Reader / Annotation Overlay ────────────────────────────────── */
-.reader-overlay { display:none; position:fixed; inset:0; z-index:600; background:var(--bg); flex-direction:column; }
+.reader-overlay { display:none; position:fixed; inset:0; z-index:600; background:var(--bg); flex-direction:column; overscroll-behavior:contain; }
 .reader-overlay.open { display:flex; }
 .reader-topbar { display:flex; align-items:center; gap:12px; padding:10px 16px; border-bottom:1px solid var(--border); background:var(--card); flex-shrink:0; min-height:48px; }
 .reader-topbar-title { flex:1; font-size:13px; font-weight:600; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -4176,11 +4176,6 @@ function openReader(url, title, newsItemId) {
   }
 
   document.getElementById('readerOverlay').classList.add('open');
-  // Lock body scroll while preserving scroll position
-  document.body.style.position = 'fixed';
-  document.body.style.top = '-' + _newsFeedScrollY + 'px';
-  document.body.style.width = '100%';
-  document.body.style.overflow = 'hidden';
   var readerHash = '#news/read/' + encodeURIComponent(url);
   if (location.hash.startsWith('#news/read/')) {
     history.replaceState({reader: true}, '', readerHash);
@@ -5460,12 +5455,6 @@ function closeReader(fromPopstate) {
   if (artWrapCleanup && !_isYouTube) artWrapCleanup.remove();
   document.getElementById('readerIframe').src = 'about:blank';
   document.getElementById('readerIframe').style.display = '';
-  // Restore body scroll — must set position back and scroll to saved pos
-  document.body.style.overflow = '';
-  document.body.style.position = '';
-  document.body.style.top = '';
-  document.body.style.width = '';
-  window.scrollTo(0, _newsFeedScrollY);
   _readerUrl = '';
   _readerAnnotations = [];
   _pendingSelection = null;
@@ -5514,6 +5503,9 @@ function closeReader(fromPopstate) {
   } else {
     switchTab(activeTab, true);
   }
+  // Restore scroll position after all UI is settled
+  var savedScroll = _newsFeedScrollY;
+  requestAnimationFrame(function() { window.scrollTo(0, savedScroll); });
 }
 
 async function loadReaderAnnotations() {
@@ -5932,7 +5924,6 @@ function _ytOpenCommentsSheet() {
   requestAnimationFrame(() => {
     requestAnimationFrame(() => sheet.classList.add('open'));
   });
-  document.body.style.overflow = 'hidden';
 }
 
 function _ytCloseCommentsSheet() {
@@ -5940,7 +5931,6 @@ function _ytCloseCommentsSheet() {
   if (!sheet) return;
   sheet.classList.remove('open');
   setTimeout(() => { sheet.style.display = 'none'; }, 300);
-  document.body.style.overflow = '';
 }
 
 async function _ytSheetPostComment() {

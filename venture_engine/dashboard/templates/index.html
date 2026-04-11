@@ -4238,9 +4238,12 @@ function openReader(url, title, newsItemId) {
       </div>
     `;
     contentEl.appendChild(wrap);
-    _ytTranscriptData = null; // reset caches so tabs reload fresh
-    _ytTakeawaysData = null; _ytTakeawaysVideoId = null;
-    _ytDpoiData = null; _ytDpoiVideoId = null;
+    // Only reset caches if video changed — preserve cached data for same video
+    if (_ytTranscriptVideoId !== ytVideoId) {
+      _ytTranscriptData = null;
+      _ytTakeawaysData = null; _ytTakeawaysVideoId = null;
+      _ytDpoiData = null; _ytDpoiVideoId = null;
+    }
 
     // Update sidebar hint for video
     const sidebarHint = document.querySelector('.reader-sidebar-header span:last-child');
@@ -4677,6 +4680,26 @@ function _ytPollUntilReady(tabName, url, vid, onSuccess, attempt) {
   });
 }
 
+// ── Takeaways fetch: try immediately (cached?), poll only if not ready ──
+function _ytFetchTakeawaysWithFallback(vid) {
+  const tkUrl = `${API}/api/youtube-key-takeaways?video_id=${vid}`;
+  fetch(tkUrl + '&_t=' + Date.now()).then(r => r.ok ? r.json() : null).then(d => {
+    if (d && !d.error && !d.detail) {
+      _ytTakeawaysData = d.takeaways || d; _ytTakeawaysVideoId = vid;
+      _tabSetReady('takeaways');
+      const activeTab = document.querySelector('.yt-tab.active[data-tab="takeaways"]');
+      if (activeTab) _ytRenderTakeaways(_ytTakeawaysData);
+      return;
+    }
+    // Not cached — poll normally
+    _ytPollUntilReady('takeaways', tkUrl, vid,
+      d => { _ytTakeawaysData = d.takeaways || d; _ytTakeawaysVideoId = vid; });
+  }).catch(() => {
+    _ytPollUntilReady('takeaways', tkUrl, vid,
+      d => { _ytTakeawaysData = d.takeaways || d; _ytTakeawaysVideoId = vid; });
+  });
+}
+
 // ── DOPI fetch: try immediately (cached?), stagger-poll only if not ready ──
 function _ytFetchDpoiWithFallback(vid) {
   const dopiUrl = `${API}/api/youtube-dpoi?video_id=${vid}`;
@@ -4719,8 +4742,7 @@ function _ytEagerFetchAll(vid) {
       // Now transcript is cached on server — start polling for AI-generated content
       // Stagger DOPI by 15s to avoid Gemini rate-limit collision with takeaways
       if (!_ytTakeawaysData || _ytTakeawaysVideoId !== vid) {
-        _ytPollUntilReady('takeaways', `${API}/api/youtube-key-takeaways?video_id=${vid}`, vid,
-          d => { _ytTakeawaysData = d.takeaways || d; _ytTakeawaysVideoId = vid; });
+        _ytFetchTakeawaysWithFallback(vid);
       } else { _tabSetReady('takeaways'); }
       if (!_ytDpoiData || _ytDpoiVideoId !== vid) {
         _ytFetchDpoiWithFallback(vid);
@@ -4728,11 +4750,10 @@ function _ytEagerFetchAll(vid) {
     });
   } else {
     _tabSetReady('transcript');
-    // Transcript already cached — start polling immediately
+    // Transcript already cached — check cache instantly
     if (!_ytTakeawaysData || _ytTakeawaysVideoId !== vid) {
       _tabSetLoading('takeaways');
-      _ytPollUntilReady('takeaways', `${API}/api/youtube-key-takeaways?video_id=${vid}`, vid,
-        d => { _ytTakeawaysData = d.takeaways || d; _ytTakeawaysVideoId = vid; });
+      _ytFetchTakeawaysWithFallback(vid);
     } else { _tabSetReady('takeaways'); }
     if (!_ytDpoiData || _ytDpoiVideoId !== vid) {
       _tabSetLoading('dpoi');

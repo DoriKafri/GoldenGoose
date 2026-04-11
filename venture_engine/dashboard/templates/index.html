@@ -1664,7 +1664,7 @@ html.dark .sl-msg-wrap:hover { background:rgba(255,255,255,.08); }
 .lm-side { width:320px; flex-shrink:0; display:flex; flex-direction:column; gap:16px; }
 
 /* Hero header bar */
-.lm-hero-bar { display:flex; align-items:center; gap:16px; margin-bottom:16px; padding:14px 20px; background:var(--card); border:1px solid var(--border); border-radius:var(--radius); }
+.lm-hero-bar { display:flex; align-items:center; gap:16px; margin-bottom:16px; padding:14px 20px; background:var(--card); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; }
 .lm-hero-left { display:flex; align-items:center; gap:10px; }
 .lm-pulse { width:10px; height:10px; border-radius:50%; background:#22c55e; animation:lmPulse 2s ease-in-out infinite; flex-shrink:0; }
 @keyframes lmPulse { 0%,100%{box-shadow:0 0 0 0 rgba(34,197,94,.5)} 50%{box-shadow:0 0 0 8px rgba(34,197,94,0)} }
@@ -1675,14 +1675,14 @@ html.dark .sl-msg-wrap:hover { background:rgba(255,255,255,.08); }
 .lm-hero-stat { text-align:center; min-width:52px; }
 .lm-hero-stat-val { font-family:'JetBrains Mono',monospace; font-size:18px; font-weight:700; line-height:1; }
 .lm-hero-stat-label { font-size:8px; text-transform:uppercase; letter-spacing:0.8px; color:var(--text3); margin-top:2px; }
-.lm-hero-users { display:flex; align-items:center; gap:4px; margin-left:auto; }
+.lm-hero-users { display:flex; align-items:center; gap:4px; margin-left:auto; flex-shrink:0; max-width:200px; overflow:hidden; }
 .lm-hero-users-label { font-size:9px; font-weight:600; color:var(--text3); text-transform:uppercase; letter-spacing:0.5px; margin-right:4px; }
-.lm-hero-avatar { width:28px; height:28px; border-radius:50%; border:2px solid var(--card); margin-left:-8px; object-fit:cover; }
+.lm-hero-avatar { width:24px; height:24px; border-radius:50%; border:2px solid var(--card); margin-left:-6px; object-fit:cover; }
 .lm-hero-avatar:first-of-type { margin-left:0; }
 .lm-hero-count { font-size:11px; font-weight:700; color:var(--text3); margin-left:4px; background:var(--bg2); border-radius:10px; padding:2px 8px; }
 
 /* Agent pills in header */
-.lm-hero-agents { display:flex; gap:6px; align-items:center; }
+.lm-hero-agents { display:flex; gap:6px; align-items:center; flex-shrink:1; overflow:hidden; }
 .lm-hero-agent-pill { display:flex; align-items:center; gap:4px; padding:3px 10px; border-radius:var(--radius-pill); background:rgba(124,58,237,0.08); border:1px solid rgba(124,58,237,0.2); font-size:10px; font-weight:600; color:#7c3aed; cursor:pointer; transition:all 0.15s; white-space:nowrap; }
 .lm-hero-agent-pill:hover { background:rgba(124,58,237,0.16); }
 .lm-hero-agent-pill .pill-icon { font-size:12px; }
@@ -8713,12 +8713,12 @@ async function _lmPoll() {
       if (users.length === 0) {
         usersEl.innerHTML = '<span class="lm-hero-users-label">Offline</span>';
       } else {
-        const maxShow = 6;
+        const maxShow = 5;
         const shown = users.slice(0, maxShow);
         const extra = users.length - maxShow;
         usersEl.innerHTML = '<span class="lm-hero-users-label">Online</span>' +
-          shown.map(u => `<img class="lm-hero-avatar" src="${_avatar(u, 28)}" alt="${esc(u)}" title="${esc(u)}">`).join('') +
-          (extra > 0 ? `<span style="font-size:10px;font-weight:600;color:var(--text3);margin-left:2px;">+${extra}</span>` : '');
+          shown.map(u => `<img class="lm-hero-avatar" src="${_avatar(u, 24)}" alt="${esc(u)}" title="${esc(u)}">`).join('') +
+          (extra > 0 ? `<span style="font-size:10px;font-weight:600;color:var(--text3);margin-left:4px;white-space:nowrap;">+${extra}</span>` : '');
       }
     }
 
@@ -9141,6 +9141,87 @@ function _tlInit() {
   }
   function emit(f,t,col,sz){particles.push(new TLParticle(f,t,col,sz||2.5));}
 
+  // ── Kanban columns ─────────────────────────────────────
+  const KANBAN_COLS = [
+    { id:'open',        label:'Open',        color:'#94a3b8', icon:'○' },
+    { id:'sprint',      label:'Sprint',      color:'#818cf8', icon:'◎' },
+    { id:'in_progress', label:'In Progress', color:'#f59e0b', icon:'●' },
+    { id:'review',      label:'Review',      color:'#38bdf8', icon:'◈' },
+    { id:'done',        label:'Done',        color:'#22c55e', icon:'✓' },
+  ];
+
+  // Kanban lane — small column markers at the bottom of the canvas
+  const kanbanNodes = KANBAN_COLS.map((col, i) => {
+    const spacing = Math.min(W * 0.12, 80);
+    const totalW = (KANBAN_COLS.length - 1) * spacing;
+    const startX = cx - totalW / 2;
+    const kx = startX + i * spacing;
+    const ky = cy + Math.min(H * 0.42, 220);
+    const n = new TLNode(col.icon, col.label, col.color, kx, ky, 5, 'kanban');
+    n.colId = col.id;
+    n.colIdx = i;
+    return n;
+  });
+
+  // Ticket particles that travel between kanban columns
+  class KanbanTicket {
+    constructor(key, fromNode, toNode, color, user) {
+      this.key = key;
+      this.fromNode = fromNode;
+      this.toNode = toNode;
+      this.color = color;
+      this.user = user;
+      this.p = 0;
+      this.spd = 0.008 + Math.random() * 0.006;
+      this.x = fromNode.x;
+      this.y = fromNode.y;
+      this.trail = [];
+      this.labelAlpha = 1;
+      this.done = false;
+    }
+    update() {
+      if (this.done) return true;
+      this.p += this.spd;
+      if (this.p >= 1) { this.p = 1; this.done = true; this.labelAlpha = 1; }
+      const t = this.p, mt = 1 - t;
+      // Arc upward between columns
+      const cpx = (this.fromNode.x + this.toNode.x) / 2;
+      const dist = Math.abs(this.toNode.x - this.fromNode.x);
+      const cpy = Math.min(this.fromNode.y, this.toNode.y) - dist * 0.3 - 20;
+      this.x = mt*mt*this.fromNode.x + 2*mt*t*cpx + t*t*this.toNode.x;
+      this.y = mt*mt*this.fromNode.y + 2*mt*t*cpy + t*t*this.toNode.y;
+      this.trail.push({x:this.x, y:this.y, a:1});
+      if (this.trail.length > 16) this.trail.shift();
+      // Fade out after landing
+      if (this.done) this.labelAlpha *= 0.96;
+      return this.done && this.labelAlpha < 0.05;
+    }
+    draw(c) {
+      const dark = _tlIsDark();
+      // Trail
+      for (let i = 0; i < this.trail.length; i++) {
+        const a = (i / this.trail.length) * 0.4;
+        c.fillStyle = this.color + Math.floor(a * 255).toString(16).padStart(2,'0');
+        c.beginPath();
+        c.arc(this.trail[i].x, this.trail[i].y, 2.5 * (i / this.trail.length), 0, Math.PI*2);
+        c.fill();
+      }
+      // Ticket badge
+      const sz = this.done ? 3 : 4;
+      c.fillStyle = this.color;
+      c.beginPath();
+      c.roundRect(this.x - 12, this.y - 6, 24, 12, 3);
+      c.fill();
+      // Ticket key label
+      const la = Math.min(1, this.labelAlpha);
+      c.fillStyle = dark ? `rgba(255,255,255,${la*0.9})` : `rgba(255,255,255,${la*0.95})`;
+      c.font = '600 6px "JetBrains Mono", monospace';
+      c.textAlign = 'center';
+      c.fillText(this.key, this.x, this.y + 2.5);
+    }
+  }
+  const kanbanTickets = [];
+
   // Stars
   const stars=Array.from({length:60},()=>({x:Math.random()*W,y:Math.random()*H,s:Math.random()*1+0.3,tw:Math.random()*Math.PI*2,sp:Math.random()*0.02+0.005}));
 
@@ -9325,6 +9406,41 @@ function _tlInit() {
     }
   }
 
+  // Parse kanban movements from user action text
+  function _tlParseKanban(action) {
+    // Patterns: "moved CR-xxx to In Progress", "approved CR-xxx, moved to Done", "created CR-xxx: ..."
+    const crMatch = action.match(/CR-\d+/i);
+    if (!crMatch) return null;
+    const key = crMatch[0];
+    const lower = action.toLowerCase();
+    let toCol = null;
+    if (lower.includes('moved to done') || lower.includes('approved')) toCol = 'done';
+    else if (lower.includes('code review') || lower.includes('review')) toCol = 'review';
+    else if (lower.includes('in progress')) toCol = 'in_progress';
+    else if (lower.includes('sprint')) toCol = 'sprint';
+    else if (lower.includes('created')) toCol = 'open';
+    if (!toCol) return null;
+    // Determine from column (previous state)
+    const colOrder = ['open','sprint','in_progress','review','done'];
+    const toIdx = colOrder.indexOf(toCol);
+    const fromCol = lower.includes('created') ? null : (toIdx > 0 ? colOrder[toIdx - 1] : 'open');
+    return { key, fromCol, toCol };
+  }
+
+  function _tlEmitKanbanTicket(key, fromColId, toColId, userColor) {
+    const fromNode = fromColId ? kanbanNodes.find(n => n.colId === fromColId) : null;
+    const toNode = kanbanNodes.find(n => n.colId === toColId);
+    if (!toNode) return;
+    // If created (no from), start from center
+    const src = fromNode || centerNode;
+    const color = userColor || toNode.color;
+    kanbanTickets.push(new KanbanTicket(key, src, toNode, color, ''));
+    // Light up both kanban column nodes
+    if (fromNode) fromNode.activate(0.5);
+    toNode.activate(0.8);
+    centerNode.activate(0.2);
+  }
+
   function processEvent(ev){
     const d=ev.data;
     switch(ev.type){
@@ -9343,7 +9459,6 @@ function _tlInit() {
         if(ver){ver.textContent=d.v+' RELEASED';ver.classList.add('show');setTimeout(()=>ver.classList.remove('show'),3000);}
         centerNode.activate(1);allNodes.forEach(n=>n.activate(0.3));
         _tlAddBubble('System', d.v+' deployed! '+d.fixes+' fixes', '#10b981', false);
-        // Emoji burst on release
         for(let i=0;i<3;i++) setTimeout(()=>_tlAddEmoji(), i*300);
         break;
       }
@@ -9359,6 +9474,11 @@ function _tlInit() {
         const un=findUser(d.user);
         if(un){un.activate(0.4);emit(un,centerNode,un.color||'#38bdf8',2);}
         _tlAddBubble(d.user, d.action, un?un.color:'#38bdf8', false);
+        // Check for kanban movement
+        const kb = _tlParseKanban(d.action);
+        if (kb) {
+          _tlEmitKanbanTicket(kb.key, kb.fromCol, kb.toCol, un ? un.color : '#38bdf8');
+        }
         break;
       }
       case 'ai_action':{
@@ -9401,6 +9521,9 @@ function _tlInit() {
         centerNode.activate(0.3);
         const color = an ? an.color : (un ? un.color : '#64748b');
         _tlAddBubble(ev.user || 'System', ev.action || '', color, !!isAgent);
+        // Check for kanban movement in live events
+        const kb = _tlParseKanban(ev.action || '');
+        if (kb) _tlEmitKanbanTicket(kb.key, kb.fromCol, kb.toCol, color);
       }
       // Use latest event time as cursor to avoid re-fetching future-timestamped events
       const evTimes = (data.events || []).map(e => e.time).filter(Boolean);
@@ -9462,13 +9585,60 @@ function _tlInit() {
     aiNodes.forEach((n,i)=>{const a=(i/TL_AI.length)*Math.PI*2-Math.PI/4+Math.sin(time*1.2+i)*0.1;const d=curMaxAi+Math.sin(time*0.9+i*3)*6;n.tx=cx+Math.cos(a)*d;n.ty=cy+Math.sin(a)*d;});
     centerNode.tx=cx;centerNode.ty=cy;
 
-    // Connections
+    // Kanban lane — position at bottom
+    const kbY = H - 38;
+    const kbSpacing = Math.min(W * 0.15, 100);
+    const kbTotalW = (KANBAN_COLS.length - 1) * kbSpacing;
+    const kbStartX = cx - kbTotalW / 2;
+    kanbanNodes.forEach((n, i) => {
+      n.tx = kbStartX + i * kbSpacing;
+      n.ty = kbY;
+    });
+
+    // Draw kanban lane background
+    const kbLaneY = kbY - 16;
+    const kbLaneH = 32;
+    ctx.fillStyle = dark ? 'rgba(30,41,59,0.5)' : 'rgba(241,245,249,0.7)';
+    ctx.beginPath();
+    ctx.roundRect(kbStartX - 30, kbLaneY, kbTotalW + 60, kbLaneH, 8);
+    ctx.fill();
+    ctx.strokeStyle = dark ? 'rgba(51,65,85,0.4)' : 'rgba(203,213,225,0.6)';
+    ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    ctx.roundRect(kbStartX - 30, kbLaneY, kbTotalW + 60, kbLaneH, 8);
+    ctx.stroke();
+
+    // Draw arrows between kanban columns
+    for (let i = 0; i < kanbanNodes.length - 1; i++) {
+      const from = kanbanNodes[i], to = kanbanNodes[i+1];
+      const ax1 = from.x + 12, ax2 = to.x - 12;
+      const ay = kbY;
+      ctx.strokeStyle = dark ? 'rgba(71,85,105,0.3)' : 'rgba(148,163,184,0.35)';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([3, 3]);
+      ctx.beginPath(); ctx.moveTo(ax1, ay); ctx.lineTo(ax2, ay); ctx.stroke();
+      ctx.setLineDash([]);
+      // Arrow head
+      ctx.fillStyle = dark ? 'rgba(71,85,105,0.4)' : 'rgba(148,163,184,0.4)';
+      ctx.beginPath();
+      ctx.moveTo(ax2, ay); ctx.lineTo(ax2 - 4, ay - 3); ctx.lineTo(ax2 - 4, ay + 3);
+      ctx.fill();
+    }
+
+    // Connections (user/ai to center)
     allNodes.forEach(n=>{if(n===centerNode)return;const a=0.06+n.glow*0.15;
       ctx.strokeStyle=dark?'rgba(71,85,105,'+a+')':'rgba(148,163,184,'+(a+0.05)+')';
       ctx.lineWidth=0.8;ctx.beginPath();ctx.moveTo(centerNode.x,centerNode.y);ctx.lineTo(n.x,n.y);ctx.stroke();});
 
+    // Draw all nodes (users, AI, center)
     allNodes.forEach(n=>{n.update();n.draw(ctx);});
+    // Draw kanban column nodes
+    kanbanNodes.forEach(n=>{n.update();n.draw(ctx);});
+
+    // Particles (user↔center)
     for(let i=particles.length-1;i>=0;i--){const done=particles[i].update();particles[i].draw(ctx);if(done)particles.splice(i,1);}
+    // Kanban tickets
+    for(let i=kanbanTickets.length-1;i>=0;i--){const rm=kanbanTickets[i].update();kanbanTickets[i].draw(ctx);if(rm)kanbanTickets.splice(i,1);}
   }
 
   // Start animation

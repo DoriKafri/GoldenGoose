@@ -1703,14 +1703,6 @@ html.dark .sl-msg-wrap:hover { background:rgba(255,255,255,.08); }
 .lm-range-btn { border:none; background:var(--bg2); color:var(--text3); font-size:10px; font-weight:600; font-family:inherit; padding:3px 8px; border-radius:4px; cursor:pointer; transition:all .15s; }
 .lm-range-btn:hover { color:var(--text2); }
 .lm-range-btn.active { background:var(--accent); color:#1a1a1a; }
-/* Live Monitor Tabs */
-.lm-tabs { display:flex; gap:2px; margin-bottom:16px; background:var(--bg2); border-radius:var(--radius); padding:3px; border:1px solid var(--border); }
-.lm-tab-btn { flex:1; padding:8px 16px; border:none; background:transparent; color:var(--text3); font-size:13px; font-weight:600; font-family:inherit; cursor:pointer; border-radius:calc(var(--radius) - 2px); transition:all 0.15s; display:flex; align-items:center; justify-content:center; gap:6px; }
-.lm-tab-btn:hover { color:var(--text2); background:rgba(148,163,184,0.08); }
-.lm-tab-btn.active { background:var(--card); color:var(--text); box-shadow:0 1px 3px rgba(0,0,0,0.1); }
-.lm-tab-content { display:none; }
-.lm-tab-content.active { display:block; }
-
 /* Timelapse embed in Live Monitor */
 .lm-timelapse { background:var(--card); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; position:relative; }
 .lm-tl-header { display:flex; align-items:center; justify-content:space-between; padding:12px 16px 8px; }
@@ -8569,96 +8561,88 @@ async function loadLiveMonitor() {
         <div class="lm-title">Live Monitor</div>
         <div class="lm-subtitle" id="lmClock"></div>
       </div>
-      <div class="lm-tabs">
-        <button class="lm-tab-btn active" onclick="_lmSwitchView('dashboard',this)">📊 Dashboard</button>
-        <button class="lm-tab-btn" onclick="_lmSwitchView('timelapse',this)">🎬 Timelapse</button>
-      </div>
 
-      <!-- Dashboard tab -->
-      <div class="lm-tab-content active" id="lmViewDashboard">
-        <div class="lm-wrap" style="padding:0;">
-          <div class="lm-main">
-            <div class="lm-stats" id="lmStats"></div>
-            <div class="lm-feed" id="lmFeed">
-              <div style="text-align:center;padding:40px;color:var(--text3);">Connecting...</div>
-            </div>
-          </div>
-      <div class="lm-side">
-        <div class="lm-card">
-          <div class="lm-card-title"><span style="color:#22c55e;">●</span> Active Now</div>
-          <div class="lm-users" id="lmUsers"></div>
-        </div>
-        <div class="lm-card">
-          <div class="lm-card-title"><span style="color:#7c3aed;">●</span> AI Agents</div>
-          <div style="display:flex;flex-direction:column;gap:8px;" id="lmAgents">
-            <div class="lm-agent-row" id="lmAgent-hunt">
-              <div class="lm-agent-info"><span class="lm-agent-icon">🔍</span><div><div class="lm-agent-name">CodeHawk</div><div class="lm-agent-desc">Bug Hunter · every 4h</div></div></div>
-              <button class="lm-agent-btn" onclick="_lmRunAgent('hunt',this)">Run</button>
-            </div>
-            <div class="lm-agent-row" id="lmAgent-ui">
-              <div class="lm-agent-info"><span class="lm-agent-icon">👁️</span><div><div class="lm-agent-name">PixelEye</div><div class="lm-agent-desc">UI Inspector · every 6h</div></div></div>
-              <button class="lm-agent-btn" onclick="_lmRunAgent('ui',this)">Run</button>
-            </div>
-            <div class="lm-agent-row" id="lmAgent-sprint">
-              <div class="lm-agent-info"><span class="lm-agent-icon">📋</span><div><div class="lm-agent-name">Maya Levi</div><div class="lm-agent-desc">Sprint Planner · every 1h</div></div></div>
-              <button class="lm-agent-btn" onclick="_lmRunAgent('sprint',this)">Run</button>
-            </div>
-            <div class="lm-agent-row" id="lmAgent-fix">
-              <div class="lm-agent-info"><span class="lm-agent-icon">🔧</span><div><div class="lm-agent-name">AutoFix</div><div class="lm-agent-desc">TDD Bug Fixer · every 2h</div></div></div>
-              <button class="lm-agent-btn" onclick="_lmRunAgent('fix',this)">Run</button>
-            </div>
+      <!-- Timelapse -->
+      <div class="lm-timelapse" style="margin-bottom:20px;">
+        <div class="lm-tl-header">
+          <div class="lm-tl-title">🎬 Development Timelapse</div>
+          <div style="display:flex;align-items:center;gap:12px;">
+            <span class="lm-tl-version" id="tlVersion"></span>
+            <span class="lm-tl-clock" id="tlClock"></span>
           </div>
         </div>
-        <div class="lm-card">
-          <div class="lm-card-title" style="justify-content:space-between;">
-            <span>📊 Activity</span>
-            <div style="display:flex;gap:3px;" id="lmChartTabs">
-              <button class="lm-range-btn active" onclick="_lmSwitchRange('1h')">1H</button>
-              <button class="lm-range-btn" onclick="_lmSwitchRange('6h')">6H</button>
-              <button class="lm-range-btn" onclick="_lmSwitchRange('24h')">24H</button>
-              <button class="lm-range-btn" onclick="_lmSwitchRange('7d')">7D</button>
-            </div>
-          </div>
-          <div id="lmChartWrap"></div>
+        <div class="lm-tl-canvas-wrap">
+          <canvas id="tlCanvas"></canvas>
+          <div class="lm-tl-replay-badge"><span class="lm-tl-replay-icon">⏪</span>REPLAY</div>
+          <div id="tlComments"></div>
         </div>
-      </div>
+        <div class="lm-tl-stats">
+          <div><div class="lm-tl-stat-val" id="tlCommits" style="color:#38bdf8;">0</div><div class="lm-tl-stat-label">Commits</div></div>
+          <div><div class="lm-tl-stat-val" id="tlBugs" style="color:#f87171;">0</div><div class="lm-tl-stat-label">Bugs Fixed</div></div>
+          <div><div class="lm-tl-stat-val" id="tlReleases" style="color:#10b981;">0</div><div class="lm-tl-stat-label">Releases</div></div>
+          <div><div class="lm-tl-stat-val" id="tlAgents" style="color:#a78bfa;">0</div><div class="lm-tl-stat-label">AI Actions</div></div>
+        </div>
+        <div class="lm-tl-timeline" id="tlTimeline" onclick="_tlTimelineClick(event)">
+          <div class="lm-tl-histogram" id="tlHistogram"></div>
+          <div class="lm-tl-playhead" id="tlPlayhead"></div>
+          <div class="lm-tl-progress" id="tlProgress"></div>
+        </div>
+        <div class="lm-tl-controls">
+          <div class="lm-tl-speed" id="tlSpeedBtns">
+            <button onclick="_tlSetSpeed(0.5)">0.5×</button>
+            <button onclick="_tlSetSpeed(1)" class="active">1×</button>
+            <button onclick="_tlSetSpeed(2)">2×</button>
+            <button onclick="_tlSetSpeed(5)">5×</button>
+          </div>
+          <div style="font-size:9px;color:rgba(148,163,184,0.5);">Click timeline to jump</div>
         </div>
       </div>
 
-      <!-- Timelapse tab -->
-      <div class="lm-tab-content" id="lmViewTimelapse">
-        <div class="lm-timelapse">
-          <div class="lm-tl-header">
-            <div class="lm-tl-title">🎬 Development Timelapse</div>
-            <div style="display:flex;align-items:center;gap:12px;">
-              <span class="lm-tl-version" id="tlVersion"></span>
-              <span class="lm-tl-clock" id="tlClock"></span>
+      <!-- Dashboard -->
+      <div class="lm-wrap" style="padding:0;">
+        <div class="lm-main">
+          <div class="lm-stats" id="lmStats"></div>
+          <div class="lm-feed" id="lmFeed">
+            <div style="text-align:center;padding:40px;color:var(--text3);">Connecting...</div>
+          </div>
+        </div>
+        <div class="lm-side">
+          <div class="lm-card">
+            <div class="lm-card-title"><span style="color:#22c55e;">●</span> Active Now</div>
+            <div class="lm-users" id="lmUsers"></div>
+          </div>
+          <div class="lm-card">
+            <div class="lm-card-title"><span style="color:#7c3aed;">●</span> AI Agents</div>
+            <div style="display:flex;flex-direction:column;gap:8px;" id="lmAgents">
+              <div class="lm-agent-row" id="lmAgent-hunt">
+                <div class="lm-agent-info"><span class="lm-agent-icon">🔍</span><div><div class="lm-agent-name">CodeHawk</div><div class="lm-agent-desc">Bug Hunter · every 4h</div></div></div>
+                <button class="lm-agent-btn" onclick="_lmRunAgent('hunt',this)">Run</button>
+              </div>
+              <div class="lm-agent-row" id="lmAgent-ui">
+                <div class="lm-agent-info"><span class="lm-agent-icon">👁️</span><div><div class="lm-agent-name">PixelEye</div><div class="lm-agent-desc">UI Inspector · every 6h</div></div></div>
+                <button class="lm-agent-btn" onclick="_lmRunAgent('ui',this)">Run</button>
+              </div>
+              <div class="lm-agent-row" id="lmAgent-sprint">
+                <div class="lm-agent-info"><span class="lm-agent-icon">📋</span><div><div class="lm-agent-name">Maya Levi</div><div class="lm-agent-desc">Sprint Planner · every 1h</div></div></div>
+                <button class="lm-agent-btn" onclick="_lmRunAgent('sprint',this)">Run</button>
+              </div>
+              <div class="lm-agent-row" id="lmAgent-fix">
+                <div class="lm-agent-info"><span class="lm-agent-icon">🔧</span><div><div class="lm-agent-name">AutoFix</div><div class="lm-agent-desc">TDD Bug Fixer · every 2h</div></div></div>
+                <button class="lm-agent-btn" onclick="_lmRunAgent('fix',this)">Run</button>
+              </div>
             </div>
           </div>
-          <div class="lm-tl-canvas-wrap">
-            <canvas id="tlCanvas"></canvas>
-            <div class="lm-tl-replay-badge"><span class="lm-tl-replay-icon">⏪</span>REPLAY</div>
-            <div id="tlComments"></div>
-          </div>
-          <div class="lm-tl-stats">
-            <div><div class="lm-tl-stat-val" id="tlCommits" style="color:#38bdf8;">0</div><div class="lm-tl-stat-label">Commits</div></div>
-            <div><div class="lm-tl-stat-val" id="tlBugs" style="color:#f87171;">0</div><div class="lm-tl-stat-label">Bugs Fixed</div></div>
-            <div><div class="lm-tl-stat-val" id="tlReleases" style="color:#10b981;">0</div><div class="lm-tl-stat-label">Releases</div></div>
-            <div><div class="lm-tl-stat-val" id="tlAgents" style="color:#a78bfa;">0</div><div class="lm-tl-stat-label">AI Actions</div></div>
-          </div>
-          <div class="lm-tl-timeline" id="tlTimeline" onclick="_tlTimelineClick(event)">
-            <div class="lm-tl-histogram" id="tlHistogram"></div>
-            <div class="lm-tl-playhead" id="tlPlayhead"></div>
-            <div class="lm-tl-progress" id="tlProgress"></div>
-          </div>
-          <div class="lm-tl-controls">
-            <div class="lm-tl-speed" id="tlSpeedBtns">
-              <button onclick="_tlSetSpeed(0.5)">0.5×</button>
-              <button onclick="_tlSetSpeed(1)" class="active">1×</button>
-              <button onclick="_tlSetSpeed(2)">2×</button>
-              <button onclick="_tlSetSpeed(5)">5×</button>
+          <div class="lm-card">
+            <div class="lm-card-title" style="justify-content:space-between;">
+              <span>📊 Activity</span>
+              <div style="display:flex;gap:3px;" id="lmChartTabs">
+                <button class="lm-range-btn active" onclick="_lmSwitchRange('1h')">1H</button>
+                <button class="lm-range-btn" onclick="_lmSwitchRange('6h')">6H</button>
+                <button class="lm-range-btn" onclick="_lmSwitchRange('24h')">24H</button>
+                <button class="lm-range-btn" onclick="_lmSwitchRange('7d')">7D</button>
+              </div>
             </div>
-            <div style="font-size:9px;color:rgba(148,163,184,0.5);">Click timeline to jump</div>
+            <div id="lmChartWrap"></div>
           </div>
         </div>
       </div>
@@ -8667,19 +8651,9 @@ async function loadLiveMonitor() {
   _lmLoadChart();
   _lmPollTimer = setInterval(_lmPoll, 8000);
   _lmTickTimer = setInterval(_lmTick, 1000);
-}
-
-let _lmActiveView = 'dashboard';
-function _lmSwitchView(view, btn) {
-  _lmActiveView = view;
-  document.querySelectorAll('.lm-tab-btn').forEach(b => b.classList.toggle('active', b === btn));
-  document.querySelectorAll('.lm-tab-content').forEach(c => c.classList.remove('active'));
-  const target = document.getElementById(view === 'timelapse' ? 'lmViewTimelapse' : 'lmViewDashboard');
-  if (target) target.classList.add('active');
-  if (view === 'timelapse') {
-    _tlInited = false;
-    setTimeout(() => _tlInit(), 50);
-  }
+  // Init timelapse directly (no tab switch needed)
+  _tlInited = false;
+  setTimeout(() => _tlInit(), 100);
 }
 
 function _lmTimeAgo(iso) {
@@ -9340,7 +9314,7 @@ function _tlInit() {
   }
 
   function tlFrame(now){
-    if(currentTab!=='live'||_lmActiveView!=='timelapse'){_tlAnimId=null;return;}
+    if(currentTab!=='live'){_tlAnimId=null;return;}
     _tlAnimId=requestAnimationFrame(tlFrame);
 
     const dt=lastFrame?(now-lastFrame)/1000:0;

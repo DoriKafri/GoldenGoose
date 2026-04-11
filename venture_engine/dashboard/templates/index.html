@@ -10178,9 +10178,23 @@ async function _tlInit() {
         // Reset all user nodes to offline on loop
         userNodes.forEach(n=>{n.opacity=0.3;n.targetOpacity=0.3;n.scale=0.7;n.targetScale=0.7;n.lastActiveTime=0;});
       }
-      // Process one event per frame so each bubble + particle are visually synced
-      if(eventIndex<tlEvents.length&&tlEvents[eventIndex].t<=currentTime){
-        processEvent(tlEvents[eventIndex]);
+      // Process events: release events always get full visuals,
+      // other events capped at 3 visuals per frame to stay synced
+      let _frameVisuals = 0;
+      while(eventIndex<tlEvents.length&&tlEvents[eventIndex].t<=currentTime){
+        const ev=tlEvents[eventIndex];
+        if (ev.type === 'release' || _frameVisuals < 3) {
+          // Full visual processing
+          processEvent(ev);
+          _frameVisuals++;
+        } else {
+          // Silent processing — update counters and user state only
+          const d=ev.data;
+          if(ev.type==='commit') counters.commits++;
+          else if(ev.type==='bug') { counters.bugs++; const rp=findUser(d.reporter); if(rp){rp.setOnline(true);rp.lastActiveTime=ev.t;} }
+          else if(ev.type==='ai_action') counters.agents++;
+          else if(ev.type==='user_action'&&d.user) { const un=findUser(d.user); if(un){un.setOnline(true);un.lastActiveTime=ev.t;} }
+        }
         eventIndex++;
       }
       // Check for inactivity — fade users who haven't been active

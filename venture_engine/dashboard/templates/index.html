@@ -1758,7 +1758,7 @@ html.dark .lm-tl-canvas-wrap { background:#0a0e17; }
 .lm-tl-timeline::-webkit-scrollbar-track { background:rgba(148,163,184,0.1); }
 html.dark .lm-tl-timeline { background:rgba(15,23,42,0.8); border-top-color:rgba(51,65,85,0.3); }
 html.dark .lm-tl-timeline::-webkit-scrollbar-thumb { background:rgba(148,163,184,0.25); }
-.lm-tl-timeline-inner { position:relative; height:100%; width:250%; cursor:pointer; }
+.lm-tl-timeline-inner { position:relative; height:100%; width:250%; cursor:grab; }
 .lm-tl-scroll-arrow { position:absolute; top:0; width:24px; height:100%; z-index:5; display:flex; align-items:center; justify-content:center; cursor:pointer; border:none; padding:0; font-size:14px; color:var(--text2); opacity:0.5; transition:opacity 0.15s; }
 .lm-tl-scroll-arrow:hover { opacity:1; }
 .lm-tl-scroll-arrow.left { left:0; background:linear-gradient(90deg,rgba(241,245,249,0.95) 60%,transparent); }
@@ -8682,7 +8682,7 @@ async function loadLiveMonitor() {
           <button class="lm-tl-scroll-arrow left" onclick="document.getElementById('tlTimeline').scrollBy({left:-150,behavior:'smooth'})" title="Scroll left">◀</button>
           <button class="lm-tl-scroll-arrow right" onclick="document.getElementById('tlTimeline').scrollBy({left:150,behavior:'smooth'})" title="Scroll right">▶</button>
           <div class="lm-tl-timeline" id="tlTimeline">
-            <div class="lm-tl-timeline-inner" id="tlTimelineInner" onclick="_tlTimelineClick(event)">
+            <div class="lm-tl-timeline-inner" id="tlTimelineInner">
               <div class="lm-tl-histogram" id="tlHistogram"></div>
               <div class="lm-tl-playhead" id="tlPlayhead"></div>
               <div class="lm-tl-progress" id="tlProgress"></div>
@@ -9552,7 +9552,7 @@ async function _tlInit() {
     }
   };
 
-  // Horizontal scroll on timeline: wheel + drag
+  // Timeline: drag to scroll left/right, click to seek
   const _tlTimelineEl = document.getElementById('tlTimeline');
   if(_tlTimelineEl){
     // Mouse wheel → horizontal scroll
@@ -9560,26 +9560,32 @@ async function _tlInit() {
       e.preventDefault();
       this.scrollLeft += (e.deltaY || e.deltaX);
     }, {passive:false});
-    // Drag to scroll (hold Shift or middle-click, or just drag right side of bar)
-    let _tlDragScrolling = false, _tlDragStartX = 0, _tlDragScrollStart = 0;
+
+    // Drag to scroll — plain mouse drag slides the timeline
+    // If drag distance < 5px it's treated as a click (seek)
+    let _tlDragging = false, _tlDragStartX = 0, _tlDragScrollStart = 0, _tlDragMoved = false;
     _tlTimelineEl.addEventListener('mousedown', function(e){
-      if(e.shiftKey || e.button === 1){ // shift+click or middle click for drag scroll
-        _tlDragScrolling = true;
-        _tlDragStartX = e.clientX;
-        _tlDragScrollStart = this.scrollLeft;
-        e.preventDefault();
-        this.style.cursor = 'grabbing';
-      }
+      if(e.button !== 0) return; // left click only
+      _tlDragging = true;
+      _tlDragMoved = false;
+      _tlDragStartX = e.clientX;
+      _tlDragScrollStart = this.scrollLeft;
+      this.style.cursor = 'grabbing';
+      e.preventDefault();
     });
     window.addEventListener('mousemove', function(e){
-      if(!_tlDragScrolling) return;
+      if(!_tlDragging) return;
       const dx = e.clientX - _tlDragStartX;
+      if(Math.abs(dx) > 4) _tlDragMoved = true;
       _tlTimelineEl.scrollLeft = _tlDragScrollStart - dx;
     });
-    window.addEventListener('mouseup', function(){
-      if(_tlDragScrolling){
-        _tlDragScrolling = false;
-        _tlTimelineEl.style.cursor = '';
+    window.addEventListener('mouseup', function(e){
+      if(!_tlDragging) return;
+      _tlDragging = false;
+      _tlTimelineEl.style.cursor = '';
+      // If barely moved, treat as click → seek
+      if(!_tlDragMoved) {
+        _tlTimelineClick(e);
       }
     });
   }

@@ -304,13 +304,25 @@ html.dark .sl-msg-wrap:hover { background:rgba(255,255,255,.08); }
 .sl-composer-send:hover { color:var(--accent); }
 @media(max-width:768px) {
   .sl-workspace { position:fixed !important;left:0 !important;top:0 !important;width:100vw !important;height:100vh !important;height:100dvh !important;z-index:100 !important; }
-  .sl-sidebar { display:none !important; }
+  /* Slack sidebar → slide-in drawer on mobile */
+  .sl-sidebar {
+    position:fixed !important; top:0; left:0; bottom:0;
+    width:280px !important; min-width:280px !important;
+    z-index:120; transform:translateX(-100%);
+    transition:transform 0.25s ease;
+    box-shadow:4px 0 24px rgba(0,0,0,0.5);
+  }
+  .sl-sidebar.sl-sidebar-open { transform:translateX(0); }
+  .sl-sidebar-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.4); z-index:110; }
+  .sl-sidebar-overlay.open { display:block; }
   .sl-main { width:100%; }
-  .sl-channel-header { padding:8px 12px;gap:6px; }
-  .sl-channel-name { display:none !important; }
+  .sl-channel-header { padding:10px 12px;gap:8px; }
+  .sl-channel-name { font-size:15px;font-weight:800; }
   .sl-channel-desc { display:none !important; }
-  .sl-mobile-ch-select { display:inline-flex !important; }
+  .sl-mobile-ch-select { display:none !important; }
   .sl-header-actions { display:none; }
+  .sl-mobile-back { display:flex !important; }
+  .sl-mobile-hamburger { display:flex !important; }
   .sl-msg-wrap { padding:6px 12px; }
   .sl-text { font-size:14px; }
   .sl-author { font-size:14px; }
@@ -324,9 +336,12 @@ html.dark .sl-msg-wrap:hover { background:rgba(255,255,255,.08); }
   .sl-media-preview-img { width:100%;height:120px;min-width:unset; }
   .sl-thread-side { width:100%;min-width:0;max-width:100%;position:absolute;top:0;left:0;right:0;bottom:0;z-index:20; }
 }
-.sl-mobile-ch-select { display:none;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:14px;font-weight:700;color:var(--text);cursor:pointer;flex:1;font-family:inherit;-webkit-appearance:none;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 8px center;padding-right:28px; }
-.sl-mobile-back { display:none;background:none;border:none;color:var(--text2);font-size:18px;cursor:pointer;padding:2px 6px;flex-shrink:0; }
-@media(max-width:768px) { .sl-mobile-back { display:flex !important; } }
+.sl-mobile-ch-select { display:none; }
+.sl-mobile-back { display:none;background:none;border:none;color:var(--text2);font-size:18px;cursor:pointer;padding:4px 8px;flex-shrink:0;border-radius:6px; }
+.sl-mobile-back:active { background:var(--bg2); }
+.sl-mobile-hamburger { display:none;background:none;border:none;color:var(--text2);font-size:18px;cursor:pointer;padding:4px 8px;flex-shrink:0;border-radius:6px;margin-left:auto; }
+.sl-mobile-hamburger:active { background:var(--bg2); }
+.sl-sidebar-overlay { display:none; }
 /* ─── Media Preview Card (link unfurling) ─── */
 .sl-media-preview { display:flex;border:1px solid var(--border);border-radius:10px;overflow:hidden;margin:6px 0 10px;background:var(--bg2);cursor:pointer;transition:background .15s,border-color .15s;max-width:520px; }
 .sl-media-preview:hover { background:var(--bg3);border-color:var(--accent); }
@@ -8952,6 +8967,7 @@ function _renderSlackWorkspace(channels) {
   }).join('');
 
   el.innerHTML = `<div class="sl-workspace">
+    <div class="sl-sidebar-overlay" onclick="_slToggleMobileSidebar()"></div>
     <div class="sl-sidebar">
       <div class="sl-sidebar-header">
         <button onclick="document.querySelector('.sl-workspace').remove();switchTab('news');" style="background:none;border:none;color:rgba(255,255,255,.6);font-size:16px;cursor:pointer;padding:2px 6px;border-radius:4px;" title="Back to dashboard">&larr;</button>
@@ -8976,8 +8992,8 @@ function _renderSlackWorkspace(channels) {
       <div class="sl-channel-header" id="slChannelHeader">
         <button class="sl-mobile-back" onclick="document.querySelector('.sl-workspace').remove();switchTab('news');" title="Back">&larr;</button>
         <span class="sl-channel-name" id="slChName"># general</span>
-        <select class="sl-mobile-ch-select" id="slMobileChSelect" onchange="_slackSelectChannel(this.value)"></select>
         <span class="sl-channel-desc" id="slChDesc"></span>
+        <button class="sl-mobile-hamburger" onclick="_slToggleMobileSidebar()" title="Channels">&#9776;</button>
         <div class="sl-header-actions">
           <button class="sl-header-btn"><svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="9" r="6"/><path d="M14 14l4 4" stroke-linecap="round"/></svg> Search</button>
         </div>
@@ -9002,17 +9018,19 @@ function _renderSlackWorkspace(channels) {
       </div>
     </div>
   </div>`;
-  // Populate mobile channel selector
-  const mobileSelect = document.getElementById('slMobileChSelect');
-  if (mobileSelect) {
-    mobileSelect.innerHTML = channels.map(ch =>
-      `<option value="${ch.id}"${ch.id === _slackCurrentChannel ? ' selected' : ''}># ${esc(ch.name)}</option>`
-    ).join('');
-  }
+}
+
+function _slToggleMobileSidebar() {
+  const sidebar = document.querySelector('.sl-sidebar');
+  const overlay = document.querySelector('.sl-sidebar-overlay');
+  if (sidebar) sidebar.classList.toggle('sl-sidebar-open');
+  if (overlay) overlay.classList.toggle('open');
 }
 
 async function _slackSelectChannel(channelId) {
   _slackCurrentChannel = channelId;
+  // Close mobile sidebar drawer
+  _slToggleMobileSidebar();
   // Update sidebar active state
   document.querySelectorAll('.sl-ch-item').forEach(el => {
     el.classList.toggle('sl-ch-active', el.dataset.chid === channelId);
@@ -9024,9 +9042,6 @@ async function _slackSelectChannel(channelId) {
   const descEl = document.getElementById('slChDesc');
   if (nameEl) nameEl.textContent = `# ${chName}`;
   if (descEl) descEl.textContent = chDesc;
-  // Sync mobile channel selector
-  const mobileSelect = document.getElementById('slMobileChSelect');
-  if (mobileSelect) mobileSelect.value = channelId;
   const composerInput = document.getElementById('slComposerInput');
   if (composerInput) composerInput.setAttribute('data-placeholder', `Message #${chName}`);
   // Close thread panel

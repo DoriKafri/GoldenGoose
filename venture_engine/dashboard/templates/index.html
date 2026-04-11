@@ -1696,8 +1696,10 @@ html.dark .lm-tl-fullscreen-btn { background:rgba(30,41,59,0.8); border-color:rg
 html.dark .lm-tl-fullscreen-btn:hover { background:rgba(51,65,85,0.95); color:#e2e8f0; }
 
 /* Fullscreen timelapse */
-.lm-timelapse.tl-fullscreen { position:fixed!important; top:0; left:0; right:0; bottom:0; z-index:9999; margin:0!important; border-radius:0; border:none; }
-.lm-timelapse.tl-fullscreen .lm-tl-canvas-wrap { height:100vh!important; min-height:100vh!important; }
+.lm-timelapse.tl-fullscreen { position:fixed!important; top:0; left:0; right:0; bottom:0; z-index:9999; margin:0!important; border-radius:0; border:none; display:flex; flex-direction:column; }
+.lm-timelapse.tl-fullscreen .lm-tl-canvas-wrap { flex:1; height:auto!important; min-height:0!important; }
+.lm-timelapse.tl-fullscreen .lm-tl-timeline { flex-shrink:0; }
+.lm-timelapse.tl-fullscreen .lm-tl-controls { flex-shrink:0; }
 
 /* Below-fold sections */
 .lm-feed { display:flex; flex-direction:column; gap:2px; }
@@ -9141,7 +9143,7 @@ async function _tlInit() {
     canvas.width = W * dpr; canvas.height = H * dpr;
     canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    cx = W / 2; cy = H / 2;
+    cx = W / 2; cy = (H - 60) / 2; // offset for kanban lane at bottom
   }
   window.addEventListener('resize', tlResize);
   tlResize();
@@ -9164,8 +9166,10 @@ async function _tlInit() {
       if(!dark){c.strokeStyle='rgba(0,0,0,0.08)';c.lineWidth=1;c.beginPath();c.arc(this.x,this.y,this.r,0,Math.PI*2);c.stroke();}
       const txtAlpha = dark ? (0.5+this.glow*0.5) : (0.7+this.glow*0.3);
       c.fillStyle = dark ? 'rgba(148,163,184,'+txtAlpha+')' : 'rgba(30,41,59,'+txtAlpha+')';
-      c.font='600 '+(this.type==='center'?'10px':'8px')+' Inter';c.textAlign='center';c.fillText(this.name,this.x,this.y+this.r+11);
-      if(this.label){c.fillStyle=dark?'rgba(100,116,139,0.4)':'rgba(100,116,139,0.6)';c.font='600 6px Inter';c.fillText(this.label,this.x,this.y+this.r+19);}
+      const fs = Math.max(8, Math.round(this.r * (this.type==='center'?0.7:0.9)));
+      const fsLabel = Math.max(6, Math.round(fs * 0.7));
+      c.font='600 '+fs+'px Inter';c.textAlign='center';c.fillText(this.name,this.x,this.y+this.r+fs+3);
+      if(this.label){c.fillStyle=dark?'rgba(100,116,139,0.4)':'rgba(100,116,139,0.6)';c.font='600 '+fsLabel+'px Inter';c.fillText(this.label,this.x,this.y+this.r+fs+fsLabel+4);}
     }
   }
 
@@ -9319,11 +9323,6 @@ async function _tlInit() {
     const shrink = document.getElementById('tlFsIconShrink');
     if (expand) expand.style.display = isFs ? 'none' : '';
     if (shrink) shrink.style.display = isFs ? '' : 'none';
-    // Hide/show timeline and controls in fullscreen
-    const timeline = document.getElementById('tlTimeline');
-    const controls = document.querySelector('.lm-tl-controls');
-    if (timeline) timeline.style.display = isFs ? 'none' : '';
-    if (controls) controls.style.display = isFs ? 'none' : '';
     // ESC to exit
     if (isFs) {
       const escHandler = function(e) {
@@ -9331,8 +9330,6 @@ async function _tlInit() {
           tl.classList.remove('tl-fullscreen');
           if (expand) expand.style.display = '';
           if (shrink) shrink.style.display = 'none';
-          if (timeline) timeline.style.display = '';
-          if (controls) controls.style.display = '';
           document.removeEventListener('keydown', escHandler);
         }
       };
@@ -9652,23 +9649,28 @@ async function _tlInit() {
       ctx.fillStyle=dark?`rgba(148,163,184,${a})`:`rgba(148,163,184,${a*0.5})`;
       ctx.beginPath();ctx.arc(s.x,s.y,s.s,0,Math.PI*2);ctx.fill();});
 
-    // Orbits
+    // Orbits — scale with canvas size, leave margin for labels
     const time=now*0.0003;
     const uCount=userNodes.length||1;
-    const curMaxUser = Math.min(Math.min(W,H)*0.35, 160);
-    const curMaxAi = Math.min(Math.min(W,H)*0.2, 90);
-    userNodes.forEach((n,i)=>{const a=(i/uCount)*Math.PI*2-Math.PI/2+Math.sin(time+i)*0.08;const d=curMaxUser+Math.sin(time*0.7+i*2)*8;n.tx=cx+Math.cos(a)*d;n.ty=cy+Math.sin(a)*d;});
-    aiNodes.forEach((n,i)=>{const a=(i/TL_AI.length)*Math.PI*2-Math.PI/4+Math.sin(time*1.2+i)*0.1;const d=curMaxAi+Math.sin(time*0.9+i*3)*6;n.tx=cx+Math.cos(a)*d;n.ty=cy+Math.sin(a)*d;});
+    const availR = Math.min(W, H - 80) / 2 - 40; // subtract kanban lane + label margin
+    const curMaxUser = Math.max(80, availR * 0.75);
+    const curMaxAi = Math.max(45, availR * 0.42);
+    // Scale node radii with canvas
+    const nScale = Math.max(1, Math.min(availR / 140, 2.2));
+    centerNode.r = 16 * nScale;
+    userNodes.forEach((n,i)=>{n.r=9*nScale; const a=(i/uCount)*Math.PI*2-Math.PI/2+Math.sin(time+i)*0.08;const d=curMaxUser+Math.sin(time*0.7+i*2)*8;n.tx=cx+Math.cos(a)*d;n.ty=cy+Math.sin(a)*d;});
+    aiNodes.forEach((n,i)=>{n.r=7*nScale; const a=(i/TL_AI.length)*Math.PI*2-Math.PI/4+Math.sin(time*1.2+i)*0.1;const d=curMaxAi+Math.sin(time*0.9+i*3)*6;n.tx=cx+Math.cos(a)*d;n.ty=cy+Math.sin(a)*d;});
     centerNode.tx=cx;centerNode.ty=cy;
 
-    // Kanban lane — position at bottom
+    // Kanban lane — position at bottom, scale with canvas
     const kbY = H - 38;
-    const kbSpacing = Math.min(W * 0.15, 100);
+    const kbSpacing = Math.min(W * 0.14, W > 1200 ? 160 : 100);
     const kbTotalW = (KANBAN_COLS.length - 1) * kbSpacing;
     const kbStartX = cx - kbTotalW / 2;
     kanbanNodes.forEach((n, i) => {
       n.tx = kbStartX + i * kbSpacing;
       n.ty = kbY;
+      n.r = 5 * nScale;
     });
 
     // Draw kanban lane background

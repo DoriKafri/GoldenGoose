@@ -833,8 +833,9 @@ def simulate_activity(db: Session) -> dict:
             stats["bugs_created"] += 1
 
     # ── 5. Bug status transitions (max 10/hour, highest severity first) ──
+    # Always transition at least 1 bug so the release pipeline doesn't stall
     slots = _bug_fix_slots_remaining()
-    num_transitions = min(_scaled_randint(1, 3), slots)
+    num_transitions = min(max(1, _scaled_randint(1, 3)), slots)
     if num_transitions <= 0:
         logger.info(f"Bug fix hourly limit reached ({BUG_FIX_HOURLY_LIMIT}/hr). Skipping transitions.")
     open_bugs_all = db.query(Bug).filter(

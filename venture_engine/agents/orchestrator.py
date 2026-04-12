@@ -361,38 +361,45 @@ def _ensure_memory_dir():
 
 
 def store_memory(agent_id: str, hall: str, key: str, content: str):
-    """Store a memory for an agent in their wing."""
-    _ensure_memory_dir()
-    wing = MEMORY_DIR / f"wing_{agent_id}" / hall
-    wing.mkdir(parents=True, exist_ok=True)
-    filepath = wing / f"{key}.md"
-    filepath.write_text(f"# {key}\n_Stored: {datetime.utcnow().isoformat()}_\n\n{content}")
-    logger.debug(f"Memory stored: {agent_id}/{hall}/{key}")
+    """Store a memory for an agent in their wing. Never crashes the caller."""
+    try:
+        _ensure_memory_dir()
+        wing = MEMORY_DIR / f"wing_{agent_id}" / hall
+        wing.mkdir(parents=True, exist_ok=True)
+        filepath = wing / f"{key}.md"
+        filepath.write_text(f"# {key}\n_Stored: {datetime.utcnow().isoformat()}_\n\n{content}")
+        logger.debug(f"Memory stored: {agent_id}/{hall}/{key}")
+    except Exception as exc:
+        logger.warning(f"Memory store failed (non-fatal): {exc}")
 
 
 def recall_memory(agent_id: str, hall: str = None, limit: int = 5) -> list[dict]:
-    """Recall memories for an agent. If hall is None, search all halls."""
-    _ensure_memory_dir()
-    wing = MEMORY_DIR / f"wing_{agent_id}"
-    if not wing.exists():
+    """Recall memories for an agent. Never crashes the caller."""
+    try:
+        _ensure_memory_dir()
+        wing = MEMORY_DIR / f"wing_{agent_id}"
+        if not wing.exists():
+            return []
+
+        memories = []
+        halls = [hall] if hall else ["hall_facts", "hall_events", "hall_discoveries"]
+
+        for h in halls:
+            hall_dir = wing / h
+            if not hall_dir.exists():
+                continue
+            for f in sorted(hall_dir.glob("*.md"), key=lambda p: p.stat().st_mtime, reverse=True)[:limit]:
+                memories.append({
+                    "hall": h,
+                    "key": f.stem,
+                    "content": f.read_text(errors="replace")[:500],
+                    "modified": datetime.fromtimestamp(f.stat().st_mtime).isoformat(),
+                })
+
+        return sorted(memories, key=lambda m: m["modified"], reverse=True)[:limit]
+    except Exception as exc:
+        logger.warning(f"Memory recall failed (non-fatal): {exc}")
         return []
-
-    memories = []
-    halls = [hall] if hall else ["hall_facts", "hall_events", "hall_discoveries"]
-
-    for h in halls:
-        hall_dir = wing / h
-        if not hall_dir.exists():
-            continue
-        for f in sorted(hall_dir.glob("*.md"), key=lambda p: p.stat().st_mtime, reverse=True)[:limit]:
-            memories.append({
-                "hall": h,
-                "key": f.stem,
-                "content": f.read_text(errors="replace")[:500],
-                "modified": datetime.fromtimestamp(f.stat().st_mtime).isoformat(),
-            })
-
-    return sorted(memories, key=lambda m: m["modified"], reverse=True)[:limit]
 
 
 def store_agent_run_memory(agent_id: str, run_result: dict):

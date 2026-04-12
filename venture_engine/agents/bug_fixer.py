@@ -12,6 +12,7 @@ import os
 import re
 import subprocess
 import difflib
+import time
 from datetime import datetime
 from pathlib import Path
 from loguru import logger
@@ -178,8 +179,11 @@ def _run_test(test_file: Path, timeout: int = 30) -> tuple[bool, str]:
         return False, f"Failed to run test: {exc}"
 
 
-def _try_git_commit(filepath: str, test_filename: str, bug_key: str, summary: str) -> str | None:
-    """Try to create a git commit for the fix. Returns commit SHA or None."""
+def _try_git_commit_and_push(filepath: str, test_filename: str, bug_key: str, summary: str) -> tuple[str | None, bool]:
+    """Commit the fix + test and push to origin/main for auto-deploy.
+
+    Returns (commit_sha, pushed). Pushed=True means Railway will auto-deploy.
+    """
     try:
         # Check if we're in a git repo
         result = subprocess.run(
@@ -188,13 +192,27 @@ def _try_git_commit(filepath: str, test_filename: str, bug_key: str, summary: st
             cwd=str(PROJECT_ROOT),
         )
         if result.returncode != 0:
-            return None
+            return None, False
 
         # Stage the fixed file and the test
+        files_to_add = [filepath]
+        test_path = f"tests/{test_filename}"
+        if (PROJECT_ROOT / test_path).exists():
+            files_to_add.append(test_path)
+
         subprocess.run(
-            ["git", "add", filepath, f"tests/{test_filename}"],
+            ["git", "add"] + files_to_add,
             capture_output=True, timeout=5, cwd=str(PROJECT_ROOT),
         )
+
+        # Check if there are actually staged changes
+        diff_check = subprocess.run(
+            ["git", "diff", "--cached", "--quiet"],
+            capture_output=True, timeout=5, cwd=str(PROJECT_ROOT),
+        )
+        if diff_check.returncode == 0:
+            logger.info("Git: no changes to commit")
+            return None, False
 
         # Commit
         msg = f"fix({bug_key}): {summary}"
@@ -205,7 +223,7 @@ def _try_git_commit(filepath: str, test_filename: str, bug_key: str, summary: st
         )
         if result.returncode != 0:
             logger.warning(f"Git commit failed: {result.stderr}")
-            return None
+            return None, False
 
         # Get the commit SHA
         result = subprocess.run(
@@ -215,10 +233,31 @@ def _try_git_commit(filepath: str, test_filename: str, bug_key: str, summary: st
         )
         sha = result.stdout.strip()
         logger.info(f"Bug fixer: committed fix as {sha[:8]}")
-        return sha
+
+        # Push to origin/main for Railway auto-deploy
+        pushed = False
+        for attempt in range(3):
+            push_result = subprocess.run(
+                ["git", "push", "origin", "HEAD:main"],
+                capture_output=True, text=True, timeout=30,
+                cwd=str(PROJECT_ROOT),
+            )
+            if push_result.returncode == 0:
+                pushed = True
+                logger.info(f"Bug fixer: pushed {sha[:8]} to origin/main — Railway will auto-deploy")
+                break
+            else:
+                logger.warning(f"Git push attempt {attempt+1} failed: {push_result.stderr[:200]}")
+                if attempt < 2:
+                    time.sleep(2 ** (attempt + 1))  # exponential backoff
+
+        if not pushed:
+            logger.error(f"Git push failed after 3 attempts for {bug_key}")
+
+        return sha, pushed
     except Exception as exc:
-        logger.warning(f"Git commit skipped: {exc}")
-        return None
+        logger.warning(f"Git commit/push skipped: {exc}")
+        return None, False
 
 
 def _add_comment(db: Session, bug: Bug, body: str):
@@ -442,12 +481,21 @@ def fix_bug(db: Session, bug: Bug) -> dict:
             f"Verified: {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}"
         )
 
-        # Try to create a real git commit for the fix
-        commit_sha = _try_git_commit(filepath, test_filename, bug.key, changes_summary)
+        # Commit and push to production
+        commit_sha, pushed = _try_git_commit_and_push(filepath, test_filename, bug.key, changes_summary)
         if commit_sha:
             bug.commit_sha = commit_sha[:8]
+        if pushed:
+            bug.deployed_at = datetime.utcnow()
+            _add_comment(db, bug,
+                f"🚀 **Pushed to production** — commit `{commit_sha[:8]}` pushed to `origin/main`.\n"
+                f"Railway will auto-deploy this fix."
+            )
+        elif commit_sha:
+            _add_comment(db, bug,
+                f"📦 **Committed** as `{commit_sha[:8]}` but push to origin failed. Manual push needed."
+            )
 
-        bug.deployed_at = datetime.utcnow()
         db.commit()
 
         return {
@@ -458,6 +506,7 @@ def fix_bug(db: Session, bug: Bug) -> dict:
             "summary": changes_summary,
             "lines_changed": lines_changed,
             "commit_sha": commit_sha,
+            "pushed_to_production": pushed,
         }
     else:
         # Fix didn't make the test pass — revert

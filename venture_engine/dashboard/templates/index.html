@@ -9678,21 +9678,41 @@ async function _tlInit() {
   window._tlSwitchMode = function(mode) {
     _tlMode = mode;
     document.querySelectorAll('.lm-tl-mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+    // Hide live return button when switching modes explicitly
+    if (typeof _tlShowLiveReturn === 'function') _tlShowLiveReturn(false);
     const controlsEl = document.querySelector('.lm-tl-controls');
     const timelineEl = document.getElementById('tlTimeline');
     const andonBtn = document.getElementById('lmAndonBtn');
     if (mode === 'live') {
-      // Hide replay controls, show live clock
-      if (controlsEl) controlsEl.style.display = 'none';
-      if (timelineEl) timelineEl.style.display = 'none';
+      // Keep timeline & controls visible so user can scrub back
+      if (controlsEl) controlsEl.style.display = '';
+      if (timelineEl) timelineEl.style.display = '';
       const clockEl = document.getElementById('tlClock');
       if (clockEl) clockEl.textContent = new Date().toLocaleTimeString();
+      // Move playhead to end (live = now)
+      currentTime = T_END;
+      eventIndex = tlEvents.length;
+      // Update progress bar and playhead to 100%
+      const progEl = document.getElementById('tlProgress');
+      const phEl = document.getElementById('tlPlayhead');
+      if (progEl) progEl.style.width = '100%';
+      if (phEl) phEl.style.left = '100%';
       // Clear replay bubbles
       const comments = document.getElementById('tlComments');
       if (comments) comments.innerHTML = '';
       // Reset live counters
       _tlLiveLastTime = null;
       _tlLiveLastPoll = 0;
+      // Set counters to full timeline totals
+      counters = {commits:0,bugs:0,releases:0,agents:0};
+      tlEvents.forEach(ev => {
+        if(ev.type==='commit') counters.commits++;
+        else if(ev.type==='bug') counters.bugs++;
+        else if(ev.type==='release') counters.releases++;
+        else if(ev.type==='ai_action') counters.agents++;
+      });
+      _tlUpdateCounters();
+      _tlUpdateReleaseLabel();
       // In LIVE mode, start all users as visible — poll will update who's really online
       userNodes.forEach(n=>{n.targetOpacity=1;n.targetScale=1;});
       // Show andon button
@@ -9831,11 +9851,41 @@ async function _tlInit() {
     _tlTooltipEl.classList.add('show');
   }
 
+  // Switch from live to replay when user interacts with timeline
+  function _tlLiveToReplay() {
+    if (_tlMode === 'live') {
+      _tlMode = 'replay';
+      document.querySelectorAll('.lm-tl-mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === 'replay'));
+      // Show a "LIVE" return button
+      _tlShowLiveReturn(true);
+    }
+  }
+  // Floating "⏺ LIVE" button to jump back
+  let _tlLiveReturnEl = null;
+  function _tlShowLiveReturn(show) {
+    if (show && !_tlLiveReturnEl) {
+      _tlLiveReturnEl = document.createElement('button');
+      _tlLiveReturnEl.id = 'tlLiveReturn';
+      _tlLiveReturnEl.innerHTML = '⏺ LIVE';
+      _tlLiveReturnEl.style.cssText = 'position:absolute;top:8px;right:60px;z-index:30;background:rgba(239,68,68,0.9);color:#fff;border:none;border-radius:6px;padding:4px 12px;font-size:11px;font-weight:700;font-family:"JetBrains Mono",monospace;cursor:pointer;letter-spacing:1px;box-shadow:0 2px 8px rgba(239,68,68,0.4);animation:pulse 2s ease-in-out infinite;';
+      _tlLiveReturnEl.onclick = function() {
+        window._tlSwitchMode('live');
+        _tlShowLiveReturn(false);
+      };
+      const wrap = document.querySelector('.lm-tl-canvas-wrap');
+      if (wrap) wrap.appendChild(_tlLiveReturnEl);
+    } else if (!show && _tlLiveReturnEl) {
+      _tlLiveReturnEl.remove();
+      _tlLiveReturnEl = null;
+    }
+  }
+
   if (_tlTimelineEl) {
     // Click to seek
     _tlTimelineEl.addEventListener('click', function(e) {
       if (e.detail >= 2 || _tlScrubbing) return;
       if (e.target === _tlScrubberEl) return;
+      _tlLiveToReplay();
       _tlSeekTo(_tlMouseToFrac(e));
     });
 
@@ -9843,6 +9893,7 @@ async function _tlInit() {
     _tlTimelineEl.addEventListener('mousedown', function(e) {
       if (e.button !== 0) return;
       e.preventDefault();
+      _tlLiveToReplay();
       _tlScrubbing = true;
       _tlScrubPrevSpeed = speed;
       speed = 0; _tlAnimScale = 0; // pause while scrubbing
@@ -10263,9 +10314,15 @@ async function _tlInit() {
         }
       }
     } else {
-      // LIVE mode
+      // LIVE mode — keep timeline at 100%, show real clock
       const clockEl = document.getElementById('tlClock');
       if (clockEl) clockEl.textContent = new Date().toLocaleTimeString();
+      // Keep playhead at end
+      const progEl = document.getElementById('tlProgress');
+      const phEl = document.getElementById('tlPlayhead');
+      if (progEl) progEl.style.width = '100%';
+      if (phEl) phEl.style.left = '100%';
+      if (_tlScrubberEl) _tlScrubberEl.style.left = ((1 - _tlViewOffset) * _tlZoom * 100) + '%';
       // Poll every 5 seconds
       if (now - _tlLiveLastPoll > 5000) { _tlLiveLastPoll = now; _tlLivePoll(); }
     }

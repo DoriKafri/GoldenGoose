@@ -9821,21 +9821,17 @@ async function _tlInit() {
     currentTime = T_START + pct * T_SPAN;
     eventIndex = 0; counters = {commits:0,bugs:0,releases:0,agents:0}; _tlNextReleaseIdx = 0;
     userNodes.forEach(n => { n.targetOpacity=0.3; n.opacity=0.3; n.scale=0.7; n.targetScale=0.7; n.lastActiveTime=0; });
-    let _lastSeekRelease = null;
+    // Count events up to current time without firing visual effects
     while (eventIndex < tlEvents.length && tlEvents[eventIndex].t <= currentTime) {
       const ev = tlEvents[eventIndex]; const d = ev.data;
       if (ev.type==='commit') counters.commits++;
       else if (ev.type==='bug') counters.bugs++;
-      else if (ev.type==='release') { counters.releases++; _lastSeekRelease = ev; }
+      else if (ev.type==='release') { counters.releases++; }
       else if (ev.type==='ai_action') counters.agents++;
       if (ev.type==='bug' && d.reporter) { const rp=findUser(d.reporter); if(rp){rp.lastActiveTime=ev.t;rp.targetOpacity=1;rp.opacity=1;rp.scale=1;rp.targetScale=1;} }
       if (ev.type==='user_action' && d.user) { const un=findUser(d.user); if(un){un.lastActiveTime=ev.t;un.targetOpacity=1;un.opacity=1;un.scale=1;un.targetScale=1;} }
       if (ev.type==='release' && d.v) { _tlNextReleaseIdx = _tlSortedReleases.findIndex(r=>r.v===d.v)+1; }
       eventIndex++;
-    }
-    // Fire release visuals for the last release crossed during seek
-    if (_lastSeekRelease) {
-      processEvent(_lastSeekRelease);
     }
     _tlUpdateReleaseLabel();
     userNodes.forEach(n => {
@@ -9928,21 +9924,63 @@ async function _tlInit() {
         _tlSeekTo(f);
         _tlUpdateTooltip(e2, f);
       }
-      function onUp() {
+      function onUp(e2) {
         _tlScrubbing = false;
-        speed = _tlScrubPrevSpeed;
-        _tlAnimScale = speed === 0 ? 0 : Math.min(1, speed);
         _tlTimelineEl.classList.remove('scrubbing');
         if (_tlTooltipEl) _tlTooltipEl.classList.remove('show');
-        // Update pause button state
-        const pauseBtn = document.getElementById('tlPauseBtn');
-        if (pauseBtn) pauseBtn.textContent = speed === 0 ? '▶' : '⏸';
         document.removeEventListener('mousemove', onMove);
         document.removeEventListener('mouseup', onUp);
+        // If scrubber released at the right edge (>95%), switch to LIVE mode
+        const endFrac = _tlMouseToFrac(e2);
+        if (endFrac >= 0.95) {
+          window._tlSwitchMode('live');
+          return;
+        }
+        speed = _tlScrubPrevSpeed;
+        _tlAnimScale = speed === 0 ? 0 : Math.min(1, speed);
+        const pauseBtn = document.getElementById('tlPauseBtn');
+        if (pauseBtn) pauseBtn.textContent = speed === 0 ? '▶' : '⏸';
       }
       document.addEventListener('mousemove', onMove);
       document.addEventListener('mouseup', onUp);
     });
+
+    // Touch support for mobile scrubbing
+    _tlTimelineEl.addEventListener('touchstart', function(e) {
+      e.preventDefault();
+      _tlLiveToReplay();
+      _tlScrubbing = true;
+      _tlScrubPrevSpeed = speed;
+      speed = 0; _tlAnimScale = 0;
+      _tlTimelineEl.classList.add('scrubbing');
+      const touch = e.touches[0];
+      const fakeE = {clientX: touch.clientX, clientY: touch.clientY};
+      _tlSeekTo(_tlMouseToFrac(fakeE));
+
+      function onTouchMove(e2) {
+        e2.preventDefault();
+        const t = e2.touches[0];
+        const f = _tlMouseToFrac({clientX: t.clientX, clientY: t.clientY});
+        _tlSeekTo(f);
+      }
+      function onTouchEnd(e2) {
+        _tlScrubbing = false;
+        _tlTimelineEl.classList.remove('scrubbing');
+        document.removeEventListener('touchmove', onTouchMove);
+        document.removeEventListener('touchend', onTouchEnd);
+        // If released near the right edge, switch to LIVE
+        const lastTouch = e2.changedTouches[0];
+        const endFrac = _tlMouseToFrac({clientX: lastTouch.clientX, clientY: lastTouch.clientY});
+        if (endFrac >= 0.95) {
+          window._tlSwitchMode('live');
+          return;
+        }
+        speed = _tlScrubPrevSpeed;
+        _tlAnimScale = speed === 0 ? 0 : Math.min(1, speed);
+      }
+      document.addEventListener('touchmove', onTouchMove, {passive: false});
+      document.addEventListener('touchend', onTouchEnd);
+    }, {passive: false});
 
     // Hover tooltip
     _tlTimelineEl.addEventListener('mousemove', function(e) {

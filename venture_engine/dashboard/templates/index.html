@@ -8891,10 +8891,10 @@ async function _lmSwitchRange(range) {
 
 async function _lmRunAgent(type) {
   const endpoints = {
-    hunt: '/api/bugs/trigger-hunt',
-    ui: '/api/bugs/trigger-ui-inspect',
-    sprint: '/api/bugs/trigger-sprint',
-    fix: '/api/bugs/trigger-fix',
+    hunt: '/api/agents/codehawk/heartbeat',
+    ui: '/api/agents/pixeleye/heartbeat',
+    sprint: '/api/agents/maya/heartbeat',
+    fix: '/api/agents/autofix/heartbeat',
   };
   const url = endpoints[type];
   if (!url) return;

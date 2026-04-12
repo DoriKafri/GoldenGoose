@@ -100,9 +100,11 @@ def _simulate_user_activity():
 
 
 def _run_sprint_planning():
-    """Job 8: AI PO agent scores tickets and plans sprints with Claude."""
-    from venture_engine.agents.po_agent import run_po_agent
-    run_po_agent()
+    """Job 8: Maya PO heartbeat via orchestrator."""
+    from venture_engine.agents.orchestrator import run_heartbeat
+    from venture_engine.db.session import get_db
+    with get_db() as db:
+        run_heartbeat("maya", db)
 
 
 def _run_auto_release():
@@ -112,21 +114,27 @@ def _run_auto_release():
 
 
 def _run_bug_hunter():
-    """Job 10a: AI agent scans codebase for real bugs/CRs."""
-    from venture_engine.agents.bug_hunter import run_bug_hunter
-    run_bug_hunter()
+    """Job 10a: CodeHawk heartbeat via orchestrator."""
+    from venture_engine.agents.orchestrator import run_heartbeat
+    from venture_engine.db.session import get_db
+    with get_db() as db:
+        run_heartbeat("codehawk", db)
 
 
 def _run_bug_fixer():
-    """Job 10b: AI agent generates real code fixes for sprint bugs."""
-    from venture_engine.agents.bug_fixer import run_bug_fixer
-    run_bug_fixer()
+    """Job 10b: AutoFix heartbeat via orchestrator."""
+    from venture_engine.agents.orchestrator import run_heartbeat
+    from venture_engine.db.session import get_db
+    with get_db() as db:
+        run_heartbeat("autofix", db)
 
 
 def _run_ui_inspector():
-    """Job 10c: AI agent uses Playwright + Claude Vision to find UI/UX bugs."""
-    from venture_engine.agents.ui_inspector import run_ui_inspector
-    run_ui_inspector()
+    """Job 10c: PixelEye heartbeat via orchestrator."""
+    from venture_engine.agents.orchestrator import run_heartbeat
+    from venture_engine.db.session import get_db
+    with get_db() as db:
+        run_heartbeat("pixeleye", db)
 
 
 def _daily_agent_voting():

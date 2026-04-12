@@ -4046,10 +4046,50 @@ def trigger_sprint(db: Session = Depends(get_db_dependency)):
 
 @router.post("/api/bugs/trigger-hunt")
 def trigger_bug_hunt(db: Session = Depends(get_db_dependency)):
-    """Manually trigger the AI bug hunter to scan the codebase for real issues."""
-    from venture_engine.agents.bug_hunter import hunt_bugs
-    result = hunt_bugs(db)
-    return result
+    """Manually trigger CodeHawk via orchestrator heartbeat."""
+    from venture_engine.agents.orchestrator import run_heartbeat
+    return run_heartbeat("codehawk", db)
+
+
+@router.get("/api/agents/org-chart")
+def get_org_chart():
+    """Get the full org chart with agents, goals, budgets, skills, memory."""
+    from venture_engine.agents.orchestrator import get_org_chart_data
+    return get_org_chart_data()
+
+
+@router.get("/api/agents/budget")
+def get_agent_budget():
+    """Get current budget status for all agents."""
+    from venture_engine.agents.orchestrator import get_budget_summary
+    return get_budget_summary()
+
+
+@router.post("/api/agents/goal")
+def set_goal(req: dict):
+    """Set the company-level goal that cascades to all agents."""
+    from venture_engine.agents.orchestrator import set_company_goal
+    goal = req.get("goal", "")
+    if not goal:
+        raise HTTPException(400, "goal is required")
+    set_company_goal(goal)
+    return {"status": "ok", "goal": goal}
+
+
+@router.post("/api/agents/{agent_id}/heartbeat")
+def trigger_heartbeat(agent_id: str, db: Session = Depends(get_db_dependency)):
+    """Manually trigger a single agent heartbeat."""
+    from venture_engine.agents.orchestrator import run_heartbeat, AGENTS
+    if agent_id not in AGENTS:
+        raise HTTPException(404, f"Unknown agent: {agent_id}")
+    return run_heartbeat(agent_id, db)
+
+
+@router.post("/api/agents/full-cycle")
+def trigger_full_cycle(db: Session = Depends(get_db_dependency)):
+    """Run all agents in order: discovery → planning → execution."""
+    from venture_engine.agents.orchestrator import run_full_cycle
+    return run_full_cycle(db)
 
 
 @router.post("/api/bugs/trigger-fix")

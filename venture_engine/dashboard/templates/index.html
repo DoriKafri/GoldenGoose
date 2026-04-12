@@ -1690,10 +1690,10 @@ html.dark .sl-msg-wrap:hover { background:rgba(255,255,255,.08); }
 @keyframes lmAgentPulse { 0%,100%{box-shadow:0 0 0 0 rgba(124,58,237,0.3)} 50%{box-shadow:0 0 0 4px rgba(124,58,237,0)} }
 
 /* Andon stop button (Toyota production line style) */
-.lm-andon-btn { position:absolute; top:56px; right:14px; z-index:4; display:none; align-items:center; gap:6px; padding:6px 14px; border:2px solid #dc2626; border-radius:10px; background:rgba(220,38,38,0.12); color:#dc2626; font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:800; letter-spacing:1px; cursor:pointer; transition:all 0.2s; backdrop-filter:blur(6px); box-shadow:0 2px 10px rgba(220,38,38,0.2); }
-.lm-andon-btn:hover { background:rgba(220,38,38,0.25); box-shadow:0 4px 16px rgba(220,38,38,0.35); transform:scale(1.03); }
-.lm-andon-btn.stopped { border-color:#22c55e; background:rgba(34,197,94,0.12); color:#16a34a; box-shadow:0 2px 10px rgba(34,197,94,0.2); }
-.lm-andon-btn.stopped:hover { background:rgba(34,197,94,0.25); box-shadow:0 4px 16px rgba(34,197,94,0.35); }
+.lm-andon-btn { display:none; align-items:center; gap:5px; padding:5px 12px; border:1.5px solid #dc2626; border-radius:8px; background:rgba(220,38,38,0.08); color:#dc2626; font-family:'JetBrains Mono',monospace; font-size:10px; font-weight:800; letter-spacing:1px; cursor:pointer; transition:all 0.2s; }
+.lm-andon-btn:hover { background:rgba(220,38,38,0.18); box-shadow:0 2px 12px rgba(220,38,38,0.3); transform:scale(1.03); }
+.lm-andon-btn.stopped { border-color:#22c55e; background:rgba(34,197,94,0.08); color:#16a34a; }
+.lm-andon-btn.stopped:hover { background:rgba(34,197,94,0.18); box-shadow:0 2px 12px rgba(34,197,94,0.3); }
 .lm-andon-icon { font-size:14px; }
 .lm-andon-label { line-height:1; }
 
@@ -1709,10 +1709,10 @@ html.dark .sl-msg-wrap:hover { background:rgba(255,255,255,.08); }
 .lm-andon-resume:hover { background:rgba(34,197,94,0.3); box-shadow:0 0 20px rgba(34,197,94,0.3); transform:scale(1.05); }
 
 /* Fullscreen button */
-.lm-tl-fullscreen-btn { background:rgba(255,255,255,0.85); backdrop-filter:blur(6px); border:1px solid rgba(0,0,0,0.1); border-radius:6px; padding:6px 8px; cursor:pointer; color:#475569; display:flex; align-items:center; justify-content:center; transition:all 0.15s; box-shadow:0 1px 4px rgba(0,0,0,0.1); }
-html.dark .lm-tl-fullscreen-btn { background:rgba(30,41,59,0.8); border-color:rgba(255,255,255,0.1); color:#94a3b8; }
-.lm-tl-fullscreen-btn:hover { background:#fff; color:#1e293b; box-shadow:0 2px 8px rgba(0,0,0,0.15); transform:scale(1.05); }
-html.dark .lm-tl-fullscreen-btn:hover { background:rgba(51,65,85,0.95); color:#e2e8f0; }
+.lm-tl-fullscreen-btn { background:rgba(0,0,0,0.05); border:none; border-radius:6px; padding:6px 8px; cursor:pointer; color:#64748b; display:flex; align-items:center; justify-content:center; transition:all 0.15s; }
+html.dark .lm-tl-fullscreen-btn { background:rgba(255,255,255,0.08); color:#94a3b8; }
+.lm-tl-fullscreen-btn:hover { background:rgba(0,0,0,0.1); color:#1e293b; transform:scale(1.08); }
+html.dark .lm-tl-fullscreen-btn:hover { background:rgba(255,255,255,0.15); color:#e2e8f0; }
 
 /* Fullscreen timelapse */
 .lm-timelapse.tl-fullscreen { position:fixed!important; top:0; left:0; width:100vw; height:100vh; z-index:9999; margin:0!important; border-radius:0; border:none; display:flex!important; flex-direction:column; overflow:visible; }
@@ -1740,11 +1740,21 @@ html.dark .lm-tl-fullscreen-btn:hover { background:rgba(51,65,85,0.95); color:#e
 .lm-range-btn.active { background:var(--accent); color:#1a1a1a; }
 
 /* Timelapse stats overlay (bottom-right of canvas) */
-.lm-tl-stats-overlay { display:flex; gap:12px; padding:6px 14px; background:rgba(255,255,255,0.85); backdrop-filter:blur(8px); border-radius:10px; box-shadow:0 2px 8px rgba(0,0,0,0.08); }
-html.dark .lm-tl-stats-overlay { background:rgba(15,23,42,0.75); }
-.lm-tl-stats-overlay .tl-ov-stat { text-align:center; }
-.lm-tl-stats-overlay .tl-ov-val { font-family:'JetBrains Mono',monospace; font-size:16px; font-weight:700; line-height:1; }
-.lm-tl-stats-overlay .tl-ov-label { font-size:7px; text-transform:uppercase; letter-spacing:0.8px; color:var(--text3); margin-top:2px; }
+.lm-tl-topbar { position:absolute; top:0; left:0; right:0; z-index:5; display:flex; align-items:center; justify-content:space-between; padding:10px 16px; background:linear-gradient(180deg, rgba(255,255,255,0.92) 0%, rgba(255,255,255,0.6) 70%, rgba(255,255,255,0) 100%); backdrop-filter:blur(10px); pointer-events:none; }
+html.dark .lm-tl-topbar { background:linear-gradient(180deg, rgba(15,23,42,0.92) 0%, rgba(15,23,42,0.6) 70%, rgba(15,23,42,0) 100%); }
+.lm-tl-topbar > * { pointer-events:auto; }
+.lm-tl-stats-bar { display:flex; gap:2px; }
+.lm-tl-stat-chip { display:flex; align-items:center; gap:5px; padding:5px 10px; border-radius:8px; background:rgba(0,0,0,0.04); transition:background 0.2s; }
+html.dark .lm-tl-stat-chip { background:rgba(255,255,255,0.06); }
+.lm-tl-stat-chip:hover { background:rgba(0,0,0,0.08); }
+html.dark .lm-tl-stat-chip:hover { background:rgba(255,255,255,0.1); }
+.lm-tl-stat-chip .tl-stat-icon { font-size:11px; opacity:0.7; }
+.lm-tl-stat-chip .tl-stat-val { font-family:'JetBrains Mono',monospace; font-size:14px; font-weight:800; line-height:1; letter-spacing:-0.5px; }
+.lm-tl-stat-chip .tl-stat-label { font-size:8px; text-transform:uppercase; letter-spacing:0.6px; color:var(--text3); font-weight:600; }
+.lm-tl-clock-wrap { display:flex; align-items:center; gap:8px; }
+.lm-tl-clock-display { font-family:'JetBrains Mono',monospace; font-size:28px; font-weight:800; color:var(--text); letter-spacing:2px; line-height:1; text-shadow:0 1px 2px rgba(0,0,0,0.06); }
+html.dark .lm-tl-clock-display { text-shadow:0 1px 4px rgba(0,0,0,0.3); }
+.lm-tl-topbar-actions { display:flex; align-items:center; gap:6px; }
 /* Timelapse embed in Live Monitor */
 .lm-timelapse { background:var(--card); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; position:relative; }
 /* Title and clock now in hero bar and canvas overlay — see .lm-hero-title, .lm-hero-clock */
@@ -8695,26 +8705,30 @@ async function loadLiveMonitor() {
             <button class="lm-tl-mode-btn active" data-mode="replay" onclick="_tlSwitchMode('replay')">⏪ REPLAY</button>
             <button class="lm-tl-mode-btn" data-mode="live" onclick="_tlSwitchMode('live')"><span class="lm-tl-live-dot"></span>LIVE</button>
           </div>
-          <div style="position:absolute;top:14px;right:14px;z-index:3;display:flex;align-items:center;gap:10px;">
-            <div class="lm-tl-stats-overlay">
-              <div class="tl-ov-stat"><div class="tl-ov-val" id="tlOnline" style="color:#22c55e;">0</div><div class="tl-ov-label">Online</div></div>
-              <div class="tl-ov-stat"><div class="tl-ov-val" id="tlCommits" style="color:#2563eb;">0</div><div class="tl-ov-label">Commits</div></div>
-              <div class="tl-ov-stat"><div class="tl-ov-val" id="tlBugs" style="color:#dc2626;">0</div><div class="tl-ov-label">Bugs</div></div>
-              <div class="tl-ov-stat"><div class="tl-ov-val" id="tlReleases" style="color:#059669;">0</div><div class="tl-ov-label">Releases</div></div>
-              <div class="tl-ov-stat"><div class="tl-ov-val" id="tlAgents" style="color:#7c3aed;">0</div><div class="tl-ov-label">AI Actions</div></div>
+          <!-- Unified top bar -->
+          <div class="lm-tl-topbar">
+            <div class="lm-tl-stats-bar">
+              <div class="lm-tl-stat-chip"><span class="tl-stat-icon">●</span><span class="tl-stat-val" id="tlOnline" style="color:#22c55e;">0</span><span class="tl-stat-label">Online</span></div>
+              <div class="lm-tl-stat-chip"><span class="tl-stat-icon">⬡</span><span class="tl-stat-val" id="tlCommits" style="color:#2563eb;">0</span><span class="tl-stat-label">Commits</span></div>
+              <div class="lm-tl-stat-chip"><span class="tl-stat-icon">⚠</span><span class="tl-stat-val" id="tlBugs" style="color:#dc2626;">0</span><span class="tl-stat-label">Bugs</span></div>
+              <div class="lm-tl-stat-chip"><span class="tl-stat-icon">▲</span><span class="tl-stat-val" id="tlReleases" style="color:#059669;">0</span><span class="tl-stat-label">Releases</span></div>
+              <div class="lm-tl-stat-chip"><span class="tl-stat-icon">◆</span><span class="tl-stat-val" id="tlAgents" style="color:#7c3aed;">0</span><span class="tl-stat-label">AI</span></div>
             </div>
-            <span class="lm-tl-version" id="tlVersion"></span>
-            <span class="lm-tl-clock" id="tlClock" style="font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:700;color:var(--text);background:rgba(255,255,255,0.85);padding:6px 16px;border-radius:10px;backdrop-filter:blur(8px);box-shadow:0 2px 12px rgba(0,0,0,0.08);letter-spacing:1.5px;"></span>
-            <button class="lm-tl-fullscreen-btn" onclick="_tlToggleFullscreen()" title="Fullscreen">
-              <svg id="tlFsIconExpand" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 00-2 2v3m18 0V5a2 2 0 00-2-2h-3m0 18h3a2 2 0 002-2v-3M3 16v3a2 2 0 002 2h3"/></svg>
-              <svg id="tlFsIconShrink" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><path d="M4 14h6v6m10-10h-6V4m0 6l7-7M3 21l7-7"/></svg>
-            </button>
+            <div class="lm-tl-clock-wrap">
+              <span class="lm-tl-version" id="tlVersion"></span>
+              <span class="lm-tl-clock-display" id="tlClock"></span>
+            </div>
+            <div class="lm-tl-topbar-actions">
+              <button class="lm-andon-btn" id="lmAndonBtn" onclick="_tlAndonToggle()" title="Stop the line (Andon)">
+                <span class="lm-andon-icon" id="lmAndonIcon">⏸</span>
+                <span class="lm-andon-label" id="lmAndonLabel">STOP</span>
+              </button>
+              <button class="lm-tl-fullscreen-btn" onclick="_tlToggleFullscreen()" title="Fullscreen">
+                <svg id="tlFsIconExpand" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 00-2 2v3m18 0V5a2 2 0 00-2-2h-3m0 18h3a2 2 0 002-2v-3M3 16v3a2 2 0 002 2h3"/></svg>
+                <svg id="tlFsIconShrink" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><path d="M4 14h6v6m10-10h-6V4m0 6l7-7M3 21l7-7"/></svg>
+              </button>
+            </div>
           </div>
-          <!-- Andon: stop/resume button (Toyota-style) -->
-          <button class="lm-andon-btn" id="lmAndonBtn" onclick="_tlAndonToggle()" title="Stop the line (Andon)">
-            <span class="lm-andon-icon" id="lmAndonIcon">⏸</span>
-            <span class="lm-andon-label" id="lmAndonLabel">STOP</span>
-          </button>
           <!-- Andon overlay when stopped -->
           <div class="lm-andon-overlay" id="lmAndonOverlay">
             <div class="lm-andon-banner">
@@ -9856,6 +9870,12 @@ async function _tlInit() {
     if (_tlMode === 'live') {
       _tlMode = 'replay';
       document.querySelectorAll('.lm-tl-mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === 'replay'));
+      // Hide live-only UI
+      const andonBtn = document.getElementById('lmAndonBtn');
+      if (andonBtn) andonBtn.style.display = 'none';
+      _tlAndonStopped = false;
+      const overlay = document.getElementById('lmAndonOverlay');
+      if (overlay) overlay.classList.remove('active');
       // Show a "LIVE" return button
       _tlShowLiveReturn(true);
     }

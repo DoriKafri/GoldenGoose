@@ -1683,9 +1683,10 @@ html.dark .sl-msg-wrap:hover { background:rgba(255,255,255,.08); }
 
 /* Agent pills in header */
 .lm-hero-agents { display:flex; gap:4px; align-items:center; flex-shrink:0; }
-.lm-hero-agent-pill { display:flex; align-items:center; gap:2px; padding:2px 7px; border-radius:var(--radius-pill); background:rgba(124,58,237,0.06); border:1px solid rgba(124,58,237,0.15); font-size:9px; font-weight:600; color:#7c3aed; cursor:pointer; transition:all 0.15s; white-space:nowrap; }
-.lm-hero-agent-pill:hover { background:rgba(124,58,237,0.14); border-color:rgba(124,58,237,0.3); }
-.lm-hero-agent-pill .pill-icon { font-size:10px; }
+.lm-hero-agent-pill { display:flex; align-items:center; gap:4px; padding:6px 12px; border-radius:var(--radius-pill); background:rgba(124,58,237,0.1); border:1.5px solid rgba(124,58,237,0.3); font-size:11px; font-weight:700; color:#7c3aed; cursor:pointer; transition:all 0.15s; white-space:nowrap; -webkit-tap-highlight-color:transparent; }
+.lm-hero-agent-pill:hover { background:rgba(124,58,237,0.2); border-color:rgba(124,58,237,0.5); transform:scale(1.03); }
+.lm-hero-agent-pill:active { transform:scale(0.95); background:rgba(124,58,237,0.25); }
+.lm-hero-agent-pill .pill-icon { font-size:14px; }
 .lm-hero-agent-pill.running { border-color:#7c3aed; animation:lmAgentPulse 1.5s ease-in-out infinite; }
 @keyframes lmAgentPulse { 0%,100%{box-shadow:0 0 0 0 rgba(124,58,237,0.3)} 50%{box-shadow:0 0 0 4px rgba(124,58,237,0)} }
 

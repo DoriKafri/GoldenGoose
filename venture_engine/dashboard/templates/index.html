@@ -1690,10 +1690,10 @@ html.dark .sl-msg-wrap:hover { background:rgba(255,255,255,.08); }
 @keyframes lmAgentPulse { 0%,100%{box-shadow:0 0 0 0 rgba(124,58,237,0.3)} 50%{box-shadow:0 0 0 4px rgba(124,58,237,0)} }
 
 /* Andon stop button (Toyota production line style) */
-.lm-andon-btn { position:absolute; bottom:60px; left:14px; z-index:4; display:none; align-items:center; gap:6px; padding:8px 16px; border:2px solid #dc2626; border-radius:10px; background:rgba(220,38,38,0.12); color:#dc2626; font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:800; letter-spacing:1px; cursor:pointer; transition:all 0.2s; backdrop-filter:blur(6px); box-shadow:0 2px 10px rgba(220,38,38,0.2); }
-.lm-andon-btn:hover { background:rgba(220,38,38,0.25); box-shadow:0 4px 16px rgba(220,38,38,0.35); transform:scale(1.03); }
-.lm-andon-btn.stopped { border-color:#22c55e; background:rgba(34,197,94,0.12); color:#16a34a; box-shadow:0 2px 10px rgba(34,197,94,0.2); }
-.lm-andon-btn.stopped:hover { background:rgba(34,197,94,0.25); box-shadow:0 4px 16px rgba(34,197,94,0.35); }
+.lm-andon-btn { display:none; align-items:center; gap:5px; padding:5px 12px; border:1.5px solid #dc2626; border-radius:8px; background:rgba(220,38,38,0.08); color:#dc2626; font-family:'JetBrains Mono',monospace; font-size:10px; font-weight:800; letter-spacing:1px; cursor:pointer; transition:all 0.2s; }
+.lm-andon-btn:hover { background:rgba(220,38,38,0.18); box-shadow:0 2px 12px rgba(220,38,38,0.3); transform:scale(1.03); }
+.lm-andon-btn.stopped { border-color:#22c55e; background:rgba(34,197,94,0.08); color:#16a34a; }
+.lm-andon-btn.stopped:hover { background:rgba(34,197,94,0.18); box-shadow:0 2px 12px rgba(34,197,94,0.3); }
 .lm-andon-icon { font-size:14px; }
 .lm-andon-label { line-height:1; }
 
@@ -1709,10 +1709,10 @@ html.dark .sl-msg-wrap:hover { background:rgba(255,255,255,.08); }
 .lm-andon-resume:hover { background:rgba(34,197,94,0.3); box-shadow:0 0 20px rgba(34,197,94,0.3); transform:scale(1.05); }
 
 /* Fullscreen button */
-.lm-tl-fullscreen-btn { background:rgba(255,255,255,0.85); backdrop-filter:blur(6px); border:1px solid rgba(0,0,0,0.1); border-radius:6px; padding:6px 8px; cursor:pointer; color:#475569; display:flex; align-items:center; justify-content:center; transition:all 0.15s; box-shadow:0 1px 4px rgba(0,0,0,0.1); }
-html.dark .lm-tl-fullscreen-btn { background:rgba(30,41,59,0.8); border-color:rgba(255,255,255,0.1); color:#94a3b8; }
-.lm-tl-fullscreen-btn:hover { background:#fff; color:#1e293b; box-shadow:0 2px 8px rgba(0,0,0,0.15); transform:scale(1.05); }
-html.dark .lm-tl-fullscreen-btn:hover { background:rgba(51,65,85,0.95); color:#e2e8f0; }
+.lm-tl-fullscreen-btn { background:rgba(0,0,0,0.05); border:none; border-radius:6px; padding:6px 8px; cursor:pointer; color:#64748b; display:flex; align-items:center; justify-content:center; transition:all 0.15s; }
+html.dark .lm-tl-fullscreen-btn { background:rgba(255,255,255,0.08); color:#94a3b8; }
+.lm-tl-fullscreen-btn:hover { background:rgba(0,0,0,0.1); color:#1e293b; transform:scale(1.08); }
+html.dark .lm-tl-fullscreen-btn:hover { background:rgba(255,255,255,0.15); color:#e2e8f0; }
 
 /* Fullscreen timelapse */
 .lm-timelapse.tl-fullscreen { position:fixed!important; top:0; left:0; width:100vw; height:100vh; z-index:9999; margin:0!important; border-radius:0; border:none; display:flex!important; flex-direction:column; overflow:visible; }
@@ -1740,11 +1740,21 @@ html.dark .lm-tl-fullscreen-btn:hover { background:rgba(51,65,85,0.95); color:#e
 .lm-range-btn.active { background:var(--accent); color:#1a1a1a; }
 
 /* Timelapse stats overlay (bottom-right of canvas) */
-.lm-tl-stats-overlay { position:absolute; bottom:80px; right:12px; display:flex; gap:12px; padding:8px 14px; background:rgba(255,255,255,0.85); backdrop-filter:blur(8px); border-radius:10px; z-index:3; box-shadow:0 2px 8px rgba(0,0,0,0.08); }
-html.dark .lm-tl-stats-overlay { background:rgba(15,23,42,0.75); }
-.lm-tl-stats-overlay .tl-ov-stat { text-align:center; }
-.lm-tl-stats-overlay .tl-ov-val { font-family:'JetBrains Mono',monospace; font-size:16px; font-weight:700; line-height:1; }
-.lm-tl-stats-overlay .tl-ov-label { font-size:7px; text-transform:uppercase; letter-spacing:0.8px; color:var(--text3); margin-top:2px; }
+.lm-tl-topbar { position:absolute; top:0; left:0; right:0; z-index:5; display:flex; align-items:center; justify-content:space-between; padding:10px 16px; background:linear-gradient(180deg, rgba(255,255,255,0.92) 0%, rgba(255,255,255,0.6) 70%, rgba(255,255,255,0) 100%); backdrop-filter:blur(10px); pointer-events:none; }
+html.dark .lm-tl-topbar { background:linear-gradient(180deg, rgba(15,23,42,0.92) 0%, rgba(15,23,42,0.6) 70%, rgba(15,23,42,0) 100%); }
+.lm-tl-topbar > * { pointer-events:auto; }
+.lm-tl-stats-bar { display:flex; gap:2px; }
+.lm-tl-stat-chip { display:flex; align-items:center; gap:5px; padding:5px 10px; border-radius:8px; background:rgba(0,0,0,0.04); transition:background 0.2s; }
+html.dark .lm-tl-stat-chip { background:rgba(255,255,255,0.06); }
+.lm-tl-stat-chip:hover { background:rgba(0,0,0,0.08); }
+html.dark .lm-tl-stat-chip:hover { background:rgba(255,255,255,0.1); }
+.lm-tl-stat-chip .tl-stat-icon { font-size:11px; opacity:0.7; }
+.lm-tl-stat-chip .tl-stat-val { font-family:'JetBrains Mono',monospace; font-size:14px; font-weight:800; line-height:1; letter-spacing:-0.5px; }
+.lm-tl-stat-chip .tl-stat-label { font-size:8px; text-transform:uppercase; letter-spacing:0.6px; color:var(--text3); font-weight:600; }
+.lm-tl-clock-wrap { display:flex; align-items:center; gap:8px; }
+.lm-tl-clock-display { font-family:'JetBrains Mono',monospace; font-size:28px; font-weight:800; color:var(--text); letter-spacing:2px; line-height:1; text-shadow:0 1px 2px rgba(0,0,0,0.06); }
+html.dark .lm-tl-clock-display { text-shadow:0 1px 4px rgba(0,0,0,0.3); }
+.lm-tl-topbar-actions { display:flex; align-items:center; gap:6px; }
 /* Timelapse embed in Live Monitor */
 .lm-timelapse { background:var(--card); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; position:relative; }
 /* Title and clock now in hero bar and canvas overlay — see .lm-hero-title, .lm-hero-clock */
@@ -1757,8 +1767,15 @@ html.dark .lm-tl-timeline { background:rgba(15,23,42,0.8); border-top-color:rgba
 .lm-tl-histogram { position:absolute; bottom:3px; left:0; right:0; height:46px; display:flex; align-items:flex-end; gap:1px; padding:0 2px; overflow:visible; }
 .lm-tl-bar { flex:1; min-width:0; opacity:0.75; position:relative; z-index:2; border-radius:2px 2px 0 0; transition:opacity 0.12s; background:rgba(148,163,184,0.15); }
 .lm-tl-bar:hover { opacity:1; }
-.lm-tl-playhead { position:absolute; bottom:0; width:2px; height:54px; background:#2563eb; z-index:3; pointer-events:none; box-shadow:0 0 6px rgba(37,99,235,0.4); }
+.lm-tl-playhead { position:absolute; bottom:0; width:2px; height:54px; background:#2563eb; z-index:5; pointer-events:none; box-shadow:0 0 6px rgba(37,99,235,0.4); }
 html.dark .lm-tl-playhead { background:#38bdf8; box-shadow:0 0 8px rgba(56,189,248,0.5); }
+.lm-tl-scrubber { position:absolute; bottom:0; width:16px; height:16px; border-radius:50%; background:#2563eb; border:2px solid #fff; box-shadow:0 1px 6px rgba(0,0,0,0.3); z-index:6; cursor:grab; transform:translate(-50%, -19px); pointer-events:all; transition:transform 0.1s; }
+.lm-tl-scrubber:hover { transform:translate(-50%, -19px) scale(1.3); }
+.lm-tl-scrubber:active { cursor:grabbing; transform:translate(-50%, -19px) scale(1.1); }
+html.dark .lm-tl-scrubber { background:#38bdf8; border-color:#1e293b; }
+.lm-tl-timeline.scrubbing { cursor:grabbing !important; }
+.lm-tl-tooltip { position:absolute; bottom:58px; background:rgba(15,23,42,0.9); color:#fff; font-family:'JetBrains Mono',monospace; font-size:10px; padding:3px 8px; border-radius:4px; white-space:nowrap; pointer-events:none; z-index:7; transform:translateX(-50%); opacity:0; transition:opacity 0.15s; }
+.lm-tl-tooltip.show { opacity:1; }
 .lm-tl-progress { position:absolute; bottom:0; left:0; height:3px; background:linear-gradient(90deg,#10b981,#38bdf8,#a78bfa); }
 .lm-tl-controls { display:flex; align-items:center; justify-content:space-between; padding:6px 16px; background:rgba(241,245,249,0.9); border-top:1px solid var(--border); }
 html.dark .lm-tl-controls { background:rgba(15,23,42,0.6); border-top-color:transparent; }
@@ -1780,7 +1797,7 @@ html.dark .lm-tl-speed button:hover, html.dark .lm-tl-speed button.active { back
 
 /* Periscope-style floating comments */
 #tlComments { position:absolute; bottom:12px; left:12px; width:320px; pointer-events:none; display:flex; flex-direction:column-reverse; top:0; overflow:hidden; -webkit-mask-image:linear-gradient(to bottom, transparent 0%, black 15%); mask-image:linear-gradient(to bottom, transparent 0%, black 15%); }
-.tl-bubble { display:flex; align-items:center; gap:8px; padding:5px 12px 5px 6px; margin-bottom:4px; background:rgba(255,255,255,0.85); backdrop-filter:blur(6px); border-radius:20px; animation:tlBubbleUp 10s ease-out forwards; transform-origin:bottom left; max-width:fit-content; box-shadow:0 1px 4px rgba(0,0,0,0.1); }
+.tl-bubble { display:flex; align-items:center; gap:8px; padding:5px 12px 5px 6px; margin-bottom:4px; background:rgba(255,255,255,0.85); backdrop-filter:blur(6px); border-radius:20px; animation:tlBubbleUp 10s ease-out forwards; animation-play-state:var(--tl-anim-state, running); transform-origin:bottom left; max-width:fit-content; box-shadow:0 1px 4px rgba(0,0,0,0.1); }
 html.dark .tl-bubble { background:rgba(0,0,0,0.45); box-shadow:none; }
 .tl-bubble-avatar { width:26px; height:26px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; color:#fff; overflow:hidden; }
 .tl-bubble-avatar img { width:100%; height:100%; border-radius:50%; object-fit:cover; }
@@ -1788,12 +1805,12 @@ html.dark .tl-bubble { background:rgba(0,0,0,0.45); box-shadow:none; }
 .tl-bubble-name { font-size:10px; font-weight:700; line-height:1.2; }
 .tl-bubble-msg { font-size:11px; color:rgba(30,41,59,0.8); line-height:1.3; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:230px; }
 html.dark .tl-bubble-msg { color:rgba(255,255,255,0.85); }
-.tl-bubble-emoji { font-size:20px; animation:tlEmojiFloat 3s ease-out forwards; position:absolute; pointer-events:none; display:flex; align-items:center; gap:2px; }
-.tl-bubble.release-bubble { background:linear-gradient(135deg,rgba(16,185,129,0.95),rgba(5,150,105,0.95)); padding:10px 18px 10px 12px; border-radius:16px; box-shadow:0 4px 20px rgba(16,185,129,0.35); animation:tlReleasePop 8s ease-out forwards; border:1px solid rgba(255,255,255,0.2); }
+.tl-bubble-emoji { font-size:20px; animation:tlEmojiFloat 3s ease-out forwards; animation-play-state:var(--tl-anim-state, running); position:absolute; pointer-events:none; display:flex; align-items:center; gap:2px; }
+.tl-bubble.release-bubble { background:linear-gradient(135deg,rgba(16,185,129,0.95),rgba(5,150,105,0.95)); padding:5px 12px 5px 6px; border-radius:20px; box-shadow:0 4px 20px rgba(16,185,129,0.35); animation:tlReleasePop 8s ease-out forwards; animation-play-state:var(--tl-anim-state, running); border:1px solid rgba(255,255,255,0.2); margin-bottom:6px; }
 html.dark .tl-bubble.release-bubble { background:linear-gradient(135deg,rgba(16,185,129,0.9),rgba(5,150,105,0.85)); box-shadow:0 4px 24px rgba(16,185,129,0.4); }
-.tl-bubble.release-bubble .tl-bubble-avatar { width:32px; height:32px; background:rgba(255,255,255,0.2)!important; font-size:18px; }
-.tl-bubble.release-bubble .tl-bubble-name { color:#fff!important; font-size:13px; }
-.tl-bubble.release-bubble .tl-bubble-msg { color:rgba(255,255,255,0.9)!important; font-size:12px; max-width:260px; }
+.tl-bubble.release-bubble .tl-bubble-avatar { width:26px; height:26px; background:rgba(255,255,255,0.2)!important; font-size:14px; }
+.tl-bubble.release-bubble .tl-bubble-name { color:#fff!important; font-size:10px; }
+.tl-bubble.release-bubble .tl-bubble-msg { color:rgba(255,255,255,0.9)!important; font-size:11px; max-width:230px; }
 @keyframes tlReleasePop {
   0% { opacity:0; transform:translateY(30px) scale(0.7); }
   8% { opacity:1; transform:translateY(-5px) scale(1.05); }
@@ -1802,8 +1819,8 @@ html.dark .tl-bubble.release-bubble { background:linear-gradient(135deg,rgba(16,
   100% { opacity:0; transform:translateY(-20px) scale(0.95); }
 }
 @keyframes tlBubbleUp {
-  0% { opacity:0; transform:translateY(20px) scale(0.85); }
-  5% { opacity:1; transform:translateY(0) scale(1); }
+  0% { opacity:0; transform:translateY(10px) scale(0.9); }
+  2% { opacity:1; transform:translateY(0) scale(1); }
   85% { opacity:1; }
   100% { opacity:0; transform:translateY(-20px); }
 }
@@ -1844,6 +1861,19 @@ html.dark .tl-bubble.release-bubble { background:linear-gradient(135deg,rgba(16,
   .lm-ev-detail { font-size:10px; }
   .lm-ev-time { font-size:9px; }
 }
+</style>
+<script>
+// Early fullscreen restore — runs before paint to prevent flicker
+try {
+  if (localStorage.getItem('tl_fullscreen') === '1') {
+    document.documentElement.classList.add('tl-fs-pending');
+  }
+} catch(e){}
+</script>
+<style>
+/* Hide everything except the live tab content while fullscreen is restoring */
+html.tl-fs-pending body { visibility:hidden !important; }
+html.tl-fs-pending .lm-timelapse.tl-fullscreen { visibility:visible !important; }
 </style>
 </head>
 <body>
@@ -8675,19 +8705,30 @@ async function loadLiveMonitor() {
             <button class="lm-tl-mode-btn active" data-mode="replay" onclick="_tlSwitchMode('replay')">⏪ REPLAY</button>
             <button class="lm-tl-mode-btn" data-mode="live" onclick="_tlSwitchMode('live')"><span class="lm-tl-live-dot"></span>LIVE</button>
           </div>
-          <div style="position:absolute;top:14px;right:14px;z-index:3;display:flex;align-items:center;gap:8px;">
-            <span class="lm-tl-version" id="tlVersion"></span>
-            <span class="lm-tl-clock" id="tlClock" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text3);background:rgba(255,255,255,0.7);padding:3px 10px;border-radius:6px;backdrop-filter:blur(4px);"></span>
-            <button class="lm-tl-fullscreen-btn" onclick="_tlToggleFullscreen()" title="Fullscreen">
-              <svg id="tlFsIconExpand" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 00-2 2v3m18 0V5a2 2 0 00-2-2h-3m0 18h3a2 2 0 002-2v-3M3 16v3a2 2 0 002 2h3"/></svg>
-              <svg id="tlFsIconShrink" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><path d="M4 14h6v6m10-10h-6V4m0 6l7-7M3 21l7-7"/></svg>
-            </button>
+          <!-- Unified top bar -->
+          <div class="lm-tl-topbar">
+            <div class="lm-tl-stats-bar">
+              <div class="lm-tl-stat-chip"><span class="tl-stat-icon">●</span><span class="tl-stat-val" id="tlOnline" style="color:#22c55e;">0</span><span class="tl-stat-label">Online</span></div>
+              <div class="lm-tl-stat-chip"><span class="tl-stat-icon">⬡</span><span class="tl-stat-val" id="tlCommits" style="color:#2563eb;">0</span><span class="tl-stat-label">Commits</span></div>
+              <div class="lm-tl-stat-chip"><span class="tl-stat-icon">⚠</span><span class="tl-stat-val" id="tlBugs" style="color:#dc2626;">0</span><span class="tl-stat-label">Bugs</span></div>
+              <div class="lm-tl-stat-chip"><span class="tl-stat-icon">▲</span><span class="tl-stat-val" id="tlReleases" style="color:#059669;">0</span><span class="tl-stat-label">Releases</span></div>
+              <div class="lm-tl-stat-chip"><span class="tl-stat-icon">◆</span><span class="tl-stat-val" id="tlAgents" style="color:#7c3aed;">0</span><span class="tl-stat-label">AI</span></div>
+            </div>
+            <div class="lm-tl-clock-wrap">
+              <span class="lm-tl-version" id="tlVersion"></span>
+              <span class="lm-tl-clock-display" id="tlClock"></span>
+            </div>
+            <div class="lm-tl-topbar-actions">
+              <button class="lm-andon-btn" id="lmAndonBtn" onclick="_tlAndonToggle()" title="Stop the line (Andon)">
+                <span class="lm-andon-icon" id="lmAndonIcon">⏸</span>
+                <span class="lm-andon-label" id="lmAndonLabel">STOP</span>
+              </button>
+              <button class="lm-tl-fullscreen-btn" onclick="_tlToggleFullscreen()" title="Fullscreen">
+                <svg id="tlFsIconExpand" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 00-2 2v3m18 0V5a2 2 0 00-2-2h-3m0 18h3a2 2 0 002-2v-3M3 16v3a2 2 0 002 2h3"/></svg>
+                <svg id="tlFsIconShrink" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><path d="M4 14h6v6m10-10h-6V4m0 6l7-7M3 21l7-7"/></svg>
+              </button>
+            </div>
           </div>
-          <!-- Andon: stop/resume button (Toyota-style) -->
-          <button class="lm-andon-btn" id="lmAndonBtn" onclick="_tlAndonToggle()" title="Stop the line (Andon)">
-            <span class="lm-andon-icon" id="lmAndonIcon">⏸</span>
-            <span class="lm-andon-label" id="lmAndonLabel">STOP</span>
-          </button>
           <!-- Andon overlay when stopped -->
           <div class="lm-andon-overlay" id="lmAndonOverlay">
             <div class="lm-andon-banner">
@@ -8697,28 +8738,31 @@ async function loadLiveMonitor() {
               <button class="lm-andon-resume" onclick="_tlAndonToggle()">▶ RESUME</button>
             </div>
           </div>
-          <div class="lm-tl-stats-overlay">
-            <div class="tl-ov-stat"><div class="tl-ov-val" id="tlOnline" style="color:#22c55e;">0</div><div class="tl-ov-label">Online</div></div>
-            <div class="tl-ov-stat"><div class="tl-ov-val" id="tlCommits" style="color:#2563eb;">0</div><div class="tl-ov-label">Commits</div></div>
-            <div class="tl-ov-stat"><div class="tl-ov-val" id="tlBugs" style="color:#dc2626;">0</div><div class="tl-ov-label">Bugs</div></div>
-            <div class="tl-ov-stat"><div class="tl-ov-val" id="tlReleases" style="color:#059669;">0</div><div class="tl-ov-label">Releases</div></div>
-            <div class="tl-ov-stat"><div class="tl-ov-val" id="tlAgents" style="color:#7c3aed;">0</div><div class="tl-ov-label">AI Actions</div></div>
-          </div>
           <div id="tlComments"></div>
         </div>
-        <div class="lm-tl-timeline" id="tlTimeline" onclick="_tlTimelineClick(event)">
-          <div class="lm-tl-histogram" id="tlHistogram"></div>
-          <div class="lm-tl-playhead" id="tlPlayhead"></div>
-          <div class="lm-tl-progress" id="tlProgress"></div>
+        <div class="lm-tl-timeline" id="tlTimeline">
+          <div class="lm-tl-viewport" id="tlViewport" style="position:absolute;top:0;left:0;width:100%;height:100%;transform-origin:0 0;">
+            <div class="lm-tl-histogram" id="tlHistogram"></div>
+            <div class="lm-tl-playhead" id="tlPlayhead"></div>
+            <div class="lm-tl-progress" id="tlProgress"></div>
+          </div>
+          <div class="lm-tl-scrubber" id="tlScrubber"></div>
+          <div class="lm-tl-tooltip" id="tlTooltip"></div>
         </div>
         <div class="lm-tl-controls">
           <div class="lm-tl-speed" id="tlSpeedBtns">
+            <button onclick="_tlSetSpeed(0.1)" title="Slow motion">🐌</button>
+            <button onclick="_tlSetSpeed(0)" title="Pause" id="tlPauseBtn">⏸</button>
             <button onclick="_tlSetSpeed(0.5)">0.5×</button>
             <button onclick="_tlSetSpeed(1)" class="active">1×</button>
             <button onclick="_tlSetSpeed(2)">2×</button>
             <button onclick="_tlSetSpeed(5)">5×</button>
           </div>
-          <div style="font-size:9px;color:var(--text3);">Click timeline to jump</div>
+          <div style="display:flex;align-items:center;gap:4px;">
+            <button onclick="_tlZoomIn()" style="width:24px;height:24px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text);font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;" title="Zoom in">+</button>
+            <button onclick="_tlZoomOut()" style="width:24px;height:24px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text);font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;" title="Zoom out">−</button>
+            <button onclick="_tlZoomReset()" style="height:24px;border:1px solid var(--border);border-radius:4px;background:var(--bg2);color:var(--text3);font-size:9px;cursor:pointer;padding:0 6px;" title="Reset zoom">Fit</button>
+          </div>
         </div>
       </div>
 
@@ -9243,8 +9287,10 @@ async function _tlInit() {
       this.scale=1; this.targetScale=1;
       this.lastActiveTime=0; // timeline timestamp of last activity
       this.entryPulse=0; // special "came online" pulse
+      this.highlightRing=0; // colored outline ring intensity
+      this.highlightColor=null;
     }
-    activate(i=1) { this.glow=Math.min(1,this.glow+i); this.pulse=1; }
+    activate(i=1, hColor) { this.glow=Math.min(1,this.glow+i); this.pulse=1; if(hColor){this.highlightRing=1;this.highlightColor=hColor;} }
     setOnline(animate) {
       const wasOffline = this.targetOpacity < 0.5;
       this.targetOpacity=1; this.targetScale=1;
@@ -9257,11 +9303,13 @@ async function _tlInit() {
       return wasOnline; // true = state changed
     }
     update() {
-      this.glow*=0.97; this.pulse*=0.94; this.entryPulse*=0.96;
-      this.x+=(this.tx-this.x)*0.03; this.y+=(this.ty-this.y)*0.03;
-      // Smooth opacity & scale transitions
-      this.opacity+=(this.targetOpacity-this.opacity)*0.045;
-      this.scale+=(this.targetScale-this.scale)*0.045;
+      const a = _tlAnimScale;
+      if (a > 0) {
+        this.glow *= 1 - (0.03 * a); this.pulse *= 1 - (0.06 * a); this.entryPulse *= 1 - (0.04 * a); this.highlightRing *= 1 - (0.035 * a);
+        this.x += (this.tx - this.x) * 0.03 * a; this.y += (this.ty - this.y) * 0.03 * a;
+        this.opacity += (this.targetOpacity - this.opacity) * 0.045 * a;
+        this.scale += (this.targetScale - this.scale) * 0.045 * a;
+      }
     }
     draw(c) {
       if (this.opacity < 0.02) return; // fully hidden, skip draw
@@ -9287,6 +9335,12 @@ async function _tlInit() {
       c.fillStyle=bg;c.beginPath();c.arc(this.x,this.y,drawR,0,Math.PI*2);c.fill();
       // Shadow for light mode
       if(!dark&&op>0.3){c.strokeStyle='rgba(0,0,0,'+(0.08*op)+')';c.lineWidth=1;c.beginPath();c.arc(this.x,this.y,drawR,0,Math.PI*2);c.stroke();}
+      // Highlight ring — colored outline matching the bubble
+      if(this.highlightRing>0.05&&this.highlightColor){
+        c.strokeStyle=this.highlightColor;c.globalAlpha=this.highlightRing*op;
+        c.lineWidth=2.5;c.beginPath();c.arc(this.x,this.y,drawR+3,0,Math.PI*2);c.stroke();
+        c.globalAlpha=1;
+      }
       // Online indicator dot (green dot when fully online)
       if(this.type==='user'&&op>0.7){
         const dotR=Math.max(2.5,drawR*0.28);
@@ -9325,7 +9379,7 @@ async function _tlInit() {
   const particles = [];
   class TLParticle {
     constructor(f,t,col,sz=2.5){this.sx=f.x;this.sy=f.y;this.tx=t.x;this.ty=t.y;this.x=f.x;this.y=f.y;this.color=col;this.size=sz;this.p=0;this.spd=0.018+Math.random()*0.012;this.trail=[];}
-    update(){this.p+=this.spd;const t=this.p,mt=1-t;const cpx=(this.sx+this.tx)/2+(this.ty-this.sy)*0.2;const cpy=(this.sy+this.ty)/2-(this.tx-this.sx)*0.2;this.x=mt*mt*this.sx+2*mt*t*cpx+t*t*this.tx;this.y=mt*mt*this.sy+2*mt*t*cpy+t*t*this.ty;this.trail.push({x:this.x,y:this.y});if(this.trail.length>10)this.trail.shift();return this.p>=1;}
+    update(){if(_tlAnimScale<=0)return false;this.p+=this.spd*_tlAnimScale;const t=this.p,mt=1-t;const cpx=(this.sx+this.tx)/2+(this.ty-this.sy)*0.2;const cpy=(this.sy+this.ty)/2-(this.tx-this.sx)*0.2;this.x=mt*mt*this.sx+2*mt*t*cpx+t*t*this.tx;this.y=mt*mt*this.sy+2*mt*t*cpy+t*t*this.ty;this.trail.push({x:this.x,y:this.y});if(this.trail.length>10)this.trail.shift();return this.p>=1;}
     draw(c){for(let i=0;i<this.trail.length;i++){const a=(i/this.trail.length)*0.35;c.fillStyle=this.color+Math.floor(a*255).toString(16).padStart(2,'0');c.beginPath();c.arc(this.trail[i].x,this.trail[i].y,this.size*(i/this.trail.length),0,Math.PI*2);c.fill();}c.fillStyle=this.color;c.beginPath();c.arc(this.x,this.y,this.size,0,Math.PI*2);c.fill();}
   }
   function emit(f,t,col,sz){particles.push(new TLParticle(f,t,col,sz||2.5));}
@@ -9354,10 +9408,33 @@ async function _tlInit() {
 
   // Release node — positioned after Done column
   const doneNode = kanbanNodes.find(n => n.colId === 'done');
-  const releaseNode = new TLNode('🚀', 'Release', '#10b981',
+  // Sort releases by time for version tracking
+  const _tlSortedReleases = TL_RELEASES_ALWAYS.slice().sort((a,b) => new Date(a.t) - new Date(b.t));
+  let _tlNextReleaseIdx = 0; // tracks which release is next
+
+  const releaseNode = new TLNode('🚀',
+    _tlSortedReleases.length ? _tlSortedReleases[0].v : 'Release', '#10b981',
     doneNode ? doneNode.x + 80 : cx + 200, doneNode ? doneNode.y : cy + 200, 5, 'kanban');
   releaseNode.colId = 'release';
   releaseNode.colIdx = KANBAN_COLS.length;
+
+  // Pre-compute release timestamps as epoch ms for reliable comparison
+  const _tlReleaseEpochs = _tlSortedReleases.map(r => new Date(r.t).getTime());
+
+  function _tlUpdateReleaseLabel() {
+    // Compute which release is next based on current time
+    let idx = 0;
+    for (let i = 0; i < _tlReleaseEpochs.length; i++) {
+      if (currentTime >= _tlReleaseEpochs[i]) idx = i + 1;
+    }
+    _tlNextReleaseIdx = idx;
+    if (idx < _tlSortedReleases.length) {
+      releaseNode.label = _tlSortedReleases[idx].v;
+    } else if (_tlSortedReleases.length) {
+      releaseNode.label = _tlSortedReleases[_tlSortedReleases.length - 1].v + ' ✓';
+    }
+  }
+
 
   // Ticket particles that travel between kanban columns
   class KanbanTicket {
@@ -9377,7 +9454,8 @@ async function _tlInit() {
     }
     update() {
       if (this.done) return true;
-      this.p += this.spd;
+      if (_tlAnimScale <= 0) return false;
+      this.p += this.spd * _tlAnimScale;
       if (this.p >= 1) { this.p = 1; this.done = true; this.labelAlpha = 1; }
       const t = this.p, mt = 1 - t;
       // Arc upward between columns
@@ -9506,15 +9584,16 @@ async function _tlInit() {
     </svg>`;
     histEl.appendChild(onlineSvg);
 
-    // Release version markers on the timeline — appended to the timeline container
-    const tlContainer = document.getElementById('tlTimeline');
-    if(tlContainer){
+    // Release version markers on the timeline — appended to the viewport (scales with zoom)
+    const tlViewportEl = document.getElementById('tlViewport');
+    if(tlViewportEl){
       tlEvents.filter(ev=>ev.type==='release').forEach(ev=>{
         const pct = ((ev.t - T_START) / T_SPAN) * 100;
         const marker = document.createElement('div');
-        marker.style.cssText = `position:absolute;top:0;left:${pct}%;height:100%;z-index:4;transform:translateX(-50%);pointer-events:none;display:flex;flex-direction:column;align-items:center;`;
-        marker.innerHTML = `<div style="font-size:8px;font-weight:700;font-family:'JetBrains Mono',monospace;color:#10b981;white-space:nowrap;background:rgba(16,185,129,0.12);padding:2px 5px;border-radius:3px;border:1px solid rgba(16,185,129,0.35);">${ev.data.v}</div><div style="width:1.5px;flex:1;background:rgba(16,185,129,0.4);"></div>`;
-        tlContainer.appendChild(marker);
+        marker.className = 'tl-release-marker';
+        marker.style.cssText = `position:absolute;top:0;left:${pct}%;height:100%;z-index:4;pointer-events:none;display:flex;flex-direction:column;align-items:center;`;
+        marker.innerHTML = `<div class="tl-release-marker-label" style="font-size:8px;font-weight:700;font-family:'JetBrains Mono',monospace;color:#10b981;white-space:nowrap;background:rgba(16,185,129,0.12);padding:2px 5px;border-radius:3px;border:1px solid rgba(16,185,129,0.35);transform-origin:center top;">${ev.data.v}</div><div style="width:1.5px;flex:1;background:rgba(16,185,129,0.4);"></div>`;
+        tlViewportEl.appendChild(marker);
       });
     }
 
@@ -9529,6 +9608,32 @@ async function _tlInit() {
   let currentTime=T_START, eventIndex=0, speed=1;
   let counters={commits:0,bugs:0,releases:0,agents:0};
   const TIME_SCALE=120000; // 1s real = 2min simulated
+  // Animation scale: 0 when paused, proportional for slow-mo, 1 for normal+
+  let _tlAnimScale = 1;
+
+  // Timeline zoom state
+  let _tlZoom = 1;        // 1 = fit all, higher = zoomed in
+  let _tlViewOffset = 0;  // left edge as fraction 0..1 of total span
+  const _TL_MAX_ZOOM = 20;
+
+  function _tlApplyViewport() {
+    const vp = document.getElementById('tlViewport');
+    if (!vp) return;
+    vp.style.transform = `scaleX(${_tlZoom}) translateX(${-_tlViewOffset * 100}%)`;
+    // Counter-scale elements so they don't stretch horizontally
+    const counterScale = 1 / _tlZoom;
+    vp.querySelectorAll('.tl-release-marker-label').forEach(el => {
+      el.style.transform = `scaleX(${counterScale})`;
+    });
+    // Playhead width
+    const ph = document.getElementById('tlPlayhead');
+    if (ph) ph.style.width = Math.max(1, 2 * counterScale) + 'px';
+  }
+
+  function _tlClampView() {
+    const viewW = 1 / _tlZoom;
+    _tlViewOffset = Math.max(0, Math.min(1 - viewW, _tlViewOffset));
+  }
   let lastFrame=0;
   let _tlMode = 'replay'; // 'replay' or 'live'
   let _tlLiveLastPoll = 0;
@@ -9587,21 +9692,41 @@ async function _tlInit() {
   window._tlSwitchMode = function(mode) {
     _tlMode = mode;
     document.querySelectorAll('.lm-tl-mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+    // Hide live return button when switching modes explicitly
+    if (typeof _tlShowLiveReturn === 'function') _tlShowLiveReturn(false);
     const controlsEl = document.querySelector('.lm-tl-controls');
     const timelineEl = document.getElementById('tlTimeline');
     const andonBtn = document.getElementById('lmAndonBtn');
     if (mode === 'live') {
-      // Hide replay controls, show live clock
-      if (controlsEl) controlsEl.style.display = 'none';
-      if (timelineEl) timelineEl.style.display = 'none';
+      // Keep timeline & controls visible so user can scrub back
+      if (controlsEl) controlsEl.style.display = '';
+      if (timelineEl) timelineEl.style.display = '';
       const clockEl = document.getElementById('tlClock');
       if (clockEl) clockEl.textContent = new Date().toLocaleTimeString();
+      // Move playhead to end (live = now)
+      currentTime = T_END;
+      eventIndex = tlEvents.length;
+      // Update progress bar and playhead to 100%
+      const progEl = document.getElementById('tlProgress');
+      const phEl = document.getElementById('tlPlayhead');
+      if (progEl) progEl.style.width = '100%';
+      if (phEl) phEl.style.left = '100%';
       // Clear replay bubbles
       const comments = document.getElementById('tlComments');
       if (comments) comments.innerHTML = '';
       // Reset live counters
       _tlLiveLastTime = null;
       _tlLiveLastPoll = 0;
+      // Set counters to full timeline totals
+      counters = {commits:0,bugs:0,releases:0,agents:0};
+      tlEvents.forEach(ev => {
+        if(ev.type==='commit') counters.commits++;
+        else if(ev.type==='bug') counters.bugs++;
+        else if(ev.type==='release') counters.releases++;
+        else if(ev.type==='ai_action') counters.agents++;
+      });
+      _tlUpdateCounters();
+      _tlUpdateReleaseLabel();
       // In LIVE mode, start all users as visible — poll will update who's really online
       userNodes.forEach(n=>{n.targetOpacity=1;n.targetScale=1;});
       // Show andon button
@@ -9612,6 +9737,7 @@ async function _tlInit() {
       // Reset replay — all users start offline
       currentTime = T_START; eventIndex = 0;
       counters = {commits:0,bugs:0,releases:0,agents:0};
+      _tlNextReleaseIdx = 0; _tlUpdateReleaseLabel();
       userNodes.forEach(n=>{n.opacity=0.3;n.targetOpacity=0.3;n.scale=0.7;n.targetScale=0.7;n.lastActiveTime=0;});
       _tlUpdateCounters();
       const comments = document.getElementById('tlComments');
@@ -9624,46 +9750,209 @@ async function _tlInit() {
     }
   };
 
-  // Mouse wheel on timeline → scrub time forward/backward
+  // Timeline zoom: +/- buttons only (no gesture conflicts)
   const _tlTimelineEl = document.getElementById('tlTimeline');
-  if(_tlTimelineEl){
-    _tlTimelineEl.addEventListener('wheel', function(e){
-      e.preventDefault();
-      const delta = (e.deltaY || e.deltaX);
-      const step = T_SPAN * 0.02 * Math.sign(delta); // 2% of total span per scroll tick
-      currentTime = Math.max(T_START, Math.min(T_END, currentTime + step));
-    }, {passive:false});
-  }
 
-  window._tlSetSpeed = function(s){
-    speed=s;
-    document.querySelectorAll('#tlSpeedBtns button').forEach(b=>b.classList.toggle('active',parseFloat(b.textContent)===s));
+  window._tlZoomIn = function() {
+    const oldZoom = _tlZoom;
+    _tlZoom = Math.min(_TL_MAX_ZOOM, _tlZoom * 1.5);
+    // Zoom centered on playhead
+    const playheadFrac = (currentTime - T_START) / T_SPAN;
+    _tlViewOffset = playheadFrac - (playheadFrac - _tlViewOffset) * (oldZoom / _tlZoom);
+    _tlClampView();
+    _tlApplyViewport();
   };
 
-  window._tlTimelineClick = function(e){
-    const rect = e.currentTarget.getBoundingClientRect();
-    const pct=Math.max(0,Math.min(1,(e.clientX-rect.left)/rect.width));
-    currentTime=T_START+pct*T_SPAN;
-    eventIndex=0;counters={commits:0,bugs:0,releases:0,agents:0};
-    // Reset all user nodes to offline, then replay which ones were active
-    userNodes.forEach(n=>{n.targetOpacity=0.3;n.opacity=0.3;n.scale=0.7;n.targetScale=0.7;n.lastActiveTime=0;});
-    while(eventIndex<tlEvents.length&&tlEvents[eventIndex].t<=currentTime){
-      const ev=tlEvents[eventIndex];
-      if(ev.type==='commit')counters.commits++;else if(ev.type==='bug')counters.bugs++;else if(ev.type==='release')counters.releases++;else if(ev.type==='ai_action')counters.agents++;
-      // Track which users were active (without animation on seek)
-      const d=ev.data;
-      if(ev.type==='bug'&&d.reporter){const rp=findUser(d.reporter);if(rp){rp.lastActiveTime=ev.t;rp.targetOpacity=1;rp.opacity=1;rp.scale=1;rp.targetScale=1;}}
-      if(ev.type==='user_action'&&d.user){const un=findUser(d.user);if(un){un.lastActiveTime=ev.t;un.targetOpacity=1;un.opacity=1;un.scale=1;un.targetScale=1;}}
+  window._tlZoomOut = function() {
+    const oldZoom = _tlZoom;
+    _tlZoom = Math.max(1, _tlZoom / 1.5);
+    const playheadFrac = (currentTime - T_START) / T_SPAN;
+    _tlViewOffset = playheadFrac - (playheadFrac - _tlViewOffset) * (oldZoom / _tlZoom);
+    _tlClampView();
+    _tlApplyViewport();
+  };
+
+  window._tlZoomReset = function() {
+    _tlZoom = 1;
+    _tlViewOffset = 0;
+    _tlApplyViewport();
+  };
+
+  let _tlPrevSpeed = 1; // remember speed before pause
+  window._tlSetSpeed = function(s){
+    const pauseBtn = document.getElementById('tlPauseBtn');
+    if (s === 0) {
+      // Toggle pause
+      if (speed === 0) {
+        speed = _tlPrevSpeed || 1;
+        if (pauseBtn) pauseBtn.textContent = '⏸';
+      } else {
+        _tlPrevSpeed = speed;
+        speed = 0;
+        if (pauseBtn) pauseBtn.textContent = '▶';
+      }
+    } else {
+      speed = s;
+      if (pauseBtn) pauseBtn.textContent = '⏸';
+    }
+    // Update animation scale: 0 when paused, proportional for slow-mo, 1 for normal+
+    _tlAnimScale = speed === 0 ? 0 : Math.min(1, speed);
+    // Pause/slow CSS animations on bubbles
+    const commentsEl = document.getElementById('tlComments');
+    if (commentsEl) {
+      if (speed === 0) {
+        commentsEl.style.setProperty('--tl-anim-state', 'paused');
+      } else {
+        commentsEl.style.setProperty('--tl-anim-state', 'running');
+      }
+    }
+    document.querySelectorAll('#tlSpeedBtns button').forEach(b => {
+      const val = b.textContent.trim();
+      if (val === '🐌') b.classList.toggle('active', speed === 0.1);
+      else if (val === '⏸' || val === '▶') b.classList.toggle('active', speed === 0);
+      else b.classList.toggle('active', parseFloat(val) === speed);
+    });
+  };
+
+  // VOD seek: rebuild state at any point in time
+  function _tlSeekTo(pct) {
+    pct = Math.max(0, Math.min(1, pct));
+    currentTime = T_START + pct * T_SPAN;
+    eventIndex = 0; counters = {commits:0,bugs:0,releases:0,agents:0}; _tlNextReleaseIdx = 0;
+    userNodes.forEach(n => { n.targetOpacity=0.3; n.opacity=0.3; n.scale=0.7; n.targetScale=0.7; n.lastActiveTime=0; });
+    let _lastSeekRelease = null;
+    while (eventIndex < tlEvents.length && tlEvents[eventIndex].t <= currentTime) {
+      const ev = tlEvents[eventIndex]; const d = ev.data;
+      if (ev.type==='commit') counters.commits++;
+      else if (ev.type==='bug') counters.bugs++;
+      else if (ev.type==='release') { counters.releases++; _lastSeekRelease = ev; }
+      else if (ev.type==='ai_action') counters.agents++;
+      if (ev.type==='bug' && d.reporter) { const rp=findUser(d.reporter); if(rp){rp.lastActiveTime=ev.t;rp.targetOpacity=1;rp.opacity=1;rp.scale=1;rp.targetScale=1;} }
+      if (ev.type==='user_action' && d.user) { const un=findUser(d.user); if(un){un.lastActiveTime=ev.t;un.targetOpacity=1;un.opacity=1;un.scale=1;un.targetScale=1;} }
+      if (ev.type==='release' && d.v) { _tlNextReleaseIdx = _tlSortedReleases.findIndex(r=>r.v===d.v)+1; }
       eventIndex++;
     }
-    // Fade out users who haven't been active recently at seek position
-    userNodes.forEach(n=>{
-      if(n.lastActiveTime>0 && (currentTime-n.lastActiveTime)>OFFLINE_TIMEOUT){
-        n.targetOpacity=0.3;n.opacity=0.3;n.scale=0.7;n.targetScale=0.7;
+    // Fire release visuals for the last release crossed during seek
+    if (_lastSeekRelease) {
+      processEvent(_lastSeekRelease);
+    }
+    _tlUpdateReleaseLabel();
+    userNodes.forEach(n => {
+      if (n.lastActiveTime > 0 && (currentTime - n.lastActiveTime) > OFFLINE_TIMEOUT) {
+        n.targetOpacity=0.3; n.opacity=0.3; n.scale=0.7; n.targetScale=0.7;
       }
     });
     _tlUpdateCounters();
-  };
+  }
+
+  // VOD scrubber: drag to seek, click to jump
+  let _tlScrubbing = false;
+  let _tlScrubPrevSpeed = 1;
+  const _tlScrubberEl = document.getElementById('tlScrubber');
+  const _tlTooltipEl = document.getElementById('tlTooltip');
+
+  function _tlMouseToFrac(e) {
+    const rect = _tlTimelineEl.getBoundingClientRect();
+    const mouseX = (e.clientX - rect.left) / rect.width;
+    return Math.max(0, Math.min(1, _tlViewOffset + mouseX / _tlZoom));
+  }
+
+  function _tlUpdateTooltip(e, frac) {
+    if (!_tlTooltipEl) return;
+    const rect = _tlTimelineEl.getBoundingClientRect();
+    _tlTooltipEl.style.left = (e.clientX - rect.left) + 'px';
+    _tlTooltipEl.textContent = formatTlDate(T_START + frac * T_SPAN);
+    _tlTooltipEl.classList.add('show');
+  }
+
+  // Switch from live to replay when user interacts with timeline
+  function _tlLiveToReplay() {
+    if (_tlMode === 'live') {
+      _tlMode = 'replay';
+      document.querySelectorAll('.lm-tl-mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === 'replay'));
+      // Hide live-only UI
+      const andonBtn = document.getElementById('lmAndonBtn');
+      if (andonBtn) andonBtn.style.display = 'none';
+      _tlAndonStopped = false;
+      const overlay = document.getElementById('lmAndonOverlay');
+      if (overlay) overlay.classList.remove('active');
+      // Show a "LIVE" return button
+      _tlShowLiveReturn(true);
+    }
+  }
+  // Floating "⏺ LIVE" button to jump back
+  let _tlLiveReturnEl = null;
+  function _tlShowLiveReturn(show) {
+    if (show && !_tlLiveReturnEl) {
+      _tlLiveReturnEl = document.createElement('button');
+      _tlLiveReturnEl.id = 'tlLiveReturn';
+      _tlLiveReturnEl.innerHTML = '⏺ LIVE';
+      _tlLiveReturnEl.style.cssText = 'position:absolute;top:8px;right:60px;z-index:30;background:rgba(239,68,68,0.9);color:#fff;border:none;border-radius:6px;padding:4px 12px;font-size:11px;font-weight:700;font-family:"JetBrains Mono",monospace;cursor:pointer;letter-spacing:1px;box-shadow:0 2px 8px rgba(239,68,68,0.4);animation:pulse 2s ease-in-out infinite;';
+      _tlLiveReturnEl.onclick = function() {
+        window._tlSwitchMode('live');
+        _tlShowLiveReturn(false);
+      };
+      const wrap = document.querySelector('.lm-tl-canvas-wrap');
+      if (wrap) wrap.appendChild(_tlLiveReturnEl);
+    } else if (!show && _tlLiveReturnEl) {
+      _tlLiveReturnEl.remove();
+      _tlLiveReturnEl = null;
+    }
+  }
+
+  if (_tlTimelineEl) {
+    // Click to seek
+    _tlTimelineEl.addEventListener('click', function(e) {
+      if (e.detail >= 2 || _tlScrubbing) return;
+      if (e.target === _tlScrubberEl) return;
+      _tlLiveToReplay();
+      _tlSeekTo(_tlMouseToFrac(e));
+    });
+
+    // Drag scrubber or anywhere on timeline
+    _tlTimelineEl.addEventListener('mousedown', function(e) {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      _tlLiveToReplay();
+      _tlScrubbing = true;
+      _tlScrubPrevSpeed = speed;
+      speed = 0; _tlAnimScale = 0; // pause while scrubbing
+      _tlTimelineEl.classList.add('scrubbing');
+      const frac = _tlMouseToFrac(e);
+      _tlSeekTo(frac);
+      _tlUpdateTooltip(e, frac);
+
+      function onMove(e2) {
+        const f = _tlMouseToFrac(e2);
+        _tlSeekTo(f);
+        _tlUpdateTooltip(e2, f);
+      }
+      function onUp() {
+        _tlScrubbing = false;
+        speed = _tlScrubPrevSpeed;
+        _tlAnimScale = speed === 0 ? 0 : Math.min(1, speed);
+        _tlTimelineEl.classList.remove('scrubbing');
+        if (_tlTooltipEl) _tlTooltipEl.classList.remove('show');
+        // Update pause button state
+        const pauseBtn = document.getElementById('tlPauseBtn');
+        if (pauseBtn) pauseBtn.textContent = speed === 0 ? '▶' : '⏸';
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+      }
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+
+    // Hover tooltip
+    _tlTimelineEl.addEventListener('mousemove', function(e) {
+      if (_tlScrubbing) return;
+      const frac = _tlMouseToFrac(e);
+      _tlUpdateTooltip(e, frac);
+    });
+    _tlTimelineEl.addEventListener('mouseleave', function() {
+      if (!_tlScrubbing && _tlTooltipEl) _tlTooltipEl.classList.remove('show');
+    });
+  }
 
   function _tlUpdateCounters(){
     const el=id=>document.getElementById(id);
@@ -9681,7 +9970,9 @@ async function _tlInit() {
   function formatTlDate(ts){
     const d=new Date(ts);
     const pad=n=>n.toString().padStart(2,'0');
-    return `${pad(d.getDate())} Apr ${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    const months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const days=['SUN','MON','TUE','WED','THU','FRI','SAT'];
+    return `${days[d.getDay()]}  ${pad(d.getDate())} ${months[d.getMonth()]}  ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
   }
 
   // Periscope / Meerkat style floating comments
@@ -9711,11 +10002,25 @@ async function _tlInit() {
   let _tlSlackIdx = 0;
   let _tlLastBubbleTime = 0;
 
+  // Track bubbles for pause-aware removal
+  const _tlBubbleTimers = [];
+  function _tlTickBubbles(dt) {
+    for (let i = _tlBubbleTimers.length - 1; i >= 0; i--) {
+      if (speed === 0) continue; // paused — don't count down
+      _tlBubbleTimers[i].remaining -= dt * 1000;
+      if (_tlBubbleTimers[i].remaining <= 0) {
+        _tlBubbleTimers[i].el.remove();
+        _tlBubbleTimers.splice(i, 1);
+      }
+    }
+  }
+
   function _tlAddBubble(name, msg, color, isAi) {
     const container = document.getElementById('tlComments');
     if (!container) return;
     const bubble = document.createElement('div');
     bubble.className = 'tl-bubble';
+    bubble.style.borderLeft = `3px solid ${color}`;
     // Find full name for avatar lookup
     const teamMember = TL_TEAM.find(u => u.name === name);
     const fullName = teamMember ? teamMember.fullName : name;
@@ -9727,8 +10032,8 @@ async function _tlInit() {
         <div class="tl-bubble-msg">${esc(msg)}</div>
       </div>`;
     container.prepend(bubble);
-    // Remove after animation
-    setTimeout(() => bubble.remove(), 10000);
+    // Track for pause-aware removal
+    _tlBubbleTimers.push({ el: bubble, remaining: 10000 });
     // Keep container manageable — remove oldest (last child in column-reverse)
     while (container.children.length > 20) container.lastChild.remove();
   }
@@ -9745,7 +10050,7 @@ async function _tlInit() {
         <div class="tl-bubble-msg" style="color:rgba(255,255,255,0.9);">Deployed to production · ${fixes} fixes included</div>
       </div>`;
     container.prepend(bubble);
-    setTimeout(() => bubble.remove(), 8000);
+    _tlBubbleTimers.push({ el: bubble, remaining: 8000 });
     while (container.children.length > 20) container.lastChild.remove();
   }
 
@@ -9779,6 +10084,9 @@ async function _tlInit() {
     _tlLastBubbleTime = now;
     const sm = _tlSlackMsgs[_tlSlackIdx % _tlSlackMsgs.length];
     _tlSlackIdx++;
+    // Graph animation synced with bubble
+    const sn = findUser(sm.user);
+    if (sn) { sn.activate(0.5, sm.color); emit(sn, centerNode, sm.color, 2); }
     _tlAddBubble(sm.user, sm.msg, sm.color, false);
     // Sometimes add emoji reactions
     if (Math.random() > 0.5) {
@@ -9828,7 +10136,7 @@ async function _tlInit() {
       case 'commit':{
         counters.commits++;
         const ai=findAi('Claude');
-        if(ai){const came=ai.setOnline(true);ai.lastActiveTime=ev.t;ai.activate(0.8);emit(ai,centerNode,'#c084fc',3);if(came)_tlAddBubble('Claude','is online 🟢','#22c55e',true);}
+        if(ai){const came=ai.setOnline(true);ai.lastActiveTime=ev.t;ai.activate(0.8,'#c084fc');emit(ai,centerNode,'#c084fc',3);if(came)_tlAddBubble('Claude','is online 🟢','#22c55e',true);}
         centerNode.activate(0.5);
         _tlAddBubble('Claude', 'committed: '+d.msg, '#c084fc', true);
         if(Math.random()>0.6) setTimeout(()=>_tlAddEmoji('Claude'), 400);
@@ -9841,7 +10149,9 @@ async function _tlInit() {
         // Light up everything — update release node label with version
         centerNode.activate(1);allNodes.forEach(n=>{n.activate(0.3);});
         releaseNode.activate(1);
-        releaseNode.label = d.v;
+        // Advance to next release version immediately
+        _tlNextReleaseIdx = _tlSortedReleases.findIndex(r => r.v === d.v) + 1;
+        _tlUpdateReleaseLabel();
         // Animate tickets from Done → Release node
         const doneN = kanbanNodes.find(n=>n.colId==='done');
         if(doneN){
@@ -9865,8 +10175,8 @@ async function _tlInit() {
       case 'bug':{
         counters.bugs++;
         const rp=findUser(d.reporter);const fx=findAi(d.fixer)||findAi('Claude');
-        if(rp){const came=rp.setOnline(true);rp.lastActiveTime=ev.t;rp.activate(0.7);emit(rp,centerNode,'#f87171',2.5);if(came)_tlAddBubble(d.reporter,'is online 🟢',rp.color,false);}
-        if(fx){const came=fx.setOnline(true);fx.lastActiveTime=ev.t;fx.activate(0.5);emit(centerNode,fx,'#4ade80',2.5);if(came)_tlAddBubble(d.fixer||'Claude','is online 🟢','#22c55e',true);}
+        if(rp){const came=rp.setOnline(true);rp.lastActiveTime=ev.t;rp.activate(0.7,rp.color);emit(rp,centerNode,'#f87171',2.5);if(came)_tlAddBubble(d.reporter,'is online 🟢',rp.color,false);}
+        if(fx){const came=fx.setOnline(true);fx.lastActiveTime=ev.t;fx.activate(0.5,'#4ade80');emit(centerNode,fx,'#4ade80',2.5);if(came)_tlAddBubble(d.fixer||'Claude','is online 🟢','#22c55e',true);}
         _tlAddBubble(d.reporter, 'reported '+d.key+' → fixed by '+d.fixer, '#f87171', false);
         // Animate ticket from reporter to Open kanban column
         _tlEmitKanbanTicket(d.key || 'BUG', null, 'open', rp ? rp.color : '#f87171', rp || null);
@@ -9874,7 +10184,7 @@ async function _tlInit() {
       }
       case 'user_action':{
         const un=findUser(d.user);
-        if(un){const came=un.setOnline(true);un.lastActiveTime=ev.t;un.activate(0.4);emit(un,centerNode,un.color||'#38bdf8',2);if(came)_tlAddBubble(d.user,'is online 🟢',un.color,false);}
+        if(un){const came=un.setOnline(true);un.lastActiveTime=ev.t;un.activate(0.4,un.color);emit(un,centerNode,un.color||'#38bdf8',2);if(came)_tlAddBubble(d.user,'is online 🟢',un.color,false);}
         _tlAddBubble(d.user, d.action, un?un.color:'#38bdf8', false);
         // Check for kanban movement — from API data or parsed from text
         if (d.kanban_from || d.kanban_to) {
@@ -9888,7 +10198,7 @@ async function _tlInit() {
       case 'ai_action':{
         counters.agents++;
         const an=findAi(d.agent);
-        if(an){const came=an.setOnline(true);an.lastActiveTime=ev.t;an.activate(0.6);emit(an,centerNode,an.color||'#a78bfa',2.5);if(came)_tlAddBubble(d.agent,'is online 🟢',an.color,true);}
+        if(an){const came=an.setOnline(true);an.lastActiveTime=ev.t;an.activate(0.6,an.color);emit(an,centerNode,an.color||'#a78bfa',2.5);if(came)_tlAddBubble(d.agent,'is online 🟢',an.color,true);}
         _tlAddBubble(d.agent, d.action, an?an.color:'#a78bfa', true);
         break;
       }
@@ -9919,10 +10229,10 @@ async function _tlInit() {
       userNodes.forEach(n => {
         if (activeNames.has(n.name)) {
           const came = n.setOnline(true);
-          if(came) _tlAddBubble(n.name, 'is online 🟢', n.color, false);
+          if(came) { n.activate(0.6, n.color); emit(n, centerNode, n.color, 2); _tlAddBubble(n.name, 'is online 🟢', n.color, false); }
         } else {
           const went = n.setOffline();
-          if(went) _tlAddBubble(n.name, 'went offline 🔴', '#94a3b8', false);
+          if(went) { emit(centerNode, n, '#94a3b8', 1.5); _tlAddBubble(n.name, 'went offline 🔴', '#94a3b8', false); }
         }
       });
       _tlOnlineCount = activeNames.size;
@@ -9935,8 +10245,8 @@ async function _tlInit() {
         const name = (ev.user || 'System').split(' ')[0];
         const un = findUser(name);
         const an = findAi(name) || (isAgent ? findAi('Claude') : null);
-        if (an) { const came=an.setOnline(true); an.activate(0.6); emit(an, centerNode, an.color, 2.5); if(came)_tlAddBubble(name,'is online 🟢',an.color,true); }
-        else if (un) { const came=un.setOnline(true); un.activate(0.5); emit(un, centerNode, un.color, 2); if(came)_tlAddBubble(name,'is online 🟢',un.color,false); }
+        if (an) { const came=an.setOnline(true); an.activate(0.6, an.color); emit(an, centerNode, an.color, 2.5); if(came)_tlAddBubble(name,'is online 🟢',an.color,true); }
+        else if (un) { const came=un.setOnline(true); un.activate(0.5, un.color); emit(un, centerNode, un.color, 2); if(came)_tlAddBubble(name,'is online 🟢',un.color,false); }
         centerNode.activate(0.3);
         const color = an ? an.color : (un ? un.color : '#64748b');
         _tlAddBubble(ev.user || 'System', ev.action || '', color, !!isAgent);
@@ -9974,13 +10284,31 @@ async function _tlInit() {
         // Reset all user nodes to offline on loop
         userNodes.forEach(n=>{n.opacity=0.3;n.targetOpacity=0.3;n.scale=0.7;n.targetScale=0.7;n.lastActiveTime=0;});
       }
-      while(eventIndex<tlEvents.length&&tlEvents[eventIndex].t<=currentTime){processEvent(tlEvents[eventIndex]);eventIndex++;}
+      // Process events: release events always get full visuals,
+      // other events capped at 3 visuals per frame to stay synced
+      let _frameVisuals = 0;
+      while(eventIndex<tlEvents.length&&tlEvents[eventIndex].t<=currentTime){
+        const ev=tlEvents[eventIndex];
+        if (ev.type === 'release' || _frameVisuals < 3) {
+          // Full visual processing
+          processEvent(ev);
+          _frameVisuals++;
+        } else {
+          // Silent processing — update counters and user state only
+          const d=ev.data;
+          if(ev.type==='commit') counters.commits++;
+          else if(ev.type==='bug') { counters.bugs++; const rp=findUser(d.reporter); if(rp){rp.setOnline(true);rp.lastActiveTime=ev.t;} }
+          else if(ev.type==='ai_action') counters.agents++;
+          else if(ev.type==='user_action'&&d.user) { const un=findUser(d.user); if(un){un.setOnline(true);un.lastActiveTime=ev.t;} }
+        }
+        eventIndex++;
+      }
       // Check for inactivity — fade users who haven't been active
       _tlOnlineCount = 0;
       userNodes.forEach(n=>{
         if(n.lastActiveTime>0 && (currentTime-n.lastActiveTime)>OFFLINE_TIMEOUT){
           const went = n.setOffline();
-          if(went) _tlAddBubble(n.name, 'went offline 🔴', '#94a3b8', false);
+          if(went) { emit(centerNode, n, '#94a3b8', 1.5); _tlAddBubble(n.name, 'went offline 🔴', '#94a3b8', false); }
         }
         if(n.targetOpacity>0.5) _tlOnlineCount++;
       });
@@ -9990,15 +10318,38 @@ async function _tlInit() {
       el('tlClock').textContent=formatTlDate(currentTime);
       el('tlProgress').style.width=pct+'%';
       el('tlPlayhead').style.left=pct+'%';
-      // (timeline fits 100% width, no scrolling needed)
+      // Scrubber follows playhead in screen space (not inside viewport)
+      const frac01 = (currentTime-T_START)/T_SPAN;
+      const scrubScreenPct = (frac01 - _tlViewOffset) * _tlZoom * 100;
+      if (_tlScrubberEl) _tlScrubberEl.style.left = scrubScreenPct + '%';
+      _tlUpdateReleaseLabel();
+      // Auto-scroll viewport to keep playhead in view when zoomed
+      if (_tlZoom > 1) {
+        const frac = (currentTime - T_START) / T_SPAN;
+        const viewW = 1 / _tlZoom;
+        if (frac < _tlViewOffset || frac > _tlViewOffset + viewW) {
+          _tlViewOffset = Math.max(0, frac - viewW * 0.3);
+          _tlClampView();
+          _tlApplyViewport();
+        }
+      }
     } else {
-      // LIVE mode
+      // LIVE mode — keep timeline at 100%, show real clock
       const clockEl = document.getElementById('tlClock');
       if (clockEl) clockEl.textContent = new Date().toLocaleTimeString();
+      // Keep playhead at end
+      const progEl = document.getElementById('tlProgress');
+      const phEl = document.getElementById('tlPlayhead');
+      if (progEl) progEl.style.width = '100%';
+      if (phEl) phEl.style.left = '100%';
+      if (_tlScrubberEl) _tlScrubberEl.style.left = ((1 - _tlViewOffset) * _tlZoom * 100) + '%';
       // Poll every 5 seconds
       if (now - _tlLiveLastPoll > 5000) { _tlLiveLastPoll = now; _tlLivePoll(); }
     }
     } // end andon check
+
+    // Tick bubble timers (pause-aware)
+    _tlTickBubbles(dt);
 
     // Resize check
     const rect=wrap.getBoundingClientRect();
@@ -10106,8 +10457,21 @@ async function _tlInit() {
   try {
     if (localStorage.getItem('tl_fullscreen') === '1') {
       _tlSetFullscreen(true);
+      // Trigger resize so canvas fills the fullscreen viewport
+      setTimeout(() => { tlResize(); }, 50);
+      // Also register ESC handler (same as toggle does)
+      const escHandler = function(e) {
+        if (e.key === 'Escape') {
+          _tlSetFullscreen(false);
+          document.removeEventListener('keydown', escHandler);
+        }
+      };
+      document.addEventListener('keydown', escHandler);
     }
+    // Remove early-hide class now that fullscreen is applied
+    document.documentElement.classList.remove('tl-fs-pending');
   } catch(e){}
+  document.documentElement.classList.remove('tl-fs-pending');
 
   // Start animation
   lastFrame=0;
@@ -10431,7 +10795,17 @@ function _graphFilter(query) {
 }
 
 
-if (location.hash) {
+// Restore fullscreen timelapse state: if user was in fullscreen, go straight to live tab
+let _fsRestored = false;
+try {
+  if (localStorage.getItem('tl_fullscreen') === '1') {
+    _fsRestored = true;
+  }
+} catch(e){}
+
+if (_fsRestored) {
+  switchTab('live');
+} else if (location.hash) {
   readHash();
 } else {
   switchTab('news', true);

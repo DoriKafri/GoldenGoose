@@ -1787,7 +1787,7 @@ html.dark .lm-tl-speed button:hover, html.dark .lm-tl-speed button.active { back
 
 /* Periscope-style floating comments */
 #tlComments { position:absolute; bottom:12px; left:12px; width:320px; pointer-events:none; display:flex; flex-direction:column-reverse; top:0; overflow:hidden; -webkit-mask-image:linear-gradient(to bottom, transparent 0%, black 15%); mask-image:linear-gradient(to bottom, transparent 0%, black 15%); }
-.tl-bubble { display:flex; align-items:center; gap:8px; padding:5px 12px 5px 6px; margin-bottom:4px; background:rgba(255,255,255,0.85); backdrop-filter:blur(6px); border-radius:20px; animation:tlBubbleUp 10s ease-out forwards; transform-origin:bottom left; max-width:fit-content; box-shadow:0 1px 4px rgba(0,0,0,0.1); }
+.tl-bubble { display:flex; align-items:center; gap:8px; padding:5px 12px 5px 6px; margin-bottom:4px; background:rgba(255,255,255,0.85); backdrop-filter:blur(6px); border-radius:20px; animation:tlBubbleUp 10s ease-out forwards; animation-play-state:var(--tl-anim-state, running); transform-origin:bottom left; max-width:fit-content; box-shadow:0 1px 4px rgba(0,0,0,0.1); }
 html.dark .tl-bubble { background:rgba(0,0,0,0.45); box-shadow:none; }
 .tl-bubble-avatar { width:26px; height:26px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; color:#fff; overflow:hidden; }
 .tl-bubble-avatar img { width:100%; height:100%; border-radius:50%; object-fit:cover; }
@@ -1795,8 +1795,8 @@ html.dark .tl-bubble { background:rgba(0,0,0,0.45); box-shadow:none; }
 .tl-bubble-name { font-size:10px; font-weight:700; line-height:1.2; }
 .tl-bubble-msg { font-size:11px; color:rgba(30,41,59,0.8); line-height:1.3; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:230px; }
 html.dark .tl-bubble-msg { color:rgba(255,255,255,0.85); }
-.tl-bubble-emoji { font-size:20px; animation:tlEmojiFloat 3s ease-out forwards; position:absolute; pointer-events:none; display:flex; align-items:center; gap:2px; }
-.tl-bubble.release-bubble { background:linear-gradient(135deg,rgba(16,185,129,0.95),rgba(5,150,105,0.95)); padding:5px 12px 5px 6px; border-radius:20px; box-shadow:0 4px 20px rgba(16,185,129,0.35); animation:tlReleasePop 8s ease-out forwards; border:1px solid rgba(255,255,255,0.2); margin-bottom:6px; }
+.tl-bubble-emoji { font-size:20px; animation:tlEmojiFloat 3s ease-out forwards; animation-play-state:var(--tl-anim-state, running); position:absolute; pointer-events:none; display:flex; align-items:center; gap:2px; }
+.tl-bubble.release-bubble { background:linear-gradient(135deg,rgba(16,185,129,0.95),rgba(5,150,105,0.95)); padding:5px 12px 5px 6px; border-radius:20px; box-shadow:0 4px 20px rgba(16,185,129,0.35); animation:tlReleasePop 8s ease-out forwards; animation-play-state:var(--tl-anim-state, running); border:1px solid rgba(255,255,255,0.2); margin-bottom:6px; }
 html.dark .tl-bubble.release-bubble { background:linear-gradient(135deg,rgba(16,185,129,0.9),rgba(5,150,105,0.85)); box-shadow:0 4px 24px rgba(16,185,129,0.4); }
 .tl-bubble.release-bubble .tl-bubble-avatar { width:26px; height:26px; background:rgba(255,255,255,0.2)!important; font-size:14px; }
 .tl-bubble.release-bubble .tl-bubble-name { color:#fff!important; font-size:10px; }
@@ -9289,11 +9289,13 @@ async function _tlInit() {
       return wasOnline; // true = state changed
     }
     update() {
-      this.glow*=0.97; this.pulse*=0.94; this.entryPulse*=0.96; this.highlightRing*=0.965;
-      this.x+=(this.tx-this.x)*0.03; this.y+=(this.ty-this.y)*0.03;
-      // Smooth opacity & scale transitions
-      this.opacity+=(this.targetOpacity-this.opacity)*0.045;
-      this.scale+=(this.targetScale-this.scale)*0.045;
+      const a = _tlAnimScale;
+      if (a > 0) {
+        this.glow *= 1 - (0.03 * a); this.pulse *= 1 - (0.06 * a); this.entryPulse *= 1 - (0.04 * a); this.highlightRing *= 1 - (0.035 * a);
+        this.x += (this.tx - this.x) * 0.03 * a; this.y += (this.ty - this.y) * 0.03 * a;
+        this.opacity += (this.targetOpacity - this.opacity) * 0.045 * a;
+        this.scale += (this.targetScale - this.scale) * 0.045 * a;
+      }
     }
     draw(c) {
       if (this.opacity < 0.02) return; // fully hidden, skip draw
@@ -9363,7 +9365,7 @@ async function _tlInit() {
   const particles = [];
   class TLParticle {
     constructor(f,t,col,sz=2.5){this.sx=f.x;this.sy=f.y;this.tx=t.x;this.ty=t.y;this.x=f.x;this.y=f.y;this.color=col;this.size=sz;this.p=0;this.spd=0.018+Math.random()*0.012;this.trail=[];}
-    update(){this.p+=this.spd;const t=this.p,mt=1-t;const cpx=(this.sx+this.tx)/2+(this.ty-this.sy)*0.2;const cpy=(this.sy+this.ty)/2-(this.tx-this.sx)*0.2;this.x=mt*mt*this.sx+2*mt*t*cpx+t*t*this.tx;this.y=mt*mt*this.sy+2*mt*t*cpy+t*t*this.ty;this.trail.push({x:this.x,y:this.y});if(this.trail.length>10)this.trail.shift();return this.p>=1;}
+    update(){if(_tlAnimScale<=0)return false;this.p+=this.spd*_tlAnimScale;const t=this.p,mt=1-t;const cpx=(this.sx+this.tx)/2+(this.ty-this.sy)*0.2;const cpy=(this.sy+this.ty)/2-(this.tx-this.sx)*0.2;this.x=mt*mt*this.sx+2*mt*t*cpx+t*t*this.tx;this.y=mt*mt*this.sy+2*mt*t*cpy+t*t*this.ty;this.trail.push({x:this.x,y:this.y});if(this.trail.length>10)this.trail.shift();return this.p>=1;}
     draw(c){for(let i=0;i<this.trail.length;i++){const a=(i/this.trail.length)*0.35;c.fillStyle=this.color+Math.floor(a*255).toString(16).padStart(2,'0');c.beginPath();c.arc(this.trail[i].x,this.trail[i].y,this.size*(i/this.trail.length),0,Math.PI*2);c.fill();}c.fillStyle=this.color;c.beginPath();c.arc(this.x,this.y,this.size,0,Math.PI*2);c.fill();}
   }
   function emit(f,t,col,sz){particles.push(new TLParticle(f,t,col,sz||2.5));}
@@ -9438,7 +9440,8 @@ async function _tlInit() {
     }
     update() {
       if (this.done) return true;
-      this.p += this.spd;
+      if (_tlAnimScale <= 0) return false;
+      this.p += this.spd * _tlAnimScale;
       if (this.p >= 1) { this.p = 1; this.done = true; this.labelAlpha = 1; }
       const t = this.p, mt = 1 - t;
       // Arc upward between columns
@@ -9591,6 +9594,8 @@ async function _tlInit() {
   let currentTime=T_START, eventIndex=0, speed=1;
   let counters={commits:0,bugs:0,releases:0,agents:0};
   const TIME_SCALE=120000; // 1s real = 2min simulated
+  // Animation scale: 0 when paused, proportional for slow-mo, 1 for normal+
+  let _tlAnimScale = 1;
 
   // Timeline zoom state
   let _tlZoom = 1;        // 1 = fit all, higher = zoomed in
@@ -9756,6 +9761,17 @@ async function _tlInit() {
       speed = s;
       if (pauseBtn) pauseBtn.textContent = '⏸';
     }
+    // Update animation scale: 0 when paused, proportional for slow-mo, 1 for normal+
+    _tlAnimScale = speed === 0 ? 0 : Math.min(1, speed);
+    // Pause/slow CSS animations on bubbles
+    const commentsEl = document.getElementById('tlComments');
+    if (commentsEl) {
+      if (speed === 0) {
+        commentsEl.style.setProperty('--tl-anim-state', 'paused');
+      } else {
+        commentsEl.style.setProperty('--tl-anim-state', 'running');
+      }
+    }
     document.querySelectorAll('#tlSpeedBtns button').forEach(b => {
       const val = b.textContent.trim();
       if (val === '🐌') b.classList.toggle('active', speed === 0.1);
@@ -9770,16 +9786,21 @@ async function _tlInit() {
     currentTime = T_START + pct * T_SPAN;
     eventIndex = 0; counters = {commits:0,bugs:0,releases:0,agents:0}; _tlNextReleaseIdx = 0;
     userNodes.forEach(n => { n.targetOpacity=0.3; n.opacity=0.3; n.scale=0.7; n.targetScale=0.7; n.lastActiveTime=0; });
+    let _lastSeekRelease = null;
     while (eventIndex < tlEvents.length && tlEvents[eventIndex].t <= currentTime) {
       const ev = tlEvents[eventIndex]; const d = ev.data;
       if (ev.type==='commit') counters.commits++;
       else if (ev.type==='bug') counters.bugs++;
-      else if (ev.type==='release') counters.releases++;
+      else if (ev.type==='release') { counters.releases++; _lastSeekRelease = ev; }
       else if (ev.type==='ai_action') counters.agents++;
       if (ev.type==='bug' && d.reporter) { const rp=findUser(d.reporter); if(rp){rp.lastActiveTime=ev.t;rp.targetOpacity=1;rp.opacity=1;rp.scale=1;rp.targetScale=1;} }
       if (ev.type==='user_action' && d.user) { const un=findUser(d.user); if(un){un.lastActiveTime=ev.t;un.targetOpacity=1;un.opacity=1;un.scale=1;un.targetScale=1;} }
       if (ev.type==='release' && d.v) { _tlNextReleaseIdx = _tlSortedReleases.findIndex(r=>r.v===d.v)+1; }
       eventIndex++;
+    }
+    // Fire release visuals for the last release crossed during seek
+    if (_lastSeekRelease) {
+      processEvent(_lastSeekRelease);
     }
     _tlUpdateReleaseLabel();
     userNodes.forEach(n => {
@@ -9824,7 +9845,7 @@ async function _tlInit() {
       e.preventDefault();
       _tlScrubbing = true;
       _tlScrubPrevSpeed = speed;
-      speed = 0; // pause while scrubbing
+      speed = 0; _tlAnimScale = 0; // pause while scrubbing
       _tlTimelineEl.classList.add('scrubbing');
       const frac = _tlMouseToFrac(e);
       _tlSeekTo(frac);
@@ -9838,6 +9859,7 @@ async function _tlInit() {
       function onUp() {
         _tlScrubbing = false;
         speed = _tlScrubPrevSpeed;
+        _tlAnimScale = speed === 0 ? 0 : Math.min(1, speed);
         _tlTimelineEl.classList.remove('scrubbing');
         if (_tlTooltipEl) _tlTooltipEl.classList.remove('show');
         // Update pause button state
@@ -9909,6 +9931,19 @@ async function _tlInit() {
   let _tlSlackIdx = 0;
   let _tlLastBubbleTime = 0;
 
+  // Track bubbles for pause-aware removal
+  const _tlBubbleTimers = [];
+  function _tlTickBubbles(dt) {
+    for (let i = _tlBubbleTimers.length - 1; i >= 0; i--) {
+      if (speed === 0) continue; // paused — don't count down
+      _tlBubbleTimers[i].remaining -= dt * 1000;
+      if (_tlBubbleTimers[i].remaining <= 0) {
+        _tlBubbleTimers[i].el.remove();
+        _tlBubbleTimers.splice(i, 1);
+      }
+    }
+  }
+
   function _tlAddBubble(name, msg, color, isAi) {
     const container = document.getElementById('tlComments');
     if (!container) return;
@@ -9926,8 +9961,8 @@ async function _tlInit() {
         <div class="tl-bubble-msg">${esc(msg)}</div>
       </div>`;
     container.prepend(bubble);
-    // Remove after animation
-    setTimeout(() => bubble.remove(), 10000);
+    // Track for pause-aware removal
+    _tlBubbleTimers.push({ el: bubble, remaining: 10000 });
     // Keep container manageable — remove oldest (last child in column-reverse)
     while (container.children.length > 20) container.lastChild.remove();
   }
@@ -9944,7 +9979,7 @@ async function _tlInit() {
         <div class="tl-bubble-msg" style="color:rgba(255,255,255,0.9);">Deployed to production · ${fixes} fixes included</div>
       </div>`;
     container.prepend(bubble);
-    setTimeout(() => bubble.remove(), 8000);
+    _tlBubbleTimers.push({ el: bubble, remaining: 8000 });
     while (container.children.length > 20) container.lastChild.remove();
   }
 
@@ -10235,6 +10270,9 @@ async function _tlInit() {
       if (now - _tlLiveLastPoll > 5000) { _tlLiveLastPoll = now; _tlLivePoll(); }
     }
     } // end andon check
+
+    // Tick bubble timers (pause-aware)
+    _tlTickBubbles(dt);
 
     // Resize check
     const rect=wrap.getBoundingClientRect();

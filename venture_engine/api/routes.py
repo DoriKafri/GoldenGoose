@@ -6179,7 +6179,8 @@ Return ONLY the JSON object."""
 # ── Backfill YouTube descriptions into existing news items ──────────────
 @router.post("/api/news/backfill-youtube-descriptions")
 def backfill_youtube_descriptions():
-    """Fetch video descriptions for YouTube news items whose summary == title (missing description)."""
+    """Fetch video descriptions for YouTube news items whose summary == title (missing description).
+    Processes up to 5 items per call to avoid gateway timeouts."""
     import httpx
     import re as _re_bf
     from venture_engine.db.session import SessionLocal
@@ -6191,14 +6192,19 @@ def backfill_youtube_descriptions():
             NewsFeedItem.url.isnot(None),
         ).all()
 
-        updated = 0
-        errors = []
+        # Filter to items needing backfill
+        needs_backfill = []
         for item in yt_items:
-            # Skip items that already have a rich summary (different from title)
             if item.summary and item.summary.strip() != item.title.strip() and len(item.summary) > len(item.title) + 10:
                 continue
-            if not item.url:
-                continue
+            if item.url:
+                needs_backfill.append(item)
+
+        # Process max 5 per call to avoid Railway gateway timeout
+        batch = needs_backfill[:5]
+        updated = 0
+        errors = []
+        for item in batch:
             try:
                 resp = httpx.get(
                     item.url,
@@ -6221,10 +6227,20 @@ def backfill_youtube_descriptions():
                     item.summary = f"{item.title} — {description}"
                     updated += 1
                     logger.info(f"Backfilled description for '{item.title[:50]}': {description[:80]}")
+                else:
+                    # Mark as processed so we don't retry (append a space-dash to differentiate)
+                    item.summary = (item.summary or item.title) + " —"
+                    logger.info(f"No description found for '{item.title[:50]}'")
             except Exception as e:
                 errors.append(f"{item.title[:40]}: {str(e)[:60]}")
 
         db.commit()
-        return {"updated": updated, "total_youtube": len(yt_items), "errors": errors}
+        return {
+            "updated": updated,
+            "processed": len(batch),
+            "remaining": len(needs_backfill) - len(batch),
+            "total_youtube": len(yt_items),
+            "errors": errors,
+        }
     finally:
         db.close()

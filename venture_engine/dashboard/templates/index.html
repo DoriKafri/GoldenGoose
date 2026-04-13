@@ -1086,12 +1086,12 @@ html.dark .sl-msg-wrap:hover { background:rgba(255,255,255,.08); }
 .bug-comment-author { font-size:12px; font-weight:600; color:var(--text); }
 .bug-comment-time { font-size:10px; color:var(--text3); }
 .bug-comment-body { font-size:13px; color:var(--text); line-height:1.5; margin-top:4px; }
-.bug-board { display:flex; gap:8px; overflow-x:auto; padding:8px 0 12px; align-items:flex-start; scrollbar-width:thin; scrollbar-color:var(--border) transparent; }
+.bug-board { display:flex; gap:8px; overflow-x:auto; padding:8px 0 12px; align-items:flex-start; scrollbar-width:thin; scrollbar-color:var(--border) transparent; width:100%; }
 .bug-board::-webkit-scrollbar { height:10px; }
 .bug-board::-webkit-scrollbar-track { background:var(--bg2); border-radius:5px; }
 .bug-board::-webkit-scrollbar-thumb { background:var(--border); border-radius:5px; }
 .bug-board::-webkit-scrollbar-thumb:hover { background:var(--text3); }
-.bug-board-col { flex:1 0 0; min-width:160px; background:var(--bg2); border-radius:var(--radius); padding:8px; }
+.bug-board-col { flex:1 1 0; min-width:0; background:var(--bg2); border-radius:var(--radius); padding:8px; overflow:hidden; }
 /* Full-view mode — columns scroll independently only in fullview */
 .bug-board-fullview { position:fixed; inset:0; z-index:9999; background:var(--bg); padding:16px; overflow:auto; }
 .bug-board-fullview .bug-board { height:calc(100vh - 80px); align-items:flex-start; }
@@ -1103,7 +1103,7 @@ html.dark .sl-msg-wrap:hover { background:rgba(255,255,255,.08); }
 .bug-board-zoom button { width:36px; height:36px; border:1px solid var(--border); border-radius:var(--radius); background:var(--bg); color:var(--text); font-size:18px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background 0.1s; }
 .bug-board-zoom button:hover { background:var(--bg2); }
 .bug-board-zoom .zoom-level { width:48px; height:36px; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:600; color:var(--text2); font-family:'JetBrains Mono',monospace; }
-.bug-board-col-empty { flex:0 0 60px !important; min-width:60px !important; opacity:0.5; }
+.bug-board-col-empty { flex:0 0 32px !important; min-width:32px !important; opacity:0.5; }
 .bug-board-col-empty .bug-board-col-title { font-size:10px; writing-mode:vertical-lr; text-orientation:mixed; white-space:nowrap; padding:8px 4px; }
 .bug-board-col-title { font-size:12px; font-weight:700; color:var(--text2); text-transform:uppercase; padding:8px; margin-bottom:4px; }
 .bug-board-col-nv { border:2px solid rgba(99,102,241,0.4); background:rgba(99,102,241,0.06); }

@@ -5217,17 +5217,34 @@ async function _ytLoadTranscript() {
     return;
   }
 
-  // Use cache if same video
+  // Use memory cache if same video
   if (_ytTranscriptData && _ytTranscriptVideoId === vid) {
     await _ytPreFetchInsights(vid);
     _ytRenderTranscript(_ytTranscriptData);
     return;
   }
 
+  // Check localStorage — transcripts are immutable, never need re-fetching
+  try {
+    const lsKey = `yt_transcript_${vid}`;
+    const lsData = localStorage.getItem(lsKey);
+    if (lsData) {
+      const segments = JSON.parse(lsData);
+      if (Array.isArray(segments) && segments.length > 0) {
+        _ytTranscriptData = segments;
+        _ytTranscriptVideoId = vid;
+        _tabSetReady('transcript');
+        _ytRenderTranscript(segments);
+        _ytPreFetchInsights(vid);
+        console.log('Transcript from localStorage:', segments.length, 'segments');
+        return;
+      }
+    }
+  } catch(e) { /* localStorage unavailable or corrupt */ }
+
   // Already loading — wait for the in-progress load, then render from cache
   if (_ytTranscriptLoadingPromise) {
     await _ytTranscriptLoadingPromise;
-    // After the loading promise resolves, render from cache if available
     if (_ytTranscriptData && _ytTranscriptVideoId === vid) {
       _ytRenderTranscript(_ytTranscriptData);
       _tabSetReady('transcript');
@@ -5304,6 +5321,8 @@ async function _ytLoadTranscript() {
     if (segments && segments.length) {
       _ytTranscriptData = segments;
       _ytTranscriptVideoId = vid;
+      // Persist to localStorage — transcripts never change
+      try { localStorage.setItem(`yt_transcript_${vid}`, JSON.stringify(segments)); } catch(e) {}
       _tabSetReady('transcript');
       _ytRenderTranscript(_ytTranscriptData);
       _ytPreFetchInsights(vid);

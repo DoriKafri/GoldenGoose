@@ -24,7 +24,9 @@ from venture_engine.db.models import (
 router = APIRouter()
 
 # Track active background Gemini generation tasks to avoid duplicates
-_bg_generation_active: set = set()
+# Uses dict with timestamps so stale entries auto-expire after 3 minutes
+_bg_generation_active: dict = {}
+_BG_GENERATION_TIMEOUT = 180  # seconds — auto-expire stuck tasks
 
 
 def _safe_json_or_str(val):
@@ -2695,7 +2697,7 @@ def _gemini_generate(prompt: str) -> Optional[str]:
                 f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={_gkey}",
                 json={"contents": [{"parts": [{"text": prompt}]}],
                       "generationConfig": {"temperature": 0.3, "maxOutputTokens": 8192}},
-                timeout=120.0,
+                timeout=45.0,
             )
             if resp.status_code == 200:
                 data = resp.json()
@@ -2866,31 +2868,36 @@ def youtube_key_takeaways(video_id: str = Query(..., min_length=11, max_length=1
             _tk_db.close()
 
     # Kick off background generation instead of blocking the request
+    import time as _time
     _bg_key = f"takeaways_{video_id}"
+    # Auto-expire stale entries (thread crashed or timed out)
+    _started = _bg_generation_active.get(_bg_key, 0)
+    if _started and (_time.time() - _started) > _BG_GENERATION_TIMEOUT:
+        _bg_generation_active.pop(_bg_key, None)
     if _bg_key not in _bg_generation_active:
-        _bg_generation_active.add(_bg_key)
+        _bg_generation_active[_bg_key] = _time.time()
         def _bg():
             try:
                 result = _auto_generate_takeaways(video_id)
                 if not result:
-                    import time as _t
-                    logger.info(f"Takeaways generation failed for {video_id}, retrying in 10s...")
-                    _t.sleep(10)
+                    _time.sleep(10)
+                    logger.info(f"Takeaways generation failed for {video_id}, retrying...")
                     result = _auto_generate_takeaways(video_id)
                 if not result:
-                    # Cache a failure sentinel so we stop retrying endlessly
                     logger.warning(f"Takeaways generation failed permanently for {video_id}")
                     try:
                         _fail_db = SessionLocal()
                         existing = _fail_db.query(TakeawaysCache).filter(TakeawaysCache.video_id == video_id).first()
                         if not existing:
                             _fail_db.add(TakeawaysCache(video_id=video_id, data={"error": "generation_failed"}))
-                            _fail_db.commit()
+                        else:
+                            existing.data = {"error": "generation_failed"}
+                        _fail_db.commit()
                         _fail_db.close()
                     except Exception:
                         pass
             finally:
-                _bg_generation_active.discard(_bg_key)
+                _bg_generation_active.pop(_bg_key, None)
         threading.Thread(target=_bg, daemon=True).start()
         logger.info(f"Started background takeaways generation for {video_id}")
 
@@ -2938,32 +2945,36 @@ def youtube_dpoi(video_id: str = Query(..., min_length=11, max_length=11), refre
             _dpoi_db.close()
 
     # Kick off background generation instead of blocking the request
+    import time as _time
     _bg_key = f"dpoi_{video_id}"
+    # Auto-expire stale entries (thread crashed or timed out)
+    _started = _bg_generation_active.get(_bg_key, 0)
+    if _started and (_time.time() - _started) > _BG_GENERATION_TIMEOUT:
+        _bg_generation_active.pop(_bg_key, None)
     if _bg_key not in _bg_generation_active:
-        _bg_generation_active.add(_bg_key)
+        _bg_generation_active[_bg_key] = _time.time()
         def _bg():
             try:
                 result = _auto_generate_dopi(video_id)
                 if not result:
-                    # Retry once after 10s (Gemini rate-limit may have cleared)
-                    import time as _t
-                    logger.info(f"DOPI generation failed for {video_id}, retrying in 10s...")
-                    _t.sleep(10)
+                    _time.sleep(10)
+                    logger.info(f"DOPI generation failed for {video_id}, retrying...")
                     result = _auto_generate_dopi(video_id)
                 if not result:
-                    # Cache a failure sentinel so we stop retrying endlessly
                     logger.warning(f"DOPI generation failed permanently for {video_id}")
                     try:
                         _fail_db = SessionLocal()
                         existing = _fail_db.query(DpoiCache).filter(DpoiCache.video_id == video_id).first()
                         if not existing:
                             _fail_db.add(DpoiCache(video_id=video_id, data={"error": "generation_failed"}))
-                            _fail_db.commit()
+                        else:
+                            existing.data = {"error": "generation_failed"}
+                        _fail_db.commit()
                         _fail_db.close()
                     except Exception:
                         pass
             finally:
-                _bg_generation_active.discard(_bg_key)
+                _bg_generation_active.pop(_bg_key, None)
         threading.Thread(target=_bg, daemon=True).start()
         logger.info(f"Started background DOPI generation for {video_id}")
 

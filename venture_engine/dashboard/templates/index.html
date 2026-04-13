@@ -9250,7 +9250,7 @@ async function _tlInit() {
   if (tlEvents.length === 0) { console.warn('No timelapse events'); return; }
 
   const T_START = tlEvents[0].t;
-  const T_END = tlEvents[tlEvents.length - 1].t;
+  const T_END = Math.max(tlEvents[tlEvents.length - 1].t, Date.now());
   const T_SPAN = T_END - T_START;
 
   // Canvas

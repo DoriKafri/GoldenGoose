@@ -1095,10 +1095,8 @@ html.dark .sl-msg-wrap:hover { background:rgba(255,255,255,.08); }
 /* Full-view mode — columns scroll independently only in fullview */
 .bug-board-fullview { position:fixed; inset:0; z-index:9999; background:var(--bg); padding:16px; overflow:auto; }
 .bug-board-fullview > div:first-child { display:none; }
-.bug-board-fullview .bug-board { height:calc(100vh - 32px); align-items:flex-start; }
-.bug-board-fullview .bug-board-col { min-width:200px; max-height:calc(100vh - 120px); overflow-y:auto; scrollbar-width:thin; }
-.bug-board-fullview .bug-board-col::-webkit-scrollbar { width:4px; }
-.bug-board-fullview .bug-board-col::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
+.bug-board-fullview .bug-board { align-items:flex-start; }
+.bug-board-fullview .bug-board-col { min-width:200px; }
 /* Zoom toolbar in fullview */
 .bug-board-zoom { position:fixed; bottom:20px; right:20px; z-index:10000; display:flex; gap:4px; background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:4px; box-shadow:0 4px 16px rgba(0,0,0,0.15); }
 .bug-board-zoom button { width:36px; height:36px; border:1px solid var(--border); border-radius:var(--radius); background:var(--bg); color:var(--text); font-size:18px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background 0.1s; }

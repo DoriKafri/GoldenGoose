@@ -8098,9 +8098,12 @@ function _bugToggleFullView() {
       delete wrapper._escHandler;
     }
   }
-  // Update button text
+  // Hide/show original button — fixed close button handles exit in full view
   const btn = document.getElementById('bugFullViewBtn');
-  if (btn) btn.textContent = _bugFullView ? '✕ Exit Full View' : '⛶ Full View';
+  if (btn) {
+    btn.textContent = _bugFullView ? '✕ Exit Full View' : '⛶ Full View';
+    btn.style.display = _bugFullView ? 'none' : '';
+  }
 }
 
 let _bugZoomLevel = 100;

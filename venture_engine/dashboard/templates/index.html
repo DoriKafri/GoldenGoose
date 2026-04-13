@@ -5235,11 +5235,6 @@ async function _ytLoadTranscript() {
     return;
   }
 
-  contentEl.innerHTML = '<div class="yt-transcript-loading">Loading transcript...</div>';
-
-  // Two-phase loading:
-  // Phase 1 (fast, 10s): race server + client-side + embedded cache
-  // Phase 2 (slow, 55s): if phase 1 fails, wait for server (which has 45s deadline + Gemini fallback)
   async function _serverFetch(timeoutMs) {
     const resp = await fetch(`${API}/api/youtube-transcript?video_id=${vid}`, {signal: AbortSignal.timeout(timeoutMs)});
     if (!resp.ok) throw new Error('server fail');
@@ -5259,23 +5254,36 @@ async function _ytLoadTranscript() {
   _ytTranscriptLoadingPromise = (async () => {
     let segments = null;
 
-    // ── Phase 1: quick race (10s) ──
+    // ── Phase 0: quick cache probe (3s) — if server has it cached, skip everything ──
     try {
-      const _sources = Promise.any([
-        _serverFetch(10000),
-        _embeddedFetch(),
-        _ytFetchTranscriptClientSide(vid).then(s => { if (!s || !s.length) throw new Error('empty'); return s; })
-      ]);
-      const _timeout = new Promise((resolve) => setTimeout(() => resolve(null), 12000));
-      segments = await Promise.race([_sources, _timeout]);
+      segments = await _serverFetch(3000);
+      if (segments && segments.length) {
+        console.log('Transcript loaded from server cache:', segments.length, 'segments');
+      }
     } catch(e) {
-      console.warn('Phase 1 transcript sources failed:', e.message);
+      // Not cached — proceed to full fetch
     }
 
-    // ── Phase 2: if phase 1 failed, show "loading" and wait for full server response ──
+    // ── Phase 1: race server + client-side + embedded cache (10s) ──
+    if (!segments || !segments.length) {
+      contentEl.innerHTML = '<div class="yt-transcript-loading">Loading transcript...</div>';
+      try {
+        const _sources = Promise.any([
+          _serverFetch(10000),
+          _embeddedFetch(),
+          _ytFetchTranscriptClientSide(vid).then(s => { if (!s || !s.length) throw new Error('empty'); return s; })
+        ]);
+        const _timeout = new Promise((resolve) => setTimeout(() => resolve(null), 12000));
+        segments = await Promise.race([_sources, _timeout]);
+      } catch(e) {
+        console.warn('Phase 1 transcript sources failed:', e.message);
+      }
+    }
+
+    // ── Phase 2: if phase 1 failed, wait for full server response (55s) ──
     if (!segments || !segments.length) {
       console.log('Phase 1 failed, starting phase 2 (full server fetch, up to 55s)...');
-      _tabSetLoading('transcript');  // Keep spinner visible during Phase 2
+      _tabSetLoading('transcript');
       contentEl.innerHTML = '<div class="yt-transcript-loading">Loading transcript<span class="dot-pulse">...</span></div>';
       try {
         segments = await _serverFetch(55000);

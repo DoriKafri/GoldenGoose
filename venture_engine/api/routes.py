@@ -2863,6 +2863,35 @@ TRANSCRIPT:
         return None
 
 
+@router.get("/api/debug-gemini-test")
+def debug_gemini_test():
+    """Temporary debug endpoint to test Gemini API directly."""
+    import httpx
+    _gkey = settings.google_gemini_api_key or _os.environ.get("GOOGLE_GEMINI_API_KEY", "")
+    if not _gkey:
+        return {"error": "no_api_key"}
+    results = {}
+    models = ["gemini-2.0-flash", "gemini-1.5-flash-latest", "gemini-2.0-flash-lite"]
+    for model in models:
+        try:
+            resp = httpx.post(
+                f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={_gkey}",
+                json={"contents": [{"parts": [{"text": "Say hello in one word."}]}],
+                      "generationConfig": {"temperature": 0.3, "maxOutputTokens": 100}},
+                timeout=15.0,
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                candidates = data.get("candidates", [])
+                text = candidates[0]["content"]["parts"][0]["text"] if candidates else "no candidates"
+                results[model] = {"status": 200, "text": text}
+            else:
+                results[model] = {"status": resp.status_code, "error": resp.text[:200]}
+        except Exception as e:
+            results[model] = {"error": str(e)}
+    return results
+
+
 def _is_valid_cached_ai_data(data) -> bool:
     """Check if cached data is valid AI response (list of items) or error sentinel."""
     if isinstance(data, list) and len(data) > 0:

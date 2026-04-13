@@ -2255,7 +2255,7 @@ def youtube_transcript(
     from venture_engine.db.session import SessionLocal
     from venture_engine.db.models import TranscriptCache
 
-    _deadline = _time.monotonic() + 50  # 50-second total deadline (Railway has 60s limit)
+    _deadline = _time.monotonic() + 18  # 18-second deadline — fail fast, frontend retries
 
     def _past_deadline():
         if _time.monotonic() > _deadline:

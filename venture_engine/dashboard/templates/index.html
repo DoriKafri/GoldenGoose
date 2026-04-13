@@ -9746,12 +9746,36 @@ async function _tlInit() {
     // Release version markers on the timeline — appended to the viewport (scales with zoom)
     const tlViewportEl = document.getElementById('tlViewport');
     if(tlViewportEl){
-      tlEvents.filter(ev=>ev.type==='release').forEach(ev=>{
-        const pct = ((ev.t - T_START) / T_SPAN) * 100;
+      const releases = tlEvents.filter(ev=>ev.type==='release');
+      const pcts = releases.map(ev => ((ev.t - T_START) / T_SPAN) * 100);
+      // De-overlap: assign vertical rows so close labels don't collide
+      // Labels are ~55px wide at 8px font → ~5.5% of viewport at zoom 1
+      const MIN_GAP = 4.5; // minimum % gap before staggering
+      const ROW_H = 14;    // px per stagger row
+      const rows = new Array(releases.length).fill(0);
+      for (let i = 1; i < pcts.length; i++) {
+        // Check against all previous markers for overlap at each row
+        let row = 0;
+        let placed = false;
+        while (!placed && row < 4) {
+          let conflict = false;
+          for (let j = 0; j < i; j++) {
+            if (rows[j] === row && Math.abs(pcts[i] - pcts[j]) < MIN_GAP) {
+              conflict = true;
+              break;
+            }
+          }
+          if (!conflict) { placed = true; } else { row++; }
+        }
+        rows[i] = row;
+      }
+      releases.forEach((ev, i) => {
+        const pct = pcts[i];
+        const yOff = rows[i] * ROW_H;
         const marker = document.createElement('div');
         marker.className = 'tl-release-marker';
         marker.style.cssText = `position:absolute;top:0;left:${pct}%;height:100%;z-index:4;pointer-events:none;display:flex;flex-direction:column;align-items:center;`;
-        marker.innerHTML = `<div class="tl-release-marker-label" style="font-size:8px;font-weight:700;font-family:'JetBrains Mono',monospace;color:#10b981;white-space:nowrap;background:rgba(16,185,129,0.12);padding:2px 5px;border-radius:3px;border:1px solid rgba(16,185,129,0.35);transform-origin:center top;">${ev.data.v}</div><div style="width:1.5px;flex:1;background:rgba(16,185,129,0.4);"></div>`;
+        marker.innerHTML = `<div class="tl-release-marker-label" style="font-size:8px;font-weight:700;font-family:'JetBrains Mono',monospace;color:#10b981;white-space:nowrap;background:rgba(16,185,129,0.12);padding:2px 5px;border-radius:3px;border:1px solid rgba(16,185,129,0.35);transform-origin:center top;margin-top:${yOff}px;transition:margin-top 0.3s ease;">${ev.data.v}</div><div style="width:1.5px;flex:1;background:rgba(16,185,129,0.4);margin-top:${yOff > 0 ? -yOff : 0}px;"></div>`;
         tlViewportEl.appendChild(marker);
       });
     }

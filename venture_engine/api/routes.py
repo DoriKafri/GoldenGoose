@@ -2163,7 +2163,9 @@ def _parse_vtt_segments(vtt_text: str) -> list:
     import re as _re
     import html as _html
     segments = []
-    seen_texts = set()
+    # Track last seen time for each text to deduplicate only nearby overlapping
+    # captions (within 3s) — not repeated phrases later in the video.
+    seen_texts: dict[str, float] = {}
     # Match VTT cues: timestamp --> timestamp\ntext
     pattern = _re.compile(
         r'(\d{2}:\d{2}:\d{2}\.\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2}\.\d{3})\s*\n(.+?)(?=\n\n|\Z)',
@@ -2179,13 +2181,17 @@ def _parse_vtt_segments(vtt_text: str) -> list:
         # Clean text: remove VTT tags like <c> </c>
         text = _re.sub(r'<[^>]+>', '', text).strip()
         text = _html.unescape(text)
-        if text and text not in seen_texts:
-            seen_texts.add(text)
-            segments.append({
-                "start": round(start, 2),
-                "duration": round(end - start, 2),
-                "text": text,
-            })
+        if not text:
+            continue
+        prev_time = seen_texts.get(text)
+        if prev_time is not None and abs(start - prev_time) < 3:
+            continue  # overlapping duplicate caption
+        seen_texts[text] = start
+        segments.append({
+            "start": round(start, 2),
+            "duration": round(end - start, 2),
+            "text": text,
+        })
     return segments
 
 
@@ -2196,12 +2202,15 @@ def _parse_innertube_caption_xml(xml_text: str) -> list:
 
     root = ET.fromstring(xml_text)
     segments = []
-    seen_texts = set()
+    # Track last seen time for each text to deduplicate only nearby overlapping
+    # captions (within 3s) — not repeated phrases later in the video.
+    seen_texts: dict[str, float] = {}
 
     # Format 3: <p t="320" d="3999"><s>word</s><s t="240">word</s>...</p>
     for p in root.findall(".//p"):
         start_ms = int(p.get("t", 0))
         dur_ms = int(p.get("d", 0))
+        start_sec = start_ms / 1000
         # Collect text from <s> children or direct text
         words = []
         for s in p.findall("s"):
@@ -2211,14 +2220,18 @@ def _parse_innertube_caption_xml(xml_text: str) -> list:
         text = " ".join(words).strip()
         if not text:
             text = (p.text or "").strip()
-        if text and text not in seen_texts:
-            seen_texts.add(text)
-            text = _html.unescape(text)
-            segments.append({
-                "start": round(start_ms / 1000, 2),
-                "duration": round(dur_ms / 1000, 2),
-                "text": text,
-            })
+        if not text:
+            continue
+        prev_time = seen_texts.get(text)
+        if prev_time is not None and abs(start_sec - prev_time) < 3:
+            continue  # overlapping duplicate caption
+        seen_texts[text] = start_sec
+        text = _html.unescape(text)
+        segments.append({
+            "start": round(start_sec, 2),
+            "duration": round(dur_ms / 1000, 2),
+            "text": text,
+        })
 
     # Legacy format: <text start="0.32" dur="4.0">word</text>
     if not segments:
@@ -2226,10 +2239,14 @@ def _parse_innertube_caption_xml(xml_text: str) -> list:
             start = float(elem.get("start", 0))
             dur = float(elem.get("dur", 0))
             text = (elem.text or "").strip()
-            if text and text not in seen_texts:
-                seen_texts.add(text)
-                text = _html.unescape(text)
-                segments.append({"start": round(start, 2), "duration": round(dur, 2), "text": text})
+            if not text:
+                continue
+            prev_time = seen_texts.get(text)
+            if prev_time is not None and abs(start - prev_time) < 3:
+                continue
+            seen_texts[text] = start
+            text = _html.unescape(text)
+            segments.append({"start": round(start, 2), "duration": round(dur, 2), "text": text})
 
     return segments
 

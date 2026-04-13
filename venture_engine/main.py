@@ -593,6 +593,22 @@ def on_startup():
     Base.metadata.create_all(bind=engine)
     _add_missing_columns()
 
+    # One-time: clear transcript cache built with the old parser that
+    # globally deduplicated by text (dropped repeated phrases, shortening
+    # transcripts).  They'll be re-fetched with the fixed parser on demand.
+    def _flush_transcript_cache():
+        from venture_engine.db.models import TranscriptCache
+        from venture_engine.db.session import SessionLocal
+        db = SessionLocal()
+        try:
+            n = db.query(TranscriptCache).delete()
+            db.commit()
+            if n:
+                logger.info(f"Flushed {n} transcript cache entries (parser fix)")
+        finally:
+            db.close()
+    _safe("Flush transcript cache (parser fix)", _flush_transcript_cache)
+
     _safe("JSON column self-heal", _fix_json_columns)
     _safe("Seeding thought leaders", lambda: [seed_thought_leaders(db) for db in [get_db().__enter__()]][0])
     _safe("Loading settings", lambda: __import__('venture_engine.settings_service', fromlist=['load_cache']).load_cache(get_db().__enter__()))

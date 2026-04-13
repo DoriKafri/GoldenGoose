@@ -5078,7 +5078,9 @@ function _parseXmlTranscript(xmlText) {
   const parser = new DOMParser();
   const doc = parser.parseFromString(xmlText, 'text/xml');
   const segments = [];
-  const seen = new Set();
+  // Track last seen time for each text — only deduplicate nearby overlapping
+  // captions (within 3s), not repeated phrases later in the video.
+  const seen = new Map();
 
   // Format 3: <p t="320" d="3999"><s>word</s>...</p>
   const pNodes = doc.querySelectorAll('p');
@@ -5086,6 +5088,7 @@ function _parseXmlTranscript(xmlText) {
     pNodes.forEach(p => {
       const startMs = parseInt(p.getAttribute('t') || '0');
       const durMs = parseInt(p.getAttribute('d') || '0');
+      const startSec = startMs / 1000;
       let text = '';
       const sNodes = p.querySelectorAll('s');
       if (sNodes.length > 0) {
@@ -5094,10 +5097,11 @@ function _parseXmlTranscript(xmlText) {
         text = words.join(' ');
       }
       if (!text) text = (p.textContent || '').trim();
-      if (text && !seen.has(text)) {
-        seen.add(text);
-        segments.push({start: Math.round(startMs/10)/100, duration: Math.round(durMs/10)/100, text});
-      }
+      if (!text) return;
+      const prevTime = seen.get(text);
+      if (prevTime !== undefined && Math.abs(startSec - prevTime) < 3) return;
+      seen.set(text, startSec);
+      segments.push({start: Math.round(startMs/10)/100, duration: Math.round(durMs/10)/100, text});
     });
   }
 
@@ -5107,10 +5111,11 @@ function _parseXmlTranscript(xmlText) {
       const start = parseFloat(el.getAttribute('start') || '0');
       const dur = parseFloat(el.getAttribute('dur') || '0');
       const text = (el.textContent || '').trim();
-      if (text && !seen.has(text)) {
-        seen.add(text);
-        segments.push({start: Math.round(start*100)/100, duration: Math.round(dur*100)/100, text});
-      }
+      if (!text) return;
+      const prevTime = seen.get(text);
+      if (prevTime !== undefined && Math.abs(start - prevTime) < 3) return;
+      seen.set(text, start);
+      segments.push({start: Math.round(start*100)/100, duration: Math.round(dur*100)/100, text});
     });
   }
   return segments;
@@ -5174,7 +5179,9 @@ async function _ytFetchTranscriptClientSide(videoId) {
 
 function _parseVttSegments(vttText) {
   const segments = [];
-  const seen = new Set();
+  // Track last seen time for each text — only deduplicate nearby overlapping
+  // captions (within 3s), not repeated phrases later in the video.
+  const seen = new Map();
   // Match VTT cues: HH:MM:SS.mmm --> HH:MM:SS.mmm\ntext
   const pattern = /(\d{2}:\d{2}:\d{2}\.\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2}\.\d{3})[^\n]*\n([\s\S]+?)(?=\n\n|\n\d{2}:\d{2}|\Z)/g;
   let m;
@@ -5183,10 +5190,11 @@ function _parseVttSegments(vttText) {
     const end = _vttTimeToSec(m[2]);
     // Remove VTT tags like <c>, </c>, <00:00:00.000>, alignment tags
     let text = m[3].replace(/<[^>]+>/g, '').replace(/\n/g, ' ').trim();
-    if (text && !seen.has(text)) {
-      seen.add(text);
-      segments.push({start: Math.round(start*100)/100, duration: Math.round((end-start)*100)/100, text});
-    }
+    if (!text) continue;
+    const prevTime = seen.get(text);
+    if (prevTime !== undefined && Math.abs(start - prevTime) < 3) continue;
+    seen.set(text, start);
+    segments.push({start: Math.round(start*100)/100, duration: Math.round((end-start)*100)/100, text});
   }
   return segments;
 }

@@ -974,20 +974,20 @@ html.dark .sl-msg-wrap:hover { background:rgba(255,255,255,.08); }
 .ic-champ-body { font-size:12px; color:var(--text2, var(--text)); line-height:1.6; white-space:pre-wrap; }
 .ic-champ-reactions { margin-top:6px; display:flex; gap:4px; }
 .ic-champ-reaction { font-size:14px; }
-.yt-panel { display:none; overflow-x:hidden; position:relative; }
-.yt-panel.active { display:flex; flex-direction:column; flex:1; min-height:0; }
+.yt-panel { display:none; overflow:hidden; position:relative; }
+.yt-panel.active { display:flex; flex-direction:column; flex:1; height:0; min-height:0; }
 #artTakeawaysPanel.active, #artDpoiPanel.active { overflow-y:auto; }
 #artArticlePanel.active { display:flex; flex-direction:column; flex:1; min-height:0; }
 #artArticlePanel iframe { flex:1; min-height:0; }
 #ytTranscriptPanel { background:var(--bg); }
-.yt-transcript-panel { overflow-y:auto; padding:0; background:var(--bg); flex:1; min-height:0; }
+.yt-transcript-panel { overflow-y:auto; padding:0; background:var(--bg); flex:1; height:0; min-height:0; -webkit-overflow-scrolling:touch; }
 .yt-transcript-loading { padding:40px; text-align:center; color:var(--text3); font-size:13px; }
 @keyframes dotPulse { 0%{opacity:0.2} 50%{opacity:1} 100%{opacity:0.2} }
 .dot-pulse { animation: dotPulse 1.5s ease-in-out infinite; }
 .yt-transcript-error { padding:40px; text-align:center; color:#ef4444; font-size:13px; }
 .yt-transcript-list { padding:8px 0; }
 /* AI analysis panels (Takeaways, DOPI) */
-.yt-ai-panel { overflow-y:auto; flex:1; min-height:0; }
+.yt-ai-panel { overflow-y:auto; flex:1; height:0; min-height:0; -webkit-overflow-scrolling:touch; }
 .yt-ai-placeholder { display:flex; flex-direction:column; align-items:center; justify-content:center; padding:60px 20px; color:var(--text2); cursor:default; }
 .yt-ai-item { padding:14px 20px; cursor:pointer; transition:background 0.12s; border-left:3px solid transparent; margin-bottom:2px; }
 .yt-ai-item:hover { background:var(--bg2); }
@@ -1262,7 +1262,7 @@ html.dark .sl-msg-wrap:hover { background:rgba(255,255,255,.08); }
   .yt-timeline-marker { width:16px; height:16px; top:-4px; }
 
   /* ── Panels: ensure scrollable on mobile ── */
-  .yt-player-wrap { height:auto; }
+  .yt-player-wrap { height:0; }
   .yt-transcript-panel, .yt-ai-panel { -webkit-overflow-scrolling:touch; overscroll-behavior-y:contain; }
 
   /* ── Transcript segments: tighter on mobile ── */

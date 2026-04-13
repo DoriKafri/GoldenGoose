@@ -1086,18 +1086,18 @@ html.dark .sl-msg-wrap:hover { background:rgba(255,255,255,.08); }
 .bug-comment-author { font-size:12px; font-weight:600; color:var(--text); }
 .bug-comment-time { font-size:10px; color:var(--text3); }
 .bug-comment-body { font-size:13px; color:var(--text); line-height:1.5; margin-top:4px; }
-.bug-board { display:flex; gap:8px; overflow-x:auto; padding:8px 0; scrollbar-width:thin; scrollbar-color:var(--border) transparent; }
+.bug-board { display:flex; gap:8px; overflow-x:auto; padding:8px 0; scrollbar-width:thin; scrollbar-color:var(--border) transparent; align-items:flex-start; }
 .bug-board::-webkit-scrollbar { height:8px; }
 .bug-board::-webkit-scrollbar-track { background:transparent; border-radius:4px; }
 .bug-board::-webkit-scrollbar-thumb { background:var(--border); border-radius:4px; }
 .bug-board::-webkit-scrollbar-thumb:hover { background:var(--text3); }
-.bug-board-col { flex:1 0 0; min-width:160px; background:var(--bg2); border-radius:var(--radius); padding:8px; max-height:calc(100vh - 200px); overflow-y:auto; scrollbar-width:thin; }
-.bug-board-col::-webkit-scrollbar { width:4px; }
-.bug-board-col::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
-/* Full-view mode */
+.bug-board-col { flex:1 0 0; min-width:160px; background:var(--bg2); border-radius:var(--radius); padding:8px; }
+/* Full-view mode — columns scroll independently only in fullview */
 .bug-board-fullview { position:fixed; inset:0; z-index:9999; background:var(--bg); padding:16px; overflow:auto; }
-.bug-board-fullview .bug-board { height:calc(100vh - 80px); }
-.bug-board-fullview .bug-board-col { min-width:200px; max-height:none; }
+.bug-board-fullview .bug-board { height:calc(100vh - 80px); align-items:flex-start; }
+.bug-board-fullview .bug-board-col { min-width:200px; max-height:calc(100vh - 120px); overflow-y:auto; scrollbar-width:thin; }
+.bug-board-fullview .bug-board-col::-webkit-scrollbar { width:4px; }
+.bug-board-fullview .bug-board-col::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
 .bug-board-col-empty { flex:0 0 60px !important; min-width:60px !important; opacity:0.5; }
 .bug-board-col-empty .bug-board-col-title { font-size:10px; writing-mode:vertical-lr; text-orientation:mixed; white-space:nowrap; padding:8px 4px; }
 .bug-board-col-title { font-size:12px; font-weight:700; color:var(--text2); text-transform:uppercase; padding:8px; margin-bottom:4px; }

@@ -3570,10 +3570,12 @@ async function loadNews(append) {
   if (_newsLoading || !_newsHasMore) return;
   _newsLoading = true;
 
-  const params = new URLSearchParams({limit: _NEWS_PAGE_SIZE, offset: _newsPage * _NEWS_PAGE_SIZE});
   const searchEl = document.getElementById('newsSearchInput');
   const sourceEl = document.getElementById('newsSourceFilter');
-  if (searchEl && searchEl.value.trim()) params.set('q', searchEl.value.trim());
+  const isSearching = searchEl && searchEl.value.trim();
+  const pageSize = isSearching ? 200 : _NEWS_PAGE_SIZE; // load all matches when searching
+  const params = new URLSearchParams({limit: pageSize, offset: _newsPage * pageSize});
+  if (isSearching) params.set('q', searchEl.value.trim());
   if (sourceEl && sourceEl.value) params.set('source', sourceEl.value);
 
   try {

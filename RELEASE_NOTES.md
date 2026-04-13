@@ -2,6 +2,21 @@
 
 ---
 
+## v0.13.1 — 2026-04-13 09:24 IST
+
+### Auto-Release — 11 fixes (1 critical, 2 high, 5 medium, 3 low)
+- **BUG-5** 🔴 Feature: Implement role-based access control (RBAC)
+- **BUG-13** 🟠 Bug fix: Memory leak in article insight pre-fetcher
+- **BUG-6** 🟠 Bug fix: DOPI scoring returns 6.0 default too often
+- **BUG-14** 🟢 Improvement: Add dark mode toggle persistence
+- **BUG-12** 🟢 Feature: Bug board drag-and-drop for status transitions
+- **BUG-10** 🟢 Feature: Add venture comparison view (side-by-side)
+- **BUG-15** 🟡 Bug fix: Proxy endpoint blocked by Cloudflare on some sites
+- **BUG-9** 🟡 Bug fix: Scheduler timezone issue causing missed digest
+- **BUG-7** 🟡 Feature: Add Slack integration for real-time alerts
+- **BUG-3** 🟡 Feature: Add bulk export for venture data (CSV/JSON)
+- **BUG-2** 🟡 Bug fix: News feed cards not rendering images on Safari iOS
+
 ## v0.13.0 — 2026-04-08
 
 ### Next Version Board Column & Release Pipeline

@@ -226,7 +226,7 @@ def _call_gemini(prompt: str, max_tokens: int = 1500, temperature: float = 0.8) 
         return ""
     try:
         resp = httpx.post(
-            f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key={_gkey}",
+            f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key={_gkey}",
             json={
                 "contents": [{"parts": [{"text": prompt}]}],
                 "generationConfig": {"temperature": temperature, "maxOutputTokens": max_tokens},

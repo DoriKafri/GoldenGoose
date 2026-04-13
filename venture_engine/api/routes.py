@@ -2540,7 +2540,7 @@ def youtube_transcript(
                 "Cover the ENTIRE video from beginning to end. Do NOT summarize — transcribe "
                 "every word spoken. Output raw JSON only, no markdown fences."
             )
-            models = ["gemini-2.5-flash", "gemini-2.0-flash"]
+            models = ["gemini-2.5-flash", "gemini-2.5-flash-lite"]
             for model in models:
                 if _past_deadline():
                     _gemini_errors.append(f"{model}: deadline")
@@ -2689,7 +2689,7 @@ def _gemini_generate(prompt: str) -> Optional[str]:
         return None
     logger.info(f"Calling Gemini API with {len(prompt)} char prompt...")
     # Try multiple models in order of preference
-    models = ["gemini-2.0-flash", "gemini-1.5-flash-latest", "gemini-2.0-flash-lite"]
+    models = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.5-pro"]
     import httpx
     for model in models:
         try:
@@ -2871,7 +2871,7 @@ def debug_gemini_test():
     if not _gkey:
         return {"error": "no_api_key"}
     results = {}
-    models = ["gemini-2.0-flash", "gemini-1.5-flash-latest", "gemini-2.0-flash-lite"]
+    models = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.5-pro"]
     for model in models:
         try:
             resp = httpx.post(

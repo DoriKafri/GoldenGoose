@@ -344,7 +344,7 @@ Example: 7.5"""
     try:
         import httpx
         resp = httpx.post(
-            f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key={_gkey}",
+            f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key={_gkey}",
             json={"contents": [{"parts": [{"text": prompt}]}],
                   "generationConfig": {"temperature": 0.1, "maxOutputTokens": 10}},
             timeout=15.0,

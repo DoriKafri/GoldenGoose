@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Develeap Venture Engine — Autonomous System Timelapse</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;600;700;800&display=swap');
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:#0a0e17; color:#e2e8f0; font-family:'Inter',sans-serif; overflow:hidden; }
+  canvas { display:block; }
+  #ui { position:fixed; top:0; left:0; right:0; bottom:0; pointer-events:none; z-index:10; }
+
+  /* Clock */
+  #clock { position:absolute; top:24px; left:50%; transform:translateX(-50%); font-family:'JetBrains Mono',monospace; font-size:15px; font-weight:600; color:rgba(148,163,184,0.8); letter-spacing:1px; }
+
+  /* Title */
+  #title { position:absolute; top:20px; left:32px; }
+  #title h1 { font-size:14px; font-weight:800; color:rgba(248,250,252,0.9); letter-spacing:0.5px; }
+  #title p { font-size:10px; color:rgba(100,116,139,0.8); margin-top:2px; font-weight:600; }
+
+  /* Version badge */
+  #version { position:absolute; top:22px; right:32px; font-family:'JetBrains Mono',monospace; font-size:14px; font-weight:700; color:#10b981; opacity:0; transition:opacity 0.5s; }
+  #version.show { opacity:1; }
+
+  /* Event feed */
+  #feed { position:absolute; bottom:110px; left:32px; width:380px; max-height:240px; overflow:hidden; }
+  .feed-item { padding:6px 0; font-size:11px; line-height:1.4; opacity:0; transform:translateY(10px); animation:feedIn 0.4s forwards; border-bottom:1px solid rgba(51,65,85,0.3); }
+  .feed-item .time { font-family:'JetBrains Mono',monospace; color:rgba(100,116,139,0.7); font-size:9px; margin-right:8px; }
+  .feed-item .actor { font-weight:700; }
+  .feed-item .actor.user { color:#38bdf8; }
+  .feed-item .actor.ai { color:#a78bfa; }
+  .feed-item .actor.system { color:#10b981; }
+  .feed-item .action { color:rgba(203,213,225,0.8); }
+  .feed-item .target { color:#fbbf24; font-weight:600; }
+  @keyframes feedIn { to { opacity:1; transform:translateY(0); } }
+
+  /* Stats bar */
+  #stats { position:absolute; bottom:52px; left:0; right:0; display:flex; justify-content:center; gap:48px; }
+  .stat { text-align:center; }
+  .stat-val { font-family:'JetBrains Mono',monospace; font-size:22px; font-weight:700; }
+  .stat-val.commits { color:#38bdf8; }
+  .stat-val.bugs { color:#f87171; }
+  .stat-val.releases { color:#10b981; }
+  .stat-val.agents { color:#a78bfa; }
+  .stat-label { font-size:9px; text-transform:uppercase; letter-spacing:1.5px; color:rgba(100,116,139,0.6); font-weight:700; margin-top:2px; }
+
+  /* Histogram + Progress bar */
+  #timelineArea { position:absolute; bottom:0; left:0; right:0; height:40px; cursor:pointer; pointer-events:all; }
+  #histogram { position:absolute; bottom:3px; left:0; right:0; height:37px; display:flex; align-items:flex-end; gap:1px; padding:0 1px; }
+  .hist-bar { flex:1; min-width:0; border-radius:2px 2px 0 0; transition:opacity 0.15s; opacity:0.6; position:relative; }
+  .hist-bar:hover { opacity:1; }
+  .hist-bar .commit-part { background:rgba(56,189,248,0.8); width:100%; position:absolute; bottom:0; border-radius:2px 2px 0 0; }
+  .hist-bar .bug-part { background:rgba(248,113,113,0.8); width:100%; position:absolute; border-radius:2px 2px 0 0; }
+  .hist-bar .release-part { background:rgba(16,185,129,0.9); width:100%; position:absolute; border-radius:2px 2px 0 0; }
+  #timelinePlayhead { position:absolute; bottom:0; width:2px; height:40px; background:#38bdf8; z-index:2; pointer-events:none; box-shadow:0 0 6px rgba(56,189,248,0.5); transition:left 0.3s; }
+  #progress { position:absolute; bottom:0; left:0; right:0; height:3px; background:rgba(30,41,59,0.8); }
+  #progressFill { height:100%; background:linear-gradient(90deg,#10b981,#38bdf8,#a78bfa); width:0%; transition:width 0.3s; }
+
+  /* Speed control */
+  #speedCtrl { position:absolute; bottom:100px; right:32px; pointer-events:all; display:flex; gap:6px; align-items:center; }
+  #speedCtrl button { background:rgba(30,41,59,0.8); border:1px solid rgba(51,65,85,0.5); color:#94a3b8; padding:4px 10px; border-radius:4px; font-size:10px; font-family:'JetBrains Mono',monospace; cursor:pointer; transition:all 0.15s; }
+  #speedCtrl button:hover, #speedCtrl button.active { background:rgba(56,189,248,0.2); color:#38bdf8; border-color:#38bdf8; }
+
+  /* Release flash */
+  #releaseFlash { position:fixed; inset:0; background:radial-gradient(circle at center, rgba(16,185,129,0.15) 0%, transparent 70%); opacity:0; transition:opacity 0.3s; pointer-events:none; z-index:5; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="releaseFlash"></div>
+<div id="ui">
+  <div id="clock"></div>
+  <div id="title"><h1>DEVELEAP VENTURE ENGINE</h1><p>Autonomous Development Timelapse</p></div>
+  <div id="version"></div>
+  <div id="feed"></div>
+  <div id="stats">
+    <div class="stat"><div class="stat-val commits" id="sCommits">0</div><div class="stat-label">Commits</div></div>
+    <div class="stat"><div class="stat-val bugs" id="sBugs">0</div><div class="stat-label">Bugs Fixed</div></div>
+    <div class="stat"><div class="stat-val releases" id="sReleases">0</div><div class="stat-label">Releases</div></div>
+    <div class="stat"><div class="stat-val agents" id="sAgents">0</div><div class="stat-label">AI Actions</div></div>
+  </div>
+  <div id="timelineArea" onclick="timelineClick(event)">
+    <div id="histogram"></div>
+    <div id="timelinePlayhead"></div>
+    <div id="progress"><div id="progressFill"></div></div>
+  </div>
+  <div id="speedCtrl">
+    <button onclick="setSpeed(0.5)">0.5×</button>
+    <button onclick="setSpeed(1)" class="active">1×</button>
+    <button onclick="setSpeed(2)">2×</button>
+    <button onclick="setSpeed(5)">5×</button>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════
+// DATA — Real events from the system
+// ═══════════════════════════════════════════
+const TEAM = [
+  { name:'Kobi Avshalom', role:'CTO', color:'#38bdf8', email:'kobi@develeap.com' },
+  { name:'Gilad Neiger', role:'VP Eng', color:'#818cf8', email:'gilad@develeap.com' },
+  { name:'Saar Cohen', role:'VP Product', color:'#34d399', email:'saar@develeap.com' },
+  { name:'Efi Shimon', role:'VP Ops', color:'#fb923c', email:'efi@develeap.com' },
+  { name:'Omri Spector', role:'Founder', color:'#f472b6', email:'omri@develeap.com' },
+  { name:'Shoshi Revivo', role:'Sr DevOps', color:'#a78bfa', email:'shoshi@develeap.com' },
+];
+
+const AI_AGENTS = [
+  { name:'Claude', role:'AI Engineer', color:'#c084fc' },
+  { name:'Bug Hunter', role:'Scanner', color:'#f87171' },
+  { name:'PixelEye', role:'UI Inspector', color:'#22d3ee' },
+  { name:'AutoFix', role:'TDD Agent', color:'#4ade80' },
+];
+
+const COMMITS = [
+  { t:'2026-04-09T10:00:00', msg:'Initial venture engine scaffold' },
+  { t:'2026-04-09T13:22:00', msg:'Core news feed + YouTube reader' },
+  { t:'2026-04-10T03:19:00', msg:'Transcript + Gemini AI pipeline' },
+  { t:'2026-04-10T17:50:00', msg:'Add InnerTube transcript fallback' },
+  { t:'2026-04-10T20:47:00', msg:'TVHTML5_EMBEDDED bypass LOGIN_REQUIRED' },
+  { t:'2026-04-10T20:51:00', msg:'Watch-page API key extraction' },
+  { t:'2026-04-11T07:00:00', msg:'Two-phase transcript loading' },
+  { t:'2026-04-11T07:07:00', msg:'Red X failed state for unavailable tabs' },
+  { t:'2026-04-11T07:18:00', msg:'Wait for transcript before polling AI tabs' },
+  { t:'2026-04-11T07:38:00', msg:'Pre-fetch transcript on upload' },
+  { t:'2026-04-11T07:42:00', msg:'Fix DOPI spinning: stagger Gemini calls' },
+  { t:'2026-04-11T08:18:00', msg:'Restore scroll position on reader close' },
+  { t:'2026-04-11T08:26:00', msg:'Fix YouTube comments preview count' },
+  { t:'2026-04-11T08:30:00', msg:'Fix release pipeline weekend stalling' },
+  { t:'2026-04-11T08:34:00', msg:'Redesign Slack for mobile' },
+  { t:'2026-04-11T08:55:00', msg:'Redesign mobile top bar' },
+  { t:'2026-04-11T10:04:00', msg:'Fix mobile sidebar display' },
+  { t:'2026-04-11T10:52:00', msg:'DOPI Research Venture on mobile' },
+  { t:'2026-04-11T11:07:00', msg:'Remove graph feature entirely' },
+  { t:'2026-04-11T11:16:00', msg:'Disable simulated bugs — real tracker' },
+  { t:'2026-04-11T11:19:00', msg:'Fix 3 real bugs: DB session leaks' },
+  { t:'2026-04-11T11:25:00', msg:'Playwright: SSL 502 + input validation' },
+  { t:'2026-04-11T12:03:00', msg:'AI Bug Hunter + Bug Fixer agents' },
+  { t:'2026-04-11T12:09:00', msg:'PixelEye: Playwright + Claude Vision' },
+  { t:'2026-04-11T12:21:00', msg:'AI Product Owner sprint planner' },
+  { t:'2026-04-11T12:52:00', msg:'Live Monitor with AI agent badges' },
+  { t:'2026-04-11T13:02:00', msg:'AutoFix Red/Green TDD cycle' },
+  { t:'2026-04-11T13:12:00', msg:'Proof/evidence on TDD-fixed bugs' },
+  { t:'2026-04-11T13:15:00', msg:'IST timezone in release notes' },
+  { t:'2026-04-11T13:32:00', msg:'Fix Slack mobile: full-screen workspace' },
+  { t:'2026-04-11T13:55:00', msg:'Slack mobile: escape overflow:hidden' },
+  { t:'2026-04-11T14:35:00', msg:'Live Monitor AI Agents run buttons' },
+  { t:'2026-04-11T18:03:00', msg:'Add DOPI segment markers on timeline' },
+  { t:'2026-04-11T18:10:00', msg:'Fix DOPI cache: instant fetch, no stagger' },
+  { t:'2026-04-11T18:12:00', msg:'Preserve cache for same video reload' },
+  { t:'2026-04-11T18:14:00', msg:'Parallel fetch: transcript + AI tabs' },
+  { t:'2026-04-11T18:15:00', msg:'No spinners when data is cached' },
+  { t:'2026-04-11T18:17:00', msg:'Remove hardcoded spinner HTML' },
+  { t:'2026-04-11T18:19:00', msg:'Remove hardcoded loading class on tabs' },
+  { t:'2026-04-11T18:22:00', msg:'Tab ready state in template' },
+  { t:'2026-04-11T18:24:00', msg:'Transcript quick cache probe' },
+  { t:'2026-04-11T18:30:00', msg:'Enlarge DOPI tooltip, full text' },
+  { t:'2026-04-11T18:33:00', msg:'Fix tooltip clipping: global fixed tooltip' },
+];
+
+const RELEASES = [
+  { t:'2026-04-09T13:22:00', v:'v0.14.0', fixes:12 },
+  { t:'2026-04-10T03:19:00', v:'v0.14.1', fixes:5 },
+  { t:'2026-04-11T11:10:00', v:'v0.14.2', fixes:9 },
+  { t:'2026-04-11T11:19:00', v:'v0.14.3', fixes:3 },
+  { t:'2026-04-11T11:29:00', v:'v0.14.4', fixes:3 },
+];
+
+const BUGS = [
+  { t:'2026-04-11T11:18:00', key:'BUG-228', title:'DB session leak in transcript cache', reporter:'Kobi Avshalom', fixer:'Claude' },
+  { t:'2026-04-11T11:18:00', key:'BUG-229', title:'DB session leak in _get_transcript_text', reporter:'Gilad Neiger', fixer:'Claude' },
+  { t:'2026-04-11T11:18:00', key:'BUG-230', title:'Unbounded storyboard cache memory leak', reporter:'Saar Cohen', fixer:'Claude' },
+  { t:'2026-04-11T11:24:00', key:'BUG-234', title:'Article-insights 502 SSL error', reporter:'Kobi Avshalom', fixer:'Claude' },
+  { t:'2026-04-11T11:24:00', key:'BUG-235', title:'Empty title accepted in bug creation', reporter:'Gilad Neiger', fixer:'Claude' },
+  { t:'2026-04-11T11:24:00', key:'BUG-236', title:'Invalid priority accepted', reporter:'Saar Cohen', fixer:'Claude' },
+];
+
+// Merge all events into a sorted timeline
+const ALL_EVENTS = [];
+COMMITS.forEach(c => ALL_EVENTS.push({ t:new Date(c.t).getTime(), type:'commit', data:c }));
+RELEASES.forEach(r => ALL_EVENTS.push({ t:new Date(r.t).getTime(), type:'release', data:r }));
+BUGS.forEach(b => ALL_EVENTS.push({ t:new Date(b.t).getTime(), type:'bug', data:b }));
+
+// Real user interactions (PR reviews, testing, deployments triggered by team)
+const REAL_USER_ACTIONS = [
+  { t:'2026-04-09T09:30:00', user:'Kobi Avshalom', action:'kicked off venture engine project' },
+  { t:'2026-04-09T10:15:00', user:'Omri Spector', action:'reviewed initial scaffold PR' },
+  { t:'2026-04-09T13:10:00', user:'Gilad Neiger', action:'approved news feed architecture' },
+  { t:'2026-04-09T13:25:00', user:'Kobi Avshalom', action:'triggered v0.14.0 deployment' },
+  { t:'2026-04-10T03:25:00', user:'Kobi Avshalom', action:'triggered v0.14.1 deployment' },
+  { t:'2026-04-10T08:00:00', user:'Saar Cohen', action:'tested YouTube reader flow' },
+  { t:'2026-04-10T09:30:00', user:'Efi Shimon', action:'checked Railway deployment logs' },
+  { t:'2026-04-10T14:00:00', user:'Gilad Neiger', action:'reviewed transcript pipeline PR' },
+  { t:'2026-04-10T17:55:00', user:'Kobi Avshalom', action:'tested InnerTube fallback' },
+  { t:'2026-04-10T20:55:00', user:'Kobi Avshalom', action:'verified LOGIN_REQUIRED bypass' },
+  { t:'2026-04-11T07:05:00', user:'Saar Cohen', action:'reported transcript loading issues' },
+  { t:'2026-04-11T07:45:00', user:'Kobi Avshalom', action:'tested pre-fetch transcript flow' },
+  { t:'2026-04-11T08:20:00', user:'Omri Spector', action:'reviewed scroll restore UX' },
+  { t:'2026-04-11T08:35:00', user:'Shoshi Revivo', action:'validated Slack mobile redesign' },
+  { t:'2026-04-11T10:10:00', user:'Efi Shimon', action:'tested mobile sidebar on iPhone' },
+  { t:'2026-04-11T10:55:00', user:'Saar Cohen', action:'reviewed DOPI research on mobile' },
+  { t:'2026-04-11T11:12:00', user:'Kobi Avshalom', action:'triggered v0.14.2 deployment' },
+  { t:'2026-04-11T11:20:00', user:'Gilad Neiger', action:'reviewed DB session leak fix' },
+  { t:'2026-04-11T11:30:00', user:'Kobi Avshalom', action:'triggered v0.14.4 deployment' },
+  { t:'2026-04-11T12:05:00', user:'Omri Spector', action:'reviewed AI Bug Hunter agent' },
+  { t:'2026-04-11T12:15:00', user:'Saar Cohen', action:'tested PixelEye UI inspection' },
+  { t:'2026-04-11T12:55:00', user:'Kobi Avshalom', action:'verified live monitor badges' },
+  { t:'2026-04-11T13:10:00', user:'Gilad Neiger', action:'reviewed TDD proof evidence' },
+  { t:'2026-04-11T13:35:00', user:'Shoshi Revivo', action:'tested Slack mobile full-screen' },
+  { t:'2026-04-11T14:40:00', user:'Efi Shimon', action:'tested AI agent run buttons' },
+  { t:'2026-04-11T18:05:00', user:'Kobi Avshalom', action:'tested DOPI timeline segments' },
+  { t:'2026-04-11T18:20:00', user:'Saar Cohen', action:'verified no-spinner cache behavior' },
+  { t:'2026-04-11T18:35:00', user:'Kobi Avshalom', action:'verified tooltip fix' },
+];
+REAL_USER_ACTIONS.forEach(a => ALL_EVENTS.push({ t:new Date(a.t).getTime(), type:'user_action', data:{ user:a.user, action:a.action } }));
+
+// Real AI agent actions (tied to actual system events)
+const REAL_AI_ACTIONS = [
+  { t:'2026-04-10T03:15:00', agent:'Claude', action:'built Gemini AI pipeline' },
+  { t:'2026-04-10T17:45:00', agent:'Claude', action:'implemented InnerTube fallback' },
+  { t:'2026-04-11T07:00:00', agent:'Claude', action:'designed two-phase transcript loader' },
+  { t:'2026-04-11T08:25:00', agent:'Claude', action:'fixed YouTube comments preview' },
+  { t:'2026-04-11T11:16:00', agent:'Bug Hunter', action:'scanned codebase for DB leaks' },
+  { t:'2026-04-11T11:17:00', agent:'Bug Hunter', action:'found 3 session leak bugs' },
+  { t:'2026-04-11T11:18:00', agent:'Claude', action:'fixed DB session leaks' },
+  { t:'2026-04-11T11:23:00', agent:'Bug Hunter', action:'ran Playwright bug scan' },
+  { t:'2026-04-11T11:24:00', agent:'AutoFix', action:'applied SSL + validation fixes' },
+  { t:'2026-04-11T12:00:00', agent:'Claude', action:'built AI Bug Hunter agent' },
+  { t:'2026-04-11T12:08:00', agent:'PixelEye', action:'inspected UI with Claude Vision' },
+  { t:'2026-04-11T12:20:00', agent:'Claude', action:'built AI Product Owner agent' },
+  { t:'2026-04-11T12:50:00', agent:'Claude', action:'added live monitor AI badges' },
+  { t:'2026-04-11T13:00:00', agent:'AutoFix', action:'ran Red/Green TDD cycle' },
+  { t:'2026-04-11T13:11:00', agent:'AutoFix', action:'generated proof evidence' },
+  { t:'2026-04-11T18:02:00', agent:'Claude', action:'built DOPI timeline segments' },
+  { t:'2026-04-11T18:09:00', agent:'Claude', action:'optimized cache fetch strategy' },
+  { t:'2026-04-11T18:16:00', agent:'Claude', action:'eliminated spinner flash' },
+  { t:'2026-04-11T18:32:00', agent:'Claude', action:'fixed tooltip clipping bug' },
+];
+REAL_AI_ACTIONS.forEach(a => ALL_EVENTS.push({ t:new Date(a.t).getTime(), type:'ai_action', data:{ agent:a.agent, action:a.action } }));
+
+ALL_EVENTS.sort((a,b) => a.t - b.t);
+const T_START = ALL_EVENTS[0].t;
+const T_END = ALL_EVENTS[ALL_EVENTS.length - 1].t;
+const T_SPAN = T_END - T_START;
+
+// ═══════════════════════════════════════════
+// CANVAS SETUP
+// ═══════════════════════════════════════════
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+let W, H, cx, cy;
+
+function resize() {
+  W = canvas.width = window.innerWidth * devicePixelRatio;
+  H = canvas.height = window.innerHeight * devicePixelRatio;
+  canvas.style.width = window.innerWidth + 'px';
+  canvas.style.height = window.innerHeight + 'px';
+  ctx.scale(devicePixelRatio, devicePixelRatio);
+  cx = window.innerWidth / 2;
+  cy = window.innerHeight / 2;
+}
+window.addEventListener('resize', resize);
+resize();
+
+// ═══════════════════════════════════════════
+// NODES — Force-directed layout
+// ═══════════════════════════════════════════
+class Node {
+  constructor(name, label, color, x, y, radius, type) {
+    this.name = name; this.label = label; this.color = color;
+    this.x = x; this.y = y; this.tx = x; this.ty = y;
+    this.radius = radius; this.type = type;
+    this.glow = 0; this.pulse = 0;
+    this.vx = 0; this.vy = 0;
+  }
+  activate(intensity = 1) {
+    this.glow = Math.min(1, this.glow + intensity);
+    this.pulse = 1;
+  }
+  update() {
+    this.glow *= 0.97;
+    this.pulse *= 0.94;
+    this.x += (this.tx - this.x) * 0.03;
+    this.y += (this.ty - this.y) * 0.03;
+  }
+  draw(ctx) {
+    const r = this.radius;
+    // Glow
+    if (this.glow > 0.01) {
+      const grad = ctx.createRadialGradient(this.x, this.y, r, this.x, this.y, r * 4);
+      grad.addColorStop(0, this.color + Math.floor(this.glow * 80).toString(16).padStart(2,'0'));
+      grad.addColorStop(1, 'transparent');
+      ctx.fillStyle = grad;
+      ctx.beginPath(); ctx.arc(this.x, this.y, r * 4, 0, Math.PI * 2); ctx.fill();
+    }
+    // Pulse ring
+    if (this.pulse > 0.05) {
+      ctx.strokeStyle = this.color + Math.floor(this.pulse * 120).toString(16).padStart(2,'0');
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(this.x, this.y, r + (1 - this.pulse) * 30, 0, Math.PI * 2); ctx.stroke();
+    }
+    // Body
+    const bodyGrad = ctx.createRadialGradient(this.x - r*0.3, this.y - r*0.3, r*0.1, this.x, this.y, r);
+    bodyGrad.addColorStop(0, this.color);
+    bodyGrad.addColorStop(1, this.color + '88');
+    ctx.fillStyle = bodyGrad;
+    ctx.beginPath(); ctx.arc(this.x, this.y, r, 0, Math.PI * 2); ctx.fill();
+    // Label
+    ctx.fillStyle = 'rgba(148,163,184,' + (0.5 + this.glow * 0.5) + ')';
+    ctx.font = '600 ' + (this.type === 'center' ? '11px' : '9px') + ' Inter';
+    ctx.textAlign = 'center';
+    ctx.fillText(this.name, this.x, this.y + r + 14);
+    if (this.label) {
+      ctx.fillStyle = 'rgba(100,116,139,0.4)';
+      ctx.font = '600 7px Inter';
+      ctx.fillText(this.label, this.x, this.y + r + 24);
+    }
+  }
+}
+
+// Create nodes
+const centerNode = new Node('System', 'Venture Engine', '#38bdf8', cx, cy, 22, 'center');
+const userNodes = TEAM.map((u, i) => {
+  const angle = (i / TEAM.length) * Math.PI * 2 - Math.PI / 2;
+  const dist = 180;
+  return new Node(u.name.split(' ')[0], u.role, u.color, cx + Math.cos(angle) * dist, cy + Math.sin(angle) * dist, 12, 'user');
+});
+const aiNodes = AI_AGENTS.map((a, i) => {
+  const angle = (i / AI_AGENTS.length) * Math.PI * 2 - Math.PI / 4;
+  const dist = 110;
+  return new Node(a.name, a.role, a.color, cx + Math.cos(angle) * dist, cy + Math.sin(angle) * dist, 10, 'ai');
+});
+const allNodes = [centerNode, ...userNodes, ...aiNodes];
+
+// ═══════════════════════════════════════════
+// PARTICLES — Flying between nodes
+// ═══════════════════════════════════════════
+const particles = [];
+class Particle {
+  constructor(from, to, color, size = 3) {
+    this.x = from.x; this.y = from.y;
+    this.tx = to.x; this.ty = to.y;
+    this.color = color; this.size = size;
+    this.progress = 0; this.speed = 0.015 + Math.random() * 0.01;
+    this.sx = from.x; this.sy = from.y;
+    this.trail = [];
+  }
+  update() {
+    this.progress += this.speed;
+    const t = this.progress;
+    const mt = 1 - t;
+    // Curved path
+    const cpx = (this.sx + this.tx) / 2 + (this.ty - this.sy) * 0.2;
+    const cpy = (this.sy + this.ty) / 2 - (this.tx - this.sx) * 0.2;
+    this.x = mt*mt*this.sx + 2*mt*t*cpx + t*t*this.tx;
+    this.y = mt*mt*this.sy + 2*mt*t*cpy + t*t*this.ty;
+    this.trail.push({ x:this.x, y:this.y });
+    if (this.trail.length > 12) this.trail.shift();
+    return this.progress >= 1;
+  }
+  draw(ctx) {
+    // Trail
+    for (let i = 0; i < this.trail.length; i++) {
+      const alpha = (i / this.trail.length) * 0.4;
+      ctx.fillStyle = this.color + Math.floor(alpha * 255).toString(16).padStart(2,'0');
+      ctx.beginPath();
+      ctx.arc(this.trail[i].x, this.trail[i].y, this.size * (i / this.trail.length), 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // Head
+    ctx.fillStyle = this.color;
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+function emitParticle(from, to, color, size) {
+  particles.push(new Particle(from, to, color, size || 3));
+}
+
+// ═══════════════════════════════════════════
+// CONNECTIONS
+// ═══════════════════════════════════════════
+function drawConnections(ctx) {
+  allNodes.forEach(n => {
+    if (n === centerNode) return;
+    const alpha = 0.06 + n.glow * 0.15;
+    ctx.strokeStyle = 'rgba(71,85,105,' + alpha + ')';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(centerNode.x, centerNode.y);
+    ctx.lineTo(n.x, n.y);
+    ctx.stroke();
+  });
+}
+
+// ═══════════════════════════════════════════
+// STARFIELD
+// ═══════════════════════════════════════════
+const stars = Array.from({length: 120}, () => ({
+  x: Math.random() * window.innerWidth,
+  y: Math.random() * window.innerHeight,
+  size: Math.random() * 1.2 + 0.3,
+  twinkle: Math.random() * Math.PI * 2,
+  speed: Math.random() * 0.02 + 0.005,
+}));
+
+function drawStars(ctx, time) {
+  stars.forEach(s => {
+    s.twinkle += s.speed;
+    const alpha = 0.2 + Math.sin(s.twinkle) * 0.15;
+    ctx.fillStyle = `rgba(148,163,184,${alpha})`;
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
+    ctx.fill();
+  });
+}
+
+// ═══════════════════════════════════════════
+// TIMELINE PLAYBACK
+// ═══════════════════════════════════════════
+let currentTime = T_START;
+let eventIndex = 0;
+let speed = 1;
+let counters = { commits:0, bugs:0, releases:0, agents:0 };
+let currentVersion = '';
+
+function setSpeed(s) {
+  speed = s;
+  document.querySelectorAll('#speedCtrl button').forEach(b => {
+    b.classList.toggle('active', parseFloat(b.textContent) === s);
+  });
+}
+
+function formatDate(ts) {
+  const d = new Date(ts);
+  const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  return `${days[d.getDay()]}, ${d.getDate().toString().padStart(2,'0')} ${months[d.getMonth()]}, ${d.getFullYear()} ${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}:${d.getSeconds().toString().padStart(2,'0')}`;
+}
+
+function addFeedItem(html) {
+  const feed = document.getElementById('feed');
+  const item = document.createElement('div');
+  item.className = 'feed-item';
+  const time = formatDate(currentTime).split(', ').pop().split(' ').pop();
+  item.innerHTML = `<span class="time">${time}</span>${html}`;
+  feed.prepend(item);
+  while (feed.children.length > 12) feed.lastChild.remove();
+}
+
+function findUserNode(name) {
+  const first = name.split(' ')[0];
+  return userNodes.find(n => n.name === first);
+}
+function findAiNode(name) {
+  return aiNodes.find(n => n.name === name);
+}
+
+function processEvent(ev) {
+  const d = ev.data;
+  switch (ev.type) {
+    case 'commit': {
+      counters.commits++;
+      const ai = findAiNode('Claude');
+      if (ai) { ai.activate(0.8); emitParticle(ai, centerNode, '#c084fc', 4); }
+      centerNode.activate(0.5);
+      addFeedItem(`<span class="actor ai">Claude</span> <span class="action">committed</span> <span class="target">${d.msg}</span>`);
+      break;
+    }
+    case 'release': {
+      counters.releases++;
+      currentVersion = d.v;
+      const verEl = document.getElementById('version');
+      verEl.textContent = d.v + ' RELEASED';
+      verEl.classList.add('show');
+      setTimeout(() => verEl.classList.remove('show'), 3000);
+      document.getElementById('releaseFlash').style.opacity = '1';
+      setTimeout(() => document.getElementById('releaseFlash').style.opacity = '0', 600);
+      centerNode.activate(1);
+      allNodes.forEach(n => n.activate(0.3));
+      addFeedItem(`<span class="actor system">System</span> <span class="action">deployed</span> <span class="target">${d.v}</span> <span class="action">(${d.fixes} fixes)</span>`);
+      break;
+    }
+    case 'bug': {
+      counters.bugs++;
+      const reporter = findUserNode(d.reporter);
+      const fixer = findAiNode(d.fixer) || findAiNode('Claude');
+      if (reporter) { reporter.activate(0.7); emitParticle(reporter, centerNode, '#f87171', 3); }
+      if (fixer) { fixer.activate(0.5); emitParticle(centerNode, fixer, '#4ade80', 3); }
+      addFeedItem(`<span class="actor user">${d.reporter}</span> <span class="action">reported</span> <span class="target">${d.key}</span> <span class="action">→ fixed by</span> <span class="actor ai">${d.fixer}</span>`);
+      break;
+    }
+    case 'user_action': {
+      const un = findUserNode(d.user);
+      if (un) { un.activate(0.4); emitParticle(un, centerNode, un.color || '#38bdf8', 2); }
+      addFeedItem(`<span class="actor user">${d.user}</span> <span class="action">${d.action}</span>`);
+      break;
+    }
+    case 'ai_action': {
+      counters.agents++;
+      const an = findAiNode(d.agent);
+      if (an) { an.activate(0.6); emitParticle(an, centerNode, an.color || '#a78bfa', 3); }
+      addFeedItem(`<span class="actor ai">${d.agent}</span> <span class="action">${d.action}</span>`);
+      break;
+    }
+  }
+  document.getElementById('sCommits').textContent = counters.commits;
+  document.getElementById('sBugs').textContent = counters.bugs;
+  document.getElementById('sReleases').textContent = counters.releases;
+  document.getElementById('sAgents').textContent = counters.agents;
+}
+
+// ═══════════════════════════════════════════
+// HISTOGRAM — Activity density on timeline
+// ═══════════════════════════════════════════
+const NUM_BINS = 80;
+const histBins = Array.from({length: NUM_BINS}, () => ({ commits:0, bugs:0, releases:0, total:0 }));
+ALL_EVENTS.forEach(ev => {
+  const pct = (ev.t - T_START) / T_SPAN;
+  const bin = Math.min(NUM_BINS - 1, Math.max(0, Math.floor(pct * NUM_BINS)));
+  histBins[bin].total++;
+  if (ev.type === 'commit') histBins[bin].commits++;
+  else if (ev.type === 'bug') histBins[bin].bugs++;
+  else if (ev.type === 'release') histBins[bin].releases++;
+});
+const maxBin = Math.max(1, ...histBins.map(b => b.total));
+
+function renderHistogram() {
+  const container = document.getElementById('histogram');
+  container.innerHTML = histBins.map((bin, i) => {
+    const totalH = (bin.total / maxBin * 34);
+    const commitH = (bin.commits / maxBin * 34);
+    const bugH = (bin.bugs / maxBin * 34);
+    const releaseH = (bin.releases / maxBin * 34);
+    const otherH = totalH - commitH - bugH - releaseH;
+    let bottom = 0;
+    let parts = '';
+    if (otherH > 0) { parts += `<div style="position:absolute;bottom:${bottom}px;width:100%;height:${otherH}px;background:rgba(148,163,184,0.3);border-radius:1px;"></div>`; bottom += otherH; }
+    if (commitH > 0) { parts += `<div style="position:absolute;bottom:${bottom}px;width:100%;height:${commitH}px;background:rgba(56,189,248,0.7);border-radius:1px;"></div>`; bottom += commitH; }
+    if (bugH > 0) { parts += `<div style="position:absolute;bottom:${bottom}px;width:100%;height:${bugH}px;background:rgba(248,113,113,0.8);border-radius:1px;"></div>`; bottom += bugH; }
+    if (releaseH > 0) { parts += `<div style="position:absolute;bottom:${bottom}px;width:100%;height:${releaseH}px;background:rgba(16,185,129,0.9);border-radius:1px;"></div>`; bottom += releaseH; }
+    return `<div class="hist-bar" style="height:${totalH}px;position:relative;">${parts}</div>`;
+  }).join('');
+}
+renderHistogram();
+
+function timelineClick(e) {
+  const rect = e.currentTarget.getBoundingClientRect();
+  const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+  currentTime = T_START + pct * T_SPAN;
+  // Reset event index — find the right position
+  eventIndex = 0;
+  counters = { commits:0, bugs:0, releases:0, agents:0 };
+  // Replay counters up to the new position
+  while (eventIndex < ALL_EVENTS.length && ALL_EVENTS[eventIndex].t <= currentTime) {
+    const ev = ALL_EVENTS[eventIndex];
+    if (ev.type === 'commit') counters.commits++;
+    else if (ev.type === 'bug') counters.bugs++;
+    else if (ev.type === 'release') { counters.releases++; currentVersion = ev.data.v; }
+    else if (ev.type === 'ai_action') counters.agents++;
+    eventIndex++;
+  }
+  document.getElementById('sCommits').textContent = counters.commits;
+  document.getElementById('sBugs').textContent = counters.bugs;
+  document.getElementById('sReleases').textContent = counters.releases;
+  document.getElementById('sAgents').textContent = counters.agents;
+  // Clear feed
+  document.getElementById('feed').innerHTML = '';
+}
+
+// ═══════════════════════════════════════════
+// MAIN LOOP
+// ═══════════════════════════════════════════
+let lastFrame = 0;
+const TIME_SCALE = 120000; // 1 real second = 2 minutes of simulated time
+
+function frame(now) {
+  const dt = lastFrame ? (now - lastFrame) / 1000 : 0;
+  lastFrame = now;
+
+  // Advance time
+  currentTime += dt * TIME_SCALE * speed;
+  if (currentTime > T_END + 60000) { currentTime = T_START; eventIndex = 0; counters = {commits:0,bugs:0,releases:0,agents:0}; }
+
+  // Process events
+  while (eventIndex < ALL_EVENTS.length && ALL_EVENTS[eventIndex].t <= currentTime) {
+    processEvent(ALL_EVENTS[eventIndex]);
+    eventIndex++;
+  }
+
+  // Update clock & timeline
+  const pctDone = (currentTime - T_START) / T_SPAN * 100;
+  document.getElementById('clock').textContent = formatDate(currentTime);
+  document.getElementById('progressFill').style.width = pctDone + '%';
+  document.getElementById('timelinePlayhead').style.left = pctDone + '%';
+
+  // Clear
+  const w = window.innerWidth, h = window.innerHeight;
+  ctx.clearRect(0, 0, w, h);
+
+  // Background gradient
+  const bgGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(w, h) * 0.7);
+  bgGrad.addColorStop(0, 'rgba(15,23,42,1)');
+  bgGrad.addColorStop(1, 'rgba(2,6,23,1)');
+  ctx.fillStyle = bgGrad;
+  ctx.fillRect(0, 0, w, h);
+
+  // Stars
+  drawStars(ctx, now);
+
+  // Gentle orbit
+  const time = now * 0.0003;
+  userNodes.forEach((n, i) => {
+    const angle = (i / TEAM.length) * Math.PI * 2 - Math.PI / 2 + Math.sin(time + i) * 0.08;
+    const dist = 180 + Math.sin(time * 0.7 + i * 2) * 15;
+    n.tx = cx + Math.cos(angle) * dist;
+    n.ty = cy + Math.sin(angle) * dist;
+  });
+  aiNodes.forEach((n, i) => {
+    const angle = (i / AI_AGENTS.length) * Math.PI * 2 - Math.PI / 4 + Math.sin(time * 1.2 + i) * 0.1;
+    const dist = 110 + Math.sin(time * 0.9 + i * 3) * 10;
+    n.tx = cx + Math.cos(angle) * dist;
+    n.ty = cy + Math.sin(angle) * dist;
+  });
+  centerNode.tx = cx;
+  centerNode.ty = cy;
+
+  // Draw
+  drawConnections(ctx);
+  allNodes.forEach(n => { n.update(); n.draw(ctx); });
+
+  // Particles
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const done = particles[i].update();
+    particles[i].draw(ctx);
+    if (done) particles.splice(i, 1);
+  }
+
+  requestAnimationFrame(frame);
+}
+
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

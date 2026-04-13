@@ -4844,10 +4844,9 @@ function _ytPollUntilReady(tabName, url, vid, onSuccess, attempt) {
   fetch(fetchUrl, {signal: ctrl.signal}).then(r => { clearTimeout(timer); return r.ok ? r.json() : null; }).then(d => {
     // Check for error sentinel from backend (generation permanently failed)
     if (d && d.error === 'generation_failed') { _ytPollStopAndShowUnavailable(tabName); return; }
-    if (d && !d.error && !d.detail) {
+    if (_ytIsValidAiData(d)) {
       onSuccess(d);
       _tabSetReady(tabName);
-      // If the user is currently viewing this tab, render it
       const activeTab = document.querySelector(`.yt-tab.active[data-tab="${tabName}"]`);
       if (activeTab) {
         if (tabName === 'takeaways') _ytRenderTakeaways(_ytTakeawaysData);
@@ -4872,6 +4871,15 @@ function _ytPollUntilReady(tabName, url, vid, onSuccess, attempt) {
   });
 }
 
+// Validate that takeaways/DOPI response is actual content (not a sentinel or garbage)
+function _ytIsValidAiData(d) {
+  if (!d) return false;
+  if (d.error || d.detail) return false;
+  // Must be an array of items, or an object containing one
+  const items = d.takeaways || d.insights || d;
+  return Array.isArray(items) && items.length > 0;
+}
+
 // ── Takeaways fetch: try GET (cached?), else POST with transcript, then poll ──
 function _ytFetchTakeawaysWithFallback(vid) {
   const tkUrl = `${API}/api/youtube-key-takeaways?video_id=${vid}`;
@@ -4882,7 +4890,7 @@ function _ytFetchTakeawaysWithFallback(vid) {
       return;
     }
     if (d && d.error === 'generation_failed') { _ytPollStopAndShowUnavailable('takeaways'); return; }
-    if (d && !d.error && !d.detail) {
+    if (_ytIsValidAiData(d)) {
       _ytTakeawaysData = d.takeaways || d; _ytTakeawaysVideoId = vid;
       _tabSetReady('takeaways');
       const activeTab = document.querySelector('.yt-tab.active[data-tab="takeaways"]');
@@ -4913,7 +4921,7 @@ function _ytPostTakeawaysWithTranscript(vid) {
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({video_id: vid, transcript_segments: _ytTranscriptData})
   }).then(r => r.ok ? r.json() : null).then(d => {
-    if (d && !d.error && !d.detail) {
+    if (_ytIsValidAiData(d)) {
       _ytTakeawaysData = d.takeaways || d; _ytTakeawaysVideoId = vid;
       _tabSetReady('takeaways');
       const activeTab = document.querySelector('.yt-tab.active[data-tab="takeaways"]');
@@ -4941,7 +4949,7 @@ function _ytFetchDpoiWithFallback(vid) {
       return;
     }
     if (d && d.error === 'generation_failed') { _ytPollStopAndShowUnavailable('dpoi'); return; }
-    if (d && !d.error && !d.detail) {
+    if (_ytIsValidAiData(d)) {
       _ytDpoiData = d.insights || d; _ytDpoiVideoId = vid;
       _tabSetReady('dpoi');
       const activeTab = document.querySelector('.yt-tab.active[data-tab="dpoi"]');
@@ -4949,7 +4957,7 @@ function _ytFetchDpoiWithFallback(vid) {
       _renderDpoiTimelineSegments();
       return;
     }
-    // Not cached — POST transcript if available, else stagger poll GET
+    // Not cached or invalid — POST transcript if available, else stagger poll GET
     if (_ytTranscriptData) {
       _ytPostDpoiWithTranscript(vid);
     } else {
@@ -4977,7 +4985,7 @@ function _ytPostDpoiWithTranscript(vid) {
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({video_id: vid, transcript_segments: _ytTranscriptData})
   }).then(r => r.ok ? r.json() : null).then(d => {
-    if (d && !d.error && !d.detail) {
+    if (_ytIsValidAiData(d)) {
       _ytDpoiData = d.insights || d; _ytDpoiVideoId = vid;
       _tabSetReady('dpoi');
       const activeTab = document.querySelector('.yt-tab.active[data-tab="dpoi"]');
@@ -5307,14 +5315,14 @@ async function _ytPreFetchInsights(vid) {
         method: 'POST', headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({video_id: vid, transcript_segments: _ytTranscriptData})
       }).then(r => r.ok ? r.json() : null).then(d => {
-        if (d && !d.error && !d.detail) {
+        if (_ytIsValidAiData(d)) {
           _ytTakeawaysData = d.takeaways || d; _ytTakeawaysVideoId = vid;
           _tabSetReady('takeaways');
         }
       }).catch(() => {}));
     } else {
       promises.push(fetch(`${API}/api/youtube-key-takeaways?video_id=${vid}`).then(r => r.ok ? r.json() : null).then(d => {
-        if (d && !d.error && !d.detail) { _ytTakeawaysData = d.takeaways || d; _ytTakeawaysVideoId = vid; }
+        if (_ytIsValidAiData(d)) { _ytTakeawaysData = d.takeaways || d; _ytTakeawaysVideoId = vid; _tabSetReady('takeaways'); }
       }).catch(() => {}));
     }
   }
@@ -5324,14 +5332,14 @@ async function _ytPreFetchInsights(vid) {
         method: 'POST', headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({video_id: vid, transcript_segments: _ytTranscriptData})
       }).then(r => r.ok ? r.json() : null).then(d => {
-        if (d && !d.error && !d.detail) {
+        if (_ytIsValidAiData(d)) {
           _ytDpoiData = d.insights || d; _ytDpoiVideoId = vid;
           _tabSetReady('dpoi');
         }
       }).catch(() => {}));
     } else {
       promises.push(fetch(`${API}/api/youtube-dpoi?video_id=${vid}`).then(r => r.ok ? r.json() : null).then(d => {
-        if (d && !d.error && !d.detail) { _ytDpoiData = d.insights || d; _ytDpoiVideoId = vid; }
+        if (_ytIsValidAiData(d)) { _ytDpoiData = d.insights || d; _ytDpoiVideoId = vid; _tabSetReady('dpoi'); }
       }).catch(() => {}));
     }
   }

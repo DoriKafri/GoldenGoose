@@ -1371,7 +1371,7 @@ def list_news(
     source: Optional[str] = None,
     tag: Optional[str] = None,
     q: Optional[str] = Query(None, description="Search query"),
-    limit: int = Query(25, ge=1, le=100),
+    limit: int = Query(25, ge=1, le=500),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db_dependency),
 ):
@@ -1397,11 +1397,14 @@ def list_news(
         query = query.filter(NewsFeedItem.source == source)
     if q and q.strip():
         search = f"%{q.strip()}%"
+        from sqlalchemy import cast, String as SAString
         query = query.filter(
             (NewsFeedItem.title.ilike(search)) |
             (NewsFeedItem.summary.ilike(search)) |
             (NewsFeedItem.url.ilike(search)) |
-            (NewsFeedItem.source_name.ilike(search))
+            (NewsFeedItem.source_name.ilike(search)) |
+            (NewsFeedItem.author.ilike(search)) |
+            (cast(NewsFeedItem.tags, SAString).ilike(search))
         )
     # Deduplicate by URL and title at query time
     from sqlalchemy import func as sqlfunc

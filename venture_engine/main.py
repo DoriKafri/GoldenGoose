@@ -244,6 +244,38 @@ def _dedup_news_feed():
             logger.info(f"Dedup: removed {deleted} duplicate news items across {len(dupes)} titles")
 
 
+def _seed_youtube_news():
+    """Ensure key YouTube news items exist in the feed."""
+    from datetime import datetime as _dt
+    from venture_engine.db.models import NewsFeedItem
+
+    _YOUTUBE_SEEDS = [
+        {
+            "title": "An AI state of the union: We have passed the inflection point, dark factories are coming, and automation timelines | Simon Willison",
+            "url": "https://www.youtube.com/watch?v=wc8FBhQtdsA",
+            "source": "youtube",
+            "source_name": "Lenny's Podcast",
+            "author": "Simon Willison",
+            "summary": "Simon Willison joins Lenny Rachitsky to discuss the AI inflection point of November 2025, agentic engineering patterns, the dark factory concept where AI autonomously generates code, and automation timelines.",
+            "tags": ["AI", "agentic engineering", "software engineering", "automation", "podcast"],
+            "signal_strength": 9.5,
+            "image_url": "https://img.youtube.com/vi/wc8FBhQtdsA/hqdefault.jpg",
+            "published_at": _dt(2026, 4, 2),
+        },
+    ]
+
+    with get_db() as db:
+        existing_urls = {r[0] for r in db.query(NewsFeedItem.url).all() if r[0]}
+        count = 0
+        for seed in _YOUTUBE_SEEDS:
+            if seed["url"] in existing_urls:
+                continue
+            db.add(NewsFeedItem(**seed))
+            count += 1
+        if count:
+            logger.info(f"Seeded {count} YouTube news items")
+
+
 def _backfill_news_from_signals():
     """Create NewsFeedItem entries for any RawSignals that don't have one yet."""
     from venture_engine.db.models import RawSignal, NewsFeedItem
@@ -614,6 +646,7 @@ def on_startup():
     _safe("Loading settings", lambda: __import__('venture_engine.settings_service', fromlist=['load_cache']).load_cache(get_db().__enter__()))
     _safe("Resolving HN news URLs", _resolve_hn_urls)
     _safe("Backfilling news from signals", _backfill_news_from_signals)
+    _safe("Seeding YouTube news items", _seed_youtube_news)
     _safe("Deduplicating news feed", _dedup_news_feed)
     _safe("Backfilling YouTube thumbnails", _backfill_youtube_thumbnails)
     _safe("Seeding Slack channels", lambda: __import__('venture_engine.slack_simulator', fromlist=['seed_channels_and_history']).seed_channels_and_history(get_db().__enter__()))

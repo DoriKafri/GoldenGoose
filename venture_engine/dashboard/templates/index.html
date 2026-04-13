@@ -9089,21 +9089,16 @@ async function _tlInit() {
       tlEvents.push({ t, type:'user_action', data:d });
     } else if (ev.type === 'ai_action') {
       tlEvents.push({ t, type:'ai_action', data:{ agent:ev.agent||ev.user, action:ev.action }});
+    } else if (ev.type === 'release') {
+      tlEvents.push({ t, type:'release', data:{ t:ev.t, v:ev.v, fixes:ev.fixes||0, bug_keys:ev.bug_keys||[] }});
     }
   }
-  // Always include releases (not tracked in DB yet)
-  const TL_RELEASES_ALWAYS = [
-    { t:'2026-04-09T13:22:00', v:'v0.14.0', fixes:12 },
-    { t:'2026-04-10T03:19:00', v:'v0.14.1', fixes:5 },
-    { t:'2026-04-11T11:10:00', v:'v0.14.2', fixes:9 },
-    { t:'2026-04-11T11:19:00', v:'v0.14.3', fixes:3 },
-    { t:'2026-04-11T11:29:00', v:'v0.14.4', fixes:3 },
-  ];
-  TL_RELEASES_ALWAYS.forEach(r => tlEvents.push({ t:new Date(r.t).getTime(), type:'release', data:r }));
+  // Extract releases from parsed events for version tracking
+  const TL_RELEASES_ALWAYS = tlEvents.filter(e => e.type === 'release').map(e => e.data);
   tlEvents.sort((a,b) => a.t - b.t);
 
   // Fallback if no events from API — use hardcoded data
-  if (tlEvents.length <= TL_RELEASES_ALWAYS.length) {
+  if (tlEvents.length <= TL_RELEASES_ALWAYS.length || TL_RELEASES_ALWAYS.length === 0) {
   const TL_COMMITS = [
     { t:'2026-04-09T10:00:00', msg:'Initial venture engine scaffold' },
     { t:'2026-04-09T13:22:00', msg:'Core news feed + YouTube reader' },

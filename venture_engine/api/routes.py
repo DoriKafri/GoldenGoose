@@ -5574,6 +5574,22 @@ def get_live_feed(since: Optional[str] = None, limit: int = 30, db: Session = De
     total_slack = db.query(func.count(SlackMessage.id)).scalar() or 0
     total_comments = db.query(func.count(PageAnnotation.id)).scalar() or 0
 
+    # Releases — show recent real releases in the live feed
+    from venture_engine.db.models import Release
+    rel_q = db.query(Release).filter(Release.fixes_count > 0).order_by(Release.created_at.desc())
+    if cutoff:
+        rel_q = rel_q.filter(Release.created_at > cutoff)
+    for r in rel_q.limit(5).all():
+        bug_keys = r.bug_keys if isinstance(r.bug_keys, list) else []
+        events.append({
+            "type": "release", "icon": "🚀", "color": "#059669",
+            "user": "System",
+            "action": f"released {r.version}",
+            "body": f"{r.fixes_count or len(bug_keys)} fixes deployed to production",
+            "time": r.created_at.isoformat() if r.created_at else None,
+            "meta": {"version": r.version, "fixes": r.fixes_count, "bug_keys": bug_keys},
+        })
+
     # Agent-specific counts
     all_bugs = db.query(Bug).all()
     real_bugs = sum(1 for b in all_bugs if b.labels and "real" in b.labels)
@@ -5688,6 +5704,21 @@ def get_timelapse_events(db: Session = Depends(get_db_dependency)):
             "t": t, "type": "user_action",
             "user": user.split(" ")[0],
             "action": f"annotated an article: {(a.body or '')[:50]}",
+        })
+
+    # Releases from DB → release events (only real releases with actual fixes)
+    from venture_engine.db.models import Release
+    for r in db.query(Release).order_by(Release.created_at.asc()).all():
+        fixes = r.fixes_count or 0
+        bug_keys = r.bug_keys if isinstance(r.bug_keys, list) else []
+        if fixes == 0 and len(bug_keys) == 0:
+            continue  # Skip seeded/historical releases with no real fixes
+        t = r.created_at.isoformat() if r.created_at else None
+        events.append({
+            "t": t, "type": "release",
+            "v": r.version,
+            "fixes": fixes or len(bug_keys),
+            "bug_keys": bug_keys,
         })
 
     # Sort by time

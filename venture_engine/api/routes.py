@@ -2725,10 +2725,11 @@ def _gemini_generate(prompt: str) -> Optional[str]:
     return None
 
 
-def _auto_generate_takeaways(video_id: str) -> Optional[dict]:
+def _auto_generate_takeaways(video_id: str, transcript_text: str = None) -> Optional[dict]:
     """Auto-generate takeaways for a video using Gemini, cache result, and return it."""
     logger.info(f"Starting takeaways generation for {video_id}")
-    transcript_text = _get_transcript_text(video_id)
+    if not transcript_text:
+        transcript_text = _get_transcript_text(video_id)
     if not transcript_text:
         logger.warning(f"No transcript text for {video_id} — cannot generate takeaways")
         return None
@@ -2792,10 +2793,12 @@ TRANSCRIPT:
         return None
 
 
-def _auto_generate_dopi(video_id: str) -> Optional[dict]:
+def _auto_generate_dopi(video_id: str, transcript_text: str = None) -> Optional[dict]:
     """Auto-generate DOPI insights for a video using Gemini, cache result, and return it."""
-    transcript_text = _get_transcript_text(video_id)
     if not transcript_text:
+        transcript_text = _get_transcript_text(video_id)
+    if not transcript_text:
+        logger.warning(f"No transcript text for {video_id} — cannot generate DOPI")
         return None
 
     if len(transcript_text) > 500000:
@@ -2915,6 +2918,81 @@ def youtube_key_takeaways(video_id: str = Query(..., min_length=11, max_length=1
     raise HTTPException(404, "Takeaways generation in progress. Retry in a few seconds.")
 
 
+@router.post("/api/youtube-key-takeaways")
+async def youtube_key_takeaways_post(request: Request):
+    """Generate takeaways using transcript sent from frontend."""
+    import threading
+    from venture_engine.db.session import SessionLocal
+    from venture_engine.db.models import TakeawaysCache
+
+    body = await request.json()
+    video_id = body.get("video_id", "")
+    segments = body.get("transcript_segments", [])
+
+    if not video_id or len(video_id) != 11:
+        raise HTTPException(400, "Invalid video_id")
+
+    # Check cache first
+    _tk_db = SessionLocal()
+    try:
+        cached = _tk_db.query(TakeawaysCache).filter(TakeawaysCache.video_id == video_id).first()
+        if cached and cached.data:
+            # Clear generation_failed sentinel if frontend is retrying with transcript
+            if isinstance(cached.data, dict) and cached.data.get("error") == "generation_failed" and segments:
+                pass  # fall through to regenerate
+            else:
+                return cached.data
+    except Exception as e:
+        logger.warning(f"Takeaways cache lookup failed: {e}")
+    finally:
+        _tk_db.close()
+
+    # Build transcript text from segments
+    transcript_text = ""
+    if segments:
+        transcript_text = "\n".join(
+            f"[{s.get('start', 0):.1f}s] {s.get('text', '')}" for s in segments if s.get('text')
+        )
+
+    if not transcript_text:
+        raise HTTPException(400, "No transcript segments provided")
+
+    import time as _time
+    _bg_key = f"takeaways_{video_id}"
+    _started = _bg_generation_active.get(_bg_key, 0)
+    if _started and (_time.time() - _started) > _BG_GENERATION_TIMEOUT:
+        _bg_generation_active.pop(_bg_key, None)
+    if _bg_key not in _bg_generation_active:
+        _bg_generation_active[_bg_key] = _time.time()
+        _tx = transcript_text  # capture for thread
+        def _bg():
+            try:
+                result = _auto_generate_takeaways(video_id, transcript_text=_tx)
+                if not result:
+                    _time.sleep(10)
+                    logger.info(f"Takeaways generation failed for {video_id}, retrying with transcript...")
+                    result = _auto_generate_takeaways(video_id, transcript_text=_tx)
+                if not result:
+                    logger.warning(f"Takeaways generation failed permanently for {video_id}")
+                    try:
+                        _fail_db = SessionLocal()
+                        existing = _fail_db.query(TakeawaysCache).filter(TakeawaysCache.video_id == video_id).first()
+                        if not existing:
+                            _fail_db.add(TakeawaysCache(video_id=video_id, data={"error": "generation_failed"}))
+                        else:
+                            existing.data = {"error": "generation_failed"}
+                        _fail_db.commit()
+                        _fail_db.close()
+                    except Exception:
+                        pass
+            finally:
+                _bg_generation_active.pop(_bg_key, None)
+        threading.Thread(target=_bg, daemon=True).start()
+        logger.info(f"Started background takeaways generation for {video_id} (with frontend transcript)")
+
+    raise HTTPException(404, "Takeaways generation in progress. Retry in a few seconds.")
+
+
 @router.post("/api/youtube-key-takeaways-cache/{video_id}")
 async def youtube_key_takeaways_cache_put(video_id: str, request: Request):
     """Cache pre-generated takeaways for a video."""
@@ -2988,6 +3066,80 @@ def youtube_dpoi(video_id: str = Query(..., min_length=11, max_length=11), refre
                 _bg_generation_active.pop(_bg_key, None)
         threading.Thread(target=_bg, daemon=True).start()
         logger.info(f"Started background DOPI generation for {video_id}")
+
+    raise HTTPException(404, "DOPI generation in progress. Retry in a few seconds.")
+
+
+@router.post("/api/youtube-dpoi")
+async def youtube_dpoi_post(request: Request):
+    """Generate DOPI insights using transcript sent from frontend."""
+    import threading
+    from venture_engine.db.session import SessionLocal
+    from venture_engine.db.models import DpoiCache
+
+    body = await request.json()
+    video_id = body.get("video_id", "")
+    segments = body.get("transcript_segments", [])
+
+    if not video_id or len(video_id) != 11:
+        raise HTTPException(400, "Invalid video_id")
+
+    # Check cache first
+    _dpoi_db = SessionLocal()
+    try:
+        cached = _dpoi_db.query(DpoiCache).filter(DpoiCache.video_id == video_id).first()
+        if cached and cached.data:
+            if isinstance(cached.data, dict) and cached.data.get("error") == "generation_failed" and segments:
+                pass  # fall through to regenerate
+            else:
+                return cached.data
+    except Exception as e:
+        logger.warning(f"DPOI cache lookup failed: {e}")
+    finally:
+        _dpoi_db.close()
+
+    # Build transcript text from segments
+    transcript_text = ""
+    if segments:
+        transcript_text = "\n".join(
+            f"[{s.get('start', 0):.1f}s] {s.get('text', '')}" for s in segments if s.get('text')
+        )
+
+    if not transcript_text:
+        raise HTTPException(400, "No transcript segments provided")
+
+    import time as _time
+    _bg_key = f"dpoi_{video_id}"
+    _started = _bg_generation_active.get(_bg_key, 0)
+    if _started and (_time.time() - _started) > _BG_GENERATION_TIMEOUT:
+        _bg_generation_active.pop(_bg_key, None)
+    if _bg_key not in _bg_generation_active:
+        _bg_generation_active[_bg_key] = _time.time()
+        _tx = transcript_text
+        def _bg():
+            try:
+                result = _auto_generate_dopi(video_id, transcript_text=_tx)
+                if not result:
+                    _time.sleep(10)
+                    logger.info(f"DOPI generation failed for {video_id}, retrying with transcript...")
+                    result = _auto_generate_dopi(video_id, transcript_text=_tx)
+                if not result:
+                    logger.warning(f"DOPI generation failed permanently for {video_id}")
+                    try:
+                        _fail_db = SessionLocal()
+                        existing = _fail_db.query(DpoiCache).filter(DpoiCache.video_id == video_id).first()
+                        if not existing:
+                            _fail_db.add(DpoiCache(video_id=video_id, data={"error": "generation_failed"}))
+                        else:
+                            existing.data = {"error": "generation_failed"}
+                        _fail_db.commit()
+                        _fail_db.close()
+                    except Exception:
+                        pass
+            finally:
+                _bg_generation_active.pop(_bg_key, None)
+        threading.Thread(target=_bg, daemon=True).start()
+        logger.info(f"Started background DOPI generation for {video_id} (with frontend transcript)")
 
     raise HTTPException(404, "DOPI generation in progress. Retry in a few seconds.")
 

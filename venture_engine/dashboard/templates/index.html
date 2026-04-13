@@ -4872,10 +4872,15 @@ function _ytPollUntilReady(tabName, url, vid, onSuccess, attempt) {
   });
 }
 
-// ── Takeaways fetch: try immediately (cached?), poll only if not ready ──
+// ── Takeaways fetch: try GET (cached?), else POST with transcript, then poll ──
 function _ytFetchTakeawaysWithFallback(vid) {
   const tkUrl = `${API}/api/youtube-key-takeaways?video_id=${vid}`;
   fetch(tkUrl + '&_t=' + Date.now()).then(r => r.ok ? r.json() : null).then(d => {
+    if (d && d.error === 'generation_failed' && _ytTranscriptData) {
+      // Retry with transcript from frontend — POST to clear the failed sentinel
+      _ytPostTakeawaysWithTranscript(vid);
+      return;
+    }
     if (d && d.error === 'generation_failed') { _ytPollStopAndShowUnavailable('takeaways'); return; }
     if (d && !d.error && !d.detail) {
       _ytTakeawaysData = d.takeaways || d; _ytTakeawaysVideoId = vid;
@@ -4884,22 +4889,59 @@ function _ytFetchTakeawaysWithFallback(vid) {
       if (activeTab) _ytRenderTakeaways(_ytTakeawaysData);
       return;
     }
-    // Not cached — spinner already showing, poll
+    // Not cached — POST transcript if available, else poll GET
+    if (_ytTranscriptData) {
+      _ytPostTakeawaysWithTranscript(vid);
+    } else {
+      _ytPollUntilReady('takeaways', tkUrl, vid,
+        d => { _ytTakeawaysData = d.takeaways || d; _ytTakeawaysVideoId = vid; });
+    }
+  }).catch(() => {
+    if (_ytTranscriptData) {
+      _ytPostTakeawaysWithTranscript(vid);
+    } else {
+      _ytPollUntilReady('takeaways', tkUrl, vid,
+        d => { _ytTakeawaysData = d.takeaways || d; _ytTakeawaysVideoId = vid; });
+    }
+  });
+}
+
+function _ytPostTakeawaysWithTranscript(vid) {
+  const postUrl = `${API}/api/youtube-key-takeaways`;
+  fetch(postUrl, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({video_id: vid, transcript_segments: _ytTranscriptData})
+  }).then(r => r.ok ? r.json() : null).then(d => {
+    if (d && !d.error && !d.detail) {
+      _ytTakeawaysData = d.takeaways || d; _ytTakeawaysVideoId = vid;
+      _tabSetReady('takeaways');
+      const activeTab = document.querySelector('.yt-tab.active[data-tab="takeaways"]');
+      if (activeTab) _ytRenderTakeaways(_ytTakeawaysData);
+      return;
+    }
+    // Generation kicked off — poll the GET endpoint
+    const tkUrl = `${API}/api/youtube-key-takeaways?video_id=${vid}`;
     _ytPollUntilReady('takeaways', tkUrl, vid,
       d => { _ytTakeawaysData = d.takeaways || d; _ytTakeawaysVideoId = vid; });
   }).catch(() => {
+    const tkUrl = `${API}/api/youtube-key-takeaways?video_id=${vid}`;
     _ytPollUntilReady('takeaways', tkUrl, vid,
       d => { _ytTakeawaysData = d.takeaways || d; _ytTakeawaysVideoId = vid; });
   });
 }
 
-// ── DOPI fetch: try immediately (cached?), stagger-poll only if not ready ──
+// ── DOPI fetch: try GET (cached?), else POST with transcript, then poll ──
 function _ytFetchDpoiWithFallback(vid) {
   const dopiUrl = `${API}/api/youtube-dpoi?video_id=${vid}`;
   fetch(dopiUrl + '&_t=' + Date.now()).then(r => r.ok ? r.json() : null).then(d => {
+    if (d && d.error === 'generation_failed' && _ytTranscriptData) {
+      // Retry with transcript from frontend
+      _ytPostDpoiWithTranscript(vid);
+      return;
+    }
     if (d && d.error === 'generation_failed') { _ytPollStopAndShowUnavailable('dpoi'); return; }
     if (d && !d.error && !d.detail) {
-      // Server had it cached — use immediately, no stagger needed
       _ytDpoiData = d.insights || d; _ytDpoiVideoId = vid;
       _tabSetReady('dpoi');
       const activeTab = document.querySelector('.yt-tab.active[data-tab="dpoi"]');
@@ -4907,16 +4949,50 @@ function _ytFetchDpoiWithFallback(vid) {
       _renderDpoiTimelineSegments();
       return;
     }
-    // Not cached yet — spinner already showing, stagger by 15s then poll
-    setTimeout(() => {
-      _ytPollUntilReady('dpoi', dopiUrl, vid,
-        d => { _ytDpoiData = d.insights || d; _ytDpoiVideoId = vid; });
-    }, 15000);
+    // Not cached — POST transcript if available, else stagger poll GET
+    if (_ytTranscriptData) {
+      _ytPostDpoiWithTranscript(vid);
+    } else {
+      setTimeout(() => {
+        _ytPollUntilReady('dpoi', dopiUrl, vid,
+          d => { _ytDpoiData = d.insights || d; _ytDpoiVideoId = vid; });
+      }, 15000);
+    }
   }).catch(() => {
-    setTimeout(() => {
-      _ytPollUntilReady('dpoi', dopiUrl, vid,
-        d => { _ytDpoiData = d.insights || d; _ytDpoiVideoId = vid; });
-    }, 15000);
+    if (_ytTranscriptData) {
+      _ytPostDpoiWithTranscript(vid);
+    } else {
+      setTimeout(() => {
+        _ytPollUntilReady('dpoi', dopiUrl, vid,
+          d => { _ytDpoiData = d.insights || d; _ytDpoiVideoId = vid; });
+      }, 15000);
+    }
+  });
+}
+
+function _ytPostDpoiWithTranscript(vid) {
+  const postUrl = `${API}/api/youtube-dpoi`;
+  fetch(postUrl, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({video_id: vid, transcript_segments: _ytTranscriptData})
+  }).then(r => r.ok ? r.json() : null).then(d => {
+    if (d && !d.error && !d.detail) {
+      _ytDpoiData = d.insights || d; _ytDpoiVideoId = vid;
+      _tabSetReady('dpoi');
+      const activeTab = document.querySelector('.yt-tab.active[data-tab="dpoi"]');
+      if (activeTab) _ytRenderDpoi(_ytDpoiData);
+      _renderDpoiTimelineSegments();
+      return;
+    }
+    // Generation kicked off — poll the GET endpoint
+    const dopiUrl = `${API}/api/youtube-dpoi?video_id=${vid}`;
+    _ytPollUntilReady('dpoi', dopiUrl, vid,
+      d => { _ytDpoiData = d.insights || d; _ytDpoiVideoId = vid; });
+  }).catch(() => {
+    const dopiUrl = `${API}/api/youtube-dpoi?video_id=${vid}`;
+    _ytPollUntilReady('dpoi', dopiUrl, vid,
+      d => { _ytDpoiData = d.insights || d; _ytDpoiVideoId = vid; });
   });
 }
 
@@ -5223,16 +5299,41 @@ async function _ytLoadTranscript() {
 }
 
 async function _ytPreFetchInsights(vid) {
+  // Transcript just loaded — POST it to takeaways/DOPI if they don't have data yet
   const promises = [];
   if (!_ytTakeawaysData || _ytTakeawaysVideoId !== vid) {
-    promises.push(fetch(`${API}/api/youtube-key-takeaways?video_id=${vid}`).then(r => r.ok ? r.json() : null).then(d => {
-      if (d && !d.error && !d.detail) { _ytTakeawaysData = d.takeaways || d; _ytTakeawaysVideoId = vid; }
-    }).catch(() => {}));
+    if (_ytTranscriptData) {
+      promises.push(fetch(`${API}/api/youtube-key-takeaways`, {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({video_id: vid, transcript_segments: _ytTranscriptData})
+      }).then(r => r.ok ? r.json() : null).then(d => {
+        if (d && !d.error && !d.detail) {
+          _ytTakeawaysData = d.takeaways || d; _ytTakeawaysVideoId = vid;
+          _tabSetReady('takeaways');
+        }
+      }).catch(() => {}));
+    } else {
+      promises.push(fetch(`${API}/api/youtube-key-takeaways?video_id=${vid}`).then(r => r.ok ? r.json() : null).then(d => {
+        if (d && !d.error && !d.detail) { _ytTakeawaysData = d.takeaways || d; _ytTakeawaysVideoId = vid; }
+      }).catch(() => {}));
+    }
   }
   if (!_ytDpoiData || _ytDpoiVideoId !== vid) {
-    promises.push(fetch(`${API}/api/youtube-dpoi?video_id=${vid}`).then(r => r.ok ? r.json() : null).then(d => {
-      if (d && !d.error && !d.detail) { _ytDpoiData = d.insights || d; _ytDpoiVideoId = vid; }
-    }).catch(() => {}));
+    if (_ytTranscriptData) {
+      promises.push(fetch(`${API}/api/youtube-dpoi`, {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({video_id: vid, transcript_segments: _ytTranscriptData})
+      }).then(r => r.ok ? r.json() : null).then(d => {
+        if (d && !d.error && !d.detail) {
+          _ytDpoiData = d.insights || d; _ytDpoiVideoId = vid;
+          _tabSetReady('dpoi');
+        }
+      }).catch(() => {}));
+    } else {
+      promises.push(fetch(`${API}/api/youtube-dpoi?video_id=${vid}`).then(r => r.ok ? r.json() : null).then(d => {
+        if (d && !d.error && !d.detail) { _ytDpoiData = d.insights || d; _ytDpoiVideoId = vid; }
+      }).catch(() => {}));
+    }
   }
   if (promises.length) await Promise.all(promises);
 }
@@ -5470,12 +5571,17 @@ async function _ytLoadTakeaways() {
   contentEl.innerHTML = _ytBuildingHTML('takeaways');
 
   try {
+    // First try GET (cached result)
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 15000);
     const resp = await fetch(`${API}/api/youtube-key-takeaways?video_id=${vid}`, {signal: ctrl.signal});
     clearTimeout(timer);
     if (resp.ok) {
       const data = await resp.json();
+      if (data.error === 'generation_failed' && _ytTranscriptData) {
+        // Stale sentinel — POST transcript to regenerate
+        throw new Error('retry_with_transcript');
+      }
       if (data.error) throw new Error(data.error);
       _ytTakeawaysData = data.takeaways || data;
     } else {
@@ -5493,6 +5599,12 @@ async function _ytLoadTakeaways() {
     _tabSetReady('takeaways');
     _ytRenderTakeaways(_ytTakeawaysData);
   } catch(e) {
+    // If we have transcript, POST it to trigger generation
+    if (_ytTranscriptData && _ytTakeawaysRetries < 2) {
+      _ytTakeawaysRetries = (_ytTakeawaysRetries || 0) + 1;
+      _ytPostTakeawaysWithTranscript(vid);
+      return;
+    }
     // Don't mark tab as ready — keep loading spinner on tab
     contentEl.innerHTML = _ytBuildingHTML('takeaways');
     // Auto-retry up to 12 times (covers ~2 min of background generation)
@@ -5501,7 +5613,7 @@ async function _ytLoadTakeaways() {
       clearTimeout(_ytTakeawaysRetryTimer);
       _ytTakeawaysRetryTimer = setTimeout(() => _ytLoadTakeaways(), 10000);
     } else {
-      _tabSetReady('takeaways');
+      _tabSetFailed('takeaways');
       contentEl.innerHTML = _ytUnavailableHTML('Takeaways', '_ytTakeawaysRetries=0;_ytLoadTakeaways()');
     }
   }
@@ -5541,6 +5653,11 @@ function _ytUnavailableHTML(label, retryFn) {
 function _ytRenderTakeaways(items) {
   const contentEl = document.getElementById('ytTakeawaysContent');
   if (!contentEl) return;
+  if (!Array.isArray(items) || items.length === 0) {
+    contentEl.innerHTML = _ytUnavailableHTML('Takeaways', '_ytTakeawaysData=null;_ytTakeawaysRetries=0;_ytLoadTakeaways()');
+    _tabSetFailed('takeaways');
+    return;
+  }
   contentEl.innerHTML = '<div class="yt-ai-list">' + items.map((item, i) =>
     `<div class="yt-ai-item" onclick="_ytTranscriptClick(${item.start_seconds})" title="Jump to ${item.start_time || _fmtTime(item.start_seconds)}">
       <div class="yt-ai-item-header">
@@ -5586,6 +5703,9 @@ async function _ytLoadDpoi() {
     clearTimeout(timer);
     if (resp.ok) {
       const data = await resp.json();
+      if (data.error === 'generation_failed' && _ytTranscriptData) {
+        throw new Error('retry_with_transcript');
+      }
       if (data.error) throw new Error(data.error);
       _ytDpoiData = data.insights || data;
     } else {
@@ -5603,6 +5723,12 @@ async function _ytLoadDpoi() {
     _tabSetReady('dpoi');
     _ytRenderDpoi(_ytDpoiData);
   } catch(e) {
+    // If we have transcript, POST it to trigger generation
+    if (_ytTranscriptData && _ytDpoiRetries < 2) {
+      _ytDpoiRetries = (_ytDpoiRetries || 0) + 1;
+      _ytPostDpoiWithTranscript(vid);
+      return;
+    }
     // Don't mark tab as ready — keep loading spinner on tab
     contentEl.innerHTML = _ytBuildingHTML('DOPI insights');
     // Auto-retry up to 12 times (covers ~2 min of background generation)
@@ -5611,7 +5737,7 @@ async function _ytLoadDpoi() {
       clearTimeout(_ytDpoiRetryTimer);
       _ytDpoiRetryTimer = setTimeout(() => _ytLoadDpoi(), 10000);
     } else {
-      _tabSetReady('dpoi');
+      _tabSetFailed('dpoi');
       contentEl.innerHTML = _ytUnavailableHTML('DOPI Insights', '_ytDpoiRetries=0;_ytLoadDpoi()');
     }
   }
@@ -5620,6 +5746,11 @@ async function _ytLoadDpoi() {
 function _ytRenderDpoi(items) {
   const contentEl = document.getElementById('ytDpoiContent');
   if (!contentEl) return;
+  if (!Array.isArray(items) || items.length === 0) {
+    contentEl.innerHTML = _ytUnavailableHTML('DOPI Insights', '_ytDpoiData=null;_ytDpoiRetries=0;_ytLoadDpoi()');
+    _tabSetFailed('dpoi');
+    return;
+  }
   contentEl.innerHTML = '<div class="yt-ai-list">' + items.map((item, idx) => {
     const badge = item.type === 'problem'
       ? '<span class="yt-ai-badge problem">Problem</span>'

@@ -5239,7 +5239,7 @@ async function _ytLoadTranscript() {
 
   // Two-phase loading:
   // Phase 1 (fast, 10s): race server + client-side + embedded cache
-  // Phase 2 (slow, 55s): if phase 1 fails, wait for full server response
+  // Phase 2 (slow, 55s): if phase 1 fails, wait for server (which has 45s deadline + Gemini fallback)
   async function _serverFetch(timeoutMs) {
     const resp = await fetch(`${API}/api/youtube-transcript?video_id=${vid}`, {signal: AbortSignal.timeout(timeoutMs)});
     if (!resp.ok) throw new Error('server fail');
@@ -5274,11 +5274,11 @@ async function _ytLoadTranscript() {
 
     // ── Phase 2: if phase 1 failed, show "loading" and wait for full server response ──
     if (!segments || !segments.length) {
-      console.log('Phase 1 failed, starting phase 2 (full server fetch, up to 20s)...');
+      console.log('Phase 1 failed, starting phase 2 (full server fetch, up to 55s)...');
       _tabSetLoading('transcript');  // Keep spinner visible during Phase 2
       contentEl.innerHTML = '<div class="yt-transcript-loading">Loading transcript<span class="dot-pulse">...</span></div>';
       try {
-        segments = await _serverFetch(20000);
+        segments = await _serverFetch(55000);
       } catch(e) {
         console.warn('Phase 2 server fetch failed:', e.message);
       }

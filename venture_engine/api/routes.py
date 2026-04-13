@@ -2876,7 +2876,19 @@ def youtube_key_takeaways(video_id: str = Query(..., min_length=11, max_length=1
                     import time as _t
                     logger.info(f"Takeaways generation failed for {video_id}, retrying in 10s...")
                     _t.sleep(10)
-                    _auto_generate_takeaways(video_id)
+                    result = _auto_generate_takeaways(video_id)
+                if not result:
+                    # Cache a failure sentinel so we stop retrying endlessly
+                    logger.warning(f"Takeaways generation failed permanently for {video_id}")
+                    try:
+                        _fail_db = SessionLocal()
+                        existing = _fail_db.query(TakeawaysCache).filter(TakeawaysCache.video_id == video_id).first()
+                        if not existing:
+                            _fail_db.add(TakeawaysCache(video_id=video_id, data={"error": "generation_failed"}))
+                            _fail_db.commit()
+                        _fail_db.close()
+                    except Exception:
+                        pass
             finally:
                 _bg_generation_active.discard(_bg_key)
         threading.Thread(target=_bg, daemon=True).start()
@@ -2937,7 +2949,19 @@ def youtube_dpoi(video_id: str = Query(..., min_length=11, max_length=11), refre
                     import time as _t
                     logger.info(f"DOPI generation failed for {video_id}, retrying in 10s...")
                     _t.sleep(10)
-                    _auto_generate_dopi(video_id)
+                    result = _auto_generate_dopi(video_id)
+                if not result:
+                    # Cache a failure sentinel so we stop retrying endlessly
+                    logger.warning(f"DOPI generation failed permanently for {video_id}")
+                    try:
+                        _fail_db = SessionLocal()
+                        existing = _fail_db.query(DpoiCache).filter(DpoiCache.video_id == video_id).first()
+                        if not existing:
+                            _fail_db.add(DpoiCache(video_id=video_id, data={"error": "generation_failed"}))
+                            _fail_db.commit()
+                        _fail_db.close()
+                    except Exception:
+                        pass
             finally:
                 _bg_generation_active.discard(_bg_key)
         threading.Thread(target=_bg, daemon=True).start()

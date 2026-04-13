@@ -2689,7 +2689,7 @@ def _gemini_generate(prompt: str) -> Optional[str]:
         return None
     logger.info(f"Calling Gemini API with {len(prompt)} char prompt...")
     # Try multiple models in order of preference
-    models = ["gemini-2.5-flash-preview-04-17", "gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-1.5-flash"]
+    models = ["gemini-2.0-flash", "gemini-1.5-flash-latest", "gemini-2.0-flash-lite"]
     import httpx
     for model in models:
         try:

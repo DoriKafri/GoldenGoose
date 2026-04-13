@@ -9887,13 +9887,15 @@ async function _tlInit() {
           label.style.cssText = `position:absolute;top:${top}px;left:${pct}%;transform:translateX(-50%);font-size:9px;font-weight:700;font-family:'JetBrains Mono',monospace;color:#059669;white-space:nowrap;background:rgba(16,185,129,0.15);padding:1px 6px;border-radius:4px;border:1px solid rgba(16,185,129,0.4);line-height:13px;letter-spacing:0.3px;z-index:2;`;
           tlVersionLabelsEl.appendChild(label);
 
-          // Draw connector line from label bottom to container bottom
-          if (row > 0) {
+          // Draw dashed connector line from container bottom up to label
+          {
             const lineTop = top + LABEL_H;
             const lineH = CONTAINER_H - lineTop;
-            const line = document.createElement('div');
-            line.style.cssText = `position:absolute;top:${lineTop}px;left:${pct}%;width:0;height:${lineH}px;border-left:1px solid rgba(16,185,129,0.4);z-index:1;`;
-            tlVersionLabelsEl.appendChild(line);
+            if (lineH > 0) {
+              const line = document.createElement('div');
+              line.style.cssText = `position:absolute;top:${lineTop}px;left:${pct}%;width:0;height:${lineH}px;border-left:1.5px dashed rgba(16,185,129,0.45);z-index:1;`;
+              tlVersionLabelsEl.appendChild(line);
+            }
           }
         });
       }

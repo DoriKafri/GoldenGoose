@@ -1086,8 +1086,20 @@ html.dark .sl-msg-wrap:hover { background:rgba(255,255,255,.08); }
 .bug-comment-author { font-size:12px; font-weight:600; color:var(--text); }
 .bug-comment-time { font-size:10px; color:var(--text3); }
 .bug-comment-body { font-size:13px; color:var(--text); line-height:1.5; margin-top:4px; }
-.bug-board { display:flex; gap:12px; overflow-x:auto; padding:8px 0; }
-.bug-board-col { flex:1; min-width:220px; background:var(--bg2); border-radius:var(--radius); padding:8px; }
+.bug-board { display:flex; gap:8px; overflow-x:auto; padding:8px 0; scrollbar-width:thin; scrollbar-color:var(--border) transparent; }
+.bug-board::-webkit-scrollbar { height:8px; }
+.bug-board::-webkit-scrollbar-track { background:transparent; border-radius:4px; }
+.bug-board::-webkit-scrollbar-thumb { background:var(--border); border-radius:4px; }
+.bug-board::-webkit-scrollbar-thumb:hover { background:var(--text3); }
+.bug-board-col { flex:1 0 0; min-width:160px; background:var(--bg2); border-radius:var(--radius); padding:8px; max-height:calc(100vh - 200px); overflow-y:auto; scrollbar-width:thin; }
+.bug-board-col::-webkit-scrollbar { width:4px; }
+.bug-board-col::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
+/* Full-view mode */
+.bug-board-fullview { position:fixed; inset:0; z-index:9999; background:var(--bg); padding:16px; overflow:auto; }
+.bug-board-fullview .bug-board { height:calc(100vh - 80px); }
+.bug-board-fullview .bug-board-col { min-width:200px; max-height:none; }
+.bug-board-col-empty { flex:0 0 60px !important; min-width:60px !important; opacity:0.5; }
+.bug-board-col-empty .bug-board-col-title { font-size:10px; writing-mode:vertical-lr; text-orientation:mixed; white-space:nowrap; padding:8px 4px; }
 .bug-board-col-title { font-size:12px; font-weight:700; color:var(--text2); text-transform:uppercase; padding:8px; margin-bottom:4px; }
 .bug-board-col-nv { border:2px solid rgba(99,102,241,0.4); background:rgba(99,102,241,0.06); }
 .bug-board-col-nv .bug-board-col-title { color:#6366f1; }
@@ -7927,6 +7939,7 @@ function renderBugList(bugs, stats, candidateKeys = new Set(), candidateScores =
       ).join('')}
       <div style="flex:1;"></div>
       <button onclick="_bugToggleView()" style="padding:4px 12px;border-radius:var(--radius-pill);border:1px solid var(--border);background:var(--bg);color:var(--text2);font-size:11px;font-weight:600;cursor:pointer;">${_bugViewMode === 'board' ? '☰ List' : '▦ Board'}</button>
+      ${_bugViewMode === 'board' ? '<button onclick="_bugToggleFullView()" id="bugFullViewBtn" style="padding:4px 12px;border-radius:var(--radius-pill);border:1px solid var(--border);background:var(--bg);color:var(--text2);font-size:11px;font-weight:600;cursor:pointer;">⛶ Full View</button>' : ''}
       <button onclick="_bugShowCreate()" style="padding:4px 14px;border-radius:var(--radius-pill);background:var(--accent);color:#1a1a1a;border:none;font-size:11px;font-weight:700;cursor:pointer;">+ New Bug</button>
     </div>`;
 
@@ -8003,7 +8016,8 @@ function renderBugList(bugs, stats, candidateKeys = new Set(), candidateScores =
       const col = bugs.filter(b => b.status === status);
       const colClass = status === 'sprint' ? ' bug-board-col-sprint' : (status === 'next_version' ? ' bug-board-col-nv' : '');
       const titleId = status === 'next_version' ? ' id="next-version-col-title"' : '';
-      boardHtml += `<div class="bug-board-col${colClass}">
+      const emptyClass = col.length === 0 ? ' bug-board-col-empty' : '';
+      boardHtml += `<div class="bug-board-col${colClass}${emptyClass}">
         <div class="bug-board-col-title"${titleId}>${statusIcons[status]||''} ${statusLabels[status]||status} (${col.length})</div>
         ${col.map(b => _bugCard(b)).join('')}
       </div>`;
@@ -8037,6 +8051,37 @@ function renderBugList(bugs, stats, candidateKeys = new Set(), candidateScores =
 function _bugToggleView() {
   _bugViewMode = _bugViewMode === 'list' ? 'board' : 'list';
   loadBugs();
+}
+
+let _bugFullView = false;
+function _bugToggleFullView() {
+  _bugFullView = !_bugFullView;
+  const wrapper = document.querySelector('.bug-board')?.parentElement;
+  if (!wrapper) return;
+  if (_bugFullView) {
+    wrapper.classList.add('bug-board-fullview');
+    // Add close button in fullview
+    const closeBtn = document.createElement('button');
+    closeBtn.id = 'bugFullViewClose';
+    closeBtn.style.cssText = 'position:fixed;top:16px;right:16px;z-index:10000;padding:6px 16px;border-radius:var(--radius-pill);border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:12px;font-weight:600;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.15);';
+    closeBtn.textContent = '✕ Exit Full View';
+    closeBtn.onclick = _bugToggleFullView;
+    document.body.appendChild(closeBtn);
+    // Also close on Escape
+    wrapper._escHandler = e => { if (e.key === 'Escape') _bugToggleFullView(); };
+    document.addEventListener('keydown', wrapper._escHandler);
+  } else {
+    wrapper.classList.remove('bug-board-fullview');
+    const closeBtn = document.getElementById('bugFullViewClose');
+    if (closeBtn) closeBtn.remove();
+    if (wrapper._escHandler) {
+      document.removeEventListener('keydown', wrapper._escHandler);
+      delete wrapper._escHandler;
+    }
+  }
+  // Update button text
+  const btn = document.getElementById('bugFullViewBtn');
+  if (btn) btn.textContent = _bugFullView ? '✕ Exit Full View' : '⛶ Full View';
 }
 
 async function _bugShowDetail(bugId) {

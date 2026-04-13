@@ -9866,7 +9866,7 @@ async function _tlInit() {
 
       const labelRow = document.createElement('div');
       labelRow.className = 'tl-release-label-row';
-      labelRow.style.cssText = 'position:absolute;top:0;left:0;right:0;height:14px;z-index:5;pointer-events:none;';
+      labelRow.style.cssText = 'position:absolute;top:0;left:0;right:0;height:18px;z-index:10;pointer-events:none;';
 
       groups.forEach(g => {
         const midPct = (g.startPct + g.endPct) / 2;
@@ -9886,7 +9886,7 @@ async function _tlInit() {
           });
           text = prefix + suffixes.join('·');
         }
-        label.style.cssText = `position:absolute;left:${midPct}%;transform:translateX(-50%) scaleX(var(--tl-label-counter-scale, 1));font-size:8px;font-weight:700;font-family:'JetBrains Mono',monospace;color:#10b981;white-space:nowrap;background:rgba(16,185,129,0.12);padding:1px 4px;border-radius:3px;border:1px solid rgba(16,185,129,0.3);line-height:12px;`;
+        label.style.cssText = `position:absolute;top:0;left:${midPct}%;transform:translateX(-50%) scaleX(var(--tl-label-counter-scale, 1));font-size:8px;font-weight:700;font-family:'JetBrains Mono',monospace;color:#10b981;white-space:nowrap;background:rgba(16,185,129,0.12);padding:1px 4px;border-radius:3px;border:1px solid rgba(16,185,129,0.3);line-height:12px;`;
         label.textContent = text;
         labelRow.appendChild(label);
       });

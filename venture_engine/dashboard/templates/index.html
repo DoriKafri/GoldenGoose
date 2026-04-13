@@ -9788,41 +9788,62 @@ async function _tlInit() {
     </svg>`;
     histEl.appendChild(onlineSvg);
 
-    // Release version markers on the timeline — appended to the viewport (scales with zoom)
+    // Release version markers — vertical dashed lines with compact labels above
     const tlViewportEl = document.getElementById('tlViewport');
     if(tlViewportEl){
       const releases = tlEvents.filter(ev=>ev.type==='release');
       const pcts = releases.map(ev => ((ev.t - T_START) / T_SPAN) * 100);
-      // De-overlap: assign vertical rows so close labels don't collide
-      // Labels are ~55px wide at 8px font → ~5.5% of viewport at zoom 1
-      const MIN_GAP = 4.5; // minimum % gap before staggering
-      const ROW_H = 14;    // px per stagger row
-      const rows = new Array(releases.length).fill(0);
-      for (let i = 1; i < pcts.length; i++) {
-        // Check against all previous markers for overlap at each row
-        let row = 0;
-        let placed = false;
-        while (!placed && row < 4) {
-          let conflict = false;
-          for (let j = 0; j < i; j++) {
-            if (rows[j] === row && Math.abs(pcts[i] - pcts[j]) < MIN_GAP) {
-              conflict = true;
-              break;
-            }
-          }
-          if (!conflict) { placed = true; } else { row++; }
-        }
-        rows[i] = row;
-      }
+
+      // Render marker lines (always visible, thin dashed green)
       releases.forEach((ev, i) => {
         const pct = pcts[i];
-        const yOff = rows[i] * ROW_H;
         const marker = document.createElement('div');
         marker.className = 'tl-release-marker';
-        marker.style.cssText = `position:absolute;top:0;left:${pct}%;height:100%;z-index:4;pointer-events:none;display:flex;flex-direction:column;align-items:center;`;
-        marker.innerHTML = `<div class="tl-release-marker-label" style="font-size:8px;font-weight:700;font-family:'JetBrains Mono',monospace;color:#10b981;white-space:nowrap;background:rgba(16,185,129,0.12);padding:2px 5px;border-radius:3px;border:1px solid rgba(16,185,129,0.35);transform-origin:center top;margin-top:${yOff}px;transition:margin-top 0.3s ease;">${ev.data.v}</div><div style="width:1.5px;flex:1;background:rgba(16,185,129,0.4);margin-top:${yOff > 0 ? -yOff : 0}px;"></div>`;
+        marker.style.cssText = `position:absolute;top:0;left:${pct}%;width:0;height:100%;z-index:4;pointer-events:none;border-left:1.5px dashed rgba(16,185,129,0.45);`;
         tlViewportEl.appendChild(marker);
       });
+
+      // Render labels in a separate row above the timeline so they can use real layout
+      // Group close releases and show as a compact "v14.5 .6 .7 .8" cluster
+      const groups = [];
+      let curGroup = null;
+      for (let i = 0; i < releases.length; i++) {
+        if (curGroup && Math.abs(pcts[i] - pcts[curGroup.endPct]) < 8) {
+          curGroup.items.push(releases[i]);
+          curGroup.endPct = pcts[i];
+        } else {
+          curGroup = { items: [releases[i]], startPct: pcts[i], endPct: pcts[i] };
+          groups.push(curGroup);
+        }
+      }
+
+      const labelRow = document.createElement('div');
+      labelRow.className = 'tl-release-label-row';
+      labelRow.style.cssText = 'position:absolute;top:-16px;left:0;right:0;height:16px;z-index:5;pointer-events:none;overflow:visible;';
+
+      groups.forEach(g => {
+        const midPct = (g.startPct + g.endPct) / 2;
+        const label = document.createElement('div');
+        label.className = 'tl-release-marker-label';
+        let text;
+        if (g.items.length === 1) {
+          text = g.items[0].data.v;
+        } else {
+          // Compact: show first version + abbreviated suffixes
+          const first = g.items[0].data.v;
+          const prefix = first.replace(/\.\d+$/, '.');
+          const suffixes = g.items.map(r => {
+            const v = r.data.v;
+            const match = v.match(/\.(\d+)$/);
+            return match ? match[1] : v;
+          });
+          text = prefix + suffixes.join('·');
+        }
+        label.style.cssText = `position:absolute;left:${midPct}%;transform:translateX(-50%) scaleX(var(--tl-label-counter-scale, 1));font-size:8px;font-weight:700;font-family:'JetBrains Mono',monospace;color:#10b981;white-space:nowrap;background:rgba(16,185,129,0.12);padding:1px 4px;border-radius:3px;border:1px solid rgba(16,185,129,0.3);line-height:12px;`;
+        label.textContent = text;
+        labelRow.appendChild(label);
+      });
+      tlViewportEl.appendChild(labelRow);
     }
 
     // Add legend
@@ -9849,11 +9870,9 @@ async function _tlInit() {
     const vp = document.getElementById('tlViewport');
     if (!vp) return;
     vp.style.transform = `scaleX(${_tlZoom}) translateX(${-_tlViewOffset * 100}%)`;
-    // Counter-scale elements so they don't stretch horizontally
+    // Counter-scale labels so they don't stretch horizontally
     const counterScale = 1 / _tlZoom;
-    vp.querySelectorAll('.tl-release-marker-label').forEach(el => {
-      el.style.transform = `scaleX(${counterScale})`;
-    });
+    vp.style.setProperty('--tl-label-counter-scale', counterScale);
     // Playhead width
     const ph = document.getElementById('tlPlayhead');
     if (ph) ph.style.width = Math.max(1, 2 * counterScale) + 'px';

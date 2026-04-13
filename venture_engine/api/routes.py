@@ -2863,6 +2863,15 @@ TRANSCRIPT:
         return None
 
 
+def _is_valid_cached_ai_data(data) -> bool:
+    """Check if cached data is valid AI response (list of items) or error sentinel."""
+    if isinstance(data, list) and len(data) > 0:
+        return True
+    if isinstance(data, dict) and data.get("error"):
+        return True  # error sentinel is valid (frontend handles it)
+    return False
+
+
 @router.get("/api/youtube-key-takeaways")
 def youtube_key_takeaways(video_id: str = Query(..., min_length=11, max_length=11), refresh: bool = Query(False)):
     """Return cached AI key takeaways, or kick off background Gemini generation."""
@@ -2874,8 +2883,13 @@ def youtube_key_takeaways(video_id: str = Query(..., min_length=11, max_length=1
         _tk_db = SessionLocal()
         try:
             cached = _tk_db.query(TakeawaysCache).filter(TakeawaysCache.video_id == video_id).first()
-            if cached and cached.data:
+            if cached and cached.data and _is_valid_cached_ai_data(cached.data):
                 return cached.data
+            elif cached and cached.data:
+                # Invalid/garbage data — delete it
+                _tk_db.delete(cached)
+                _tk_db.commit()
+                logger.info(f"Deleted invalid takeaways cache for {video_id}: {str(cached.data)[:100]}")
         except Exception as e:
             logger.warning(f"Takeaways cache lookup failed: {e}")
         finally:
@@ -2936,12 +2950,19 @@ async def youtube_key_takeaways_post(request: Request):
     _tk_db = SessionLocal()
     try:
         cached = _tk_db.query(TakeawaysCache).filter(TakeawaysCache.video_id == video_id).first()
-        if cached and cached.data:
-            # Clear generation_failed sentinel if frontend is retrying with transcript
+        if cached and cached.data and _is_valid_cached_ai_data(cached.data):
+            # If it's a generation_failed sentinel and we have transcript, regenerate
             if isinstance(cached.data, dict) and cached.data.get("error") == "generation_failed" and segments:
                 pass  # fall through to regenerate
+            elif isinstance(cached.data, list) and len(cached.data) > 0:
+                return cached.data  # valid cached data
             else:
-                return cached.data
+                return cached.data  # return error sentinel (frontend handles it)
+        elif cached and cached.data:
+            # Invalid/garbage data — delete it
+            _tk_db.delete(cached)
+            _tk_db.commit()
+            logger.info(f"POST: Deleted invalid takeaways cache for {video_id}")
     except Exception as e:
         logger.warning(f"Takeaways cache lookup failed: {e}")
     finally:
@@ -3026,8 +3047,12 @@ def youtube_dpoi(video_id: str = Query(..., min_length=11, max_length=11), refre
         _dpoi_db = SessionLocal()
         try:
             cached = _dpoi_db.query(DpoiCache).filter(DpoiCache.video_id == video_id).first()
-            if cached and cached.data:
+            if cached and cached.data and _is_valid_cached_ai_data(cached.data):
                 return cached.data
+            elif cached and cached.data:
+                _dpoi_db.delete(cached)
+                _dpoi_db.commit()
+                logger.info(f"Deleted invalid DOPI cache for {video_id}: {str(cached.data)[:100]}")
         except Exception as e:
             logger.warning(f"DPOI cache lookup failed: {e}")
         finally:
@@ -3088,11 +3113,17 @@ async def youtube_dpoi_post(request: Request):
     _dpoi_db = SessionLocal()
     try:
         cached = _dpoi_db.query(DpoiCache).filter(DpoiCache.video_id == video_id).first()
-        if cached and cached.data:
+        if cached and cached.data and _is_valid_cached_ai_data(cached.data):
             if isinstance(cached.data, dict) and cached.data.get("error") == "generation_failed" and segments:
                 pass  # fall through to regenerate
-            else:
+            elif isinstance(cached.data, list) and len(cached.data) > 0:
                 return cached.data
+            else:
+                return cached.data  # return error sentinel
+        elif cached and cached.data:
+            _dpoi_db.delete(cached)
+            _dpoi_db.commit()
+            logger.info(f"POST: Deleted invalid DOPI cache for {video_id}")
     except Exception as e:
         logger.warning(f"DPOI cache lookup failed: {e}")
     finally:

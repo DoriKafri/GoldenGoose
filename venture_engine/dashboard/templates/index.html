@@ -1098,6 +1098,11 @@ html.dark .sl-msg-wrap:hover { background:rgba(255,255,255,.08); }
 .bug-board-fullview .bug-board-col { min-width:200px; max-height:calc(100vh - 120px); overflow-y:auto; scrollbar-width:thin; }
 .bug-board-fullview .bug-board-col::-webkit-scrollbar { width:4px; }
 .bug-board-fullview .bug-board-col::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
+/* Zoom toolbar in fullview */
+.bug-board-zoom { position:fixed; bottom:20px; right:20px; z-index:10000; display:flex; gap:4px; background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:4px; box-shadow:0 4px 16px rgba(0,0,0,0.15); }
+.bug-board-zoom button { width:36px; height:36px; border:1px solid var(--border); border-radius:var(--radius); background:var(--bg); color:var(--text); font-size:18px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background 0.1s; }
+.bug-board-zoom button:hover { background:var(--bg2); }
+.bug-board-zoom .zoom-level { width:48px; height:36px; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:600; color:var(--text2); font-family:'JetBrains Mono',monospace; }
 .bug-board-col-empty { flex:0 0 60px !important; min-width:60px !important; opacity:0.5; }
 .bug-board-col-empty .bug-board-col-title { font-size:10px; writing-mode:vertical-lr; text-orientation:mixed; white-space:nowrap; padding:8px 4px; }
 .bug-board-col-title { font-size:12px; font-weight:700; color:var(--text2); text-transform:uppercase; padding:8px; margin-bottom:4px; }
@@ -8064,6 +8069,18 @@ function _bugToggleFullView() {
     closeBtn.textContent = '✕ Exit Full View';
     closeBtn.onclick = _bugToggleFullView;
     document.body.appendChild(closeBtn);
+    // Add zoom controls
+    const zoomBar = document.createElement('div');
+    zoomBar.id = 'bugZoomBar';
+    zoomBar.className = 'bug-board-zoom';
+    zoomBar.innerHTML = `
+      <button onclick="_bugZoom(-1)" title="Zoom out">−</button>
+      <div class="zoom-level" id="bugZoomLevel">100%</div>
+      <button onclick="_bugZoom(1)" title="Zoom in">+</button>
+      <button onclick="_bugZoomFit()" title="Fit to screen" style="font-size:12px;width:auto;padding:0 10px;">Fit</button>
+    `;
+    document.body.appendChild(zoomBar);
+    _bugZoomLevel = 100;
     // Also close on Escape
     wrapper._escHandler = e => { if (e.key === 'Escape') _bugToggleFullView(); };
     document.addEventListener('keydown', wrapper._escHandler);
@@ -8071,6 +8088,11 @@ function _bugToggleFullView() {
     wrapper.classList.remove('bug-board-fullview');
     const closeBtn = document.getElementById('bugFullViewClose');
     if (closeBtn) closeBtn.remove();
+    const zoomBar = document.getElementById('bugZoomBar');
+    if (zoomBar) zoomBar.remove();
+    // Reset zoom
+    const board = document.querySelector('.bug-board');
+    if (board) board.style.transform = '';
     if (wrapper._escHandler) {
       document.removeEventListener('keydown', wrapper._escHandler);
       delete wrapper._escHandler;
@@ -8079,6 +8101,34 @@ function _bugToggleFullView() {
   // Update button text
   const btn = document.getElementById('bugFullViewBtn');
   if (btn) btn.textContent = _bugFullView ? '✕ Exit Full View' : '⛶ Full View';
+}
+
+let _bugZoomLevel = 100;
+function _bugZoom(dir) {
+  _bugZoomLevel = Math.max(50, Math.min(200, _bugZoomLevel + dir * 10));
+  _bugApplyZoom();
+}
+
+function _bugZoomFit() {
+  const board = document.querySelector('.bug-board');
+  if (!board) return;
+  // Calculate zoom to fit all columns in viewport width
+  const viewW = window.innerWidth - 32; // padding
+  const contentW = board.scrollWidth;
+  _bugZoomLevel = Math.round(Math.min(100, (viewW / contentW) * 100));
+  _bugZoomLevel = Math.max(50, _bugZoomLevel);
+  _bugApplyZoom();
+}
+
+function _bugApplyZoom() {
+  const board = document.querySelector('.bug-board');
+  if (!board) return;
+  const scale = _bugZoomLevel / 100;
+  board.style.transform = `scale(${scale})`;
+  board.style.transformOrigin = 'top left';
+  board.style.width = (100 / scale) + '%';
+  const el = document.getElementById('bugZoomLevel');
+  if (el) el.textContent = _bugZoomLevel + '%';
 }
 
 async function _bugShowDetail(bugId) {

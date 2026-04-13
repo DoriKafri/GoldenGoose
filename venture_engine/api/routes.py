@@ -2257,7 +2257,7 @@ def youtube_transcript(
     from venture_engine.db.session import SessionLocal
     from venture_engine.db.models import TranscriptCache
 
-    _deadline = _time.monotonic() + 18  # 18-second deadline — fail fast, frontend retries
+    _deadline = _time.monotonic() + 45  # 45-second deadline — give all approaches time
 
     def _past_deadline():
         if _time.monotonic() > _deadline:
@@ -2534,6 +2534,7 @@ def youtube_transcript(
             import httpx
             yt_url = f"https://www.youtube.com/watch?v={video_id}"
             gemini_prompt = (
+                f"Watch this YouTube video: {yt_url}\n\n"
                 "Produce a full verbatim transcript of everything spoken in this video. "
                 "Output ONLY a JSON array of objects with keys: start (seconds as float), "
                 "duration (float, estimate ~5-10s per segment), text (the spoken words). "
@@ -2552,13 +2553,12 @@ def youtube_transcript(
                         json={
                             "contents": [{
                                 "parts": [
-                                    {"fileData": {"mimeType": "video/mp4", "fileUri": yt_url}},
                                     {"text": gemini_prompt}
                                 ]
                             }],
                             "generationConfig": {"temperature": 0.1, "maxOutputTokens": 65536}
                         },
-                        timeout=45.0,
+                        timeout=60.0,
                     )
                     if resp.status_code == 200:
                         data = resp.json()
@@ -2893,11 +2893,10 @@ def debug_gemini_test():
 
 
 def _is_valid_cached_ai_data(data) -> bool:
-    """Check if cached data is valid AI response (list of items) or error sentinel."""
+    """Check if cached data is valid AI response (list of items).
+    Error sentinels like generation_failed are NOT valid — they should trigger retry."""
     if isinstance(data, list) and len(data) > 0:
         return True
-    if isinstance(data, dict) and data.get("error"):
-        return True  # error sentinel is valid (frontend handles it)
     return False
 
 

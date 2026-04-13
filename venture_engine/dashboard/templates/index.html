@@ -1734,7 +1734,7 @@ html.dark .lm-tl-fullscreen-btn:hover { background:rgba(255,255,255,0.15); color
 /* Fullscreen timelapse */
 .lm-timelapse.tl-fullscreen { position:fixed!important; top:0; left:0; width:100vw; height:100vh; z-index:9999; margin:0!important; border-radius:0; border:none; display:flex!important; flex-direction:column; overflow:visible; }
 .lm-timelapse.tl-fullscreen .lm-tl-canvas-wrap { flex:1 1 0%!important; height:0!important; min-height:0!important; }
-.lm-timelapse.tl-fullscreen .lm-tl-timeline { flex-shrink:0; height:56px; }
+.lm-timelapse.tl-fullscreen .lm-tl-timeline { flex-shrink:0; height:112px; }
 .lm-timelapse.tl-fullscreen .lm-tl-controls { flex-shrink:0; }
 
 /* Below-fold sections */
@@ -1779,20 +1779,19 @@ html.dark .lm-tl-clock-display { text-shadow:0 1px 4px rgba(0,0,0,0.3); }
 html.dark .lm-tl-canvas-wrap { background:#0a0e17; }
 .lm-tl-canvas-wrap canvas { width:100%; height:100%; display:block; }
 /* Old stats row replaced by .lm-tl-stats-overlay on canvas */
-.lm-tl-timeline { position:relative; height:56px; background:rgba(241,245,249,0.9); border-top:1px solid var(--border); overflow:hidden; cursor:pointer; }
-/* dark mode handled via inline parent wrapper */
+.lm-tl-timeline { position:relative; height:112px; background:rgba(241,245,249,0.9); border-top:1px solid var(--border); overflow:hidden; cursor:pointer; }
 html.dark .lm-tl-timeline { background:rgba(15,23,42,0.8); border-top-color:rgba(51,65,85,0.3); }
-.lm-tl-histogram { position:absolute; bottom:3px; left:0; right:0; top:0; height:48px; display:flex; align-items:flex-end; gap:1px; padding:0 2px; overflow:visible; }
+.lm-tl-histogram { position:absolute; bottom:3px; left:0; right:0; top:56px; display:flex; align-items:flex-end; gap:1px; padding:0 2px; overflow:visible; }
 .lm-tl-bar { flex:1; min-width:0; opacity:0.75; position:relative; z-index:2; border-radius:2px 2px 0 0; transition:opacity 0.12s; background:rgba(148,163,184,0.15); }
 .lm-tl-bar:hover { opacity:1; }
-.lm-tl-playhead { position:absolute; bottom:0; width:2px; height:56px; background:#2563eb; z-index:5; pointer-events:none; box-shadow:0 0 6px rgba(37,99,235,0.4); }
+.lm-tl-playhead { position:absolute; bottom:0; width:2px; height:112px; background:#2563eb; z-index:5; pointer-events:none; box-shadow:0 0 6px rgba(37,99,235,0.4); }
 html.dark .lm-tl-playhead { background:#38bdf8; box-shadow:0 0 8px rgba(56,189,248,0.5); }
 .lm-tl-scrubber { position:absolute; bottom:0; width:16px; height:16px; border-radius:50%; background:#2563eb; border:2px solid #fff; box-shadow:0 1px 6px rgba(0,0,0,0.3); z-index:6; cursor:grab; transform:translate(-50%, -19px); pointer-events:all; transition:transform 0.1s; }
 .lm-tl-scrubber:hover { transform:translate(-50%, -19px) scale(1.3); }
 .lm-tl-scrubber:active { cursor:grabbing; transform:translate(-50%, -19px) scale(1.1); }
 html.dark .lm-tl-scrubber { background:#38bdf8; border-color:#1e293b; }
 .lm-tl-timeline.scrubbing { cursor:grabbing !important; }
-.lm-tl-tooltip { position:absolute; bottom:60px; background:rgba(15,23,42,0.9); color:#fff; font-family:'JetBrains Mono',monospace; font-size:10px; padding:3px 8px; border-radius:4px; white-space:nowrap; pointer-events:none; z-index:7; transform:translateX(-50%); opacity:0; transition:opacity 0.15s; }
+.lm-tl-tooltip { position:absolute; bottom:116px; background:rgba(15,23,42,0.9); color:#fff; font-family:'JetBrains Mono',monospace; font-size:10px; padding:3px 8px; border-radius:4px; white-space:nowrap; pointer-events:none; z-index:7; transform:translateX(-50%); opacity:0; transition:opacity 0.15s; }
 .lm-tl-tooltip.show { opacity:1; }
 .lm-tl-progress { position:absolute; bottom:0; left:0; height:3px; background:linear-gradient(90deg,#10b981,#38bdf8,#a78bfa); }
 .lm-tl-controls { display:flex; align-items:center; justify-content:space-between; padding:6px 16px; background:rgba(241,245,249,0.9); border-top:1px solid var(--border); }
@@ -8994,10 +8993,8 @@ async function loadLiveMonitor() {
           </div>
           <div id="tlComments"></div>
         </div>
-        <div style="position:relative;height:56px;overflow:hidden;border-top:1px solid var(--border);background:rgba(241,245,249,0.9);">
-          <div class="lm-tl-version-labels" id="tlVersionLabels" style="position:absolute;top:0;left:0;width:100%;height:100%;transform-origin:0 0;"></div>
-        </div>
         <div class="lm-tl-timeline" id="tlTimeline">
+          <div class="lm-tl-version-labels" id="tlVersionLabels" style="position:absolute;top:0;left:0;width:100%;height:56px;transform-origin:0 0;z-index:8;pointer-events:none;"></div>
           <div class="lm-tl-viewport" id="tlViewport" style="position:absolute;top:0;left:0;width:100%;height:100%;transform-origin:0 0;">
             <div class="lm-tl-histogram" id="tlHistogram"></div>
             <div class="lm-tl-playhead" id="tlPlayhead"></div>
@@ -9818,8 +9815,8 @@ async function _tlInit() {
       if(rH>0){p+=`<div style="position:absolute;bottom:${bot}px;width:100%;height:${rH}px;background:rgba(16,185,129,0.9);border-radius:1px;"></div>`;bot+=rH;}
       // Day label — positioned at top of histogram area
       const dayLabel=dayStarts.has(i)?`<div style="position:absolute;bottom:${barMax+2}px;left:0;font-size:8px;font-weight:600;font-family:'JetBrains Mono',monospace;color:rgba(100,116,139,0.7);white-space:nowrap;letter-spacing:0.5px;">${dayNames[binDays[i].day]} ${binDays[i].date}</div>`:'';
-      // Day separator line
-      const sep=dayStarts.has(i)&&i>0?`<div style="position:absolute;bottom:0;left:-1px;width:1px;height:${barMax+6}px;background:rgba(100,116,139,0.3);"></div>`:'';
+      // Day separator line — extends through labels area to top of timeline
+      const sep=dayStarts.has(i)&&i>0?`<div style="position:absolute;bottom:0;left:-1px;width:1px;height:${barMax+62}px;background:rgba(100,116,139,0.2);"></div>`:'';
       return `<div class="lm-tl-bar" style="height:${bin.total>0?Math.max(tH,4):2}px;position:relative;overflow:visible;">${p}${dayLabel}${sep}</div>`;
     }).join('');
 

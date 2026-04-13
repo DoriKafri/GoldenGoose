@@ -1086,11 +1086,15 @@ html.dark .sl-msg-wrap:hover { background:rgba(255,255,255,.08); }
 .bug-comment-author { font-size:12px; font-weight:600; color:var(--text); }
 .bug-comment-time { font-size:10px; color:var(--text3); }
 .bug-comment-body { font-size:13px; color:var(--text); line-height:1.5; margin-top:4px; }
-.bug-board { display:flex; gap:8px; overflow-x:auto; padding:8px 0; scrollbar-width:thin; scrollbar-color:var(--border) transparent; align-items:flex-start; }
-.bug-board::-webkit-scrollbar { height:8px; }
-.bug-board::-webkit-scrollbar-track { background:transparent; border-radius:4px; }
-.bug-board::-webkit-scrollbar-thumb { background:var(--border); border-radius:4px; }
-.bug-board::-webkit-scrollbar-thumb:hover { background:var(--text3); }
+.bug-board { display:flex; gap:8px; overflow-x:auto; padding:8px 0; align-items:flex-start; scrollbar-width:none; }
+.bug-board::-webkit-scrollbar { display:none; }
+/* Fixed scrollbar synced to board horizontal scroll */
+.bug-board-scrollbar { position:fixed; bottom:0; left:0; right:0; z-index:100; overflow-x:auto; overflow-y:hidden; scrollbar-width:thin; scrollbar-color:var(--border) var(--bg2); background:var(--bg2); border-top:1px solid var(--border); }
+.bug-board-scrollbar::-webkit-scrollbar { height:10px; }
+.bug-board-scrollbar::-webkit-scrollbar-track { background:var(--bg2); }
+.bug-board-scrollbar::-webkit-scrollbar-thumb { background:var(--border); border-radius:5px; }
+.bug-board-scrollbar::-webkit-scrollbar-thumb:hover { background:var(--text3); }
+.bug-board-scrollbar-inner { height:1px; }
 .bug-board-col { flex:1 0 0; min-width:160px; background:var(--bg2); border-radius:var(--radius); padding:8px; }
 /* Full-view mode — columns scroll independently only in fullview */
 .bug-board-fullview { position:fixed; inset:0; z-index:9999; background:var(--bg); padding:16px; overflow:auto; }
@@ -8021,7 +8025,12 @@ function renderBugList(bugs, stats, candidateKeys = new Set(), candidateScores =
     }
     boardHtml += '</div>';
     el.innerHTML = statsHtml + boardHtml;
+    // Create synced bottom scrollbar
+    requestAnimationFrame(() => _bugInitBottomScrollbar());
   } else {
+    // Remove bottom scrollbar when switching to list view
+    const oldSb = document.getElementById('bugBoardScrollbar');
+    if (oldSb) oldSb.remove();
     // List view
     el.innerHTML = statsHtml + bugs.map(b => `
       <div class="bug-card" onclick="_bugShowDetail('${b.id}')">
@@ -8043,6 +8052,47 @@ function renderBugList(bugs, stats, candidateKeys = new Set(), candidateScores =
       </div>
     `).join('');
   }
+}
+
+function _bugInitBottomScrollbar() {
+  // Remove old scrollbar
+  let sb = document.getElementById('bugBoardScrollbar');
+  if (sb) sb.remove();
+  const board = document.querySelector('.bug-board');
+  if (!board) return;
+  // Create fixed scrollbar at bottom of viewport
+  sb = document.createElement('div');
+  sb.id = 'bugBoardScrollbar';
+  sb.className = 'bug-board-scrollbar';
+  const inner = document.createElement('div');
+  inner.className = 'bug-board-scrollbar-inner';
+  inner.style.width = board.scrollWidth + 'px';
+  sb.appendChild(inner);
+  document.body.appendChild(sb);
+  // Sync scrollbar → board
+  let syncing = false;
+  sb.addEventListener('scroll', () => {
+    if (syncing) return;
+    syncing = true;
+    board.scrollLeft = sb.scrollLeft;
+    syncing = false;
+  });
+  // Sync board → scrollbar
+  board.addEventListener('scroll', () => {
+    if (syncing) return;
+    syncing = true;
+    sb.scrollLeft = board.scrollLeft;
+    syncing = false;
+  });
+  // Update scrollbar width on resize
+  const ro = new ResizeObserver(() => {
+    inner.style.width = board.scrollWidth + 'px';
+    // Hide if no overflow
+    sb.style.display = board.scrollWidth <= board.clientWidth ? 'none' : 'block';
+  });
+  ro.observe(board);
+  // Initial visibility
+  sb.style.display = board.scrollWidth <= board.clientWidth ? 'none' : 'block';
 }
 
 function _bugToggleView() {

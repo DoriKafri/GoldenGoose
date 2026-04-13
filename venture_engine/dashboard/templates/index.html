@@ -887,15 +887,15 @@ html.dark .sl-msg-wrap:hover { background:rgba(255,255,255,.08); }
 .yt-tab.failed .tab-spinner { display:none; }
 .yt-tab.failed::before { content:'✕'; color:#ef4444; font-weight:700; font-size:13px; margin-right:4px; }
 @keyframes tabSpin { to { transform:rotate(360deg); } }
-.dopi-research-btn { display:none; padding:6px 12px; font-size:11px; font-weight:600; color:#7c3aed; background:rgba(124,58,237,0.08); border:1px solid rgba(124,58,237,0.25); border-radius:6px; cursor:pointer; align-items:center; gap:4px; transition:all 0.2s; z-index:2; margin-top:8px; }
+.dopi-research-btn { display:inline-flex; visibility:hidden; padding:6px 12px; font-size:11px; font-weight:600; color:#7c3aed; background:rgba(124,58,237,0.08); border:1px solid rgba(124,58,237,0.25); border-radius:6px; cursor:pointer; align-items:center; gap:4px; transition:all 0.2s; z-index:2; margin-top:8px; }
 .dopi-item { position:relative; }
-.dopi-item:hover .dopi-research-btn { display:inline-flex; }
+.dopi-item:hover .dopi-research-btn { visibility:visible; }
 .dopi-research-btn:hover { background:rgba(124,58,237,0.18); color:#6d28d9; transform:scale(1.04); }
 .dopi-research-btn:disabled { opacity:0.7; cursor:wait; }
-.dopi-research-btn.dopi-research-success { display:inline-flex; background:rgba(34,197,94,0.1); border-color:rgba(34,197,94,0.3); color:#16a34a; }
-.dopi-research-btn.dopi-research-rejected { display:inline-flex; background:rgba(239,68,68,0.08); border-color:rgba(239,68,68,0.2); color:#dc2626; }
+.dopi-research-btn.dopi-research-success { visibility:visible; background:rgba(34,197,94,0.1); border-color:rgba(34,197,94,0.3); color:#16a34a; }
+.dopi-research-btn.dopi-research-rejected { visibility:visible; background:rgba(239,68,68,0.08); border-color:rgba(239,68,68,0.2); color:#dc2626; }
 @media(max-width:768px) {
-  .dopi-research-btn { display:inline-flex !important; position:static; width:100%; justify-content:center; padding:8px 14px; font-size:12px; border-radius:8px; }
+  .dopi-research-btn { visibility:visible !important; position:static; width:100%; justify-content:center; padding:8px 14px; font-size:12px; border-radius:8px; }
 }
 
 /* ── Investment Committee ── */

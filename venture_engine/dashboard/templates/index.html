@@ -9864,9 +9864,12 @@ async function _tlInit() {
         }
       }
 
+      // Place label row directly in the timeline div (outside viewport)
+      // so it's not affected by viewport scaleX transforms
+      const tlTimelineEl = document.getElementById('tlTimeline');
       const labelRow = document.createElement('div');
       labelRow.className = 'tl-release-label-row';
-      labelRow.style.cssText = 'position:absolute;top:0;left:0;right:0;height:18px;z-index:10;pointer-events:none;';
+      labelRow.style.cssText = 'position:absolute;top:0;left:0;right:0;height:18px;z-index:20;pointer-events:none;transform-origin:0 0;';
 
       groups.forEach(g => {
         const midPct = (g.startPct + g.endPct) / 2;
@@ -9886,11 +9889,11 @@ async function _tlInit() {
           });
           text = prefix + suffixes.join('·');
         }
-        label.style.cssText = `position:absolute;top:0;left:${midPct}%;transform:translateX(-50%) scaleX(var(--tl-label-counter-scale, 1));font-size:8px;font-weight:700;font-family:'JetBrains Mono',monospace;color:#10b981;white-space:nowrap;background:rgba(16,185,129,0.12);padding:1px 4px;border-radius:3px;border:1px solid rgba(16,185,129,0.3);line-height:12px;`;
+        label.style.cssText = `position:absolute;top:1px;left:${midPct}%;transform:translateX(-50%);font-size:9px;font-weight:700;font-family:'JetBrains Mono',monospace;color:#10b981;white-space:nowrap;background:rgba(16,185,129,0.12);padding:1px 5px;border-radius:3px;border:1px solid rgba(16,185,129,0.3);line-height:13px;`;
         label.textContent = text;
         labelRow.appendChild(label);
       });
-      tlViewportEl.appendChild(labelRow);
+      if (tlTimelineEl) tlTimelineEl.appendChild(labelRow);
     }
 
     // Add legend
@@ -9923,6 +9926,16 @@ async function _tlInit() {
     // Playhead width
     const ph = document.getElementById('tlPlayhead');
     if (ph) ph.style.width = Math.max(1, 2 * counterScale) + 'px';
+    // Reposition label row (outside viewport) to match viewport zoom/pan
+    const labelRow = document.querySelector('.tl-release-label-row');
+    if (labelRow) {
+      labelRow.style.transform = `scaleX(${_tlZoom}) translateX(${-_tlViewOffset * 100}%)`;
+      labelRow.style.transformOrigin = '0 0';
+      // Counter-scale individual labels so text doesn't stretch
+      labelRow.querySelectorAll('.tl-release-marker-label').forEach(lbl => {
+        lbl.style.transform = `translateX(-50%) scaleX(${counterScale})`;
+      });
+    }
   }
 
   function _tlClampView() {

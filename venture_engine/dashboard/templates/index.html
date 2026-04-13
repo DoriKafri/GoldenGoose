@@ -11268,6 +11268,8 @@ async function _slackSelectChannel(channelId) {
     const data = await resp.json();
     _slackChannelData = { channel: data.channel, messages: data.messages || [] };
     _renderSlackMessages(data.messages || []);
+    // Scroll message list to top when switching channels
+    if (msgList) msgList.scrollTop = 0;
   } catch(e) {
     if (msgList) msgList.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text3);">Failed to load messages.</div>';
   }

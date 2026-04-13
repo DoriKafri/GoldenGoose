@@ -8994,7 +8994,7 @@ async function loadLiveMonitor() {
           </div>
           <div id="tlComments"></div>
         </div>
-        <div style="position:relative;height:40px;overflow:hidden;border-top:1px solid var(--border);border-bottom:1px solid rgba(16,185,129,0.2);background:rgba(16,185,129,0.06);">
+        <div style="position:relative;height:56px;overflow:hidden;border-top:1px solid var(--border);border-bottom:1px solid rgba(16,185,129,0.2);background:rgba(16,185,129,0.06);">
           <div class="lm-tl-version-labels" id="tlVersionLabels" style="position:absolute;top:0;left:0;width:100%;height:100%;transform-origin:0 0;"></div>
         </div>
         <div class="lm-tl-timeline" id="tlTimeline">
@@ -9854,40 +9854,47 @@ async function _tlInit() {
         tlViewportEl.appendChild(marker);
       });
 
-      // Place individual labels in high/low rows — when labels overlap, bump newer one to high row
+      // Place individual labels in 3 rows (low/mid/high) with connector lines
       const tlVersionLabelsEl = document.getElementById('tlVersionLabels');
       if (tlVersionLabelsEl) {
         tlVersionLabelsEl.innerHTML = '';
-        const LOW_TOP = 21;   // bottom row (px from top of 40px container)
-        const HIGH_TOP = 2;   // top row
-        const OVERLAP_THRESHOLD = 6; // % distance below which labels overlap
-        const labelStyle = (top, pct) => `position:absolute;top:${top}px;left:${pct}%;transform:translateX(-50%);font-size:9px;font-weight:700;font-family:'JetBrains Mono',monospace;color:#059669;white-space:nowrap;background:rgba(16,185,129,0.15);padding:1px 6px;border-radius:4px;border:1px solid rgba(16,185,129,0.4);line-height:13px;letter-spacing:0.3px;`;
-
-        // Track last label position on each row to detect overlaps
-        let lastLowPct = -999;
-        let lastHighPct = -999;
+        const CONTAINER_H = 56;
+        const LABEL_H = 16;  // approx label height with padding
+        const ROW_TOPS = [CONTAINER_H - LABEL_H - 1, 20, 1]; // low=39, mid=20, high=1
+        const OVERLAP_THRESHOLD = 6; // % distance below which labels would overlap
+        const lastPctOnRow = [-999, -999, -999]; // track last label % on each row
 
         releases.forEach((ev, i) => {
           const pct = pcts[i];
           const text = ev.data.v;
+
+          // Find first row without overlap (low → mid → high)
+          let row = 0;
+          for (let r = 0; r < 3; r++) {
+            if (pct - lastPctOnRow[r] >= OVERLAP_THRESHOLD) {
+              row = r;
+              break;
+            }
+            if (r === 2) row = 2; // fallback to highest row
+          }
+          lastPctOnRow[row] = pct;
+          const top = ROW_TOPS[row];
+
+          // Create label
           const label = document.createElement('div');
           label.className = 'tl-release-marker-label';
           label.textContent = text;
-
-          // Try low row first; if it overlaps, use high row
-          if (pct - lastLowPct >= OVERLAP_THRESHOLD) {
-            label.style.cssText = labelStyle(LOW_TOP, pct);
-            lastLowPct = pct;
-          } else if (pct - lastHighPct >= OVERLAP_THRESHOLD) {
-            label.style.cssText = labelStyle(HIGH_TOP, pct);
-            lastHighPct = pct;
-          } else {
-            // Both rows occupied — place on high row anyway (newest wins)
-            label.style.cssText = labelStyle(HIGH_TOP, pct);
-            lastHighPct = pct;
-          }
-
+          label.style.cssText = `position:absolute;top:${top}px;left:${pct}%;transform:translateX(-50%);font-size:9px;font-weight:700;font-family:'JetBrains Mono',monospace;color:#059669;white-space:nowrap;background:rgba(16,185,129,0.15);padding:1px 6px;border-radius:4px;border:1px solid rgba(16,185,129,0.4);line-height:13px;letter-spacing:0.3px;z-index:2;`;
           tlVersionLabelsEl.appendChild(label);
+
+          // Draw connector line from label bottom to container bottom
+          if (row > 0) {
+            const lineTop = top + LABEL_H;
+            const lineH = CONTAINER_H - lineTop;
+            const line = document.createElement('div');
+            line.style.cssText = `position:absolute;top:${lineTop}px;left:${pct}%;width:0;height:${lineH}px;border-left:1px solid rgba(16,185,129,0.4);z-index:1;`;
+            tlVersionLabelsEl.appendChild(line);
+          }
         });
       }
     }

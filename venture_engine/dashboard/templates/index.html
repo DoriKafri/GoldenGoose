@@ -1734,7 +1734,7 @@ html.dark .lm-tl-fullscreen-btn:hover { background:rgba(255,255,255,0.15); color
 /* Fullscreen timelapse */
 .lm-timelapse.tl-fullscreen { position:fixed!important; top:0; left:0; width:100vw; height:100vh; z-index:9999; margin:0!important; border-radius:0; border:none; display:flex!important; flex-direction:column; overflow:visible; }
 .lm-timelapse.tl-fullscreen .lm-tl-canvas-wrap { flex:1 1 0%!important; height:0!important; min-height:0!important; }
-.lm-timelapse.tl-fullscreen .lm-tl-timeline { flex-shrink:0; height:72px; }
+.lm-timelapse.tl-fullscreen .lm-tl-timeline { flex-shrink:0; height:56px; }
 .lm-timelapse.tl-fullscreen .lm-tl-controls { flex-shrink:0; }
 
 /* Below-fold sections */
@@ -1779,19 +1779,20 @@ html.dark .lm-tl-clock-display { text-shadow:0 1px 4px rgba(0,0,0,0.3); }
 html.dark .lm-tl-canvas-wrap { background:#0a0e17; }
 .lm-tl-canvas-wrap canvas { width:100%; height:100%; display:block; }
 /* Old stats row replaced by .lm-tl-stats-overlay on canvas */
-.lm-tl-timeline { position:relative; height:72px; background:rgba(241,245,249,0.9); border-top:1px solid var(--border); overflow:hidden; cursor:pointer; }
+.lm-tl-timeline { position:relative; height:56px; background:rgba(241,245,249,0.9); border-top:1px solid var(--border); overflow:hidden; cursor:pointer; }
+html.dark .lm-tl-version-labels { background:rgba(15,23,42,0.8); border-top-color:rgba(51,65,85,0.3); }
 html.dark .lm-tl-timeline { background:rgba(15,23,42,0.8); border-top-color:rgba(51,65,85,0.3); }
-.lm-tl-histogram { position:absolute; bottom:3px; left:0; right:0; top:18px; display:flex; align-items:flex-end; gap:1px; padding:0 2px; overflow:visible; }
+.lm-tl-histogram { position:absolute; bottom:3px; left:0; right:0; top:0; height:48px; display:flex; align-items:flex-end; gap:1px; padding:0 2px; overflow:visible; }
 .lm-tl-bar { flex:1; min-width:0; opacity:0.75; position:relative; z-index:2; border-radius:2px 2px 0 0; transition:opacity 0.12s; background:rgba(148,163,184,0.15); }
 .lm-tl-bar:hover { opacity:1; }
-.lm-tl-playhead { position:absolute; bottom:0; width:2px; height:72px; background:#2563eb; z-index:5; pointer-events:none; box-shadow:0 0 6px rgba(37,99,235,0.4); }
+.lm-tl-playhead { position:absolute; bottom:0; width:2px; height:56px; background:#2563eb; z-index:5; pointer-events:none; box-shadow:0 0 6px rgba(37,99,235,0.4); }
 html.dark .lm-tl-playhead { background:#38bdf8; box-shadow:0 0 8px rgba(56,189,248,0.5); }
 .lm-tl-scrubber { position:absolute; bottom:0; width:16px; height:16px; border-radius:50%; background:#2563eb; border:2px solid #fff; box-shadow:0 1px 6px rgba(0,0,0,0.3); z-index:6; cursor:grab; transform:translate(-50%, -19px); pointer-events:all; transition:transform 0.1s; }
 .lm-tl-scrubber:hover { transform:translate(-50%, -19px) scale(1.3); }
 .lm-tl-scrubber:active { cursor:grabbing; transform:translate(-50%, -19px) scale(1.1); }
 html.dark .lm-tl-scrubber { background:#38bdf8; border-color:#1e293b; }
 .lm-tl-timeline.scrubbing { cursor:grabbing !important; }
-.lm-tl-tooltip { position:absolute; bottom:76px; background:rgba(15,23,42,0.9); color:#fff; font-family:'JetBrains Mono',monospace; font-size:10px; padding:3px 8px; border-radius:4px; white-space:nowrap; pointer-events:none; z-index:7; transform:translateX(-50%); opacity:0; transition:opacity 0.15s; }
+.lm-tl-tooltip { position:absolute; bottom:60px; background:rgba(15,23,42,0.9); color:#fff; font-family:'JetBrains Mono',monospace; font-size:10px; padding:3px 8px; border-radius:4px; white-space:nowrap; pointer-events:none; z-index:7; transform:translateX(-50%); opacity:0; transition:opacity 0.15s; }
 .lm-tl-tooltip.show { opacity:1; }
 .lm-tl-progress { position:absolute; bottom:0; left:0; height:3px; background:linear-gradient(90deg,#10b981,#38bdf8,#a78bfa); }
 .lm-tl-controls { display:flex; align-items:center; justify-content:space-between; padding:6px 16px; background:rgba(241,245,249,0.9); border-top:1px solid var(--border); }
@@ -8993,6 +8994,7 @@ async function loadLiveMonitor() {
           </div>
           <div id="tlComments"></div>
         </div>
+        <div class="lm-tl-version-labels" id="tlVersionLabels" style="position:relative;height:20px;background:rgba(241,245,249,0.9);border-top:1px solid var(--border);overflow:visible;"></div>
         <div class="lm-tl-timeline" id="tlTimeline">
           <div class="lm-tl-viewport" id="tlViewport" style="position:absolute;top:0;left:0;width:100%;height:100%;transform-origin:0 0;">
             <div class="lm-tl-histogram" id="tlHistogram"></div>
@@ -9864,36 +9866,32 @@ async function _tlInit() {
         }
       }
 
-      // Place label row directly in the timeline div (outside viewport)
-      // so it's not affected by viewport scaleX transforms
-      const tlTimelineEl = document.getElementById('tlTimeline');
-      const labelRow = document.createElement('div');
-      labelRow.className = 'tl-release-label-row';
-      labelRow.style.cssText = 'position:absolute;top:0;left:0;right:0;height:18px;z-index:20;pointer-events:none;transform-origin:0 0;';
-
-      groups.forEach(g => {
-        const midPct = (g.startPct + g.endPct) / 2;
-        const label = document.createElement('div');
-        label.className = 'tl-release-marker-label';
-        let text;
-        if (g.items.length === 1) {
-          text = g.items[0].data.v;
-        } else {
-          // Compact: show first version + abbreviated suffixes
-          const first = g.items[0].data.v;
-          const prefix = first.replace(/\.\d+$/, '.');
-          const suffixes = g.items.map(r => {
-            const v = r.data.v;
-            const match = v.match(/\.(\d+)$/);
-            return match ? match[1] : v;
-          });
-          text = prefix + suffixes.join('·');
-        }
-        label.style.cssText = `position:absolute;top:1px;left:${midPct}%;transform:translateX(-50%);font-size:9px;font-weight:700;font-family:'JetBrains Mono',monospace;color:#10b981;white-space:nowrap;background:rgba(16,185,129,0.12);padding:1px 5px;border-radius:3px;border:1px solid rgba(16,185,129,0.3);line-height:13px;`;
-        label.textContent = text;
-        labelRow.appendChild(label);
-      });
-      if (tlTimelineEl) tlTimelineEl.appendChild(labelRow);
+      // Place labels in the dedicated version-labels container ABOVE the timeline
+      const tlVersionLabelsEl = document.getElementById('tlVersionLabels');
+      if (tlVersionLabelsEl) {
+        tlVersionLabelsEl.innerHTML = '';
+        groups.forEach(g => {
+          const midPct = (g.startPct + g.endPct) / 2;
+          const label = document.createElement('div');
+          label.className = 'tl-release-marker-label';
+          let text;
+          if (g.items.length === 1) {
+            text = g.items[0].data.v;
+          } else {
+            const first = g.items[0].data.v;
+            const prefix = first.replace(/\.\d+$/, '.');
+            const suffixes = g.items.map(r => {
+              const v = r.data.v;
+              const match = v.match(/\.(\d+)$/);
+              return match ? match[1] : v;
+            });
+            text = prefix + suffixes.join('·');
+          }
+          label.style.cssText = `position:absolute;top:2px;left:${midPct}%;transform:translateX(-50%);font-size:9px;font-weight:700;font-family:'JetBrains Mono',monospace;color:#10b981;white-space:nowrap;background:rgba(16,185,129,0.12);padding:2px 6px;border-radius:3px;border:1px solid rgba(16,185,129,0.3);line-height:13px;`;
+          label.textContent = text;
+          tlVersionLabelsEl.appendChild(label);
+        });
+      }
     }
 
     // Add legend
@@ -9926,13 +9924,12 @@ async function _tlInit() {
     // Playhead width
     const ph = document.getElementById('tlPlayhead');
     if (ph) ph.style.width = Math.max(1, 2 * counterScale) + 'px';
-    // Reposition label row (outside viewport) to match viewport zoom/pan
-    const labelRow = document.querySelector('.tl-release-label-row');
-    if (labelRow) {
-      labelRow.style.transform = `scaleX(${_tlZoom}) translateX(${-_tlViewOffset * 100}%)`;
-      labelRow.style.transformOrigin = '0 0';
-      // Counter-scale individual labels so text doesn't stretch
-      labelRow.querySelectorAll('.tl-release-marker-label').forEach(lbl => {
+    // Sync version labels container with viewport zoom/pan
+    const vlc = document.getElementById('tlVersionLabels');
+    if (vlc) {
+      vlc.style.transform = `scaleX(${_tlZoom}) translateX(${-_tlViewOffset * 100}%)`;
+      vlc.style.transformOrigin = '0 0';
+      vlc.querySelectorAll('.tl-release-marker-label').forEach(lbl => {
         lbl.style.transform = `translateX(-50%) scaleX(${counterScale})`;
       });
     }

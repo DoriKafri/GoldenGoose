@@ -9624,7 +9624,8 @@ async function _tlInit() {
   // State
   let currentTime=T_START, eventIndex=0, speed=1;
   let counters={commits:0,bugs:0,releases:0,agents:0};
-  const TIME_SCALE=120000; // 1s real = 2min simulated
+  // Dynamic time-scale: full timeline plays in ~3 minutes at 1× speed
+  const TIME_SCALE = Math.max(120000, T_SPAN / 180);
   // Animation scale: 0 when paused, proportional for slow-mo, 1 for normal+
   let _tlAnimScale = 1;
 
@@ -10094,8 +10095,11 @@ async function _tlInit() {
     container.prepend(bubble);
     // Track for pause-aware removal
     _tlBubbleTimers.push({ el: bubble, remaining: 10000 });
-    // Keep container manageable — remove oldest (last child in column-reverse)
-    while (container.children.length > 20) container.lastChild.remove();
+    // Keep container manageable — remove oldest but protect release bubbles
+    while (container.children.length > 20) {
+      const oldest = Array.from(container.children).reverse().find(c => !c.classList.contains('release-bubble'));
+      if (oldest) oldest.remove(); else break;
+    }
   }
 
   function _tlAddReleaseBubble(version, fixes) {
@@ -10111,7 +10115,11 @@ async function _tlInit() {
       </div>`;
     container.prepend(bubble);
     _tlBubbleTimers.push({ el: bubble, remaining: 20000 });
-    while (container.children.length > 20) container.lastChild.remove();
+    // Don't let regular bubbles push out release bubbles — only remove non-release children
+    while (container.children.length > 20) {
+      const oldest = Array.from(container.children).reverse().find(c => !c.classList.contains('release-bubble'));
+      if (oldest) oldest.remove(); else break;
+    }
   }
 
   // Full-screen release banner — fixed to viewport, truly unmissable

@@ -5118,9 +5118,44 @@ def post_news_url(req: NewsPostRequest, db: Session = Depends(get_db_dependency)
                 )
                 if oembed_resp.status_code == 200:
                     oembed = oembed_resp.json()
+                    # Also fetch video description from page meta tags
+                    _yt_description = ""
+                    try:
+                        import re as _re_yt
+                        _page_resp = httpx.get(
+                            url,
+                            timeout=6.0,
+                            follow_redirects=True,
+                            headers={"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36", "Accept-Language": "en-US,en"},
+                        )
+                        _page_html = _page_resp.text[:80000]
+                        # Try og:description first, then meta description
+                        for _dpat in [
+                            r'<meta[^>]+(?:property|name)=["\']og:description["\'][^>]+content=["\']([^"\']*)["\']',
+                            r'<meta[^>]+content=["\']([^"\']*)["\'][^>]+(?:property|name)=["\']og:description["\']',
+                            r'<meta[^>]+name=["\']description["\'][^>]+content=["\']([^"\']*)["\']',
+                        ]:
+                            _dm = _re_yt.search(_dpat, _page_html, _re_yt.IGNORECASE)
+                            if _dm and _dm.group(1).strip():
+                                _yt_description = _dm.group(1).strip()
+                                break
+                        if _yt_description:
+                            logger.info(f"YouTube description fetched ({len(_yt_description)} chars)")
+                    except Exception as _de:
+                        logger.warning(f"YouTube description fetch failed: {_de}")
+
+                    # Build summary: user comment + description (for searchability)
+                    _yt_summary_parts = []
+                    if comment:
+                        _yt_summary_parts.append(comment)
+                    if _yt_description:
+                        _yt_summary_parts.append(_yt_description)
+                    if not _yt_summary_parts:
+                        _yt_summary_parts.append(oembed.get("title", ""))
+
                     meta = {
                         "title": oembed.get("title", "YouTube Video"),
-                        "summary": comment or oembed.get("title", ""),
+                        "summary": " — ".join(_yt_summary_parts),
                         "source": "youtube",
                         "source_name": "YouTube",
                         "author": oembed.get("author_name", ""),
@@ -6139,3 +6174,57 @@ Return ONLY the JSON object."""
 
     db.commit()
     return {"created": created, "errors": errors}
+
+
+# ── Backfill YouTube descriptions into existing news items ──────────────
+@router.post("/api/news/backfill-youtube-descriptions")
+def backfill_youtube_descriptions():
+    """Fetch video descriptions for YouTube news items whose summary == title (missing description)."""
+    import httpx
+    import re as _re_bf
+    from venture_engine.db.session import SessionLocal
+
+    db = SessionLocal()
+    try:
+        yt_items = db.query(NewsFeedItem).filter(
+            NewsFeedItem.source == "youtube",
+            NewsFeedItem.url.isnot(None),
+        ).all()
+
+        updated = 0
+        errors = []
+        for item in yt_items:
+            # Skip items that already have a rich summary (different from title)
+            if item.summary and item.summary.strip() != item.title.strip() and len(item.summary) > len(item.title) + 10:
+                continue
+            if not item.url:
+                continue
+            try:
+                resp = httpx.get(
+                    item.url,
+                    timeout=8.0,
+                    follow_redirects=True,
+                    headers={"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36", "Accept-Language": "en-US,en"},
+                )
+                html = resp.text[:80000]
+                description = ""
+                for pat in [
+                    r'<meta[^>]+(?:property|name)=["\']og:description["\'][^>]+content=["\']([^"\']*)["\']',
+                    r'<meta[^>]+content=["\']([^"\']*)["\'][^>]+(?:property|name)=["\']og:description["\']',
+                    r'<meta[^>]+name=["\']description["\'][^>]+content=["\']([^"\']*)["\']',
+                ]:
+                    m = _re_bf.search(pat, html, _re_bf.IGNORECASE)
+                    if m and m.group(1).strip():
+                        description = m.group(1).strip()
+                        break
+                if description:
+                    item.summary = f"{item.title} — {description}"
+                    updated += 1
+                    logger.info(f"Backfilled description for '{item.title[:50]}': {description[:80]}")
+            except Exception as e:
+                errors.append(f"{item.title[:40]}: {str(e)[:60]}")
+
+        db.commit()
+        return {"updated": updated, "total_youtube": len(yt_items), "errors": errors}
+    finally:
+        db.close()

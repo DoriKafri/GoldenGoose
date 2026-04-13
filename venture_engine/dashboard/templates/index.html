@@ -828,6 +828,7 @@ html.dark .sl-msg-wrap:hover { background:rgba(255,255,255,.08); }
 .reader-topbar-close:hover { background:var(--bg2); color:var(--text); }
 .reader-body { display:flex; flex:1; overflow:hidden; }
 .reader-content { flex:1; position:relative; overflow-y:auto; overflow-x:hidden; background:#fff; display:flex; flex-direction:column; }
+.reader-content.yt-mode { overflow-y:hidden; }
 .reader-content iframe { width:100%; height:100%; border:none; }
 .reader-sidebar { width:340px; flex-shrink:0; border-left:1px solid var(--border); background:var(--card); display:flex; flex-direction:column; overflow:hidden; }
 .reader-sidebar-header { padding:12px 16px; border-bottom:1px solid var(--border); font-size:13px; font-weight:700; color:var(--text); display:flex; align-items:center; justify-content:space-between; }
@@ -4364,6 +4365,7 @@ function openReader(url, title, newsItemId) {
   if (_isYouTube) {
     // ── YouTube video mode ──
     iframe.style.display = 'none';
+    contentEl.classList.add('yt-mode');
     // Remove old YT wrapper if any
     const oldWrap = contentEl.querySelector('.yt-player-wrap');
     if (oldWrap) oldWrap.remove();
@@ -4461,6 +4463,7 @@ function openReader(url, title, newsItemId) {
     loadReaderAnnotations();
   } else {
     // ── Article/web mode ──
+    contentEl.classList.remove('yt-mode');
     iframe.style.display = 'none';
     const oldWrap = contentEl.querySelector('.yt-player-wrap');
     if (oldWrap) oldWrap.remove();

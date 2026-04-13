@@ -2689,7 +2689,7 @@ def _gemini_generate(prompt: str) -> Optional[str]:
         return None
     logger.info(f"Calling Gemini API with {len(prompt)} char prompt...")
     # Try multiple models in order of preference
-    models = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.0-flash-lite"]
+    models = ["gemini-2.5-flash-preview-04-17", "gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-1.5-flash"]
     import httpx
     for model in models:
         try:
@@ -2701,13 +2701,22 @@ def _gemini_generate(prompt: str) -> Optional[str]:
             )
             if resp.status_code == 200:
                 data = resp.json()
-                logger.info(f"Gemini API success with model {model}")
-                return data["candidates"][0]["content"]["parts"][0]["text"]
+                candidates = data.get("candidates", [])
+                if not candidates:
+                    logger.warning(f"Gemini {model}: 200 but no candidates. Response: {str(data)[:300]}")
+                    continue
+                try:
+                    text = candidates[0]["content"]["parts"][0]["text"]
+                    logger.info(f"Gemini API success with model {model}, {len(text)} chars")
+                    return text
+                except (KeyError, IndexError) as e:
+                    logger.warning(f"Gemini {model}: unexpected response structure: {e}. Data: {str(data)[:300]}")
+                    continue
             elif resp.status_code == 429:
                 logger.warning(f"Gemini model {model} quota exceeded, trying next...")
                 continue
             else:
-                logger.warning(f"Gemini API error {resp.status_code} for {model}: {resp.text[:200]}")
+                logger.warning(f"Gemini API error {resp.status_code} for {model}: {resp.text[:300]}")
                 continue
         except Exception as e:
             logger.warning(f"Gemini API call failed for {model}: {e}")
@@ -2718,8 +2727,10 @@ def _gemini_generate(prompt: str) -> Optional[str]:
 
 def _auto_generate_takeaways(video_id: str) -> Optional[dict]:
     """Auto-generate takeaways for a video using Gemini, cache result, and return it."""
+    logger.info(f"Starting takeaways generation for {video_id}")
     transcript_text = _get_transcript_text(video_id)
     if not transcript_text:
+        logger.warning(f"No transcript text for {video_id} — cannot generate takeaways")
         return None
 
     # Truncate to ~500K chars to cover very long videos (Gemini 2.5 Flash supports 1M tokens)

@@ -1094,7 +1094,8 @@ html.dark .sl-msg-wrap:hover { background:rgba(255,255,255,.08); }
 .bug-board-col { flex:1 1 180px; min-width:140px; max-width:280px; background:var(--bg2); border-radius:var(--radius); padding:8px; overflow:hidden; }
 /* Full-view mode — columns scroll independently only in fullview */
 .bug-board-fullview { position:fixed; inset:0; z-index:9999; background:var(--bg); padding:16px; overflow:auto; }
-.bug-board-fullview .bug-board { height:calc(100vh - 80px); align-items:flex-start; }
+.bug-board-fullview > div:first-child { display:none; }
+.bug-board-fullview .bug-board { height:calc(100vh - 32px); align-items:flex-start; }
 .bug-board-fullview .bug-board-col { min-width:200px; max-height:calc(100vh - 120px); overflow-y:auto; scrollbar-width:thin; }
 .bug-board-fullview .bug-board-col::-webkit-scrollbar { width:4px; }
 .bug-board-fullview .bug-board-col::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }

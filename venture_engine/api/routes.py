@@ -1401,7 +1401,8 @@ def list_news(
             (NewsFeedItem.title.ilike(search)) |
             (NewsFeedItem.summary.ilike(search)) |
             (NewsFeedItem.url.ilike(search)) |
-            (NewsFeedItem.source_name.ilike(search))
+            (NewsFeedItem.source_name.ilike(search)) |
+            (NewsFeedItem.author.ilike(search))
         )
     # Deduplicate by URL and title at query time
     from sqlalchemy import func as sqlfunc

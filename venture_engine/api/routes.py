@@ -2167,9 +2167,9 @@ def _parse_vtt_segments(vtt_text: str) -> list:
     # Track last seen time for each text to deduplicate only nearby overlapping
     # captions (within 3s) — not repeated phrases later in the video.
     seen_texts: dict[str, float] = {}
-    # Match VTT cues: timestamp --> timestamp\ntext
+    # Match VTT cues: timestamp --> timestamp [optional metadata]\ntext
     pattern = _re.compile(
-        r'(\d{2}:\d{2}:\d{2}\.\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2}\.\d{3})\s*\n(.+?)(?=\n\n|\Z)',
+        r'(\d{2}:\d{2}:\d{2}\.\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2}\.\d{3})[^\n]*\n(.+?)(?=\n\n|\Z)',
         _re.DOTALL,
     )
     for m in pattern.finditer(vtt_text):
@@ -2552,7 +2552,6 @@ def youtube_transcript(
             import httpx
             yt_url = f"https://www.youtube.com/watch?v={video_id}"
             gemini_prompt = (
-                f"Watch this YouTube video: {yt_url}\n\n"
                 "Produce a full verbatim transcript of everything spoken in this video. "
                 "Output ONLY a JSON array of objects with keys: start (seconds as float), "
                 "duration (float, estimate ~5-10s per segment), text (the spoken words). "
@@ -2571,6 +2570,7 @@ def youtube_transcript(
                         json={
                             "contents": [{
                                 "parts": [
+                                    {"fileData": {"fileUri": yt_url, "mimeType": "video/*"}},
                                     {"text": gemini_prompt}
                                 ]
                             }],

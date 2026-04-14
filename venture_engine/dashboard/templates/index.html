@@ -5237,7 +5237,17 @@ async function _ytLoadTranscript() {
     return;
   }
 
-  // Check localStorage — transcripts are immutable, never need re-fetching
+  // Flush localStorage transcripts from older parser versions
+  try {
+    const _TC_VER = 'tc_v2';
+    if (localStorage.getItem('_tc_ver') !== _TC_VER) {
+      Object.keys(localStorage).filter(k => k.startsWith('yt_transcript_')).forEach(k => localStorage.removeItem(k));
+      localStorage.setItem('_tc_ver', _TC_VER);
+      console.log('Flushed stale localStorage transcripts');
+    }
+  } catch(e) {}
+
+  // Check localStorage cache
   try {
     const lsKey = `yt_transcript_${vid}`;
     const lsData = localStorage.getItem(lsKey);
@@ -5322,7 +5332,7 @@ async function _ytLoadTranscript() {
       }
     }
 
-    // Cache successful client-side result on server (fire-and-forget)
+    // Cache successful result on server (fire-and-forget)
     if (segments && segments.length) {
       fetch(`${API}/api/youtube-transcript-cache/${vid}`, {
         method: 'POST',
@@ -5339,6 +5349,34 @@ async function _ytLoadTranscript() {
       _tabSetReady('transcript');
       _ytRenderTranscript(_ytTranscriptData);
       _ytPreFetchInsights(vid);
+
+      // ── Background upgrade: the browser can reach YouTube even if the
+      // server can't.  Fire a client-side fetch and replace if it returns
+      // a substantially longer transcript (e.g. server had a Gemini
+      // hallucination covering only a few minutes of a long video). ──
+      _ytFetchTranscriptClientSide(vid).then(clientSegs => {
+        if (!clientSegs || !clientSegs.length) return;
+        const curMax = Math.max(...(_ytTranscriptData || []).map(s => (s.start || 0) + (s.duration || 0)), 0);
+        const newMax = Math.max(...clientSegs.map(s => (s.start || 0) + (s.duration || 0)), 0);
+        // Only replace if client-side covers significantly more of the video
+        if (newMax > curMax * 1.5 && newMax > curMax + 30) {
+          console.log(`Background upgrade: ${Math.round(curMax)}s → ${Math.round(newMax)}s (${clientSegs.length} segments)`);
+          _ytTranscriptData = clientSegs;
+          _ytTranscriptVideoId = vid;
+          try { localStorage.setItem(`yt_transcript_${vid}`, JSON.stringify(clientSegs)); } catch(e) {}
+          _ytRenderTranscript(clientSegs);
+          // Update server cache with the better transcript
+          fetch(`${API}/api/youtube-transcript-cache/${vid}`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({segments: clientSegs, language: 'en'}),
+          }).catch(() => {});
+          // Re-trigger insights with the better transcript
+          _ytTakeawaysData = null; _ytTakeawaysVideoId = null;
+          _ytDpoiData = null; _ytDpoiVideoId = null;
+          _ytPreFetchInsights(vid);
+        }
+      }).catch(() => {});
     } else {
       _tabSetFailed('transcript');
       contentEl.innerHTML = '<div class="yt-transcript-error">Transcript unavailable for this video.</div>';

@@ -2260,9 +2260,10 @@ def youtube_transcript(
 
     Has a 45-second total deadline. If no approach succeeds by then, returns 404.
 
-    Strategy:
+    Strategy (ordered for cloud servers where YouTube blocks direct access):
     0. Check database cache first
-    1. InnerTube player API (TVHTML5_EMBEDDED, WEB, ANDROID, IOS)
+    1. Piped + Invidious proxy instances (fastest on cloud)
+    2. InnerTube player API (watch-page + direct clients)
     3. youtube-transcript-api library
     4. yt-dlp subtitle extraction
 
@@ -2314,155 +2315,9 @@ def youtube_transcript(
             logger.warning(f"Failed to cache transcript: {e}")
         return {"segments": segments, "language": language}
 
-    # ── Approach 1: InnerTube player API (multiple clients) ──
-    # ── Approach 0.5: Watch-page key extraction + InnerTube (like youtube-transcript-api) ──
-    # YouTube requires the INNERTUBE_API_KEY from the watch page to avoid LOGIN_REQUIRED
-    try:
-        import re as _re
-        _watch_ua = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
-        with httpx.Client(timeout=8, follow_redirects=True, headers={"User-Agent": _watch_ua, "Accept-Language": "en-US,en"}) as _wc:
-            _watch_resp = _wc.get(f"https://www.youtube.com/watch?v={video_id}")
-            _watch_html = _watch_resp.text
-            # Handle consent page
-            if 'action="https://consent.youtube.com/s"' in _watch_html:
-                _consent_m = _re.search(r'name="v" value="(.*?)"', _watch_html)
-                if _consent_m:
-                    _wc.cookies.set("CONSENT", "YES+" + _consent_m.group(1), domain=".youtube.com")
-                    _watch_resp = _wc.get(f"https://www.youtube.com/watch?v={video_id}")
-                    _watch_html = _watch_resp.text
-            _key_m = _re.search(r'"INNERTUBE_API_KEY":\s*"([a-zA-Z0-9_-]+)"', _watch_html)
-            if _key_m:
-                _api_key = _key_m.group(1)
-                _innertube_resp = _wc.post(
-                    f"https://www.youtube.com/youtubei/v1/player?key={_api_key}",
-                    json={
-                        "context": {"client": {"clientName": "ANDROID", "clientVersion": "20.10.38"}},
-                        "videoId": video_id,
-                    },
-                    headers={"Content-Type": "application/json"},
-                )
-                _it_data = _innertube_resp.json()
-                _it_status = _it_data.get("playabilityStatus", {}).get("status", "")
-                _it_tracks = (
-                    _it_data.get("captions", {})
-                    .get("playerCaptionsTracklistRenderer", {})
-                    .get("captionTracks", [])
-                )
-                if _it_tracks:
-                    _it_track = next((t for t in _it_tracks if t.get("languageCode", "").startswith("en")), _it_tracks[0])
-                    _cap_url = _it_track["baseUrl"]
-                    # Check for xpe flag — means PoToken required, captions won't work
-                    if "&exp=xpe" not in _cap_url:
-                        _cap_resp = _wc.get(_cap_url)
-                        if _cap_resp.text and len(_cap_resp.text) > 50:
-                            segments = _parse_innertube_caption_xml(_cap_resp.text)
-                            if segments:
-                                logger.info(f"Transcript via watch-page InnerTube for {video_id}: {len(segments)} segments")
-                                return _cache_and_return(segments, _it_track.get("languageCode", "en"))
-                            else:
-                                logger.warning(f"Watch-page: got caption XML but parsed 0 segments for {video_id}")
-                                errors.append("watch-page: caption XML parsed 0 segments")
-                        else:
-                            logger.warning(f"Watch-page: caption URL returned empty content ({len(_cap_resp.text or '')} bytes) for {video_id}")
-                            errors.append(f"watch-page: caption content empty ({len(_cap_resp.text or '')}b)")
-                    else:
-                        logger.info(f"Caption URL has xpe flag for {video_id}, skipping direct fetch")
-                        errors.append("watch-page: xpe flag (PoToken required)")
-                else:
-                    logger.warning(f"Watch-page InnerTube: no tracks (status={_it_status}) for {video_id}")
-                    errors.append(f"watch-page: no tracks (status={_it_status})")
-            else:
-                logger.warning(f"Could not extract INNERTUBE_API_KEY from watch page for {video_id}")
-    except Exception as _wp_exc:
-        logger.warning(f"Watch-page InnerTube failed for {video_id}: {_wp_exc}")
-        errors.append(f"watch-page-innertube: {str(_wp_exc)[:100]}")
-
-    if _past_deadline():
-        raise HTTPException(404, f"Transcript not available yet for {video_id} (deadline). Retry later.")
-
-    # ── Approach 1: InnerTube player API (multiple clients without API key) ──
-    # TVHTML5_SIMPLY_EMBEDDED_PLAYER bypasses LOGIN_REQUIRED for most videos
-    _innertube_clients = [
-        {
-            "name": "TVHTML5_SIMPLY_EMBEDDED_PLAYER",
-            "version": "2.0",
-            "ua": "Mozilla/5.0 (SMART-TV; Linux; Tizen 6.5)",
-            "extra_context": {"clientScreen": "EMBED"},
-            "embed": True,
-        },
-        {
-            "name": "WEB",
-            "version": "2.20250401",
-            "ua": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
-            "extra_context": {},
-            "embed": False,
-        },
-        {
-            "name": "ANDROID",
-            "version": "20.10.38",
-            "ua": "com.google.android.youtube/20.10.38",
-            "extra_context": {"androidSdkVersion": 34},
-            "embed": False,
-        },
-        {
-            "name": "IOS",
-            "version": "20.10.38",
-            "ua": "com.google.ios.youtube/20.10.38",
-            "extra_context": {},
-            "embed": False,
-        },
-    ]
-    for cinfo in _innertube_clients:
-        if _past_deadline():
-            break
-        client_name = cinfo["name"]
-        try:
-            client_ctx = {"clientName": client_name, "clientVersion": cinfo["version"], "hl": "en"}
-            client_ctx.update(cinfo["extra_context"])
-            innertube_body = {
-                "context": {"client": client_ctx},
-                "videoId": video_id,
-            }
-            # Embedded player needs thirdParty field
-            if cinfo["embed"]:
-                innertube_body["context"]["thirdParty"] = {"embedUrl": "https://www.youtube.com/"}
-            _ua = cinfo["ua"]
-            with httpx.Client(timeout=5) as client:
-                player_resp = client.post(
-                    "https://www.youtube.com/youtubei/v1/player?prettyPrint=false",
-                    json=innertube_body,
-                    headers={"User-Agent": _ua, "Content-Type": "application/json"},
-                )
-                player_data = player_resp.json()
-                playability = player_data.get("playabilityStatus", {}).get("status", "")
-                tracks = (
-                    player_data.get("captions", {})
-                    .get("playerCaptionsTracklistRenderer", {})
-                    .get("captionTracks", [])
-                )
-                if not tracks:
-                    raise ValueError(f"No tracks (playability={playability})")
-
-                track = next((t for t in tracks if t.get("languageCode", "").startswith("en")), tracks[0])
-                cap_resp = client.get(track["baseUrl"], headers={"User-Agent": _ua}, timeout=5)
-                if not cap_resp.text or len(cap_resp.text) < 50:
-                    raise ValueError("Empty caption response")
-
-                segments = _parse_innertube_caption_xml(cap_resp.text)
-                if not segments:
-                    raise ValueError("No segments parsed")
-
-                logger.info(f"Transcript via InnerTube {client_name} for {video_id}: {len(segments)} segments")
-                return _cache_and_return(segments, track.get("languageCode", "en"))
-
-        except Exception as exc:
-            logger.warning(f"Transcript InnerTube {client_name} failed for {video_id}: {exc}")
-            errors.append(f"innertube-{client_name.lower()}: {str(exc)[:100]}")
-
-    if _past_deadline():
-        raise HTTPException(404, f"Transcript not available yet for {video_id} (deadline). Retry later.")
-
-    # ── Approach 2: Invidious + Piped API instances (server-side) ──
+    # ── Approach 1: Piped + Invidious proxy instances (fastest on cloud) ──
+    # These work from cloud IPs where YouTube blocks direct access.
+    # Tried FIRST because InnerTube approaches waste 20-30s failing on cloud.
     # Both are YouTube proxy frontends that work from cloud IPs.
     _proxy_instances = [
         # Piped API instances (return JSON with subtitle URLs)
@@ -2529,6 +2384,79 @@ def youtube_transcript(
         except Exception as proxy_exc:
             logger.warning(f"Proxy {instance} failed for {video_id}: {proxy_exc}")
             errors.append(f"{proxy['type']}: {str(proxy_exc)[:80]}")
+
+    if _past_deadline():
+        raise HTTPException(404, f"Transcript not available yet for {video_id} (deadline). Retry later.")
+
+    # ── Approach 2: Watch-page InnerTube (extracts API key from watch page) ──
+    try:
+        import re as _re
+        _watch_ua = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+        with httpx.Client(timeout=8, follow_redirects=True, headers={"User-Agent": _watch_ua, "Accept-Language": "en-US,en"}) as _wc:
+            _watch_resp = _wc.get(f"https://www.youtube.com/watch?v={video_id}")
+            _watch_html = _watch_resp.text
+            if 'action="https://consent.youtube.com/s"' in _watch_html:
+                _consent_m = _re.search(r'name="v" value="(.*?)"', _watch_html)
+                if _consent_m:
+                    _wc.cookies.set("CONSENT", "YES+" + _consent_m.group(1), domain=".youtube.com")
+                    _watch_resp = _wc.get(f"https://www.youtube.com/watch?v={video_id}")
+                    _watch_html = _watch_resp.text
+            _key_m = _re.search(r'"INNERTUBE_API_KEY":\s*"([a-zA-Z0-9_-]+)"', _watch_html)
+            if _key_m:
+                _api_key = _key_m.group(1)
+                _innertube_resp = _wc.post(
+                    f"https://www.youtube.com/youtubei/v1/player?key={_api_key}",
+                    json={"context": {"client": {"clientName": "ANDROID", "clientVersion": "20.10.38"}}, "videoId": video_id},
+                    headers={"Content-Type": "application/json"},
+                )
+                _it_data = _innertube_resp.json()
+                _it_tracks = _it_data.get("captions", {}).get("playerCaptionsTracklistRenderer", {}).get("captionTracks", [])
+                if _it_tracks:
+                    _it_track = next((t for t in _it_tracks if t.get("languageCode", "").startswith("en")), _it_tracks[0])
+                    _cap_url = _it_track["baseUrl"]
+                    if "&exp=xpe" not in _cap_url:
+                        _cap_resp = _wc.get(_cap_url)
+                        if _cap_resp.text and len(_cap_resp.text) > 50:
+                            segments = _parse_innertube_caption_xml(_cap_resp.text)
+                            if segments:
+                                logger.info(f"Transcript via watch-page InnerTube for {video_id}: {len(segments)} segments")
+                                return _cache_and_return(segments, _it_track.get("languageCode", "en"))
+    except Exception as _wp_exc:
+        logger.warning(f"Watch-page InnerTube failed for {video_id}: {_wp_exc}")
+        errors.append(f"watch-page: {str(_wp_exc)[:100]}")
+
+    if _past_deadline():
+        raise HTTPException(404, f"Transcript not available yet for {video_id} (deadline). Retry later.")
+
+    # ── Approach 2b: InnerTube player API (multiple clients, no API key) ──
+    for cinfo in [
+        {"name": "TVHTML5_SIMPLY_EMBEDDED_PLAYER", "version": "2.0", "ua": "Mozilla/5.0 (SMART-TV; Linux; Tizen 6.5)", "extra_context": {"clientScreen": "EMBED"}, "embed": True},
+        {"name": "WEB", "version": "2.20250401", "ua": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36", "extra_context": {}, "embed": False},
+    ]:
+        if _past_deadline():
+            break
+        try:
+            client_ctx = {"clientName": cinfo["name"], "clientVersion": cinfo["version"], "hl": "en"}
+            client_ctx.update(cinfo["extra_context"])
+            body = {"context": {"client": client_ctx}, "videoId": video_id}
+            if cinfo["embed"]:
+                body["context"]["thirdParty"] = {"embedUrl": "https://www.youtube.com/"}
+            with httpx.Client(timeout=5) as client:
+                resp = client.post("https://www.youtube.com/youtubei/v1/player?prettyPrint=false", json=body,
+                                   headers={"User-Agent": cinfo["ua"], "Content-Type": "application/json"})
+                tracks = resp.json().get("captions", {}).get("playerCaptionsTracklistRenderer", {}).get("captionTracks", [])
+                if not tracks:
+                    raise ValueError("No tracks")
+                track = next((t for t in tracks if t.get("languageCode", "").startswith("en")), tracks[0])
+                cap_resp = client.get(track["baseUrl"], headers={"User-Agent": cinfo["ua"]}, timeout=5)
+                if not cap_resp.text or len(cap_resp.text) < 50:
+                    raise ValueError("Empty")
+                segments = _parse_innertube_caption_xml(cap_resp.text)
+                if segments:
+                    logger.info(f"Transcript via InnerTube {cinfo['name']} for {video_id}: {len(segments)} segments")
+                    return _cache_and_return(segments, track.get("languageCode", "en"))
+        except Exception as exc:
+            errors.append(f"innertube-{cinfo['name'].lower()}: {str(exc)[:80]}")
 
     if _past_deadline():
         raise HTTPException(404, f"Transcript not available yet for {video_id} (deadline). Retry later.")

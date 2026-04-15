@@ -2462,39 +2462,73 @@ def youtube_transcript(
     if _past_deadline():
         raise HTTPException(404, f"Transcript not available yet for {video_id} (deadline). Retry later.")
 
-    # ── Approach 2: Invidious API instances (server-side) ──
-    _invidious_instances = [
-        "https://inv.nadeko.net",
-        "https://invidious.nerdvpn.de",
-        "https://invidious.fdn.fr",
-        "https://vid.puffyan.us",
+    # ── Approach 2: Invidious + Piped API instances (server-side) ──
+    # Both are YouTube proxy frontends that work from cloud IPs.
+    _proxy_instances = [
+        # Piped API instances (return JSON with subtitle URLs)
+        {"url": "https://pipedapi.kavin.rocks", "type": "piped"},
+        {"url": "https://pipedapi.adminforge.de", "type": "piped"},
+        {"url": "https://api.piped.yt", "type": "piped"},
+        # Invidious instances
+        {"url": "https://inv.nadeko.net", "type": "invidious"},
+        {"url": "https://invidious.nerdvpn.de", "type": "invidious"},
+        {"url": "https://invidious.fdn.fr", "type": "invidious"},
+        {"url": "https://vid.puffyan.us", "type": "invidious"},
+        {"url": "https://invidious.privacyredirect.com", "type": "invidious"},
     ]
-    for instance in _invidious_instances:
+    for proxy in _proxy_instances:
         if _past_deadline():
             break
+        instance = proxy["url"]
         try:
             _headers = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"}
-            with httpx.Client(timeout=5, headers=_headers) as client:
-                list_resp = client.get(f"{instance}/api/v1/captions/{video_id}")
-                if list_resp.status_code != 200:
-                    continue
-                tracks = list_resp.json().get("captions", [])
-                if not tracks:
-                    continue
-                track = next((t for t in tracks if (t.get("language_code") or t.get("languageCode", "")).startswith("en")), tracks[0])
-                sub_url = track.get("url", "")
-                if sub_url and not sub_url.startswith("http"):
-                    sub_url = instance + sub_url
-                sub_resp = client.get(sub_url, timeout=5)
-                if sub_resp.status_code != 200 or len(sub_resp.text) < 50:
-                    continue
-                segments = _parse_vtt_segments(sub_resp.text)
-                if segments:
-                    logger.info(f"Transcript via Invidious {instance} for {video_id}: {len(segments)} segments")
-                    return _cache_and_return(segments)
-        except Exception as inv_exc:
-            logger.warning(f"Invidious {instance} failed for {video_id}: {inv_exc}")
-            errors.append(f"invidious: {str(inv_exc)[:80]}")
+            with httpx.Client(timeout=6, headers=_headers, follow_redirects=True) as client:
+                if proxy["type"] == "piped":
+                    # Piped: GET /streams/{videoId} → JSON with subtitles array
+                    streams_resp = client.get(f"{instance}/streams/{video_id}")
+                    if streams_resp.status_code != 200:
+                        continue
+                    streams = streams_resp.json()
+                    subtitles = streams.get("subtitles", [])
+                    if not subtitles:
+                        continue
+                    sub = next((s for s in subtitles if (s.get("code", "") or "").startswith("en")), subtitles[0])
+                    sub_url = sub.get("url", "")
+                    if not sub_url:
+                        continue
+                    sub_resp = client.get(sub_url, timeout=6)
+                    if sub_resp.status_code != 200 or len(sub_resp.text) < 50:
+                        continue
+                    # Piped returns VTT or timedtext XML depending on URL
+                    if "<text " in sub_resp.text or "<p " in sub_resp.text:
+                        segments = _parse_innertube_caption_xml(sub_resp.text)
+                    else:
+                        segments = _parse_vtt_segments(sub_resp.text)
+                    if segments:
+                        logger.info(f"Transcript via Piped {instance} for {video_id}: {len(segments)} segments")
+                        return _cache_and_return(segments)
+                else:
+                    # Invidious: GET /api/v1/captions/{videoId}
+                    list_resp = client.get(f"{instance}/api/v1/captions/{video_id}")
+                    if list_resp.status_code != 200:
+                        continue
+                    tracks = list_resp.json().get("captions", [])
+                    if not tracks:
+                        continue
+                    track = next((t for t in tracks if (t.get("language_code") or t.get("languageCode", "")).startswith("en")), tracks[0])
+                    sub_url = track.get("url", "")
+                    if sub_url and not sub_url.startswith("http"):
+                        sub_url = instance + sub_url
+                    sub_resp = client.get(sub_url, timeout=6)
+                    if sub_resp.status_code != 200 or len(sub_resp.text) < 50:
+                        continue
+                    segments = _parse_vtt_segments(sub_resp.text)
+                    if segments:
+                        logger.info(f"Transcript via Invidious {instance} for {video_id}: {len(segments)} segments")
+                        return _cache_and_return(segments)
+        except Exception as proxy_exc:
+            logger.warning(f"Proxy {instance} failed for {video_id}: {proxy_exc}")
+            errors.append(f"{proxy['type']}: {str(proxy_exc)[:80]}")
 
     if _past_deadline():
         raise HTTPException(404, f"Transcript not available yet for {video_id} (deadline). Retry later.")

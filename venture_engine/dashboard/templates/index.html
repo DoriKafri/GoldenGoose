@@ -4171,6 +4171,11 @@ const _INVIDIOUS_INSTANCES = [
   'https://invidious.fdn.fr',
   'https://vid.puffyan.us',
 ];
+const _PIPED_INSTANCES = [
+  'https://pipedapi.kavin.rocks',
+  'https://pipedapi.adminforge.de',
+  'https://api.piped.yt',
+];
 
 // Try fetching storyboard spec from our server, then Invidious instances
 async function _fetchStoryboardSpec(videoId) {
@@ -5171,8 +5176,35 @@ async function _ytFetchTranscriptClientSide(videoId) {
     throw new Error('YouTube direct failed');
   }
 
+  async function _tryPiped(instance) {
+    const resp = await fetch(`${instance}/streams/${videoId}`, {signal: AbortSignal.timeout(5000)});
+    if (!resp.ok) throw new Error('piped streams fail');
+    const data = await resp.json();
+    const subs = data.subtitles || [];
+    if (!subs.length) throw new Error('no subtitles');
+    let sub = subs.find(s => (s.code || '').startsWith('en'));
+    if (!sub) sub = subs[0];
+    const subUrl = sub.url;
+    if (!subUrl) throw new Error('no sub url');
+    const subResp = await fetch(subUrl, {signal: AbortSignal.timeout(5000)});
+    if (!subResp.ok) throw new Error('sub fetch fail');
+    const subText = await subResp.text();
+    if (!subText || subText.length < 50) throw new Error('empty sub');
+    // Piped may return XML or VTT
+    let segments;
+    if (subText.includes('<text ') || subText.includes('<p ')) {
+      segments = _parseXmlTranscript(subText);
+    } else {
+      segments = _parseVttSegments(subText);
+    }
+    if (!segments.length) throw new Error('no segments');
+    console.log(`Transcript via Piped (${instance}): ${segments.length} segments`);
+    return segments;
+  }
+
   // Race all sources — first to succeed wins
   const races = _INVIDIOUS_INSTANCES.map(inst => _tryInvidious(inst));
+  races.push(..._PIPED_INSTANCES.map(inst => _tryPiped(inst)));
   races.push(_tryYouTubeDirect());
 
   try {

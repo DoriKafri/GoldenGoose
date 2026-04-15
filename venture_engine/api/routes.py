@@ -2507,7 +2507,7 @@ def youtube_transcript(
     # transcribe the video directly from its YouTube URL.
     import os as _os
     _gemini_key = settings.google_gemini_api_key or _os.environ.get("GOOGLE_GEMINI_API_KEY", "")
-    logger.info(f"Gemini transcript fallback for {video_id}, key present: {bool(_gemini_key)}, key len: {len(_gemini_key)}")
+    logger.info(f"Gemini transcript fallback for {video_id}, key present: {bool(_gemini_key)}, key len: {len(_gemini_key)}, errors so far: {errors}")
     _gemini_errors = []
     try:
         if _gemini_key:
@@ -2520,56 +2520,71 @@ def youtube_transcript(
                 "Cover the ENTIRE video from beginning to end. Do NOT summarize — transcribe "
                 "every word spoken. Output raw JSON only, no markdown fences."
             )
+            # Try fileData first (lets Gemini process the actual video),
+            # then fall back to text-only with URL (less reliable but avoids
+            # API errors if fileData doesn't support YouTube URLs).
+            _gemini_payloads = [
+                {
+                    "label": "fileData",
+                    "contents": [{"parts": [
+                        {"fileData": {"fileUri": yt_url, "mimeType": "video/*"}},
+                        {"text": gemini_prompt}
+                    ]}],
+                },
+                {
+                    "label": "text-url",
+                    "contents": [{"parts": [
+                        {"text": f"Watch this YouTube video: {yt_url}\n\n{gemini_prompt}"}
+                    ]}],
+                },
+            ]
             models = ["gemini-2.5-flash", "gemini-2.5-flash-lite"]
             for model in models:
                 if _past_deadline():
                     _gemini_errors.append(f"{model}: deadline")
                     break
-                try:
-                    resp = httpx.post(
-                        f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
-                        f"?key={_gemini_key}",
-                        json={
-                            "contents": [{
-                                "parts": [
-                                    {"fileData": {"fileUri": yt_url, "mimeType": "video/*"}},
-                                    {"text": gemini_prompt}
-                                ]
-                            }],
-                            "generationConfig": {"temperature": 0.1, "maxOutputTokens": 65536}
-                        },
-                        timeout=60.0,
-                    )
-                    if resp.status_code == 200:
-                        data = resp.json()
-                        raw = data["candidates"][0]["content"]["parts"][0]["text"]
-                        # Strip markdown fences if present
-                        clean = raw.strip()
-                        if clean.startswith("```"):
-                            clean = clean.split("\n", 1)[1] if "\n" in clean else clean[3:]
-                            if clean.endswith("```"):
-                                clean = clean[:-3].strip()
-                        segments = _json.loads(clean)
-                        if isinstance(segments, list) and len(segments) > 0:
-                            logger.info(f"Transcript via Gemini {model} for {video_id}: {len(segments)} segments")
-                            return _cache_and_return(segments)
-                        _gemini_errors.append(f"{model}: empty/invalid response")
-                    elif resp.status_code == 429:
-                        _gemini_errors.append(f"{model}: rate-limited (429)")
+                for payload in _gemini_payloads:
+                    if _past_deadline():
+                        break
+                    _plabel = f"{model}/{payload['label']}"
+                    try:
+                        resp = httpx.post(
+                            f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+                            f"?key={_gemini_key}",
+                            json={
+                                "contents": payload["contents"],
+                                "generationConfig": {"temperature": 0.1, "maxOutputTokens": 65536}
+                            },
+                            timeout=120.0,
+                        )
+                        if resp.status_code == 200:
+                            data = resp.json()
+                            raw = data["candidates"][0]["content"]["parts"][0]["text"]
+                            clean = raw.strip()
+                            if clean.startswith("```"):
+                                clean = clean.split("\n", 1)[1] if "\n" in clean else clean[3:]
+                                if clean.endswith("```"):
+                                    clean = clean[:-3].strip()
+                            segments = _json.loads(clean)
+                            if isinstance(segments, list) and len(segments) > 0:
+                                logger.info(f"Transcript via Gemini {_plabel} for {video_id}: {len(segments)} segments")
+                                return _cache_and_return(segments)
+                            _gemini_errors.append(f"{_plabel}: empty/invalid")
+                        elif resp.status_code == 429:
+                            _gemini_errors.append(f"{_plabel}: rate-limited")
+                            continue
+                        else:
+                            _err_text = resp.text[:200]
+                            logger.warning(f"Gemini {_plabel} returned {resp.status_code}: {_err_text}")
+                            _gemini_errors.append(f"{_plabel}: {resp.status_code}")
+                            continue
+                    except _json.JSONDecodeError as je:
+                        _gemini_errors.append(f"{_plabel}: json-parse-error")
                         continue
-                    else:
-                        _err_text = resp.text[:200]
-                        logger.warning(f"Gemini transcript {model} returned {resp.status_code}: {_err_text}")
-                        _gemini_errors.append(f"{model}: {resp.status_code} {_err_text[:80]}")
+                    except Exception as ge:
+                        logger.warning(f"Gemini {_plabel} error: {ge}")
+                        _gemini_errors.append(f"{_plabel}: {str(ge)[:80]}")
                         continue
-                except _json.JSONDecodeError as je:
-                    logger.warning(f"Gemini transcript {model} JSON parse error: {je}")
-                    _gemini_errors.append(f"{model}: json-parse-error")
-                    continue
-                except Exception as ge:
-                    logger.warning(f"Gemini transcript {model} error: {ge}")
-                    _gemini_errors.append(f"{model}: {str(ge)[:80]}")
-                    continue
             errors.append(f"gemini: {'; '.join(_gemini_errors) if _gemini_errors else 'all models failed'}")
         else:
             errors.append("gemini: no API key configured")
@@ -2615,6 +2630,31 @@ async def youtube_transcript_cache_put(video_id: str, request: Request):
         raise HTTPException(500, str(e))
     finally:
         db.close()
+
+
+@router.get("/api/youtube-transcript-debug")
+def youtube_transcript_debug(video_id: str = Query(..., min_length=11, max_length=11)):
+    """Debug endpoint: show cached transcript stats and what approaches would be tried."""
+    from venture_engine.db.session import SessionLocal
+    from venture_engine.db.models import TranscriptCache
+    result = {"video_id": video_id, "cached": False}
+    try:
+        db = SessionLocal()
+        cached = db.query(TranscriptCache).filter(TranscriptCache.video_id == video_id).first()
+        if cached and cached.segments:
+            segs = cached.segments
+            result["cached"] = True
+            result["segment_count"] = len(segs)
+            if segs:
+                last_end = segs[-1].get("start", 0) + segs[-1].get("duration", 0)
+                result["first_text"] = segs[0].get("text", "")[:100]
+                result["last_text"] = segs[-1].get("text", "")[:100]
+                result["last_timestamp"] = round(last_end, 1)
+                result["duration_minutes"] = round(last_end / 60, 1)
+        db.close()
+    except Exception as e:
+        result["error"] = str(e)
+    return result
 
 
 def _get_transcript_text(video_id: str) -> str:

@@ -584,7 +584,8 @@ def _clear_truncated_transcript_caches():
     """One-time cleanup: clear all transcript caches created with the buggy
     seen_texts dedup parser that silently dropped repeated phrases."""
     from venture_engine.db.models import TranscriptCache
-    db = get_db().__enter__()
+    from venture_engine.db.session import SessionLocal
+    db = SessionLocal()
     try:
         count = db.query(TranscriptCache).count()
         if count > 0:
@@ -594,6 +595,8 @@ def _clear_truncated_transcript_caches():
     except Exception as e:
         logger.warning(f"Failed to clear transcript caches: {e}")
         db.rollback()
+    finally:
+        db.close()
 
 
 @app.on_event("startup")

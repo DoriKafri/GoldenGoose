@@ -580,6 +580,22 @@ def _backfill_bug_proof():
         logger.info(f"Backfilled proof-of-done for {len(bugs)} bugs")
 
 
+def _clear_truncated_transcript_caches():
+    """One-time cleanup: clear all transcript caches created with the buggy
+    seen_texts dedup parser that silently dropped repeated phrases."""
+    from venture_engine.db.models import TranscriptCache
+    db = get_db().__enter__()
+    try:
+        count = db.query(TranscriptCache).count()
+        if count > 0:
+            db.query(TranscriptCache).delete()
+            db.commit()
+            logger.info(f"Cleared {count} transcript caches (dedup bug fix)")
+    except Exception as e:
+        logger.warning(f"Failed to clear transcript caches: {e}")
+        db.rollback()
+
+
 @app.on_event("startup")
 def on_startup():
     def _safe(label, fn):
@@ -593,6 +609,7 @@ def on_startup():
     Base.metadata.create_all(bind=engine)
     _add_missing_columns()
 
+    _safe("Clearing truncated transcript caches", _clear_truncated_transcript_caches)
     _safe("JSON column self-heal", _fix_json_columns)
     _safe("Seeding thought leaders", lambda: [seed_thought_leaders(db) for db in [get_db().__enter__()]][0])
     _safe("Loading settings", lambda: __import__('venture_engine.settings_service', fromlist=['load_cache']).load_cache(get_db().__enter__()))

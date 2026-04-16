@@ -4310,6 +4310,20 @@ let _isYouTube = false;
 let _ytTranscriptData = null; // cached transcript segments
 let _ytTranscriptVideoId = null; // video ID for cached transcript
 
+// One-time cleanup: clear all transcript localStorage caches (dedup bug fix v2)
+try {
+  if (!localStorage.getItem('_yt_transcript_cache_cleared_v2')) {
+    const keysToRemove = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith('yt_transcript_')) keysToRemove.push(k);
+    }
+    keysToRemove.forEach(k => localStorage.removeItem(k));
+    localStorage.setItem('_yt_transcript_cache_cleared_v2', '1');
+    if (keysToRemove.length) console.log('Cleared', keysToRemove.length, 'stale transcript caches (dedup bug fix)');
+  }
+} catch(e) {}
+
 function _fmtTime(sec) {
   sec = Math.floor(sec || 0);
   const m = Math.floor(sec / 60);

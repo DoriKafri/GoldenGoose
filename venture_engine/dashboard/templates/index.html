@@ -5336,9 +5336,14 @@ async function _ytLoadTranscript() {
       }
     }
 
-    // NOTE: removed client→server transcript cache POST to prevent
-    // hallucinated/bad transcripts from re-contaminating the DB cache.
-    // Server caches transcripts itself when it fetches them successfully.
+    // Cache client-fetched transcript on server so takeaways/DOPI can use it
+    if (segments && segments.length >= 5) {
+      fetch(`${API}/api/youtube-transcript-cache/${vid}`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({segments, language: 'en'}),
+      }).catch(() => {});
+    }
 
     if (segments && segments.length) {
       _ytTranscriptData = segments;

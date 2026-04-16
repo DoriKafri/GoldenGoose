@@ -581,19 +581,23 @@ def _backfill_bug_proof():
 
 
 def _clear_truncated_transcript_caches():
-    """One-time cleanup: clear all transcript caches created with the buggy
-    seen_texts dedup parser that silently dropped repeated phrases."""
-    from venture_engine.db.models import TranscriptCache
+    """One-time cleanup: clear all transcript, takeaways, and DOPI caches
+    that were generated from buggy/hallucinated transcripts."""
+    from venture_engine.db.models import TranscriptCache, TakeawaysCache, DpoiCache
     from venture_engine.db.session import SessionLocal
     db = SessionLocal()
     try:
-        count = db.query(TranscriptCache).count()
-        if count > 0:
+        tc = db.query(TranscriptCache).count()
+        tkc = db.query(TakeawaysCache).count()
+        dc = db.query(DpoiCache).count()
+        if tc + tkc + dc > 0:
             db.query(TranscriptCache).delete()
+            db.query(TakeawaysCache).delete()
+            db.query(DpoiCache).delete()
             db.commit()
-            logger.info(f"Cleared {count} transcript caches (dedup bug fix)")
+            logger.info(f"Cleared {tc} transcript, {tkc} takeaways, {dc} DOPI caches (hallucination fix)")
     except Exception as e:
-        logger.warning(f"Failed to clear transcript caches: {e}")
+        logger.warning(f"Failed to clear caches: {e}")
         db.rollback()
     finally:
         db.close()

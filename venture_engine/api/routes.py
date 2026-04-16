@@ -2645,7 +2645,7 @@ def _gemini_generate(prompt: str) -> Optional[str]:
             resp = httpx.post(
                 f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={_gkey}",
                 json={"contents": [{"parts": [{"text": prompt}]}],
-                      "generationConfig": {"temperature": 0.3, "maxOutputTokens": 8192}},
+                      "generationConfig": {"temperature": 0.3, "maxOutputTokens": 16384}},
                 timeout=45.0,
             )
             if resp.status_code == 200:

@@ -2542,80 +2542,9 @@ def youtube_transcript(
     if _past_deadline():
         raise HTTPException(404, f"Transcript not available yet for {video_id} (deadline). Retry later.")
 
-    # ── Approach 5: Gemini AI transcript generation ──
-    # When all fetch methods fail (common on cloud IPs), use Gemini to
-    # transcribe the video directly from its YouTube URL.
-    import os as _os
-    _gemini_key = settings.google_gemini_api_key or _os.environ.get("GOOGLE_GEMINI_API_KEY", "")
-    logger.info(f"Gemini transcript fallback for {video_id}, key present: {bool(_gemini_key)}, key len: {len(_gemini_key)}")
-    _gemini_errors = []
-    try:
-        if _gemini_key:
-            import httpx
-            yt_url = f"https://www.youtube.com/watch?v={video_id}"
-            gemini_prompt = (
-                f"Watch this YouTube video: {yt_url}\n\n"
-                "Produce a full verbatim transcript of everything spoken in this video. "
-                "Output ONLY a JSON array of objects with keys: start (seconds as float), "
-                "duration (float, estimate ~5-10s per segment), text (the spoken words). "
-                "Cover the ENTIRE video from beginning to end. Do NOT summarize — transcribe "
-                "every word spoken. Output raw JSON only, no markdown fences."
-            )
-            models = ["gemini-2.5-flash", "gemini-2.5-flash-lite"]
-            for model in models:
-                if _past_deadline():
-                    _gemini_errors.append(f"{model}: deadline")
-                    break
-                try:
-                    resp = httpx.post(
-                        f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
-                        f"?key={_gemini_key}",
-                        json={
-                            "contents": [{
-                                "parts": [
-                                    {"text": gemini_prompt}
-                                ]
-                            }],
-                            "generationConfig": {"temperature": 0.1, "maxOutputTokens": 65536}
-                        },
-                        timeout=60.0,
-                    )
-                    if resp.status_code == 200:
-                        data = resp.json()
-                        raw = data["candidates"][0]["content"]["parts"][0]["text"]
-                        # Strip markdown fences if present
-                        clean = raw.strip()
-                        if clean.startswith("```"):
-                            clean = clean.split("\n", 1)[1] if "\n" in clean else clean[3:]
-                            if clean.endswith("```"):
-                                clean = clean[:-3].strip()
-                        segments = _json.loads(clean)
-                        if isinstance(segments, list) and len(segments) > 0:
-                            logger.info(f"Transcript via Gemini {model} for {video_id}: {len(segments)} segments")
-                            return _cache_and_return(segments)
-                        _gemini_errors.append(f"{model}: empty/invalid response")
-                    elif resp.status_code == 429:
-                        _gemini_errors.append(f"{model}: rate-limited (429)")
-                        continue
-                    else:
-                        _err_text = resp.text[:200]
-                        logger.warning(f"Gemini transcript {model} returned {resp.status_code}: {_err_text}")
-                        _gemini_errors.append(f"{model}: {resp.status_code} {_err_text[:80]}")
-                        continue
-                except _json.JSONDecodeError as je:
-                    logger.warning(f"Gemini transcript {model} JSON parse error: {je}")
-                    _gemini_errors.append(f"{model}: json-parse-error")
-                    continue
-                except Exception as ge:
-                    logger.warning(f"Gemini transcript {model} error: {ge}")
-                    _gemini_errors.append(f"{model}: {str(ge)[:80]}")
-                    continue
-            errors.append(f"gemini: {'; '.join(_gemini_errors) if _gemini_errors else 'all models failed'}")
-        else:
-            errors.append("gemini: no API key configured")
-    except Exception as exc5:
-        logger.warning(f"Gemini transcript fallback failed for {video_id}: {exc5}")
-        errors.append(f"gemini: {str(exc5)[:100]}")
+    # NOTE: Gemini text-prompt fallback was removed — Gemini cannot actually
+    # watch YouTube videos from a text prompt and produces hallucinated
+    # fake transcripts. Only real caption/subtitle data is returned.
 
     return Response(
         content=_json.dumps({"error": "Transcript unavailable", "details": errors}),

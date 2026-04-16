@@ -5232,13 +5232,23 @@ async function _ytLoadTranscript() {
     if (lsData) {
       const segments = JSON.parse(lsData);
       if (Array.isArray(segments) && segments.length > 0) {
-        _ytTranscriptData = segments;
-        _ytTranscriptVideoId = vid;
-        _tabSetReady('transcript');
-        _ytRenderTranscript(segments);
-        _ytPreFetchInsights(vid);
-        console.log('Transcript from localStorage:', segments.length, 'segments');
-        return;
+        // Sanity check: if last segment ends before 40% of video duration, transcript is truncated
+        const lastSeg = segments[segments.length - 1];
+        const lastTime = (lastSeg.start || 0) + (lastSeg.duration || 0);
+        const videoDur = (_ytPlayer && _ytPlayer.getDuration) ? _ytPlayer.getDuration() : 0;
+        if (videoDur > 300 && lastTime < videoDur * 0.4) {
+          console.warn(`Transcript truncated: covers ${Math.round(lastTime)}s of ${Math.round(videoDur)}s video — clearing cache`);
+          localStorage.removeItem(lsKey);
+          // Fall through to re-fetch
+        } else {
+          _ytTranscriptData = segments;
+          _ytTranscriptVideoId = vid;
+          _tabSetReady('transcript');
+          _ytRenderTranscript(segments);
+          _ytPreFetchInsights(vid);
+          console.log('Transcript from localStorage:', segments.length, 'segments');
+          return;
+        }
       }
     }
   } catch(e) { /* localStorage unavailable or corrupt */ }
@@ -5253,8 +5263,10 @@ async function _ytLoadTranscript() {
     return;
   }
 
+  let _forceRefresh = false;
   async function _serverFetch(timeoutMs) {
-    const resp = await fetch(`${API}/api/youtube-transcript?video_id=${vid}`, {signal: AbortSignal.timeout(timeoutMs)});
+    const refreshParam = _forceRefresh ? '&refresh=true' : '';
+    const resp = await fetch(`${API}/api/youtube-transcript?video_id=${vid}${refreshParam}`, {signal: AbortSignal.timeout(timeoutMs)});
     if (!resp.ok) throw new Error('server fail');
     const data = await resp.json();
     if (!data.segments || !data.segments.length) throw new Error('empty');

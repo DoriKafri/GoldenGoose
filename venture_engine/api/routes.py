@@ -2197,7 +2197,7 @@ def _parse_innertube_caption_xml(xml_text: str) -> list:
 
     root = ET.fromstring(xml_text)
     segments = []
-    seen_texts = set()
+    prev_key = None  # only deduplicate consecutive identical (text + timestamp) pairs
 
     # Format 3: <p t="320" d="3999"><s>word</s><s t="240">word</s>...</p>
     for p in root.findall(".//p"):
@@ -2212,25 +2212,30 @@ def _parse_innertube_caption_xml(xml_text: str) -> list:
         text = " ".join(words).strip()
         if not text:
             text = (p.text or "").strip()
-        if text and text not in seen_texts:
-            seen_texts.add(text)
-            text = _html.unescape(text)
-            segments.append({
-                "start": round(start_ms / 1000, 2),
-                "duration": round(dur_ms / 1000, 2),
-                "text": text,
-            })
+        if text:
+            key = (start_ms, text)
+            if key != prev_key:
+                prev_key = key
+                text = _html.unescape(text)
+                segments.append({
+                    "start": round(start_ms / 1000, 2),
+                    "duration": round(dur_ms / 1000, 2),
+                    "text": text,
+                })
 
     # Legacy format: <text start="0.32" dur="4.0">word</text>
     if not segments:
+        prev_key = None
         for elem in root.findall(".//text"):
             start = float(elem.get("start", 0))
             dur = float(elem.get("dur", 0))
             text = (elem.text or "").strip()
-            if text and text not in seen_texts:
-                seen_texts.add(text)
-                text = _html.unescape(text)
-                segments.append({"start": round(start, 2), "duration": round(dur, 2), "text": text})
+            if text:
+                key = (start, text)
+                if key != prev_key:
+                    prev_key = key
+                    text = _html.unescape(text)
+                    segments.append({"start": round(start, 2), "duration": round(dur, 2), "text": text})
 
     return segments
 
@@ -2238,6 +2243,7 @@ def _parse_innertube_caption_xml(xml_text: str) -> list:
 @router.get("/api/youtube-transcript")
 def youtube_transcript(
     video_id: str = Query(..., min_length=11, max_length=11),
+    refresh: bool = Query(False),
 ):
     """Return auto-generated transcript for a YouTube video.
 
@@ -2267,16 +2273,29 @@ def youtube_transcript(
         return False
 
     # ── Check cache first ──
-    try:
-        db = SessionLocal()
-        cached = db.query(TranscriptCache).filter(TranscriptCache.video_id == video_id).first()
-        if cached and cached.segments:
-            logger.info(f"Transcript from cache for {video_id}: {len(cached.segments)} segments")
+    if refresh:
+        # Delete stale cache so we re-fetch
+        try:
+            db = SessionLocal()
+            cached = db.query(TranscriptCache).filter(TranscriptCache.video_id == video_id).first()
+            if cached:
+                db.delete(cached)
+                db.commit()
+                logger.info(f"Cleared transcript cache for {video_id} (refresh=true)")
             db.close()
-            return {"segments": cached.segments, "language": cached.language or "en"}
-        db.close()
-    except Exception as cache_err:
-        logger.warning(f"Cache lookup failed: {cache_err}")
+        except Exception as e:
+            logger.warning(f"Cache clear failed: {e}")
+    else:
+        try:
+            db = SessionLocal()
+            cached = db.query(TranscriptCache).filter(TranscriptCache.video_id == video_id).first()
+            if cached and cached.segments:
+                logger.info(f"Transcript from cache for {video_id}: {len(cached.segments)} segments")
+                db.close()
+                return {"segments": cached.segments, "language": cached.language or "en"}
+            db.close()
+        except Exception as cache_err:
+            logger.warning(f"Cache lookup failed: {cache_err}")
 
     errors = []
 

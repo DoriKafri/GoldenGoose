@@ -5094,7 +5094,7 @@ function _parseXmlTranscript(xmlText) {
   const parser = new DOMParser();
   const doc = parser.parseFromString(xmlText, 'text/xml');
   const segments = [];
-  const seen = new Set();
+  let prevKey = null;  // dedupe only consecutive identical segments
 
   // Format 3: <p t="320" d="3999"><s>word</s>...</p>
   const pNodes = doc.querySelectorAll('p');
@@ -5110,22 +5110,29 @@ function _parseXmlTranscript(xmlText) {
         text = words.join(' ');
       }
       if (!text) text = (p.textContent || '').trim();
-      if (text && !seen.has(text)) {
-        seen.add(text);
-        segments.push({start: Math.round(startMs/10)/100, duration: Math.round(durMs/10)/100, text});
+      if (text) {
+        const key = startMs + '|' + text;
+        if (key !== prevKey) {
+          prevKey = key;
+          segments.push({start: Math.round(startMs/10)/100, duration: Math.round(durMs/10)/100, text});
+        }
       }
     });
   }
 
   // Legacy format: <text start="0.32" dur="4.0">word</text>
   if (segments.length === 0) {
+    prevKey = null;
     doc.querySelectorAll('text').forEach(el => {
       const start = parseFloat(el.getAttribute('start') || '0');
       const dur = parseFloat(el.getAttribute('dur') || '0');
       const text = (el.textContent || '').trim();
-      if (text && !seen.has(text)) {
-        seen.add(text);
-        segments.push({start: Math.round(start*100)/100, duration: Math.round(dur*100)/100, text});
+      if (text) {
+        const key = start + '|' + text;
+        if (key !== prevKey) {
+          prevKey = key;
+          segments.push({start: Math.round(start*100)/100, duration: Math.round(dur*100)/100, text});
+        }
       }
     });
   }
@@ -5190,7 +5197,7 @@ async function _ytFetchTranscriptClientSide(videoId) {
 
 function _parseVttSegments(vttText) {
   const segments = [];
-  const seen = new Set();
+  let prevKey = null;  // dedupe only consecutive duplicates
   // Match VTT cues: HH:MM:SS.mmm --> HH:MM:SS.mmm\ntext
   const pattern = /(\d{2}:\d{2}:\d{2}\.\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2}\.\d{3})[^\n]*\n([\s\S]+?)(?=\n\n|\n\d{2}:\d{2}|\Z)/g;
   let m;
@@ -5199,9 +5206,12 @@ function _parseVttSegments(vttText) {
     const end = _vttTimeToSec(m[2]);
     // Remove VTT tags like <c>, </c>, <00:00:00.000>, alignment tags
     let text = m[3].replace(/<[^>]+>/g, '').replace(/\n/g, ' ').trim();
-    if (text && !seen.has(text)) {
-      seen.add(text);
-      segments.push({start: Math.round(start*100)/100, duration: Math.round((end-start)*100)/100, text});
+    if (text) {
+      const key = Math.round(start*100)/100 + '|' + text;
+      if (key !== prevKey) {
+        prevKey = key;
+        segments.push({start: Math.round(start*100)/100, duration: Math.round((end-start)*100)/100, text});
+      }
     }
   }
   return segments;

@@ -2164,7 +2164,7 @@ def _parse_vtt_segments(vtt_text: str) -> list:
     import re as _re
     import html as _html
     segments = []
-    seen_texts = set()
+    prev_key = None  # only dedupe consecutive identical (text+start) pairs
     # Match VTT cues: timestamp --> timestamp\ntext
     pattern = _re.compile(
         r'(\d{2}:\d{2}:\d{2}\.\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2}\.\d{3})\s*\n(.+?)(?=\n\n|\Z)',
@@ -2180,13 +2180,15 @@ def _parse_vtt_segments(vtt_text: str) -> list:
         # Clean text: remove VTT tags like <c> </c>
         text = _re.sub(r'<[^>]+>', '', text).strip()
         text = _html.unescape(text)
-        if text and text not in seen_texts:
-            seen_texts.add(text)
-            segments.append({
-                "start": round(start, 2),
-                "duration": round(end - start, 2),
-                "text": text,
-            })
+        if text:
+            key = (round(start, 2), text)
+            if key != prev_key:
+                prev_key = key
+                segments.append({
+                    "start": round(start, 2),
+                    "duration": round(end - start, 2),
+                    "text": text,
+                })
     return segments
 
 

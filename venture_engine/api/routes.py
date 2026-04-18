@@ -2857,8 +2857,10 @@ def _is_valid_cached_ai_data(data) -> bool:
 
 @router.get("/api/youtube-key-takeaways")
 def youtube_key_takeaways(video_id: str = Query(..., min_length=11, max_length=11), refresh: bool = Query(False)):
-    """Return cached AI key takeaways, or kick off background Gemini generation."""
-    import threading
+    """Pure cache lookup. Returns cached data if valid, or 404 if not cached.
+    Generation is ONLY triggered via the POST endpoint (which has the transcript).
+    This prevents the GET from starting a transcript-less bg generation that
+    sets a lock and blocks the POST from running its own generation."""
     from venture_engine.db.session import SessionLocal
     from venture_engine.db.models import TakeawaysCache
 
@@ -2868,51 +2870,14 @@ def youtube_key_takeaways(video_id: str = Query(..., min_length=11, max_length=1
             cached = _tk_db.query(TakeawaysCache).filter(TakeawaysCache.video_id == video_id).first()
             if cached and cached.data and _is_valid_cached_ai_data(cached.data):
                 return cached.data
-            elif cached and cached.data:
-                # Invalid/garbage data — delete it
-                _tk_db.delete(cached)
-                _tk_db.commit()
-                logger.info(f"Deleted invalid takeaways cache for {video_id}: {str(cached.data)[:100]}")
+            if cached and isinstance(cached.data, dict) and cached.data.get("error"):
+                # Return sentinel so frontend can decide to retry with transcript
+                return cached.data
         except Exception as e:
             logger.warning(f"Takeaways cache lookup failed: {e}")
         finally:
             _tk_db.close()
-
-    # Kick off background generation instead of blocking the request
-    import time as _time
-    _bg_key = f"takeaways_{video_id}"
-    # Auto-expire stale entries (thread crashed or timed out)
-    _started = _bg_generation_active.get(_bg_key, 0)
-    if _started and (_time.time() - _started) > _BG_GENERATION_TIMEOUT:
-        _bg_generation_active.pop(_bg_key, None)
-    if _bg_key not in _bg_generation_active:
-        _bg_generation_active[_bg_key] = _time.time()
-        def _bg():
-            try:
-                result = _auto_generate_takeaways(video_id)
-                if not result:
-                    _time.sleep(10)
-                    logger.info(f"Takeaways generation failed for {video_id}, retrying...")
-                    result = _auto_generate_takeaways(video_id)
-                if not result:
-                    logger.warning(f"Takeaways generation failed permanently for {video_id}")
-                    try:
-                        _fail_db = SessionLocal()
-                        existing = _fail_db.query(TakeawaysCache).filter(TakeawaysCache.video_id == video_id).first()
-                        if not existing:
-                            _fail_db.add(TakeawaysCache(video_id=video_id, data={"error": "generation_failed"}))
-                        else:
-                            existing.data = {"error": "generation_failed"}
-                        _fail_db.commit()
-                        _fail_db.close()
-                    except Exception:
-                        pass
-            finally:
-                _bg_generation_active.pop(_bg_key, None)
-        threading.Thread(target=_bg, daemon=True).start()
-        logger.info(f"Started background takeaways generation for {video_id}")
-
-    raise HTTPException(404, "Takeaways generation in progress. Retry in a few seconds.")
+    raise HTTPException(404, "Not cached — submit transcript via POST to generate.")
 
 
 @router.post("/api/youtube-key-takeaways")
@@ -2929,23 +2894,17 @@ async def youtube_key_takeaways_post(request: Request):
     if not video_id or len(video_id) != 11:
         raise HTTPException(400, "Invalid video_id")
 
-    # Check cache first
+    # Check cache first: return valid data, regenerate on sentinel/missing
     _tk_db = SessionLocal()
     try:
         cached = _tk_db.query(TakeawaysCache).filter(TakeawaysCache.video_id == video_id).first()
-        if cached and cached.data and _is_valid_cached_ai_data(cached.data):
-            # If it's a generation_failed sentinel and we have transcript, regenerate
-            if isinstance(cached.data, dict) and cached.data.get("error") == "generation_failed" and segments:
-                pass  # fall through to regenerate
-            elif isinstance(cached.data, list) and len(cached.data) > 0:
-                return cached.data  # valid cached data
-            else:
-                return cached.data  # return error sentinel (frontend handles it)
-        elif cached and cached.data:
-            # Invalid/garbage data — delete it
+        if cached and isinstance(cached.data, list) and len(cached.data) > 0:
+            return cached.data  # valid cached data — do not regenerate
+        if cached:
+            # Sentinel or garbage — delete so we can regenerate with fresh transcript
             _tk_db.delete(cached)
             _tk_db.commit()
-            logger.info(f"POST: Deleted invalid takeaways cache for {video_id}")
+            logger.info(f"POST: Deleted non-list takeaways cache for {video_id} to regenerate")
     except Exception as e:
         logger.warning(f"Takeaways cache lookup failed: {e}")
     finally:
@@ -3021,8 +2980,8 @@ async def youtube_key_takeaways_cache_put(video_id: str, request: Request):
 
 @router.get("/api/youtube-dpoi")
 def youtube_dpoi(video_id: str = Query(..., min_length=11, max_length=11), refresh: bool = Query(False)):
-    """Return cached DOPI insights, or kick off background Gemini generation."""
-    import threading
+    """Pure cache lookup. Returns cached data if valid, or 404 if not cached.
+    Generation is ONLY triggered via POST (which has the transcript)."""
     from venture_engine.db.session import SessionLocal
     from venture_engine.db.models import DpoiCache
 
@@ -3032,50 +2991,13 @@ def youtube_dpoi(video_id: str = Query(..., min_length=11, max_length=11), refre
             cached = _dpoi_db.query(DpoiCache).filter(DpoiCache.video_id == video_id).first()
             if cached and cached.data and _is_valid_cached_ai_data(cached.data):
                 return cached.data
-            elif cached and cached.data:
-                _dpoi_db.delete(cached)
-                _dpoi_db.commit()
-                logger.info(f"Deleted invalid DOPI cache for {video_id}: {str(cached.data)[:100]}")
+            if cached and isinstance(cached.data, dict) and cached.data.get("error"):
+                return cached.data
         except Exception as e:
             logger.warning(f"DPOI cache lookup failed: {e}")
         finally:
             _dpoi_db.close()
-
-    # Kick off background generation instead of blocking the request
-    import time as _time
-    _bg_key = f"dpoi_{video_id}"
-    # Auto-expire stale entries (thread crashed or timed out)
-    _started = _bg_generation_active.get(_bg_key, 0)
-    if _started and (_time.time() - _started) > _BG_GENERATION_TIMEOUT:
-        _bg_generation_active.pop(_bg_key, None)
-    if _bg_key not in _bg_generation_active:
-        _bg_generation_active[_bg_key] = _time.time()
-        def _bg():
-            try:
-                result = _auto_generate_dopi(video_id)
-                if not result:
-                    _time.sleep(10)
-                    logger.info(f"DOPI generation failed for {video_id}, retrying...")
-                    result = _auto_generate_dopi(video_id)
-                if not result:
-                    logger.warning(f"DOPI generation failed permanently for {video_id}")
-                    try:
-                        _fail_db = SessionLocal()
-                        existing = _fail_db.query(DpoiCache).filter(DpoiCache.video_id == video_id).first()
-                        if not existing:
-                            _fail_db.add(DpoiCache(video_id=video_id, data={"error": "generation_failed"}))
-                        else:
-                            existing.data = {"error": "generation_failed"}
-                        _fail_db.commit()
-                        _fail_db.close()
-                    except Exception:
-                        pass
-            finally:
-                _bg_generation_active.pop(_bg_key, None)
-        threading.Thread(target=_bg, daemon=True).start()
-        logger.info(f"Started background DOPI generation for {video_id}")
-
-    raise HTTPException(404, "DOPI generation in progress. Retry in a few seconds.")
+    raise HTTPException(404, "Not cached — submit transcript via POST to generate.")
 
 
 @router.post("/api/youtube-dpoi")
@@ -3092,21 +3014,16 @@ async def youtube_dpoi_post(request: Request):
     if not video_id or len(video_id) != 11:
         raise HTTPException(400, "Invalid video_id")
 
-    # Check cache first
+    # Check cache first: return valid data, regenerate on sentinel/missing
     _dpoi_db = SessionLocal()
     try:
         cached = _dpoi_db.query(DpoiCache).filter(DpoiCache.video_id == video_id).first()
-        if cached and cached.data and _is_valid_cached_ai_data(cached.data):
-            if isinstance(cached.data, dict) and cached.data.get("error") == "generation_failed" and segments:
-                pass  # fall through to regenerate
-            elif isinstance(cached.data, list) and len(cached.data) > 0:
-                return cached.data
-            else:
-                return cached.data  # return error sentinel
-        elif cached and cached.data:
+        if cached and isinstance(cached.data, list) and len(cached.data) > 0:
+            return cached.data  # valid cached data — do not regenerate
+        if cached:
             _dpoi_db.delete(cached)
             _dpoi_db.commit()
-            logger.info(f"POST: Deleted invalid DOPI cache for {video_id}")
+            logger.info(f"POST: Deleted non-list DOPI cache for {video_id} to regenerate")
     except Exception as e:
         logger.warning(f"DPOI cache lookup failed: {e}")
     finally:

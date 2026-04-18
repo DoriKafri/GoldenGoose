@@ -889,7 +889,19 @@ html.dark .sl-msg-wrap:hover { background:rgba(255,255,255,.08); }
 @keyframes tabSpin { to { transform:rotate(360deg); } }
 .dopi-research-btn { display:inline-flex; visibility:hidden; padding:6px 12px; font-size:11px; font-weight:600; color:#7c3aed; background:rgba(124,58,237,0.08); border:1px solid rgba(124,58,237,0.25); border-radius:6px; cursor:pointer; align-items:center; gap:4px; transition:all 0.2s; z-index:2; margin-top:8px; }
 .dopi-item { position:relative; }
+.takeaway-item { position:relative; }
 .dopi-item:hover .dopi-research-btn { visibility:visible; }
+/* Share button on AI item cards */
+.yt-ai-share-btn { display:inline-flex; visibility:hidden; margin-left:auto; padding:4px 6px; background:transparent; border:1px solid rgba(37,99,235,0.25); border-radius:6px; color:#2563eb; cursor:pointer; align-items:center; justify-content:center; transition:all 0.15s; }
+.yt-ai-item:hover .yt-ai-share-btn { visibility:visible; }
+.yt-ai-share-btn:hover { background:rgba(37,99,235,0.08); transform:scale(1.06); }
+@media(max-width:768px) { .yt-ai-share-btn { visibility:visible !important; } }
+/* End-of-segment banner shown when opened via deep-link */
+.yt-segment-banner { position:absolute; top:8px; left:50%; transform:translateX(-50%); max-width:92%; background:rgba(37,99,235,0.96); color:#fff; padding:8px 14px; border-radius:var(--radius-pill); font-size:12px; font-weight:600; box-shadow:0 4px 16px rgba(0,0,0,0.25); z-index:10; display:flex; align-items:center; gap:8px; pointer-events:auto; }
+.yt-segment-banner.ended { background:rgba(34,197,94,0.96); }
+.yt-segment-banner-close { background:transparent; border:none; color:#fff; cursor:pointer; padding:0 0 0 4px; font-size:14px; line-height:1; }
+/* Timeline range highlight for shared segment */
+.yt-timeline-segment-highlight { position:absolute; top:0; bottom:0; background:rgba(250,204,21,0.45); border-left:2px solid #facc15; border-right:2px solid #facc15; pointer-events:none; z-index:3; }
 .dopi-research-btn:hover { background:rgba(124,58,237,0.18); color:#6d28d9; transform:scale(1.04); }
 .dopi-research-btn:disabled { opacity:0.7; cursor:wait; }
 .dopi-research-btn.dopi-research-success { visibility:visible; background:rgba(34,197,94,0.1); border-color:rgba(34,197,94,0.3); color:#16a34a; }
@@ -3038,11 +3050,36 @@ function pushVentureHash(id) {
 function clearVentureHash() {
   updateHash();
 }
+// Extract optional ?t=&te=&kind=&idx= segment params from a reader hash and strip them
+function _parseReaderSegmentParams(rawHash) {
+  const qIdx = rawHash.lastIndexOf('?');
+  if (qIdx < 0) return {cleanHash: rawHash, segment: null};
+  const queryStr = rawHash.substring(qIdx + 1);
+  const params = new URLSearchParams(queryStr);
+  const t = parseFloat(params.get('t'));
+  const te = parseFloat(params.get('te'));
+  if (!isNaN(t) && !isNaN(te)) {
+    return {
+      cleanHash: rawHash.substring(0, qIdx),
+      segment: {
+        start: t,
+        end: te,
+        kind: params.get('kind') || 'dopi',
+        idx: parseInt(params.get('idx') || '0'),
+      },
+    };
+  }
+  return {cleanHash: rawHash, segment: null};
+}
+
 function readHash() {
-  const hash = location.hash.replace('#', '');
+  let hash = location.hash.replace('#', '');
   if (!hash) return;
   if (hash === 'settings') { openSettings(); return; }
   if (hash === 'help') { openHelp(); return; }
+  // Strip segment params if present (so the path parser stays clean)
+  const parsed = _parseReaderSegmentParams(hash);
+  hash = parsed.cleanHash;
   const parts = hash.split('/');
   const tab = parts[0];
   // Handle reader permalink: #news/read/<encoded-url>
@@ -3053,6 +3090,7 @@ function readHash() {
     // Push a #news state first so back button has somewhere to go
     window._preReaderHash = '#news';
     history.replaceState(null, '', '#news');
+    window._pendingSegment = parsed.segment; // picked up after video player initializes
     openReader(articleUrl, '', '');
     return;
   }
@@ -3077,10 +3115,12 @@ window.addEventListener('popstate', (e) => {
     }
     return;
   }
-  const hash = location.hash.replace('#', '');
+  let hash = location.hash.replace('#', '');
   if (!hash) { closeDetailPanel(true); closeSettings(); closeHelp(); switchTab('news', true); return; }
   if (hash === 'settings') { closeDetailPanel(true); openSettings(); return; }
   if (hash === 'help') { closeDetailPanel(true); openHelp(); return; }
+  const parsedPop = _parseReaderSegmentParams(hash);
+  hash = parsedPop.cleanHash;
   const parts = hash.split('/');
   const tab = parts[0];
   // Handle reader permalink: #news/read/<encoded-url>
@@ -3088,6 +3128,7 @@ window.addEventListener('popstate', (e) => {
     const articleUrl = decodeURIComponent(parts.slice(2).join('/'));
     if (!document.getElementById('readerOverlay').classList.contains('open')) {
       switchTab('news', true);
+      window._pendingSegment = parsedPop.segment;
       setTimeout(() => openReader(articleUrl, '', ''), 300);
     }
     return;
@@ -4577,6 +4618,21 @@ function _createYTPlayer(videoId) {
         if (_ytTimeInterval) clearInterval(_ytTimeInterval);
         _ytTimeInterval = setInterval(_ytUpdateTime, 500);
         _renderDpoiTimelineSegments();
+        // If user arrived via a shared-segment link, play it now
+        if (window._pendingSegment) {
+          const seg = window._pendingSegment;
+          window._pendingSegment = null;
+          setTimeout(() => {
+            const meta = {kind: seg.kind, idx: seg.idx};
+            // Enrich meta with type (problem/opportunity) once DOPI data loads
+            const enrich = () => {
+              const items = seg.kind === 'dopi' ? window._dopiItems : window._takeawayItems;
+              if (items && items[seg.idx]) meta.type = items[seg.idx].type;
+              _ytPlaySegment(seg.start, seg.end, meta);
+            };
+            enrich();
+          }, 500);
+        }
       },
       onError: function(e) {
         console.warn('YouTube player error code:', e.data);
@@ -5762,13 +5818,17 @@ function _ytRenderTakeaways(items) {
     return;
   }
   contentEl.innerHTML = '<div class="yt-ai-list">' + items.map((item, i) =>
-    `<div class="yt-ai-item" onclick="_ytTranscriptClick(${item.start_seconds})" title="Jump to ${item.start_time || _fmtTime(item.start_seconds)}">
+    `<div class="yt-ai-item takeaway-item" onclick="_ytTranscriptClick(${item.start_seconds})" title="Jump to ${item.start_time || _fmtTime(item.start_seconds)}" data-takeaway-idx="${i}">
       <div class="yt-ai-item-header">
         <span class="yt-ai-time">${item.start_time || _fmtTime(item.start_seconds)} – ${item.end_time || _fmtTime(item.end_seconds)}</span>
+        <button class="yt-ai-share-btn" onclick="event.stopPropagation(); _ytShareSegment('takeaway', ${i})" title="Share this takeaway">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;"><path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+        </button>
       </div>
       <div class="yt-ai-title">${esc(item.takeaway || item.title || '')}</div>
     </div>`
   ).join('') + '</div>';
+  window._takeawayItems = items;
 }
 
 // ── DOPI (Develeap Problem/Opportunity Insights) ──
@@ -5863,6 +5923,9 @@ function _ytRenderDpoi(items) {
       <div class="yt-ai-item-header">
         ${badge}
         <span class="yt-ai-time">${item.start_time || _fmtTime(item.start_seconds)} – ${item.end_time || _fmtTime(item.end_seconds)}</span>
+        <button class="yt-ai-share-btn" onclick="event.stopPropagation(); _ytShareSegment('dopi', ${idx})" title="Share this insight">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;"><path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+        </button>
       </div>
       <div class="yt-ai-title">${esc(item.title)}</div>
       <div class="yt-ai-desc">${esc(item.description)}</div>
@@ -6100,6 +6163,168 @@ function copyShareLink(url) {
   });
 }
 
+// ── Share a specific DOPI or Takeaway segment (deep-link with start+end time) ──
+async function _ytShareSegment(kind, idx) {
+  const items = kind === 'dopi' ? window._dopiItems : window._takeawayItems;
+  const item = items && items[idx];
+  if (!item) return;
+
+  const videoTitle = (document.getElementById('readerTitle')?.textContent || 'Video').trim();
+  const articleUrl = _readerUrl;
+  if (!articleUrl) return;
+
+  const start = Math.max(0, Math.floor(item.start_seconds || 0));
+  const end = Math.max(start + 1, Math.floor(item.end_seconds || start + 60));
+  const params = new URLSearchParams();
+  params.set('t', String(start));
+  params.set('te', String(end));
+  params.set('kind', kind);
+  params.set('idx', String(idx));
+
+  const shareUrl = location.origin + '/#news/read/' + encodeURIComponent(articleUrl) + '?' + params.toString();
+
+  // Build share preview: kind-specific title + snippet
+  const segmentTitle = kind === 'dopi'
+    ? ((item.type === 'problem' ? '⚠️ Problem' : '💡 Opportunity') + ': ' + (item.title || ''))
+    : '📝 Takeaway';
+  const snippet = kind === 'dopi' ? (item.description || item.title || '') : (item.takeaway || item.title || '');
+  const timeRange = (item.start_time || _fmtTime(start)) + '–' + (item.end_time || _fmtTime(end));
+  const shareTitle = `${segmentTitle} (${timeRange}) — ${videoTitle}`;
+  const shareText = `${segmentTitle}\n"${snippet.slice(0, 200)}${snippet.length > 200 ? '…' : ''}"\n\n⏱ ${timeRange} in: ${videoTitle}`;
+
+  if (navigator.share) {
+    try { await navigator.share({title: shareTitle, text: shareText, url: shareUrl}); return; } catch(e) {}
+  }
+  _showSegmentShareMenu(shareTitle, shareText, shareUrl, articleUrl);
+}
+
+function _showSegmentShareMenu(title, text, shareUrl, articleUrl) {
+  document.querySelectorAll('.share-popup-menu').forEach(p => p.remove());
+  const encodedUrl = encodeURIComponent(shareUrl);
+  const encodedTitle = encodeURIComponent(title);
+  const encodedText = encodeURIComponent(text);
+  const menu = document.createElement('div');
+  menu.className = 'share-popup-menu';
+  menu.innerHTML = `
+    <div style="font-size:11px;font-weight:700;color:var(--text3);margin-bottom:6px;">Share segment</div>
+    <button onclick="window.open('https://wa.me/?text=${encodedText}%20${encodedUrl}','_blank');this.closest('.share-popup-menu').remove();">
+      <span style="font-size:16px;">&#x1F4AC;</span> WhatsApp
+    </button>
+    <button onclick="window.open('https://t.me/share/url?url=${encodedUrl}&text=${encodedText}','_blank');this.closest('.share-popup-menu').remove();">
+      <span style="font-size:16px;">&#x2708;&#xFE0F;</span> Telegram
+    </button>
+    <button onclick="window.open('https://twitter.com/intent/tweet?text=${encodedText}&url=${encodedUrl}','_blank');this.closest('.share-popup-menu').remove();">
+      <span style="font-size:16px;">&#x1D54F;</span> X / Twitter
+    </button>
+    <button onclick="window.open('https://www.linkedin.com/sharing/share-offsite/?url=${encodedUrl}','_blank');this.closest('.share-popup-menu').remove();">
+      <span style="font-size:16px;">&#x1F4BC;</span> LinkedIn
+    </button>
+    <button onclick="window.open('mailto:?subject=${encodedTitle}&body=${encodedText}%0A%0A${encodedUrl}');this.closest('.share-popup-menu').remove();">
+      <span style="font-size:16px;">&#x2709;&#xFE0F;</span> Email
+    </button>
+    <button onclick="copyShareLink('${shareUrl.replace(/'/g,"\\'")}');this.closest('.share-popup-menu').remove();">
+      <span style="font-size:16px;">&#x1F4CB;</span> Copy link
+    </button>
+  `;
+  // Anchor to the last-clicked share button, or center
+  const lastBtn = document.querySelector('.yt-ai-share-btn:hover') || document.activeElement;
+  const rect = lastBtn && lastBtn.getBoundingClientRect ? lastBtn.getBoundingClientRect() : null;
+  if (rect && rect.width) {
+    menu.style.top = (rect.bottom + 4) + 'px';
+    menu.style.right = (window.innerWidth - rect.right) + 'px';
+  } else {
+    menu.style.top = '50%';
+    menu.style.left = '50%';
+    menu.style.transform = 'translate(-50%,-50%)';
+  }
+  document.body.appendChild(menu);
+  setTimeout(() => {
+    document.addEventListener('click', function closeMenu(e) {
+      if (!menu.contains(e.target)) { menu.remove(); document.removeEventListener('click', closeMenu); }
+    });
+  }, 10);
+}
+
+// ── Play-to-end: seek to start, show banner, auto-pause at end ──
+let _ytSegmentEndTime = null;
+let _ytSegmentStartTime = null;
+let _ytSegmentCheckInterval = null;
+
+function _ytPlaySegment(startSec, endSec, meta) {
+  _ytSegmentStartTime = startSec;
+  _ytSegmentEndTime = endSec;
+  if (_ytSegmentCheckInterval) { clearInterval(_ytSegmentCheckInterval); _ytSegmentCheckInterval = null; }
+
+  // Wait for player to be ready, then seek
+  const tryStart = () => {
+    if (!_ytPlayer || !_ytPlayerReady) { setTimeout(tryStart, 200); return; }
+    try { _ytPlayer.seekTo(startSec, true); _ytPlayer.playVideo(); } catch(e) {}
+    _ytSwitchTab('video');
+    _showSegmentBanner(meta, startSec, endSec);
+    _renderSegmentTimelineHighlight(startSec, endSec);
+    // Poll current time; when we hit endSec, pause and mark banner as ended
+    _ytSegmentCheckInterval = setInterval(() => {
+      if (!_ytPlayer || !_ytPlayer.getCurrentTime) return;
+      const cur = _ytPlayer.getCurrentTime() || 0;
+      if (cur >= endSec) {
+        try { _ytPlayer.pauseVideo(); } catch(e) {}
+        _markSegmentEnded(meta, startSec, endSec);
+        clearInterval(_ytSegmentCheckInterval);
+        _ytSegmentCheckInterval = null;
+      }
+    }, 400);
+  };
+  tryStart();
+}
+
+function _showSegmentBanner(meta, startSec, endSec) {
+  const videoPanel = document.getElementById('ytVideoPanel');
+  if (!videoPanel) return;
+  document.querySelectorAll('.yt-segment-banner').forEach(b => b.remove());
+  const banner = document.createElement('div');
+  banner.className = 'yt-segment-banner';
+  const label = meta && meta.kind === 'dopi'
+    ? (meta.type === 'problem' ? '⚠️ Problem' : '💡 Opportunity')
+    : '📝 Takeaway';
+  const range = _fmtTime(startSec) + '–' + _fmtTime(endSec);
+  banner.innerHTML = `
+    <span>${label}</span>
+    <span style="opacity:0.85;">Plays ${range} · auto-pauses at ${_fmtTime(endSec)}</span>
+    <button class="yt-segment-banner-close" onclick="this.parentElement.remove(); document.querySelectorAll('.yt-timeline-segment-highlight').forEach(e=>e.remove());">×</button>
+  `;
+  videoPanel.appendChild(banner);
+}
+
+function _markSegmentEnded(meta, startSec, endSec) {
+  const banner = document.querySelector('.yt-segment-banner');
+  if (!banner) return;
+  banner.classList.add('ended');
+  const label = meta && meta.kind === 'dopi'
+    ? (meta.type === 'problem' ? '⚠️ Problem ended' : '💡 Opportunity ended')
+    : '📝 Takeaway ended';
+  banner.innerHTML = `
+    <span>✅ ${label}</span>
+    <span style="opacity:0.85;">at ${_fmtTime(endSec)}</span>
+    <button class="yt-segment-banner-close" onclick="try{_ytPlayer.seekTo(${startSec},true);_ytPlayer.playVideo();}catch(e){}; this.parentElement.classList.remove('ended'); _ytPlaySegment(${startSec}, ${endSec}, ${JSON.stringify(meta || {})});" style="background:rgba(255,255,255,0.2); border:1px solid rgba(255,255,255,0.4); padding:3px 8px; border-radius:10px;">Replay</button>
+    <button class="yt-segment-banner-close" onclick="this.parentElement.remove(); document.querySelectorAll('.yt-timeline-segment-highlight').forEach(e=>e.remove());">×</button>
+  `;
+}
+
+function _renderSegmentTimelineHighlight(startSec, endSec) {
+  const timeline = document.getElementById('ytTimeline');
+  if (!timeline) return;
+  document.querySelectorAll('.yt-timeline-segment-highlight').forEach(e => e.remove());
+  const dur = (_ytPlayer && _ytPlayer.getDuration) ? _ytPlayer.getDuration() : 0;
+  if (!dur) { setTimeout(() => _renderSegmentTimelineHighlight(startSec, endSec), 300); return; }
+  const left = (startSec / dur * 100).toFixed(2);
+  const width = Math.max(0.4, ((endSec - startSec) / dur * 100)).toFixed(2);
+  const hl = document.createElement('div');
+  hl.className = 'yt-timeline-segment-highlight';
+  hl.style.left = left + '%';
+  hl.style.width = width + '%';
+  timeline.appendChild(hl);
+}
+
 async function shareNewsItem(title, articleUrl) {
   const shareUrl = location.origin + '/#news/read/' + encodeURIComponent(articleUrl);
   if (navigator.share) {
@@ -6132,6 +6357,9 @@ function closeReader(fromPopstate) {
   _pendingSelection = null;
   // Clean up YouTube player
   if (_ytTimeInterval) { clearInterval(_ytTimeInterval); _ytTimeInterval = null; }
+  if (_ytSegmentCheckInterval) { clearInterval(_ytSegmentCheckInterval); _ytSegmentCheckInterval = null; }
+  _ytSegmentStartTime = null; _ytSegmentEndTime = null;
+  document.querySelectorAll('.yt-segment-banner, .yt-timeline-segment-highlight').forEach(e => e.remove());
   if (_ytPlayer) { try { _ytPlayer.destroy(); } catch(e){} _ytPlayer = null; }
   _ytPlayerReady = false;
   _isYouTube = false;

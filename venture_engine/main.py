@@ -581,23 +581,39 @@ def _backfill_bug_proof():
 
 
 def _clear_truncated_transcript_caches():
-    """One-time cleanup: clear all transcript, takeaways, and DOPI caches
-    that were generated from buggy/hallucinated transcripts."""
+    """One-time migration: clear transcript/takeaways/DOPI caches that were
+    generated from buggy/hallucinated transcripts. Uses a migration flag
+    so this runs ONLY ONCE (not on every startup) — otherwise valid
+    cached data would keep getting wiped and regenerated."""
     from venture_engine.db.models import TranscriptCache, TakeawaysCache, DpoiCache
     from venture_engine.db.session import SessionLocal
+    from sqlalchemy import text as _sql
+
+    MIGRATION_KEY = "cache_clear_hallucination_fix_v1"
     db = SessionLocal()
     try:
+        # Create a migrations table if it doesn't exist
+        db.execute(_sql("CREATE TABLE IF NOT EXISTS applied_migrations (key VARCHAR(100) PRIMARY KEY, applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)"))
+        db.commit()
+
+        # Check if this migration has already been applied
+        result = db.execute(_sql("SELECT key FROM applied_migrations WHERE key = :k"), {"k": MIGRATION_KEY}).first()
+        if result:
+            logger.info(f"Cache clear migration {MIGRATION_KEY} already applied — skipping")
+            return
+
+        # Not applied yet: clear the caches and record it
         tc = db.query(TranscriptCache).count()
         tkc = db.query(TakeawaysCache).count()
         dc = db.query(DpoiCache).count()
-        if tc + tkc + dc > 0:
-            db.query(TranscriptCache).delete()
-            db.query(TakeawaysCache).delete()
-            db.query(DpoiCache).delete()
-            db.commit()
-            logger.info(f"Cleared {tc} transcript, {tkc} takeaways, {dc} DOPI caches (hallucination fix)")
+        db.query(TranscriptCache).delete()
+        db.query(TakeawaysCache).delete()
+        db.query(DpoiCache).delete()
+        db.execute(_sql("INSERT INTO applied_migrations (key) VALUES (:k)"), {"k": MIGRATION_KEY})
+        db.commit()
+        logger.info(f"Cache clear migration applied: {tc} transcript, {tkc} takeaways, {dc} DOPI caches cleared (ONE-TIME)")
     except Exception as e:
-        logger.warning(f"Failed to clear caches: {e}")
+        logger.warning(f"Failed to apply cache clear migration: {e}")
         db.rollback()
     finally:
         db.close()

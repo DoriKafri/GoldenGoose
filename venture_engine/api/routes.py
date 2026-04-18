@@ -2693,16 +2693,33 @@ def _auto_generate_takeaways(video_id: str, transcript_text: str = None) -> Opti
     if len(transcript_text) > 500000:
         transcript_text = transcript_text[:500000]
 
-    prompt = f"""Analyze the ENTIRE YouTube video transcript below and extract 6-10 key takeaways.
+    # Extract last timestamp from transcript to inform Gemini of total duration
+    import re as _re_dur
+    _last_ts_match = _re_dur.findall(r'\[(\d+(?:\.\d+)?)s\]', transcript_text)
+    _video_duration_sec = int(float(_last_ts_match[-1])) if _last_ts_match else 0
+    _dur_mm = _video_duration_sec // 60
+    _dur_ss = _video_duration_sec % 60
+    _dur_str = f"{_dur_mm}:{_dur_ss:02d}"
 
-IMPORTANT: Cover the ENTIRE video from beginning to end. Spread takeaways across different parts of the video — do NOT cluster them all in the first few minutes. Each takeaway must reference the actual timestamp where the topic is discussed in the transcript.
+    prompt = f"""Analyze the COMPLETE YouTube video transcript below and extract 8-12 key takeaways that cover the ENTIRE video duration ({_dur_str}, or {_video_duration_sec} seconds total).
+
+MANDATORY COVERAGE REQUIREMENT:
+- The video is {_dur_str} long. Your takeaways MUST span from the beginning to near the end.
+- The LAST takeaway's end_seconds MUST be within the final 15% of the video (i.e., end_seconds >= {int(_video_duration_sec * 0.85)}).
+- Distribute takeaways EVENLY across the entire duration — do NOT cluster them in the first half.
+- If you produce fewer than 8 takeaways or don't reach the end, the output is REJECTED.
 
 For each takeaway, provide:
 - takeaway: A 1-2 sentence summary of the key point
-- start_time: Approximate timestamp where this topic starts (format "M:SS" or "H:MM:SS" for videos over 60 minutes)
-- end_time: Approximate timestamp where this topic ends (format "M:SS" or "H:MM:SS")
-- start_seconds: start_time in total seconds
-- end_seconds: end_time in total seconds
+- start_time: Timestamp in "M:SS" format (seconds 0-59 only — never "1:64"). For videos over 60 min, use "H:MM:SS".
+- end_time: Same format as start_time
+- start_seconds: start_time converted to total seconds (integer)
+- end_seconds: end_time converted to total seconds (integer, must be <= {_video_duration_sec})
+
+VALIDATION:
+- Every start_seconds must satisfy 0 <= start_seconds < end_seconds <= {_video_duration_sec}
+- start_time and end_time must use valid clock format (SS between 00 and 59)
+- Items must appear in chronological order (ascending start_seconds)
 
 Return ONLY valid JSON array, no markdown, no explanation. Example:
 [{{"takeaway":"The key insight...","start_seconds":120,"end_seconds":240,"start_time":"2:00","end_time":"4:00"}}]
@@ -2723,8 +2740,17 @@ TRANSCRIPT:
                 cleaned = cleaned[:-3]
             cleaned = cleaned.strip()
         takeaways = json.loads(cleaned)
-        if not isinstance(takeaways, list):
+        if not isinstance(takeaways, list) or len(takeaways) == 0:
             return None
+
+        # Validate coverage: last takeaway's end_seconds must be in final 15% of video
+        if _video_duration_sec > 300:
+            max_end = max((t.get("end_seconds", 0) or 0) for t in takeaways)
+            required_end = int(_video_duration_sec * 0.85)
+            if max_end < required_end:
+                coverage_pct = int(max_end / _video_duration_sec * 100)
+                logger.warning(f"Takeaways coverage too low for {video_id}: {coverage_pct}% (last end {max_end}s, required >={required_end}s). Rejecting — caller will retry.")
+                return None
 
         # Cache it
         from venture_engine.db.session import SessionLocal
@@ -2759,21 +2785,38 @@ def _auto_generate_dopi(video_id: str, transcript_text: str = None) -> Optional[
     if len(transcript_text) > 500000:
         transcript_text = transcript_text[:500000]
 
-    prompt = f"""Analyze the ENTIRE YouTube video transcript below and identify 5-8 Develeap Problem/Opportunity Insights (DOPI).
+    # Extract last timestamp to inform Gemini of total video duration
+    import re as _re_dur
+    _last_ts_match = _re_dur.findall(r'\[(\d+(?:\.\d+)?)s\]', transcript_text)
+    _video_duration_sec = int(float(_last_ts_match[-1])) if _last_ts_match else 0
+    _dur_mm = _video_duration_sec // 60
+    _dur_ss = _video_duration_sec % 60
+    _dur_str = f"{_dur_mm}:{_dur_ss:02d}"
+
+    prompt = f"""Analyze the COMPLETE YouTube video transcript below and identify 6-10 Develeap Problem/Opportunity Insights (DOPI) that cover the ENTIRE video duration ({_dur_str}, or {_video_duration_sec} seconds total).
 
 Develeap is a DevOps, cloud, and AI engineering consultancy. For each insight, identify either a PROBLEM companies face or an OPPORTUNITY to build a product/service.
 
-IMPORTANT: Cover the ENTIRE video from beginning to end. Spread insights across different parts of the video — do NOT cluster them all in the first few minutes. Each insight must reference the actual timestamp where the topic is discussed in the transcript.
+MANDATORY COVERAGE REQUIREMENT:
+- The video is {_dur_str} long. Your insights MUST span from the beginning to near the end.
+- The LAST insight's end_seconds MUST be within the final 15% of the video (i.e., end_seconds >= {int(_video_duration_sec * 0.85)}).
+- Distribute insights EVENLY across the entire duration — do NOT cluster them in the first half.
+- If you produce fewer than 6 insights or don't reach the end, the output is REJECTED.
 
 For each insight, provide:
 - type: "problem" or "opportunity"
 - title: Short title (5-8 words)
 - description: 2-3 sentence explanation of the problem/opportunity and how Develeap could capitalize on it
-- start_time: Approximate timestamp where this topic is discussed (format "M:SS" or "H:MM:SS" for videos over 60 minutes)
-- end_time: Approximate timestamp (format "M:SS" or "H:MM:SS")
-- start_seconds: start_time in total seconds
-- end_seconds: end_time in total seconds
+- start_time: Timestamp in "M:SS" format (seconds 0-59 only — never "1:64"). For videos over 60 min, use "H:MM:SS".
+- end_time: Same format as start_time
+- start_seconds: start_time converted to total seconds (integer)
+- end_seconds: end_time converted to total seconds (integer, must be <= {_video_duration_sec})
 - venture_relevance: Score 1-10 how relevant this is for venture building
+
+VALIDATION:
+- Every start_seconds must satisfy 0 <= start_seconds < end_seconds <= {_video_duration_sec}
+- start_time and end_time must use valid clock format (SS between 00 and 59)
+- Items must appear in chronological order (ascending start_seconds)
 
 Return ONLY valid JSON array, no markdown, no explanation. Example:
 [{{"type":"opportunity","title":"AI Testing Platform","description":"The insight...","start_seconds":120,"end_seconds":240,"start_time":"2:00","end_time":"4:00","venture_relevance":8}}]
@@ -2793,8 +2836,17 @@ TRANSCRIPT:
                 cleaned = cleaned[:-3]
             cleaned = cleaned.strip()
         insights = json.loads(cleaned)
-        if not isinstance(insights, list):
+        if not isinstance(insights, list) or len(insights) == 0:
             return None
+
+        # Validate coverage
+        if _video_duration_sec > 300:
+            max_end = max((i.get("end_seconds", 0) or 0) for i in insights)
+            required_end = int(_video_duration_sec * 0.85)
+            if max_end < required_end:
+                coverage_pct = int(max_end / _video_duration_sec * 100)
+                logger.warning(f"DOPI coverage too low for {video_id}: {coverage_pct}% (last end {max_end}s, required >={required_end}s). Rejecting — caller will retry.")
+                return None
 
         # Cache it
         from venture_engine.db.session import SessionLocal
@@ -2921,6 +2973,23 @@ async def youtube_key_takeaways_post(request: Request):
     if not transcript_text:
         raise HTTPException(400, "No transcript segments provided")
 
+    # Save transcript to cache so future ops (coverage checks, insights regen) don't need client re-fetch
+    try:
+        from venture_engine.db.models import TranscriptCache
+        _tc_db = SessionLocal()
+        existing_tc = _tc_db.query(TranscriptCache).filter(TranscriptCache.video_id == video_id).first()
+        if not existing_tc or not existing_tc.segments or len(existing_tc.segments) < len(segments):
+            if existing_tc:
+                existing_tc.segments = segments
+                existing_tc.language = "en"
+            else:
+                _tc_db.add(TranscriptCache(video_id=video_id, language="en", segments=segments))
+            _tc_db.commit()
+            logger.info(f"Saved transcript to cache for {video_id}: {len(segments)} segments")
+        _tc_db.close()
+    except Exception as e:
+        logger.warning(f"Failed to save transcript cache for {video_id}: {e}")
+
     import time as _time
     _bg_key = f"takeaways_{video_id}"
     _started = _bg_generation_active.get(_bg_key, 0)
@@ -3040,6 +3109,23 @@ async def youtube_dpoi_post(request: Request):
 
     if not transcript_text:
         raise HTTPException(400, "No transcript segments provided")
+
+    # Save transcript to cache (will upgrade if longer than existing)
+    try:
+        from venture_engine.db.models import TranscriptCache
+        _tc_db = SessionLocal()
+        existing_tc = _tc_db.query(TranscriptCache).filter(TranscriptCache.video_id == video_id).first()
+        if not existing_tc or not existing_tc.segments or len(existing_tc.segments) < len(segments):
+            if existing_tc:
+                existing_tc.segments = segments
+                existing_tc.language = "en"
+            else:
+                _tc_db.add(TranscriptCache(video_id=video_id, language="en", segments=segments))
+            _tc_db.commit()
+            logger.info(f"Saved transcript to cache for {video_id}: {len(segments)} segments")
+        _tc_db.close()
+    except Exception as e:
+        logger.warning(f"Failed to save transcript cache for {video_id}: {e}")
 
     import time as _time
     _bg_key = f"dpoi_{video_id}"

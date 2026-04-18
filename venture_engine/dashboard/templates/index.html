@@ -908,6 +908,10 @@ html.dark .sl-msg-wrap:hover { background:rgba(255,255,255,.08); }
 .yt-dopi-play-all-btn:hover { transform:translateY(-1px); box-shadow:0 4px 12px rgba(37,99,235,0.3); }
 .yt-dopi-play-all-btn.playing { background:linear-gradient(135deg,#dc2626,#ea580c); }
 .yt-dopi-total-time { font-size:12px; color:var(--text2); font-weight:600; font-variant-numeric:tabular-nums; }
+.yt-dopi-coverage-warn { display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:700; color:#f59e0b; background:rgba(245,158,11,0.12); padding:3px 8px; border-radius:var(--radius-pill); border:1px solid rgba(245,158,11,0.3); cursor:help; }
+.yt-dopi-refresh-btn { display:inline-flex; align-items:center; gap:4px; margin-left:auto; padding:5px 10px; font-size:11px; font-weight:600; color:var(--text2); background:var(--bg); border:1px solid var(--border); border-radius:var(--radius-pill); cursor:pointer; transition:all 0.15s; font-family:inherit; }
+.yt-dopi-refresh-btn:hover { background:var(--bg2); color:var(--accent); border-color:var(--accent); }
+.yt-dopi-refresh-btn:disabled { opacity:0.6; cursor:wait; }
 /* Playlist "now playing" overlay on video */
 .yt-dopi-playlist-overlay { position:absolute; top:8px; left:8px; right:8px; background:rgba(0,0,0,0.82); color:#fff; padding:10px 14px; border-radius:10px; font-size:12px; font-weight:600; box-shadow:0 4px 16px rgba(0,0,0,0.3); z-index:9; display:flex; align-items:center; gap:10px; backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); }
 .yt-dopi-playlist-overlay .dpl-badge { display:inline-flex; padding:2px 8px; border-radius:10px; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.03em; }
@@ -5834,7 +5838,23 @@ function _ytRenderTakeaways(items) {
     _tabSetFailed('takeaways');
     return;
   }
-  contentEl.innerHTML = '<div class="yt-ai-list">' + items.map((item, i) =>
+  // Coverage header + refresh button
+  const videoDur = (_ytPlayer && _ytPlayer.getDuration) ? (_ytPlayer.getDuration() || 0) : 0;
+  const lastEnd = items.reduce((m, it) => Math.max(m, it.end_seconds || 0), 0);
+  const coverageWarn = (videoDur > 300 && lastEnd < videoDur * 0.75) ? `
+    <span class="yt-dopi-coverage-warn" title="Takeaways only cover up to ${_fmtTime(lastEnd)} of ${_fmtTime(videoDur)}">
+      ⚠ Partial (${Math.round(lastEnd / videoDur * 100)}%)
+    </span>` : '';
+  const header = `
+    <div class="yt-dopi-playlist-header">
+      <span class="yt-dopi-total-time">${items.length} takeaways</span>
+      ${coverageWarn}
+      <button class="yt-dopi-refresh-btn" onclick="_ytRefreshTakeaways()" title="Regenerate takeaways from fresh transcript">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
+        Regenerate
+      </button>
+    </div>`;
+  contentEl.innerHTML = header + '<div class="yt-ai-list">' + items.map((item, i) =>
     `<div class="yt-ai-item takeaway-item" onclick="_ytTranscriptClick(${item.start_seconds})" title="Jump to ${item.start_time || _fmtTime(item.start_seconds)}" data-takeaway-idx="${i}">
       <div class="yt-ai-item-header">
         <span class="yt-ai-time">${item.start_time || _fmtTime(item.start_seconds)} – ${item.end_time || _fmtTime(item.end_seconds)}</span>
@@ -5851,6 +5871,85 @@ function _ytRenderTakeaways(items) {
 // ── DOPI (Develeap Problem/Opportunity Insights) ──
 let _ytDpoiData = null;
 let _ytDpoiVideoId = null;
+
+async function _ytRefreshDpoi() {
+  const vid = _isYouTube ? _youtubeId(_readerUrl) : null;
+  if (!vid) return;
+  const btn = document.querySelector('.yt-dopi-refresh-btn');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="tab-spinner" style="width:12px;height:12px;border-width:2px;"></span> Regenerating...'; }
+  // Ensure we have transcript
+  if (!_ytTranscriptData) {
+    try {
+      const r = await fetch(`${API}/api/youtube-transcript?video_id=${vid}`);
+      if (r.ok) _ytTranscriptData = (await r.json()).segments || null;
+    } catch(e) {}
+  }
+  if (!_ytTranscriptData || !_ytTranscriptData.length) {
+    alert('Cannot regenerate without transcript.');
+    if (btn) btn.disabled = false;
+    return;
+  }
+  // POST with force=true to bypass cache
+  try {
+    const resp = await fetch(`${API}/api/youtube-dpoi`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({video_id: vid, transcript_segments: _ytTranscriptData, force: true}),
+    });
+    if (resp.ok) {
+      const d = await resp.json();
+      if (_ytIsValidAiData(d)) {
+        _ytDpoiData = d.insights || d; _ytDpoiVideoId = vid;
+        _ytRenderDpoi(_ytDpoiData);
+        _tabSetReady('dpoi');
+        return;
+      }
+    }
+    // POST returned 404 (generation in progress) — poll
+    _ytDpoiData = null;
+    _ytLoadDpoi();
+  } catch(e) {
+    if (btn) btn.disabled = false;
+  }
+}
+
+async function _ytRefreshTakeaways() {
+  const vid = _isYouTube ? _youtubeId(_readerUrl) : null;
+  if (!vid) return;
+  const btn = document.querySelector('.yt-dopi-refresh-btn');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="tab-spinner" style="width:12px;height:12px;border-width:2px;"></span> Regenerating...'; }
+  if (!_ytTranscriptData) {
+    try {
+      const r = await fetch(`${API}/api/youtube-transcript?video_id=${vid}`);
+      if (r.ok) _ytTranscriptData = (await r.json()).segments || null;
+    } catch(e) {}
+  }
+  if (!_ytTranscriptData || !_ytTranscriptData.length) {
+    alert('Cannot regenerate without transcript.');
+    if (btn) btn.disabled = false;
+    return;
+  }
+  try {
+    const resp = await fetch(`${API}/api/youtube-key-takeaways`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({video_id: vid, transcript_segments: _ytTranscriptData, force: true}),
+    });
+    if (resp.ok) {
+      const d = await resp.json();
+      if (_ytIsValidAiData(d)) {
+        _ytTakeawaysData = d.takeaways || d; _ytTakeawaysVideoId = vid;
+        _ytRenderTakeaways(_ytTakeawaysData);
+        _tabSetReady('takeaways');
+        return;
+      }
+    }
+    _ytTakeawaysData = null;
+    _ytLoadTakeaways();
+  } catch(e) {
+    if (btn) btn.disabled = false;
+  }
+}
 
 async function _ytLoadDpoi() {
   const contentEl = document.getElementById('ytDpoiContent');
@@ -5937,6 +6036,13 @@ function _ytRenderDpoi(items) {
     const e = Math.max(s + 1, Math.floor(it.end_seconds || s + 60));
     return acc + (e - s);
   }, 0);
+  // Coverage check — warn if last DOPI ends well before video ends
+  const videoDur = (_ytPlayer && _ytPlayer.getDuration) ? (_ytPlayer.getDuration() || 0) : 0;
+  const lastEnd = items.reduce((m, it) => Math.max(m, it.end_seconds || 0), 0);
+  const coverageWarn = (videoDur > 300 && lastEnd < videoDur * 0.75) ? `
+    <span class="yt-dopi-coverage-warn" title="DOPI only covers up to ${_fmtTime(lastEnd)} of ${_fmtTime(videoDur)}">
+      ⚠ Partial (${Math.round(lastEnd / videoDur * 100)}%)
+    </span>` : '';
   const playHeader = `
     <div class="yt-dopi-playlist-header">
       <button class="yt-dopi-play-all-btn" onclick="_ytPlayDopiPlaylist()" title="Play all DOPI insights in sequence">
@@ -5944,6 +6050,11 @@ function _ytRenderDpoi(items) {
         Play all DOPI
       </button>
       <span class="yt-dopi-total-time">Total: ${_fmtTime(totalDur)} · ${items.length} ${items.length === 1 ? 'segment' : 'segments'}</span>
+      ${coverageWarn}
+      <button class="yt-dopi-refresh-btn" onclick="_ytRefreshDpoi()" title="Regenerate DOPI from fresh transcript">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
+        Regenerate
+      </button>
     </div>`;
   contentEl.innerHTML = playHeader + '<div class="yt-ai-list">' + items.map((item, idx) => {
     const badge = item.type === 'problem'

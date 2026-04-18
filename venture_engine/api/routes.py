@@ -2882,7 +2882,8 @@ def youtube_key_takeaways(video_id: str = Query(..., min_length=11, max_length=1
 
 @router.post("/api/youtube-key-takeaways")
 async def youtube_key_takeaways_post(request: Request):
-    """Generate takeaways using transcript sent from frontend."""
+    """Generate takeaways using transcript sent from frontend.
+    Pass force=true in body to regenerate even if valid cached data exists."""
     import threading
     from venture_engine.db.session import SessionLocal
     from venture_engine.db.models import TakeawaysCache
@@ -2890,21 +2891,21 @@ async def youtube_key_takeaways_post(request: Request):
     body = await request.json()
     video_id = body.get("video_id", "")
     segments = body.get("transcript_segments", [])
+    force = bool(body.get("force", False))
 
     if not video_id or len(video_id) != 11:
         raise HTTPException(400, "Invalid video_id")
 
-    # Check cache first: return valid data, regenerate on sentinel/missing
+    # Check cache first: return valid data (unless force=true), else regenerate
     _tk_db = SessionLocal()
     try:
         cached = _tk_db.query(TakeawaysCache).filter(TakeawaysCache.video_id == video_id).first()
-        if cached and isinstance(cached.data, list) and len(cached.data) > 0:
+        if not force and cached and isinstance(cached.data, list) and len(cached.data) > 0:
             return cached.data  # valid cached data — do not regenerate
         if cached:
-            # Sentinel or garbage — delete so we can regenerate with fresh transcript
             _tk_db.delete(cached)
             _tk_db.commit()
-            logger.info(f"POST: Deleted non-list takeaways cache for {video_id} to regenerate")
+            logger.info(f"POST: Deleted takeaways cache for {video_id} (force={force})")
     except Exception as e:
         logger.warning(f"Takeaways cache lookup failed: {e}")
     finally:
@@ -3010,20 +3011,21 @@ async def youtube_dpoi_post(request: Request):
     body = await request.json()
     video_id = body.get("video_id", "")
     segments = body.get("transcript_segments", [])
+    force = bool(body.get("force", False))
 
     if not video_id or len(video_id) != 11:
         raise HTTPException(400, "Invalid video_id")
 
-    # Check cache first: return valid data, regenerate on sentinel/missing
+    # Check cache first: return valid data (unless force=true), else regenerate
     _dpoi_db = SessionLocal()
     try:
         cached = _dpoi_db.query(DpoiCache).filter(DpoiCache.video_id == video_id).first()
-        if cached and isinstance(cached.data, list) and len(cached.data) > 0:
+        if not force and cached and isinstance(cached.data, list) and len(cached.data) > 0:
             return cached.data  # valid cached data — do not regenerate
         if cached:
             _dpoi_db.delete(cached)
             _dpoi_db.commit()
-            logger.info(f"POST: Deleted non-list DOPI cache for {video_id} to regenerate")
+            logger.info(f"POST: Deleted DOPI cache for {video_id} (force={force})")
     except Exception as e:
         logger.warning(f"DPOI cache lookup failed: {e}")
     finally:

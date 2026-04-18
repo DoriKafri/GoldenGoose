@@ -4168,6 +4168,10 @@ const _INVIDIOUS_INSTANCES = [
   'https://invidious.privacyredirect.com',
   'https://invidious.fdn.fr',
   'https://vid.puffyan.us',
+  'https://invidious.jing.rocks',
+  'https://invidious.perennialte.ch',
+  'https://yewtu.be',
+  'https://invidious.lunar.icu',
 ];
 
 // Try fetching storyboard spec from our server, then Invidious instances
@@ -5222,6 +5226,20 @@ function _vttTimeToSec(ts) {
   return parseInt(p[0])*3600 + parseInt(p[1])*60 + parseFloat(p[2]);
 }
 
+function _ytRetryTranscript() {
+  // Clear all caches and retry transcript fetch
+  const vid = ytVideoId;
+  if (!vid) return;
+  try { localStorage.removeItem(`yt_transcript_${vid}`); } catch(e) {}
+  _ytTranscriptData = null;
+  _ytTranscriptVideoId = null;
+  _ytTranscriptFailed = false;
+  _ytTranscriptLoadingPromise = null;
+  // Also ask server to refresh its cache
+  fetch(`${API}/api/youtube-transcript?video_id=${vid}&refresh=true`, {method: 'GET'}).catch(() => {});
+  _ytLoadTranscript();
+}
+
 async function _ytLoadTranscript() {
   const contentEl = document.getElementById('ytTranscriptContent');
   if (!contentEl) return;
@@ -5365,7 +5383,7 @@ async function _ytLoadTranscript() {
       _ytPreFetchInsights(vid);
     } else {
       _tabSetFailed('transcript');
-      contentEl.innerHTML = '<div class="yt-transcript-error">Transcript unavailable for this video.</div>';
+      contentEl.innerHTML = '<div class="yt-transcript-error">Transcript unavailable for this video.<br><br><button onclick="_ytRetryTranscript()" style="margin-top:10px;padding:8px 16px;border:1px solid var(--border);border-radius:var(--radius-pill);background:var(--bg);color:var(--text);cursor:pointer;font-family:inherit;">Retry fetch</button></div>';
       _ytTranscriptFailed = true;
       clearTimeout(_ytTakeawaysRetryTimer);
       clearTimeout(_ytDpoiRetryTimer);

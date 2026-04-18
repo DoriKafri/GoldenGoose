@@ -2472,6 +2472,10 @@ def youtube_transcript(
         "https://invidious.nerdvpn.de",
         "https://invidious.fdn.fr",
         "https://vid.puffyan.us",
+        "https://invidious.jing.rocks",
+        "https://invidious.perennialte.ch",
+        "https://yewtu.be",
+        "https://invidious.lunar.icu",
     ]
     for instance in _invidious_instances:
         if _past_deadline():

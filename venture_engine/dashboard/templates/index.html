@@ -5475,8 +5475,8 @@ async function _ytLoadTranscript() {
 
 async function _ytPreFetchInsights(vid) {
   // For each (takeaways, DOPI): GET first to check server cache. If valid
-  // cached data exists, use it — NEVER regenerate. Only POST transcript if
-  // server has nothing (which triggers fresh generation).
+  // cached data exists, use it — NEVER regenerate. Only trigger generation
+  // (via POST with transcript + polling) if server has nothing cached.
   const promises = [];
   if (!_ytTakeawaysData || _ytTakeawaysVideoId !== vid) {
     promises.push((async () => {
@@ -5491,22 +5491,8 @@ async function _ytPreFetchInsights(vid) {
           }
         }
       } catch(e) {}
-      // No valid cache — POST transcript to trigger generation (only if we have transcript)
-      if (_ytTranscriptData) {
-        try {
-          const r = await fetch(`${API}/api/youtube-key-takeaways`, {
-            method: 'POST', headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({video_id: vid, transcript_segments: _ytTranscriptData})
-          });
-          if (r.ok) {
-            const d = await r.json();
-            if (_ytIsValidAiData(d)) {
-              _ytTakeawaysData = d.takeaways || d; _ytTakeawaysVideoId = vid;
-              _tabSetReady('takeaways');
-            }
-          }
-        } catch(e) {}
-      }
+      // No valid cache — trigger generation with polling (handles 404 "in progress")
+      if (_ytTranscriptData) _ytPostTakeawaysWithTranscript(vid);
     })());
   }
   if (!_ytDpoiData || _ytDpoiVideoId !== vid) {
@@ -5522,21 +5508,7 @@ async function _ytPreFetchInsights(vid) {
           }
         }
       } catch(e) {}
-      if (_ytTranscriptData) {
-        try {
-          const r = await fetch(`${API}/api/youtube-dpoi`, {
-            method: 'POST', headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({video_id: vid, transcript_segments: _ytTranscriptData})
-          });
-          if (r.ok) {
-            const d = await r.json();
-            if (_ytIsValidAiData(d)) {
-              _ytDpoiData = d.insights || d; _ytDpoiVideoId = vid;
-              _tabSetReady('dpoi');
-            }
-          }
-        } catch(e) {}
-      }
+      if (_ytTranscriptData) _ytPostDpoiWithTranscript(vid);
     })());
   }
   if (promises.length) await Promise.all(promises);

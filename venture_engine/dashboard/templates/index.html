@@ -902,6 +902,22 @@ html.dark .sl-msg-wrap:hover { background:rgba(255,255,255,.08); }
 .yt-segment-banner-close { background:transparent; border:none; color:#fff; cursor:pointer; padding:0 0 0 4px; font-size:14px; line-height:1; }
 /* Timeline range highlight for shared segment */
 .yt-timeline-segment-highlight { position:absolute; top:0; bottom:0; background:rgba(250,204,21,0.45); border-left:2px solid #facc15; border-right:2px solid #facc15; pointer-events:none; z-index:3; }
+/* DOPI playlist header */
+.yt-dopi-playlist-header { display:flex; align-items:center; gap:12px; padding:10px 16px; background:var(--bg2); border-bottom:1px solid var(--border); position:sticky; top:0; z-index:5; flex-wrap:wrap; }
+.yt-dopi-play-all-btn { display:inline-flex; align-items:center; gap:6px; padding:7px 14px; font-size:12px; font-weight:700; color:#fff; background:linear-gradient(135deg,#2563eb,#7c3aed); border:none; border-radius:var(--radius-pill); cursor:pointer; transition:transform 0.12s, box-shadow 0.12s; font-family:inherit; }
+.yt-dopi-play-all-btn:hover { transform:translateY(-1px); box-shadow:0 4px 12px rgba(37,99,235,0.3); }
+.yt-dopi-play-all-btn.playing { background:linear-gradient(135deg,#dc2626,#ea580c); }
+.yt-dopi-total-time { font-size:12px; color:var(--text2); font-weight:600; font-variant-numeric:tabular-nums; }
+/* Playlist "now playing" overlay on video */
+.yt-dopi-playlist-overlay { position:absolute; top:8px; left:8px; right:8px; background:rgba(0,0,0,0.82); color:#fff; padding:10px 14px; border-radius:10px; font-size:12px; font-weight:600; box-shadow:0 4px 16px rgba(0,0,0,0.3); z-index:9; display:flex; align-items:center; gap:10px; backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); }
+.yt-dopi-playlist-overlay .dpl-badge { display:inline-flex; padding:2px 8px; border-radius:10px; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.03em; }
+.yt-dopi-playlist-overlay .dpl-badge.problem { background:rgba(239,68,68,0.25); color:#fca5a5; }
+.yt-dopi-playlist-overlay .dpl-badge.opportunity { background:rgba(34,197,94,0.25); color:#86efac; }
+.yt-dopi-playlist-overlay .dpl-title { flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.yt-dopi-playlist-overlay .dpl-counter { opacity:0.7; font-size:11px; white-space:nowrap; }
+.yt-dopi-playlist-overlay .dpl-controls { display:inline-flex; gap:4px; }
+.yt-dopi-playlist-overlay .dpl-btn { background:rgba(255,255,255,0.15); border:none; color:#fff; padding:4px 8px; border-radius:12px; font-size:11px; cursor:pointer; font-family:inherit; font-weight:600; }
+.yt-dopi-playlist-overlay .dpl-btn:hover { background:rgba(255,255,255,0.25); }
 .dopi-research-btn:hover { background:rgba(124,58,237,0.18); color:#6d28d9; transform:scale(1.04); }
 .dopi-research-btn:disabled { opacity:0.7; cursor:wait; }
 .dopi-research-btn.dopi-research-success { visibility:visible; background:rgba(34,197,94,0.1); border-color:rgba(34,197,94,0.3); color:#16a34a; }
@@ -5914,7 +5930,21 @@ function _ytRenderDpoi(items) {
     _tabSetFailed('dpoi');
     return;
   }
-  contentEl.innerHTML = '<div class="yt-ai-list">' + items.map((item, idx) => {
+  // Compute total playlist duration
+  const totalDur = items.reduce((acc, it) => {
+    const s = Math.max(0, Math.floor(it.start_seconds || 0));
+    const e = Math.max(s + 1, Math.floor(it.end_seconds || s + 60));
+    return acc + (e - s);
+  }, 0);
+  const playHeader = `
+    <div class="yt-dopi-playlist-header">
+      <button class="yt-dopi-play-all-btn" onclick="_ytPlayDopiPlaylist()" title="Play all DOPI insights in sequence">
+        <svg viewBox="0 0 24 24" fill="currentColor" style="width:14px;height:14px;"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        Play all DOPI
+      </button>
+      <span class="yt-dopi-total-time">Total: ${_fmtTime(totalDur)} · ${items.length} ${items.length === 1 ? 'segment' : 'segments'}</span>
+    </div>`;
+  contentEl.innerHTML = playHeader + '<div class="yt-ai-list">' + items.map((item, idx) => {
     const badge = item.type === 'problem'
       ? '<span class="yt-ai-badge problem">Problem</span>'
       : '<span class="yt-ai-badge opportunity">Opportunity</span>';
@@ -6325,6 +6355,104 @@ function _renderSegmentTimelineHighlight(startSec, endSec) {
   timeline.appendChild(hl);
 }
 
+// ── DOPI Playlist: play all DOPI segments in sequence ──
+let _dopiPlaylistIdx = -1;
+let _dopiPlaylistItems = null;
+let _dopiPlaylistInterval = null;
+
+function _ytPlayDopiPlaylist() {
+  // If already playing, stop it
+  if (_dopiPlaylistIdx >= 0) { _ytStopDopiPlaylist(); return; }
+  const items = window._dopiItems;
+  if (!Array.isArray(items) || items.length === 0) return;
+  // Sort by start_seconds so playback is chronological
+  _dopiPlaylistItems = items.slice().sort((a, b) => (a.start_seconds || 0) - (b.start_seconds || 0));
+  _dopiPlaylistIdx = 0;
+  // Toggle button state
+  const btn = document.querySelector('.yt-dopi-play-all-btn');
+  if (btn) {
+    btn.classList.add('playing');
+    btn.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor" style="width:14px;height:14px;"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg> Stop playlist';
+  }
+  _ytSwitchTab('video');
+  _playDopiPlaylistItem(0);
+}
+
+function _playDopiPlaylistItem(idx) {
+  if (!_dopiPlaylistItems || idx >= _dopiPlaylistItems.length) { _ytStopDopiPlaylist(true); return; }
+  _dopiPlaylistIdx = idx;
+  const item = _dopiPlaylistItems[idx];
+  const start = Math.max(0, Math.floor(item.start_seconds || 0));
+  const end = Math.max(start + 1, Math.floor(item.end_seconds || start + 60));
+
+  const tryStart = () => {
+    if (!_ytPlayer || !_ytPlayerReady) { setTimeout(tryStart, 200); return; }
+    try { _ytPlayer.seekTo(start, true); _ytPlayer.playVideo(); } catch(e) {}
+    _showDopiPlaylistOverlay(item, idx, _dopiPlaylistItems.length, start, end);
+    _renderSegmentTimelineHighlight(start, end);
+    // Clear prior watcher
+    if (_dopiPlaylistInterval) { clearInterval(_dopiPlaylistInterval); _dopiPlaylistInterval = null; }
+    _dopiPlaylistInterval = setInterval(() => {
+      if (!_ytPlayer || !_ytPlayer.getCurrentTime) return;
+      const cur = _ytPlayer.getCurrentTime() || 0;
+      // Update overlay remaining time
+      const remainingEl = document.querySelector('.yt-dopi-playlist-overlay .dpl-remaining');
+      if (remainingEl) remainingEl.textContent = _fmtTime(Math.max(0, end - cur));
+      if (cur >= end) {
+        clearInterval(_dopiPlaylistInterval);
+        _dopiPlaylistInterval = null;
+        // Advance to next
+        _playDopiPlaylistItem(idx + 1);
+      }
+    }, 400);
+  };
+  tryStart();
+}
+
+function _showDopiPlaylistOverlay(item, idx, total, start, end) {
+  const videoPanel = document.getElementById('ytVideoPanel');
+  if (!videoPanel) return;
+  document.querySelectorAll('.yt-segment-banner, .yt-dopi-playlist-overlay').forEach(b => b.remove());
+  const overlay = document.createElement('div');
+  overlay.className = 'yt-dopi-playlist-overlay';
+  const typeCls = (item.type === 'problem') ? 'problem' : 'opportunity';
+  const typeLabel = (item.type === 'problem') ? 'Problem' : 'Opportunity';
+  overlay.innerHTML = `
+    <span class="dpl-badge ${typeCls}">${typeLabel}</span>
+    <span class="dpl-title" title="${esc(item.title || '')}">${esc(item.title || '')}</span>
+    <span class="dpl-counter">(${idx + 1}/${total}) · <span class="dpl-remaining">${_fmtTime(end - start)}</span> left</span>
+    <span class="dpl-controls">
+      ${idx > 0 ? '<button class="dpl-btn" onclick="_ytDopiPlaylistPrev()">⏮</button>' : ''}
+      ${idx < total - 1 ? '<button class="dpl-btn" onclick="_ytDopiPlaylistNext()">⏭</button>' : ''}
+      <button class="dpl-btn" onclick="_ytStopDopiPlaylist()">✕</button>
+    </span>
+  `;
+  videoPanel.appendChild(overlay);
+}
+
+function _ytDopiPlaylistNext() {
+  if (_dopiPlaylistInterval) { clearInterval(_dopiPlaylistInterval); _dopiPlaylistInterval = null; }
+  _playDopiPlaylistItem(_dopiPlaylistIdx + 1);
+}
+
+function _ytDopiPlaylistPrev() {
+  if (_dopiPlaylistInterval) { clearInterval(_dopiPlaylistInterval); _dopiPlaylistInterval = null; }
+  _playDopiPlaylistItem(Math.max(0, _dopiPlaylistIdx - 1));
+}
+
+function _ytStopDopiPlaylist(finished) {
+  if (_dopiPlaylistInterval) { clearInterval(_dopiPlaylistInterval); _dopiPlaylistInterval = null; }
+  _dopiPlaylistIdx = -1;
+  _dopiPlaylistItems = null;
+  document.querySelectorAll('.yt-dopi-playlist-overlay, .yt-timeline-segment-highlight').forEach(e => e.remove());
+  const btn = document.querySelector('.yt-dopi-play-all-btn');
+  if (btn) {
+    btn.classList.remove('playing');
+    btn.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor" style="width:14px;height:14px;"><polygon points="5 3 19 12 5 21 5 3"/></svg> Play all DOPI';
+  }
+  if (finished && _ytPlayer) { try { _ytPlayer.pauseVideo(); } catch(e) {} }
+}
+
 async function shareNewsItem(title, articleUrl) {
   const shareUrl = location.origin + '/#news/read/' + encodeURIComponent(articleUrl);
   if (navigator.share) {
@@ -6358,8 +6486,10 @@ function closeReader(fromPopstate) {
   // Clean up YouTube player
   if (_ytTimeInterval) { clearInterval(_ytTimeInterval); _ytTimeInterval = null; }
   if (_ytSegmentCheckInterval) { clearInterval(_ytSegmentCheckInterval); _ytSegmentCheckInterval = null; }
+  if (_dopiPlaylistInterval) { clearInterval(_dopiPlaylistInterval); _dopiPlaylistInterval = null; }
+  _dopiPlaylistIdx = -1; _dopiPlaylistItems = null;
   _ytSegmentStartTime = null; _ytSegmentEndTime = null;
-  document.querySelectorAll('.yt-segment-banner, .yt-timeline-segment-highlight').forEach(e => e.remove());
+  document.querySelectorAll('.yt-segment-banner, .yt-dopi-playlist-overlay, .yt-timeline-segment-highlight').forEach(e => e.remove());
   if (_ytPlayer) { try { _ytPlayer.destroy(); } catch(e){} _ytPlayer = null; }
   _ytPlayerReady = false;
   _isYouTube = false;

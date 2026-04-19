@@ -4216,6 +4216,14 @@ function _youtubeId(url) {
   return m ? m[1] : null;
 }
 
+function _isXUrl(url) {
+  if (!url) return false;
+  try {
+    const h = new URL(url).hostname.replace('www.', '');
+    return h === 'x.com' || h === 'twitter.com' || h === 'mobile.twitter.com';
+  } catch(e) { return false; }
+}
+
 // ─── Client-side YouTube storyboard frame extraction ────────────
 // Fetches storyboard spec and constructs sprite sheet info.
 // Uses CSS sprite technique (no canvas/CORS issues).
@@ -4592,26 +4600,32 @@ function openReader(url, title, newsItemId) {
     _artEagerFetchAll(url);
 
     const artIframe = document.getElementById('artIframe');
-    const proxyUrl = `${API}/api/proxy?url=${encodeURIComponent(url)}`;
-    artIframe.onload = function() {
+    if (_isXUrl(url)) {
+      // X/Twitter blocks iframe embedding. Render tweet inline using syndication data.
+      _renderXPreviewInPanel(url);
       loadReaderAnnotations();
+    } else {
+      const proxyUrl = `${API}/api/proxy?url=${encodeURIComponent(url)}`;
+      artIframe.onload = function() {
+        loadReaderAnnotations();
+        try {
+          const idoc = artIframe.contentDocument || artIframe.contentWindow.document;
+          idoc.addEventListener('mouseup', function() {
+            setTimeout(function() { _parentCheckIframeSelection(); }, 150);
+          }, true);
+          idoc.addEventListener('selectionchange', function() {
+            clearTimeout(window._parentSelTimer);
+            window._parentSelTimer = setTimeout(function() { _parentCheckIframeSelection(); }, 250);
+          }, true);
+        } catch(e) {}
+        // Apply inline highlights on the article
+        _applyArticleInsights(url);
+      };
       try {
-        const idoc = artIframe.contentDocument || artIframe.contentWindow.document;
-        idoc.addEventListener('mouseup', function() {
-          setTimeout(function() { _parentCheckIframeSelection(); }, 150);
-        }, true);
-        idoc.addEventListener('selectionchange', function() {
-          clearTimeout(window._parentSelTimer);
-          window._parentSelTimer = setTimeout(function() { _parentCheckIframeSelection(); }, 250);
-        }, true);
-      } catch(e) {}
-      // Apply inline highlights on the article
-      _applyArticleInsights(url);
-    };
-    try {
-      artIframe.contentWindow.location.replace(proxyUrl);
-    } catch(e) {
-      artIframe.src = proxyUrl;
+        artIframe.contentWindow.location.replace(proxyUrl);
+      } catch(e) {
+        artIframe.src = proxyUrl;
+      }
     }
   }
 
@@ -5137,6 +5151,85 @@ function _ytEagerFetchAll(vid) {
   }
 }
 
+function _renderXPreviewInPanel(url) {
+  const panel = document.getElementById('artArticlePanel');
+  if (!panel) return;
+  const iframe = document.getElementById('artIframe');
+  if (iframe) iframe.style.display = 'none';
+  let host = panel.querySelector('.x-preview-host');
+  if (!host) {
+    host = document.createElement('div');
+    host.className = 'x-preview-host';
+    host.style.cssText = 'width:100%;height:100%;overflow:auto;padding:24px;background:var(--bg1,#fff);box-sizing:border-box;';
+    panel.appendChild(host);
+  }
+  host.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text3);font-size:13px;">Loading tweet…</div>';
+
+  fetch(`${API}/api/x-preview?url=${encodeURIComponent(url)}`)
+    .then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e)))
+    .then(d => {
+      const safe = s => (s == null ? '' : String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])));
+      // Linkify expanded URLs in text
+      let textHtml = safe(d.text || '');
+      (d.urls || []).forEach(u => {
+        const esc = safe(u.url);
+        const disp = safe(u.display || u.url);
+        textHtml = textHtml.split(esc).join(`<a href="${esc}" target="_blank" rel="noopener noreferrer" style="color:#1d9bf0;text-decoration:none;">${disp}</a>`);
+      });
+      // Preserve newlines
+      textHtml = textHtml.replace(/\n/g, '<br>');
+
+      const created = d.created_at ? new Date(d.created_at).toLocaleString() : '';
+      const verifiedBadge = d.is_verified ? '<svg viewBox="0 0 24 24" style="width:16px;height:16px;margin-left:4px;vertical-align:middle;fill:#1d9bf0;"><path d="M22.25 12c0-1.43-.88-2.67-2.19-3.34.46-1.39.2-2.9-.81-3.91s-2.52-1.27-3.91-.81c-.66-1.31-1.91-2.19-3.34-2.19s-2.67.88-3.33 2.19c-1.4-.46-2.91-.2-3.92.81s-1.26 2.52-.8 3.91c-1.31.67-2.2 1.91-2.2 3.34s.89 2.67 2.2 3.34c-.46 1.39-.21 2.9.8 3.91s2.52 1.26 3.91.81c.67 1.31 1.91 2.19 3.34 2.19s2.68-.88 3.34-2.19c1.39.45 2.9.2 3.91-.81s1.27-2.52.81-3.91c1.31-.67 2.19-1.91 2.19-3.34zm-11.71 4.2L6.8 12.46l1.41-1.42 2.26 2.26 4.8-5.23 1.47 1.36-6.2 6.77z"/></svg>' : '';
+
+      let mediaHtml = '';
+      (d.media || []).forEach(m => {
+        if (m.type === 'photo' || m.type === 'video') {
+          const src = m.type === 'video' ? m.url : m.url;
+          mediaHtml += `<img src="${safe(src)}" style="width:100%;max-height:480px;object-fit:cover;border-radius:12px;margin-top:12px;display:block;">`;
+        }
+      });
+
+      let articleHtml = '';
+      if (d.article) {
+        const cover = d.article.cover_image ? `<img src="${safe(d.article.cover_image)}" style="width:100%;max-height:240px;object-fit:cover;display:block;">` : '';
+        articleHtml = `
+          <div style="margin-top:16px;border:1px solid var(--border,#e1e8ed);border-radius:12px;overflow:hidden;">
+            ${cover}
+            <div style="padding:14px 16px;">
+              <div style="font-weight:600;font-size:15px;margin-bottom:6px;color:var(--text1,#0f1419);">${safe(d.article.title || '')}</div>
+              <div style="font-size:13px;color:var(--text2,#536471);white-space:pre-wrap;">${safe(d.article.preview_text || '')}</div>
+            </div>
+          </div>`;
+      }
+
+      const likes = (d.favorite_count != null) ? `<span style="color:var(--text3,#536471);font-size:13px;">❤ ${d.favorite_count.toLocaleString()}</span>` : '';
+
+      host.innerHTML = `
+        <div style="max-width:640px;margin:0 auto;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+          <div style="display:flex;gap:12px;align-items:center;">
+            ${d.author_avatar ? `<img src="${safe(d.author_avatar)}" style="width:48px;height:48px;border-radius:50%;">` : ''}
+            <div style="flex:1;min-width:0;">
+              <div style="font-weight:700;font-size:15px;color:var(--text1,#0f1419);">${safe(d.author_name || '')}${verifiedBadge}</div>
+              <div style="font-size:13px;color:var(--text3,#536471);">@${safe(d.author_handle || '')}</div>
+            </div>
+          </div>
+          <div style="margin-top:14px;font-size:17px;line-height:1.4;color:var(--text1,#0f1419);white-space:normal;word-wrap:break-word;">${textHtml || '<span style="color:var(--text3,#536471);font-style:italic;">(no caption)</span>'}</div>
+          ${mediaHtml}
+          ${articleHtml}
+          <div style="margin-top:16px;display:flex;gap:16px;align-items:center;padding-top:12px;border-top:1px solid var(--border,#e1e8ed);">
+            ${likes}
+            <span style="color:var(--text3,#536471);font-size:13px;">${safe(created)}</span>
+            <a href="${safe(d.tweet_url || url)}" target="_blank" rel="noopener noreferrer" style="margin-left:auto;color:#1d9bf0;font-size:13px;text-decoration:none;font-weight:600;">View on X ↗</a>
+          </div>
+        </div>`;
+    })
+    .catch(err => {
+      const msg = (err && err.detail) ? err.detail : 'Could not load tweet.';
+      host.innerHTML = `<div style="padding:24px;text-align:center;color:var(--text3,#536471);font-size:13px;">${msg}<br><a href="${url}" target="_blank" rel="noopener noreferrer" style="color:#1d9bf0;">Open on X ↗</a></div>`;
+    });
+}
+
 function _artEagerFetchAll(url) {
   if (!url) return;
   if (_articleInsightsData && _articleInsightsUrl === url) {
@@ -5459,17 +5552,17 @@ async function _ytLoadTranscript() {
       _ytPreFetchInsights(vid);
     } else {
       _tabSetFailed('transcript');
-      contentEl.innerHTML = '<div class="yt-transcript-error">Transcript unavailable for this video.<br><br><button onclick="_ytRetryTranscript()" style="margin-top:10px;padding:8px 16px;border:1px solid var(--border);border-radius:var(--radius-pill);background:var(--bg);color:var(--text);cursor:pointer;font-family:inherit;">Retry fetch</button></div>';
-      _ytTranscriptFailed = true;
-      clearTimeout(_ytTakeawaysRetryTimer);
-      clearTimeout(_ytDpoiRetryTimer);
-      Object.keys(_ytPollTimers).forEach(k => { clearTimeout(_ytPollTimers[k]); delete _ytPollTimers[k]; });
-      _tabSetFailed('takeaways');
-      _tabSetFailed('dpoi');
-      const tkEl = document.getElementById('ytTakeawaysContent');
-      const dpEl = document.getElementById('ytDpoiContent');
-      if (tkEl) tkEl.innerHTML = _ytUnavailableHTML('Takeaways', '_ytTranscriptFailed=false;_ytTakeawaysRetries=0;_ytLoadTakeaways()');
-      if (dpEl) dpEl.innerHTML = _ytUnavailableHTML('DOPI Insights', '_ytTranscriptFailed=false;_ytDpoiRetries=0;_ytLoadDpoi()');
+      contentEl.innerHTML = '<div class="yt-transcript-error">YouTube blocks transcript access for this video.<br><br><span style="color:var(--text3);font-size:12px;">Takeaways and DOPI will be generated directly from the video instead (may take 30-60s).</span><br><br><button onclick="_ytRetryTranscript()" style="margin-top:10px;padding:8px 16px;border:1px solid var(--border);border-radius:var(--radius-pill);background:var(--bg);color:var(--text);cursor:pointer;font-family:inherit;">Retry transcript fetch</button></div>';
+      // Do NOT mark takeaways/dpoi as failed — fall back to video-direct Gemini generation
+      _ytTranscriptFailed = false;
+      fetch(`${API}/api/youtube-generate-from-video`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({video_id: vid}),
+      }).catch(e => console.warn('Video-direct generation kickoff failed:', e));
+      // Keep takeaways/dpoi tabs polling; _ytPollUntilReady already running from _ytEagerFetchAll.
+      _tabSetLoading('takeaways');
+      _tabSetLoading('dpoi');
     }
   })();
 

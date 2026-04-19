@@ -2680,6 +2680,66 @@ def _gemini_generate(prompt: str) -> Optional[str]:
     return None
 
 
+def _gemini_generate_from_youtube(youtube_url: str, prompt: str) -> Optional[str]:
+    """Call Gemini with a YouTube URL as fileData — Gemini watches the video directly.
+    Used as fallback when YouTube blocks transcript scraping. Returns None on failure."""
+    import os as _os
+    try:
+        from venture_engine.discussion_engine import _gemini_rate_check, gemini_calls_remaining
+        if not _gemini_rate_check():
+            logger.warning(f"Gemini daily limit reached. {gemini_calls_remaining()} calls remaining.")
+            return None
+    except ImportError:
+        pass
+    _gkey = settings.google_gemini_api_key or _os.environ.get("GOOGLE_GEMINI_API_KEY", "")
+    if not _gkey:
+        logger.warning("Gemini API key not set, skipping video generation")
+        return None
+    logger.info(f"Calling Gemini with YouTube URL {youtube_url} + {len(prompt)} char prompt...")
+    # Gemini 2.5 Flash / Pro support YouTube URLs via fileData. Lite does not.
+    models = ["gemini-2.5-flash", "gemini-2.5-pro"]
+    import httpx
+    for model in models:
+        try:
+            resp = httpx.post(
+                f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={_gkey}",
+                json={
+                    "contents": [{
+                        "parts": [
+                            {"file_data": {"file_uri": youtube_url}},
+                            {"text": prompt},
+                        ],
+                    }],
+                    "generationConfig": {"temperature": 0.3, "maxOutputTokens": 16384},
+                },
+                timeout=180.0,  # video analysis is slower than text
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                candidates = data.get("candidates", [])
+                if not candidates:
+                    logger.warning(f"Gemini-video {model}: 200 but no candidates. Response: {str(data)[:300]}")
+                    continue
+                try:
+                    text = candidates[0]["content"]["parts"][0]["text"]
+                    logger.info(f"Gemini-video success with model {model}, {len(text)} chars")
+                    return text
+                except (KeyError, IndexError) as e:
+                    logger.warning(f"Gemini-video {model}: unexpected response: {e}. Data: {str(data)[:300]}")
+                    continue
+            elif resp.status_code == 429:
+                logger.warning(f"Gemini-video {model} quota exceeded, trying next...")
+                continue
+            else:
+                logger.warning(f"Gemini-video error {resp.status_code} for {model}: {resp.text[:300]}")
+                continue
+        except Exception as e:
+            logger.warning(f"Gemini-video call failed for {model}: {e}")
+            continue
+    logger.warning("All Gemini-video models failed")
+    return None
+
+
 def _auto_generate_takeaways(video_id: str, transcript_text: str = None) -> Optional[dict]:
     """Auto-generate takeaways for a video using Gemini, cache result, and return it."""
     logger.info(f"Starting takeaways generation for {video_id}")
@@ -2701,13 +2761,12 @@ def _auto_generate_takeaways(video_id: str, transcript_text: str = None) -> Opti
     _dur_ss = _video_duration_sec % 60
     _dur_str = f"{_dur_mm}:{_dur_ss:02d}"
 
-    prompt = f"""Analyze the COMPLETE YouTube video transcript below and extract 8-12 key takeaways that cover the ENTIRE video duration ({_dur_str}, or {_video_duration_sec} seconds total).
+    prompt = f"""Analyze the COMPLETE YouTube video transcript below (duration: {_dur_str}, or {_video_duration_sec} seconds total) and extract 8-12 key takeaways — the most important moments worth re-watching.
 
-MANDATORY COVERAGE REQUIREMENT:
-- The video is {_dur_str} long. Your takeaways MUST span from the beginning to near the end.
-- The LAST takeaway's end_seconds MUST be within the final 15% of the video (i.e., end_seconds >= {int(_video_duration_sec * 0.85)}).
-- Distribute takeaways EVENLY across the entire duration — do NOT cluster them in the first half.
-- If you produce fewer than 8 takeaways or don't reach the end, the output is REJECTED.
+COVERAGE GUIDANCE:
+- Consider the ENTIRE video when picking takeaways — do not front-load by only picking from the first half.
+- Pick genuinely notable moments wherever they occur; it's fine to skip dull stretches.
+- Takeaways should be SELECTIVE HIGHLIGHTS, not a full-coverage tiling of the video.
 
 For each takeaway, provide:
 - takeaway: A 1-2 sentence summary of the key point
@@ -2742,15 +2801,6 @@ TRANSCRIPT:
         takeaways = json.loads(cleaned)
         if not isinstance(takeaways, list) or len(takeaways) == 0:
             return None
-
-        # Validate coverage: last takeaway's end_seconds must be in final 15% of video
-        if _video_duration_sec > 300:
-            max_end = max((t.get("end_seconds", 0) or 0) for t in takeaways)
-            required_end = int(_video_duration_sec * 0.85)
-            if max_end < required_end:
-                coverage_pct = int(max_end / _video_duration_sec * 100)
-                logger.warning(f"Takeaways coverage too low for {video_id}: {coverage_pct}% (last end {max_end}s, required >={required_end}s). Rejecting — caller will retry.")
-                return None
 
         # Cache it
         from venture_engine.db.session import SessionLocal
@@ -2793,15 +2843,14 @@ def _auto_generate_dopi(video_id: str, transcript_text: str = None) -> Optional[
     _dur_ss = _video_duration_sec % 60
     _dur_str = f"{_dur_mm}:{_dur_ss:02d}"
 
-    prompt = f"""Analyze the COMPLETE YouTube video transcript below and identify 6-10 Develeap Problem/Opportunity Insights (DOPI) that cover the ENTIRE video duration ({_dur_str}, or {_video_duration_sec} seconds total).
+    prompt = f"""Analyze the COMPLETE YouTube video transcript below (duration: {_dur_str}, or {_video_duration_sec} seconds total) and identify 6-10 Develeap Problem/Opportunity Insights (DOPI) — the most notable venture-relevant moments.
 
 Develeap is a DevOps, cloud, and AI engineering consultancy. For each insight, identify either a PROBLEM companies face or an OPPORTUNITY to build a product/service.
 
-MANDATORY COVERAGE REQUIREMENT:
-- The video is {_dur_str} long. Your insights MUST span from the beginning to near the end.
-- The LAST insight's end_seconds MUST be within the final 15% of the video (i.e., end_seconds >= {int(_video_duration_sec * 0.85)}).
-- Distribute insights EVENLY across the entire duration — do NOT cluster them in the first half.
-- If you produce fewer than 6 insights or don't reach the end, the output is REJECTED.
+COVERAGE GUIDANCE:
+- Consider the ENTIRE video when picking insights — do not front-load by only picking from the first half.
+- Pick genuinely notable moments wherever they occur; it's fine to skip sections with no venture angle.
+- Insights should be SELECTIVE HIGHLIGHTS, not a full-coverage tiling of the video.
 
 For each insight, provide:
 - type: "problem" or "opportunity"
@@ -2839,15 +2888,6 @@ TRANSCRIPT:
         if not isinstance(insights, list) or len(insights) == 0:
             return None
 
-        # Validate coverage
-        if _video_duration_sec > 300:
-            max_end = max((i.get("end_seconds", 0) or 0) for i in insights)
-            required_end = int(_video_duration_sec * 0.85)
-            if max_end < required_end:
-                coverage_pct = int(max_end / _video_duration_sec * 100)
-                logger.warning(f"DOPI coverage too low for {video_id}: {coverage_pct}% (last end {max_end}s, required >={required_end}s). Rejecting — caller will retry.")
-                return None
-
         # Cache it
         from venture_engine.db.session import SessionLocal
         from venture_engine.db.models import DpoiCache
@@ -2867,6 +2907,136 @@ TRANSCRIPT:
         return cache_data
     except (json.JSONDecodeError, KeyError, IndexError) as e:
         logger.warning(f"Failed to parse Gemini DOPI response: {e}")
+        return None
+
+
+def _auto_generate_takeaways_from_video(video_id: str) -> Optional[list]:
+    """Generate takeaways by passing the YouTube URL directly to Gemini (no transcript).
+    Used when YouTube blocks transcript scraping. Caches result. Returns list or None."""
+    logger.info(f"Starting VIDEO-DIRECT takeaways generation for {video_id}")
+    youtube_url = f"https://www.youtube.com/watch?v={video_id}"
+
+    prompt = """Watch this YouTube video and extract 8-12 key takeaways — the most important moments worth re-watching.
+
+COVERAGE GUIDANCE:
+- Consider the ENTIRE video when picking takeaways — do not front-load by only picking from the first half.
+- Pick genuinely notable moments wherever they occur; it's fine to skip dull stretches.
+- Takeaways should be SELECTIVE HIGHLIGHTS, not a full-coverage tiling of the video.
+
+For each takeaway, provide:
+- takeaway: A 1-2 sentence summary of the key point
+- start_time: Timestamp in "M:SS" format (seconds 0-59 only). For videos over 60 min, use "H:MM:SS".
+- end_time: Same format as start_time
+- start_seconds: start_time converted to total seconds (integer)
+- end_seconds: end_time converted to total seconds (integer, must be > start_seconds)
+
+VALIDATION:
+- Every start_seconds must satisfy 0 <= start_seconds < end_seconds
+- start_time and end_time must use valid clock format (SS between 00 and 59)
+- Items must appear in chronological order (ascending start_seconds)
+
+Return ONLY valid JSON array, no markdown, no explanation. Example:
+[{"takeaway":"The key insight...","start_seconds":120,"end_seconds":240,"start_time":"2:00","end_time":"4:00"}]"""
+
+    result = _gemini_generate_from_youtube(youtube_url, prompt)
+    if not result:
+        return None
+
+    try:
+        cleaned = result.strip()
+        if cleaned.startswith("```"):
+            cleaned = cleaned.split("\n", 1)[1] if "\n" in cleaned else cleaned[3:]
+            if cleaned.endswith("```"):
+                cleaned = cleaned[:-3]
+            cleaned = cleaned.strip()
+        takeaways = json.loads(cleaned)
+        if not isinstance(takeaways, list) or len(takeaways) == 0:
+            return None
+
+        from venture_engine.db.session import SessionLocal
+        from venture_engine.db.models import TakeawaysCache
+        try:
+            db = SessionLocal()
+            existing = db.query(TakeawaysCache).filter(TakeawaysCache.video_id == video_id).first()
+            if existing:
+                existing.data = takeaways
+            else:
+                db.add(TakeawaysCache(video_id=video_id, data=takeaways))
+            db.commit()
+            db.close()
+        except Exception as e:
+            logger.warning(f"Failed to cache video-direct takeaways: {e}")
+
+        return takeaways
+    except (json.JSONDecodeError, KeyError, IndexError) as e:
+        logger.warning(f"Failed to parse Gemini video-direct takeaways: {e}")
+        return None
+
+
+def _auto_generate_dopi_from_video(video_id: str) -> Optional[list]:
+    """Generate DOPI by passing the YouTube URL directly to Gemini (no transcript).
+    Used when YouTube blocks transcript scraping. Caches result. Returns list or None."""
+    logger.info(f"Starting VIDEO-DIRECT DOPI generation for {video_id}")
+    youtube_url = f"https://www.youtube.com/watch?v={video_id}"
+
+    prompt = """Watch this YouTube video and identify 6-10 Develeap Problem/Opportunity Insights (DOPI) — the most notable venture-relevant moments.
+
+Develeap is a DevOps, cloud, and AI engineering consultancy. For each insight, identify either a PROBLEM companies face or an OPPORTUNITY to build a product/service.
+
+COVERAGE GUIDANCE:
+- Consider the ENTIRE video when picking insights — do not front-load by only picking from the first half.
+- Pick genuinely notable moments wherever they occur; it's fine to skip sections with no venture angle.
+- Insights should be SELECTIVE HIGHLIGHTS, not a full-coverage tiling of the video.
+
+For each insight, provide:
+- type: "problem" or "opportunity"
+- title: Short title (5-8 words)
+- description: 2-3 sentence explanation of the problem/opportunity and how Develeap could capitalize on it
+- start_time: Timestamp in "M:SS" format (seconds 0-59 only). For videos over 60 min, use "H:MM:SS".
+- end_time: Same format as start_time
+- start_seconds: start_time converted to total seconds (integer)
+- end_seconds: end_time converted to total seconds (integer, must be > start_seconds)
+- venture_relevance: Score 1-10 how relevant this is for venture building
+
+VALIDATION:
+- Every start_seconds must satisfy 0 <= start_seconds < end_seconds
+- start_time and end_time must use valid clock format (SS between 00 and 59)
+- Items must appear in chronological order (ascending start_seconds)
+
+Return ONLY valid JSON array, no markdown, no explanation."""
+
+    result = _gemini_generate_from_youtube(youtube_url, prompt)
+    if not result:
+        return None
+
+    try:
+        cleaned = result.strip()
+        if cleaned.startswith("```"):
+            cleaned = cleaned.split("\n", 1)[1] if "\n" in cleaned else cleaned[3:]
+            if cleaned.endswith("```"):
+                cleaned = cleaned[:-3]
+            cleaned = cleaned.strip()
+        insights = json.loads(cleaned)
+        if not isinstance(insights, list) or len(insights) == 0:
+            return None
+
+        from venture_engine.db.session import SessionLocal
+        from venture_engine.db.models import DpoiCache
+        try:
+            db = SessionLocal()
+            existing = db.query(DpoiCache).filter(DpoiCache.video_id == video_id).first()
+            if existing:
+                existing.data = insights
+            else:
+                db.add(DpoiCache(video_id=video_id, data=insights))
+            db.commit()
+            db.close()
+        except Exception as e:
+            logger.warning(f"Failed to cache video-direct DOPI: {e}")
+
+        return insights
+    except (json.JSONDecodeError, KeyError, IndexError) as e:
+        logger.warning(f"Failed to parse Gemini video-direct DOPI: {e}")
         return None
 
 
@@ -3163,6 +3333,98 @@ async def youtube_dpoi_post(request: Request):
     raise HTTPException(404, "DOPI generation in progress. Retry in a few seconds.")
 
 
+@router.post("/api/youtube-generate-from-video")
+async def youtube_generate_from_video(request: Request):
+    """Fallback: kick off Gemini video-direct generation for takeaways AND DOPI when
+    transcript scraping is blocked. Accepts {video_id}. Runs in background; caller
+    should poll the existing GET cache endpoints for results."""
+    import threading
+    body = await request.json()
+    video_id = (body.get("video_id") or "").strip()
+    if not video_id or len(video_id) != 11:
+        raise HTTPException(400, "Invalid video_id")
+
+    # Check what's already cached so we don't redo work.
+    from venture_engine.db.session import SessionLocal
+    from venture_engine.db.models import TakeawaysCache, DpoiCache
+    need_takeaways = True
+    need_dpoi = True
+    _db = SessionLocal()
+    try:
+        tk = _db.query(TakeawaysCache).filter(TakeawaysCache.video_id == video_id).first()
+        if tk and isinstance(tk.data, list) and len(tk.data) > 0:
+            need_takeaways = False
+        elif tk and isinstance(tk.data, dict) and tk.data.get("error"):
+            # Clear the prior error sentinel so we can retry with video-direct generation.
+            _db.delete(tk)
+            _db.commit()
+        dp = _db.query(DpoiCache).filter(DpoiCache.video_id == video_id).first()
+        if dp and isinstance(dp.data, list) and len(dp.data) > 0:
+            need_dpoi = False
+        elif dp and isinstance(dp.data, dict) and dp.data.get("error"):
+            _db.delete(dp)
+            _db.commit()
+    finally:
+        _db.close()
+
+    import time as _time
+    if need_takeaways:
+        _bg_key_t = f"takeaways_{video_id}"
+        _started_t = _bg_generation_active.get(_bg_key_t, 0)
+        if _started_t and (_time.time() - _started_t) > _BG_GENERATION_TIMEOUT:
+            _bg_generation_active.pop(_bg_key_t, None)
+        if _bg_key_t not in _bg_generation_active:
+            _bg_generation_active[_bg_key_t] = _time.time()
+            def _bg_tk():
+                try:
+                    result = _auto_generate_takeaways_from_video(video_id)
+                    if not result:
+                        logger.warning(f"Video-direct takeaways failed for {video_id}")
+                        try:
+                            _fdb = SessionLocal()
+                            existing = _fdb.query(TakeawaysCache).filter(TakeawaysCache.video_id == video_id).first()
+                            if not existing:
+                                _fdb.add(TakeawaysCache(video_id=video_id, data={"error": "generation_failed"}))
+                            else:
+                                existing.data = {"error": "generation_failed"}
+                            _fdb.commit()
+                            _fdb.close()
+                        except Exception:
+                            pass
+                finally:
+                    _bg_generation_active.pop(_bg_key_t, None)
+            threading.Thread(target=_bg_tk, daemon=True).start()
+
+    if need_dpoi:
+        _bg_key_d = f"dpoi_{video_id}"
+        _started_d = _bg_generation_active.get(_bg_key_d, 0)
+        if _started_d and (_time.time() - _started_d) > _BG_GENERATION_TIMEOUT:
+            _bg_generation_active.pop(_bg_key_d, None)
+        if _bg_key_d not in _bg_generation_active:
+            _bg_generation_active[_bg_key_d] = _time.time()
+            def _bg_dp():
+                try:
+                    result = _auto_generate_dopi_from_video(video_id)
+                    if not result:
+                        logger.warning(f"Video-direct DOPI failed for {video_id}")
+                        try:
+                            _fdb = SessionLocal()
+                            existing = _fdb.query(DpoiCache).filter(DpoiCache.video_id == video_id).first()
+                            if not existing:
+                                _fdb.add(DpoiCache(video_id=video_id, data={"error": "generation_failed"}))
+                            else:
+                                existing.data = {"error": "generation_failed"}
+                            _fdb.commit()
+                            _fdb.close()
+                        except Exception:
+                            pass
+                finally:
+                    _bg_generation_active.pop(_bg_key_d, None)
+            threading.Thread(target=_bg_dp, daemon=True).start()
+
+    return {"status": "started", "takeaways_queued": need_takeaways, "dpoi_queued": need_dpoi}
+
+
 @router.post("/api/youtube-dpoi-cache/{video_id}")
 async def youtube_dpoi_cache_put(video_id: str, request: Request):
     """Cache pre-generated DPOI analysis for a video."""
@@ -3183,6 +3445,108 @@ async def youtube_dpoi_cache_put(video_id: str, request: Request):
     except Exception as e:
         logger.error(f"DPOI cache write failed: {e}")
         raise HTTPException(500, str(e))
+
+
+def _fetch_x_tweet_data(url: str) -> Optional[dict]:
+    """Fetch raw tweet data from X/Twitter public syndication API. Returns parsed dict or None."""
+    import re as _re
+    import httpx
+    m = _re.search(r"/status/(\d+)", url)
+    if not m:
+        return None
+    tweet_id = m.group(1)
+    try:
+        r = httpx.get(
+            "https://cdn.syndication.twimg.com/tweet-result",
+            params={"id": tweet_id, "token": "a"},
+            timeout=10.0,
+            headers={"User-Agent": "Mozilla/5.0"},
+        )
+        r.raise_for_status()
+        return r.json()
+    except Exception as e:
+        logger.warning(f"X syndication fetch failed for {tweet_id}: {e}")
+        return None
+
+
+def _extract_x_tweet_text(url: str) -> Optional[str]:
+    """Extract tweet content as plain text for AI analysis. Returns assembled text or None."""
+    data = _fetch_x_tweet_data(url)
+    if not data:
+        return None
+    parts = []
+    author = (data.get("user") or {}).get("name") or (data.get("user") or {}).get("screen_name")
+    if author:
+        parts.append(f"Tweet by {author}:")
+    tweet_text = (data.get("text") or "").strip()
+    # Expand t.co URLs inline using entity data
+    for ent in (data.get("entities") or {}).get("urls", []) or []:
+        short = ent.get("url")
+        expanded = ent.get("expanded_url") or ent.get("display_url")
+        if short and expanded:
+            tweet_text = tweet_text.replace(short, expanded)
+    if tweet_text:
+        parts.append(tweet_text)
+    article = data.get("article") or {}
+    if article.get("title"):
+        parts.append(f"\nLinked article: {article['title']}")
+    if article.get("preview_text"):
+        parts.append(article["preview_text"])
+    assembled = "\n".join(parts).strip()
+    return assembled or None
+
+
+@router.get("/api/x-preview")
+def x_preview(url: str = Query(...)):
+    """Return structured tweet data for rendering an X post inline (used when iframe embedding fails)."""
+    from urllib.parse import urlparse
+    parsed = urlparse(url)
+    hostname = parsed.hostname or ""
+    if hostname not in ("x.com", "www.x.com", "twitter.com", "www.twitter.com", "mobile.twitter.com"):
+        raise HTTPException(400, "Not an X/Twitter URL.")
+    data = _fetch_x_tweet_data(url)
+    if not data:
+        raise HTTPException(404, "Tweet not found or not accessible.")
+    user = data.get("user") or {}
+    # Expand t.co in text
+    text = (data.get("text") or "").strip()
+    url_entities = []
+    for ent in (data.get("entities") or {}).get("urls", []) or []:
+        short = ent.get("url")
+        expanded = ent.get("expanded_url")
+        display = ent.get("display_url")
+        if short and expanded:
+            text = text.replace(short, expanded)
+            url_entities.append({"url": expanded, "display": display or expanded})
+    # Media (photos/videos cover image)
+    media = []
+    for m in data.get("mediaDetails") or []:
+        murl = m.get("media_url_https")
+        mtype = m.get("type") or "photo"
+        if murl:
+            media.append({"url": murl, "type": mtype})
+    article = data.get("article") or {}
+    article_out = None
+    if article:
+        cover = ((article.get("cover_media") or {}).get("media_info") or {}).get("original_img_url")
+        article_out = {
+            "title": article.get("title"),
+            "preview_text": article.get("preview_text"),
+            "cover_image": cover,
+        }
+    return {
+        "author_name": user.get("name"),
+        "author_handle": user.get("screen_name"),
+        "author_avatar": user.get("profile_image_url_https"),
+        "is_verified": bool(user.get("is_blue_verified") or user.get("verified")),
+        "created_at": data.get("created_at"),
+        "text": text,
+        "urls": url_entities,
+        "media": media,
+        "article": article_out,
+        "favorite_count": data.get("favorite_count"),
+        "tweet_url": url,
+    }
 
 
 @router.get("/api/article-insights")
@@ -3216,29 +3580,41 @@ def article_insights(url: str = Query(...), refresh: bool = Query(False)):
         finally:
             _ai_db.close()
 
-    # Fetch article HTML (verify=False to handle Railway SSL issues — BUG-234)
-    try:
-        resp = httpx.get(url, timeout=15.0, follow_redirects=True, verify=False, headers={
-            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
-            "Accept": "text/html,*/*;q=0.8",
-        })
-        resp.raise_for_status()
-    except Exception as e:
-        raise HTTPException(502, f"Could not fetch article: {str(e)[:200]}")
+    # X/Twitter URLs: scraping doesn't work (JS-only). Use syndication API.
+    is_x = hostname in ("x.com", "www.x.com", "twitter.com", "www.twitter.com", "mobile.twitter.com")
+    article_text = None
+    if is_x:
+        article_text = _extract_x_tweet_text(url)
+        if not article_text:
+            raise HTTPException(400, "Could not extract tweet content. Direct X articles (x.com/i/article/...) are not supported — open the parent tweet instead.")
+        if len(article_text) < 60:
+            raise HTTPException(400, "Tweet content too short to analyze (no caption or linked article).")
 
-    soup = BeautifulSoup(resp.text, "html.parser")
-    # Remove non-content elements
-    for tag in soup.find_all(["script", "style", "nav", "footer", "header", "aside", "iframe"]):
-        tag.decompose()
+    if article_text is None:
+        # Generic article path: fetch HTML and extract body text.
+        # verify=False to handle Railway SSL issues — BUG-234
+        try:
+            resp = httpx.get(url, timeout=15.0, follow_redirects=True, verify=False, headers={
+                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+                "Accept": "text/html,*/*;q=0.8",
+            })
+            resp.raise_for_status()
+        except Exception as e:
+            raise HTTPException(502, f"Could not fetch article: {str(e)[:200]}")
 
-    # Try to find article body
-    article_el = soup.find("article") or soup.find("main") or soup.find("body")
-    if not article_el:
-        raise HTTPException(400, "Could not extract article content.")
+        soup = BeautifulSoup(resp.text, "html.parser")
+        # Remove non-content elements
+        for tag in soup.find_all(["script", "style", "nav", "footer", "header", "aside", "iframe"]):
+            tag.decompose()
 
-    article_text = article_el.get_text(separator="\n", strip=True)
-    if len(article_text) < 100:
-        raise HTTPException(400, "Article content too short to analyze.")
+        # Try to find article body
+        article_el = soup.find("article") or soup.find("main") or soup.find("body")
+        if not article_el:
+            raise HTTPException(400, "Could not extract article content.")
+
+        article_text = article_el.get_text(separator="\n", strip=True)
+        if len(article_text) < 100:
+            raise HTTPException(400, "Article content too short to analyze.")
     if len(article_text) > 100000:
         article_text = article_text[:100000]
 

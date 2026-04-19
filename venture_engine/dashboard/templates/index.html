@@ -5011,6 +5011,12 @@ function _ytFetchTakeawaysWithFallback(vid) {
       _ytPostTakeawaysWithTranscript(vid);
       return;
     }
+    if (d && d.error === 'generation_failed' && !_ytTranscriptData) {
+      // Transcript still loading — keep polling; video-direct fallback will overwrite the sentinel
+      _ytPollUntilReady('takeaways', tkUrl, vid,
+        d => { _ytTakeawaysData = d.takeaways || d; _ytTakeawaysVideoId = vid; });
+      return;
+    }
     if (d && d.error === 'generation_failed') { _ytPollStopAndShowUnavailable('takeaways'); return; }
     if (_ytIsValidAiData(d)) {
       _ytTakeawaysData = d.takeaways || d; _ytTakeawaysVideoId = vid;
@@ -5068,6 +5074,12 @@ function _ytFetchDpoiWithFallback(vid) {
     if (d && d.error === 'generation_failed' && _ytTranscriptData) {
       // Retry with transcript from frontend
       _ytPostDpoiWithTranscript(vid);
+      return;
+    }
+    if (d && d.error === 'generation_failed' && !_ytTranscriptData) {
+      // Transcript still loading — keep polling; video-direct fallback will overwrite the sentinel
+      _ytPollUntilReady('dpoi', dopiUrl, vid,
+        d => { _ytDpoiData = d.insights || d; _ytDpoiVideoId = vid; });
       return;
     }
     if (d && d.error === 'generation_failed') { _ytPollStopAndShowUnavailable('dpoi'); return; }

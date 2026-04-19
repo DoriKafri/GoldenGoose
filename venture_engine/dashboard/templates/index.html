@@ -5555,14 +5555,21 @@ async function _ytLoadTranscript() {
       contentEl.innerHTML = '<div class="yt-transcript-error">YouTube blocks transcript access for this video.<br><br><span style="color:var(--text3);font-size:12px;">Takeaways and DOPI will be generated directly from the video instead (may take 30-60s).</span><br><br><button onclick="_ytRetryTranscript()" style="margin-top:10px;padding:8px 16px;border:1px solid var(--border);border-radius:var(--radius-pill);background:var(--bg);color:var(--text);cursor:pointer;font-family:inherit;">Retry transcript fetch</button></div>';
       // Do NOT mark takeaways/dpoi as failed — fall back to video-direct Gemini generation
       _ytTranscriptFailed = false;
+      // Stop any existing polls (may have already failed due to stale error sentinel in cache)
+      Object.keys(_ytPollTimers).forEach(k => { clearTimeout(_ytPollTimers[k]); delete _ytPollTimers[k]; });
+      _tabSetLoading('takeaways');
+      _tabSetLoading('dpoi');
       fetch(`${API}/api/youtube-generate-from-video`, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({video_id: vid}),
+      }).then(() => {
+        // Backend cleared stale sentinels and started generation — (re)start polling.
+        const tkUrl = `${API}/api/youtube-key-takeaways?video_id=${vid}`;
+        const dpUrl = `${API}/api/youtube-dpoi?video_id=${vid}`;
+        _ytPollUntilReady('takeaways', tkUrl, vid, d => { _ytTakeawaysData = d.takeaways || d; _ytTakeawaysVideoId = vid; });
+        _ytPollUntilReady('dpoi', dpUrl, vid, d => { _ytDpoiData = d; _ytDpoiVideoId = vid; });
       }).catch(e => console.warn('Video-direct generation kickoff failed:', e));
-      // Keep takeaways/dpoi tabs polling; _ytPollUntilReady already running from _ytEagerFetchAll.
-      _tabSetLoading('takeaways');
-      _tabSetLoading('dpoi');
     }
   })();
 

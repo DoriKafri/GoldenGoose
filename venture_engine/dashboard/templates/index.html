@@ -4964,8 +4964,16 @@ function _ytPollUntilReady(tabName, url, vid, onSuccess, attempt) {
   const timer = setTimeout(() => ctrl.abort(), 12000);
   const fetchUrl = url + (url.includes('?') ? '&' : '?') + '_t=' + Date.now();
   fetch(fetchUrl, {signal: ctrl.signal}).then(r => { clearTimeout(timer); return r.ok ? r.json() : null; }).then(d => {
-    // Check for error sentinel from backend (generation permanently failed)
-    if (d && d.error === 'generation_failed') { _ytPollStopAndShowUnavailable(tabName); return; }
+    // Check for error sentinel — but if transcript is still loading, keep polling:
+    // the video-direct fallback will overwrite the sentinel once transcript fails.
+    if (d && d.error === 'generation_failed') {
+      if (!_ytTranscriptData && !_ytTranscriptFailed && attempt < 20 && _readerUrl) {
+        _ytPollTimers[tabName] = setTimeout(() => _ytPollUntilReady(tabName, url, vid, onSuccess, attempt + 1), 10000);
+      } else {
+        _ytPollStopAndShowUnavailable(tabName);
+      }
+      return;
+    }
     if (_ytIsValidAiData(d)) {
       onSuccess(d);
       _tabSetReady(tabName);

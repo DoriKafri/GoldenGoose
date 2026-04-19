@@ -5905,6 +5905,22 @@ async function _ytLoadTakeaways() {
       _ytPostTakeawaysWithTranscript(vid);
       return;
     }
+    // No transcript — use video-direct Gemini fallback and poll for result
+    if (!_ytTranscriptData && _ytTakeawaysRetries === 0) {
+      _ytTakeawaysRetries = 1;
+      contentEl.innerHTML = _ytBuildingHTML('takeaways');
+      fetch(`${API}/api/youtube-generate-from-video`, {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({video_id: vid}),
+      }).then(() => {
+        const tkUrl = `${API}/api/youtube-key-takeaways?video_id=${vid}`;
+        _ytPollUntilReady('takeaways', tkUrl, vid, d => { _ytTakeawaysData = d.takeaways || d; _ytTakeawaysVideoId = vid; });
+      }).catch(() => {
+        _tabSetFailed('takeaways');
+        contentEl.innerHTML = _ytUnavailableHTML('Takeaways', '_ytTakeawaysRetries=0;_ytLoadTakeaways()');
+      });
+      return;
+    }
     // Don't mark tab as ready — keep loading spinner on tab
     contentEl.innerHTML = _ytBuildingHTML('takeaways');
     // Auto-retry up to 12 times (covers ~2 min of background generation)
@@ -6126,6 +6142,22 @@ async function _ytLoadDpoi() {
     if (_ytTranscriptData && _ytDpoiRetries < 2) {
       _ytDpoiRetries = (_ytDpoiRetries || 0) + 1;
       _ytPostDpoiWithTranscript(vid);
+      return;
+    }
+    // No transcript — use video-direct Gemini fallback and poll for result
+    if (!_ytTranscriptData && _ytDpoiRetries === 0) {
+      _ytDpoiRetries = 1;
+      contentEl.innerHTML = _ytBuildingHTML('DOPI insights');
+      fetch(`${API}/api/youtube-generate-from-video`, {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({video_id: vid}),
+      }).then(() => {
+        const dpUrl = `${API}/api/youtube-dpoi?video_id=${vid}`;
+        _ytPollUntilReady('dpoi', dpUrl, vid, d => { _ytDpoiData = d.insights || d; _ytDpoiVideoId = vid; });
+      }).catch(() => {
+        _tabSetFailed('dpoi');
+        contentEl.innerHTML = _ytUnavailableHTML('DOPI Insights', '_ytDpoiRetries=0;_ytLoadDpoi()');
+      });
       return;
     }
     // Don't mark tab as ready — keep loading spinner on tab

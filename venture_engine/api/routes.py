@@ -1618,7 +1618,13 @@ def news_yt_backfill(db: Session = Depends(get_db_dependency), limit: int = Quer
                         youtube_transcript(video_id=vid)
                         transcript_ok = True
                     except Exception as _e:
-                        logger.warning(f"[yt-backfill] transcript failed for {vid}: {_e}")
+                        logger.warning(f"[yt-backfill] transcript scrape failed for {vid}: {_e}")
+                    if not transcript_ok:
+                        try:
+                            if _auto_generate_transcript_from_video(vid):
+                                transcript_ok = True
+                        except Exception as _e:
+                            logger.warning(f"[yt-backfill] transcript video-direct failed for {vid}: {_e}")
 
                 if vid not in have_tk:
                     result = None
@@ -3235,6 +3241,85 @@ Return ONLY valid JSON array, no markdown, no explanation."""
         return None
 
 
+def _auto_generate_transcript_from_video(video_id: str) -> Optional[list]:
+    """Generate a timestamped transcript by passing the YouTube URL directly to Gemini.
+    Used when YouTube blocks transcript scraping. Caches as TranscriptCache segments
+    so the Transcript tab can populate and regular transcript-based takeaways/DOPI
+    generation works after this runs. Returns the segments list or None."""
+    logger.info(f"Starting VIDEO-DIRECT transcript generation for {video_id}")
+    youtube_url = f"https://www.youtube.com/watch?v={video_id}"
+
+    prompt = """Watch this YouTube video and produce a complete timestamped transcript of the spoken content.
+
+Break the transcript into short segments of roughly 3-8 seconds each, aligned to natural sentence or phrase boundaries. Cover the ENTIRE video from start to finish — do not stop early.
+
+For each segment, provide:
+- start: start time in seconds (float, e.g. 12.4)
+- duration: length of the segment in seconds (float, e.g. 4.2)
+- text: the spoken words in that segment (trimmed, no filler markers like [music])
+
+VALIDATION:
+- Segments must be in chronological order (ascending start).
+- Each segment's (start + duration) must be <= the next segment's start (no overlap).
+- text must be non-empty.
+- Do not summarize — produce a verbatim transcript of what is spoken.
+
+Return ONLY a valid JSON array, no markdown fences, no explanation. Example:
+[{"start":0.0,"duration":3.2,"text":"Hello and welcome to the video."},{"start":3.2,"duration":4.1,"text":"Today we're going to talk about..."}]"""
+
+    result = _gemini_generate_from_youtube(youtube_url, prompt)
+    if not result:
+        return None
+
+    try:
+        cleaned = result.strip()
+        if cleaned.startswith("```"):
+            cleaned = cleaned.split("\n", 1)[1] if "\n" in cleaned else cleaned[3:]
+            if cleaned.endswith("```"):
+                cleaned = cleaned[:-3]
+            cleaned = cleaned.strip()
+        segments = json.loads(cleaned)
+        if not isinstance(segments, list) or len(segments) == 0:
+            return None
+
+        # Normalize segment shape: ensure start/duration are floats and text is string
+        clean_segments = []
+        for s in segments:
+            if not isinstance(s, dict):
+                continue
+            try:
+                start = float(s.get("start", 0))
+                duration = float(s.get("duration", 0))
+            except (TypeError, ValueError):
+                continue
+            text = (s.get("text") or "").strip()
+            if not text:
+                continue
+            clean_segments.append({"start": start, "duration": duration, "text": text})
+        if not clean_segments:
+            return None
+
+        from venture_engine.db.session import SessionLocal
+        from venture_engine.db.models import TranscriptCache
+        try:
+            db = SessionLocal()
+            existing = db.query(TranscriptCache).filter(TranscriptCache.video_id == video_id).first()
+            if existing:
+                existing.segments = clean_segments
+                existing.language = "en"
+            else:
+                db.add(TranscriptCache(video_id=video_id, language="en", segments=clean_segments))
+            db.commit()
+            db.close()
+        except Exception as e:
+            logger.warning(f"Failed to cache video-direct transcript: {e}")
+
+        return clean_segments
+    except (json.JSONDecodeError, KeyError, IndexError) as e:
+        logger.warning(f"Failed to parse Gemini video-direct transcript: {e}")
+        return None
+
+
 @router.get("/api/debug-gemini-test")
 def debug_gemini_test():
     """Temporary debug endpoint to test Gemini API directly."""
@@ -3541,9 +3626,10 @@ async def youtube_generate_from_video(request: Request):
 
     # Check what's already cached so we don't redo work.
     from venture_engine.db.session import SessionLocal
-    from venture_engine.db.models import TakeawaysCache, DpoiCache
+    from venture_engine.db.models import TakeawaysCache, DpoiCache, TranscriptCache
     need_takeaways = True
     need_dpoi = True
+    need_transcript = True
     _db = SessionLocal()
     try:
         tk = _db.query(TakeawaysCache).filter(TakeawaysCache.video_id == video_id).first()
@@ -3559,10 +3645,27 @@ async def youtube_generate_from_video(request: Request):
         elif dp and isinstance(dp.data, dict) and dp.data.get("error"):
             _db.delete(dp)
             _db.commit()
+        tc = _db.query(TranscriptCache).filter(TranscriptCache.video_id == video_id).first()
+        if tc and tc.segments and len(tc.segments) > 0:
+            need_transcript = False
     finally:
         _db.close()
 
     import time as _time
+    if need_transcript:
+        _bg_key_tr = f"transcript_{video_id}"
+        _started_tr = _bg_generation_active.get(_bg_key_tr, 0)
+        if _started_tr and (_time.time() - _started_tr) > _BG_GENERATION_TIMEOUT:
+            _bg_generation_active.pop(_bg_key_tr, None)
+        if _bg_key_tr not in _bg_generation_active:
+            _bg_generation_active[_bg_key_tr] = _time.time()
+            def _bg_tr():
+                try:
+                    _auto_generate_transcript_from_video(video_id)
+                finally:
+                    _bg_generation_active.pop(_bg_key_tr, None)
+            threading.Thread(target=_bg_tr, daemon=True).start()
+
     if need_takeaways:
         _bg_key_t = f"takeaways_{video_id}"
         _started_t = _bg_generation_active.get(_bg_key_t, 0)
@@ -3617,7 +3720,12 @@ async def youtube_generate_from_video(request: Request):
                     _bg_generation_active.pop(_bg_key_d, None)
             threading.Thread(target=_bg_dp, daemon=True).start()
 
-    return {"status": "started", "takeaways_queued": need_takeaways, "dpoi_queued": need_dpoi}
+    return {
+        "status": "started",
+        "transcript_queued": need_transcript,
+        "takeaways_queued": need_takeaways,
+        "dpoi_queued": need_dpoi,
+    }
 
 
 @router.post("/api/youtube-dpoi-cache/{video_id}")
@@ -5830,13 +5938,21 @@ def post_news_url(req: NewsPostRequest, db: Session = Depends(get_db_dependency)
         def _prefetch_yt_all(yt_vid_id):
             try:
                 logger.info(f"Background YT prefetch started for {yt_vid_id}")
-                # 1. Transcript — may fail (YouTube blocks server-side scraping sometimes)
+                # 1. Transcript — may fail (YouTube blocks server-side scraping sometimes).
+                # Fall back to Gemini video-direct transcription so the Transcript tab
+                # can populate even for blocked videos.
                 transcript_ok = False
                 try:
                     youtube_transcript(video_id=yt_vid_id)
                     transcript_ok = True
                 except Exception as _te:
-                    logger.warning(f"Transcript prefetch failed for {yt_vid_id}: {_te}")
+                    logger.warning(f"Transcript scrape failed for {yt_vid_id}: {_te}")
+                if not transcript_ok:
+                    try:
+                        if _auto_generate_transcript_from_video(yt_vid_id):
+                            transcript_ok = True
+                    except Exception as _te:
+                        logger.warning(f"Transcript video-direct failed for {yt_vid_id}: {_te}")
 
                 # 2. Takeaways + DOPI — try transcript-based first, fall back to
                 # video-direct Gemini if transcript is not available.

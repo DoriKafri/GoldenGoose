@@ -5577,18 +5577,19 @@ async function _ytLoadTranscript() {
       _ytTranscriptFailed = false;
       // Stop any existing polls (may have already failed due to stale error sentinel in cache)
       Object.keys(_ytPollTimers).forEach(k => { clearTimeout(_ytPollTimers[k]); delete _ytPollTimers[k]; });
-      _tabSetLoading('takeaways');
-      _tabSetLoading('dpoi');
+      // Only reset tabs that haven't already loaded from cache
+      if (!_ytTakeawaysData) _tabSetLoading('takeaways');
+      if (!_ytDpoiData) _tabSetLoading('dpoi');
       fetch(`${API}/api/youtube-generate-from-video`, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({video_id: vid}),
       }).then(() => {
-        // Backend cleared stale sentinels and started generation — (re)start polling.
+        // Backend cleared stale sentinels and started generation — (re)start polling only if not already loaded.
         const tkUrl = `${API}/api/youtube-key-takeaways?video_id=${vid}`;
         const dpUrl = `${API}/api/youtube-dpoi?video_id=${vid}`;
-        _ytPollUntilReady('takeaways', tkUrl, vid, d => { _ytTakeawaysData = d.takeaways || d; _ytTakeawaysVideoId = vid; });
-        _ytPollUntilReady('dpoi', dpUrl, vid, d => { _ytDpoiData = d; _ytDpoiVideoId = vid; });
+        if (!_ytTakeawaysData) _ytPollUntilReady('takeaways', tkUrl, vid, d => { _ytTakeawaysData = d.takeaways || d; _ytTakeawaysVideoId = vid; });
+        if (!_ytDpoiData) _ytPollUntilReady('dpoi', dpUrl, vid, d => { _ytDpoiData = d; _ytDpoiVideoId = vid; });
       }).catch(e => console.warn('Video-direct generation kickoff failed:', e));
     }
   })();

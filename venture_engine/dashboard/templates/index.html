@@ -3672,6 +3672,54 @@ function _appendNewsFeed(items) {
   temp.innerHTML = _renderNewsItems(items);
   while (temp.firstChild) el.appendChild(temp.firstChild);
   _bindNewsCardClicks();
+  _scheduleYtStatusPoll();
+}
+
+// Poll YT readiness for currently-rendered YouTube items and flip badges in place.
+let _ytStatusPollTimer = null;
+function _scheduleYtStatusPoll() {
+  if (_ytStatusPollTimer) { clearTimeout(_ytStatusPollTimer); _ytStatusPollTimer = null; }
+  if (currentTab !== 'news') return;
+  const pending = (_newsItems || []).filter(i => i.yt_status && (
+    !i.yt_status.transcript_ready ||
+    (!i.yt_status.takeaways_ready && !i.yt_status.takeaways_failed) ||
+    (!i.yt_status.dpoi_ready && !i.yt_status.dpoi_failed)
+  ));
+  if (pending.length === 0) return;
+  _ytStatusPollTimer = setTimeout(async () => {
+    try {
+      const ids = pending.map(i => i.yt_status.video_id).join(',');
+      const r = await fetch(`${API}/api/news/yt-status?video_ids=${encodeURIComponent(ids)}`);
+      if (r.ok) {
+        const d = await r.json();
+        const byVid = d.statuses || {};
+        let anyChange = false;
+        _newsItems.forEach(it => {
+          if (it.yt_status && byVid[it.yt_status.video_id]) {
+            const fresh = byVid[it.yt_status.video_id];
+            if (JSON.stringify(fresh) !== JSON.stringify({
+              transcript_ready: it.yt_status.transcript_ready,
+              takeaways_ready: it.yt_status.takeaways_ready,
+              dpoi_ready: it.yt_status.dpoi_ready,
+              takeaways_failed: it.yt_status.takeaways_failed,
+              dpoi_failed: it.yt_status.dpoi_failed,
+            })) {
+              anyChange = true;
+              it.yt_status = {...it.yt_status, ...fresh};
+            }
+          }
+        });
+        if (anyChange && currentTab === 'news') {
+          const el = document.getElementById('ventureList');
+          if (el) {
+            el.innerHTML = _renderNewsItems(_newsItems);
+            _bindNewsCardClicks();
+          }
+        }
+      }
+    } catch(e) { /* silent */ }
+    _scheduleYtStatusPoll();
+  }, 15000);
 }
 
 // Infinite scroll listener
@@ -3698,6 +3746,7 @@ function renderNewsFeed(items) {
   el.innerHTML = _renderNewsItems(items);
   _bindNewsCardClicks();
   _prefetchArticleInsights(items);
+  _scheduleYtStatusPoll();
   // Admin: show resolve button if there are HN items
   if (isAdmin && items.some(i => i.url && i.url.includes('news.ycombinator.com/item'))) {
     el.insertAdjacentHTML('beforebegin', '<div id="hnResolveBar" style="margin-bottom:8px;text-align:right;"><button onclick="resolveAllHnUrls()" style="padding:4px 14px;border-radius:var(--radius-pill);background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);color:#d97706;font-size:11px;font-weight:600;cursor:pointer;">Resolve HN URLs to Original Articles</button></div>');
@@ -3736,6 +3785,22 @@ function _renderNewsItems(items) {
       : (sourceIcons[item.source] || '\uD83D\uDCF0');
     const tags = (item.tags||[]).map(t => `<span class="domain-badge" style="font-size:9px;padding:1px 6px;">${esc(t)}</span>`).join(' ');
     const strength = item.signal_strength ? `<span class="score-badge ${item.signal_strength >= 8 ? 'score-high' : item.signal_strength >= 5 ? 'score-mid' : 'score-low'}" style="font-size:11px;min-width:24px;">${item.signal_strength.toFixed(1)}</span>` : '';
+    // YouTube asset readiness badges (Transcript / Takeaways / DOPI)
+    let ytStatusBadges = '';
+    if (item.yt_status) {
+      const s = item.yt_status;
+      function _pill(label, ready, failed, title) {
+        const color = ready ? '#059669' : (failed ? '#ef4444' : '#9ca3af');
+        const bg = ready ? 'rgba(5,150,105,0.12)' : (failed ? 'rgba(239,68,68,0.1)' : 'rgba(156,163,175,0.12)');
+        const dot = ready ? '\u25CF' : (failed ? '\u2715' : '\u25CB');
+        return `<span title="${title}" style="display:inline-flex;align-items:center;gap:3px;font-size:9px;padding:1px 6px;border-radius:var(--radius-pill);background:${bg};color:${color};font-weight:600;">${dot} ${label}</span>`;
+      }
+      ytStatusBadges = [
+        _pill('Transcript', s.transcript_ready, false, s.transcript_ready ? 'Transcript ready' : 'Transcript pending (YouTube may block fetch)'),
+        _pill('Takeaways', s.takeaways_ready, s.takeaways_failed, s.takeaways_ready ? 'Takeaways ready' : (s.takeaways_failed ? 'Takeaways generation failed' : 'Takeaways generating…')),
+        _pill('DOPI', s.dpoi_ready, s.dpoi_failed, s.dpoi_ready ? 'DOPI ready' : (s.dpoi_failed ? 'DOPI generation failed' : 'DOPI generating…')),
+      ].join('');
+    }
     const ventures = (item.linked_ventures||[]).map(v => {
       const sc = v.score_total ? Math.round(v.score_total) : '—';
       return `<a href="#${v.category||'venture'}/${v.id}" onclick="event.stopPropagation();switchTab('${v.category||'venture'}',true);setTimeout(()=>openDetail('${v.id}'),200);" style="display:inline-flex;align-items:center;gap:4px;font-size:10px;padding:2px 8px;border-radius:var(--radius-pill);background:rgba(37,99,235,0.08);color:#2563eb;font-weight:600;text-decoration:none;cursor:pointer;">${v.logo_url ? '<img src="'+esc(v.logo_url)+'" style="width:14px;height:14px;border-radius:3px;" onerror="this.style.display=\'none\'">' : ''}<span>${esc(v.title)}</span><span style="color:var(--text3);">${sc}</span></a>`;
@@ -3834,6 +3899,7 @@ function _renderNewsItems(items) {
           ${item.author ? '<span style="font-size:10px;color:var(--text2);">by '+esc(item.author)+'</span>' : ''}
           <span style="font-size:10px;color:var(--text3);">${ago}</span>
           ${item.url ? '<span onclick="event.stopPropagation();" style="display:inline-flex;align-items:center;gap:4px;"><a href="'+esc(item.url)+'" target="_blank" rel="noopener" style="font-size:10px;color:#2563eb;text-decoration:none;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;vertical-align:middle;" title="Open in new tab">'+esc(_hostname(item.url))+' ↗</a></span>' : ''}
+          ${ytStatusBadges}
           ${tags}
           ${item.url ? '<button onclick="event.stopPropagation();shareNewsItem(\''+esc(item.title.replace(/'/g,"\\'"))+'\',\''+esc(item.url.replace(/'/g,"\\'"))+'\')" style="font-size:10px;padding:2px 8px;border-radius:var(--radius-pill);border:1px solid var(--border);background:var(--bg);color:var(--text2);cursor:pointer;font-family:inherit;" title="Share">&#x1F517; Share</button>' : ''}
         </div>

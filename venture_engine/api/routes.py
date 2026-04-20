@@ -1423,6 +1423,52 @@ def list_news(
         if len(items) >= limit:
             break
 
+    # Bulk-load YT cache ready status for all YouTube items in this page
+    def _yt_vid_from_url(u: str) -> Optional[str]:
+        if not u:
+            return None
+        try:
+            from urllib.parse import urlparse as _up, parse_qs as _pq
+            p = _up(u)
+            h = (p.hostname or "").replace("www.", "")
+            if h == "youtu.be":
+                return (p.path.lstrip("/").split("/")[0] or None) or None
+            if h in ("youtube.com", "m.youtube.com", "music.youtube.com"):
+                v = _pq(p.query).get("v", [None])[0]
+                if v and len(v) == 11:
+                    return v
+        except Exception:
+            pass
+        return None
+
+    yt_vid_by_item = {}
+    for it in items:
+        vid = _yt_vid_from_url(it.url)
+        if vid:
+            yt_vid_by_item[it.id] = vid
+    yt_vids = list(set(yt_vid_by_item.values()))
+    tr_ready = set()
+    tk_ready = set()
+    dp_ready = set()
+    tk_failed = set()
+    dp_failed = set()
+    if yt_vids:
+        from venture_engine.db.models import TranscriptCache, TakeawaysCache, DpoiCache
+        for row in db.query(TranscriptCache.video_id).filter(TranscriptCache.video_id.in_(yt_vids)).all():
+            tr_ready.add(row[0])
+        for row in db.query(TakeawaysCache.video_id, TakeawaysCache.data).filter(TakeawaysCache.video_id.in_(yt_vids)).all():
+            vid, data = row[0], row[1]
+            if isinstance(data, list) and len(data) > 0:
+                tk_ready.add(vid)
+            elif isinstance(data, dict) and data.get("error"):
+                tk_failed.add(vid)
+        for row in db.query(DpoiCache.video_id, DpoiCache.data).filter(DpoiCache.video_id.in_(yt_vids)).all():
+            vid, data = row[0], row[1]
+            if isinstance(data, list) and len(data) > 0:
+                dp_ready.add(vid)
+            elif isinstance(data, dict) and data.get("error"):
+                dp_failed.add(vid)
+
     results = []
     for item in items:
         # Resolve venture links
@@ -1473,6 +1519,18 @@ def list_news(
                     } for r in (a.replies or [])],
                 })
 
+        yt_vid = yt_vid_by_item.get(item.id)
+        yt_status = None
+        if yt_vid:
+            yt_status = {
+                "video_id": yt_vid,
+                "transcript_ready": yt_vid in tr_ready,
+                "takeaways_ready": yt_vid in tk_ready,
+                "dpoi_ready": yt_vid in dp_ready,
+                "takeaways_failed": yt_vid in tk_failed,
+                "dpoi_failed": yt_vid in dp_failed,
+            }
+
         results.append({
             "id": item.id,
             "title": item.title,
@@ -1490,9 +1548,41 @@ def list_news(
             "annotations": annotations_preview,
             "published_at": item.published_at.isoformat() if item.published_at else None,
             "created_at": item.created_at.isoformat() if item.created_at else None,
+            "yt_status": yt_status,
         })
 
     return {"total": total, "items": results}
+
+
+@router.get("/api/news/yt-status")
+def news_yt_status(video_ids: str, db: Session = Depends(get_db_dependency)):
+    """Lightweight polling endpoint — returns ready/failed flags for a set of YT video IDs."""
+    from venture_engine.db.models import TranscriptCache, TakeawaysCache, DpoiCache
+    ids = [v.strip() for v in (video_ids or "").split(",") if v.strip() and len(v.strip()) == 11]
+    if not ids:
+        return {"statuses": {}}
+    statuses = {v: {
+        "transcript_ready": False,
+        "takeaways_ready": False,
+        "dpoi_ready": False,
+        "takeaways_failed": False,
+        "dpoi_failed": False,
+    } for v in ids}
+    for row in db.query(TranscriptCache.video_id).filter(TranscriptCache.video_id.in_(ids)).all():
+        statuses[row[0]]["transcript_ready"] = True
+    for row in db.query(TakeawaysCache.video_id, TakeawaysCache.data).filter(TakeawaysCache.video_id.in_(ids)).all():
+        vid, data = row[0], row[1]
+        if isinstance(data, list) and len(data) > 0:
+            statuses[vid]["takeaways_ready"] = True
+        elif isinstance(data, dict) and data.get("error"):
+            statuses[vid]["takeaways_failed"] = True
+    for row in db.query(DpoiCache.video_id, DpoiCache.data).filter(DpoiCache.video_id.in_(ids)).all():
+        vid, data = row[0], row[1]
+        if isinstance(data, list) and len(data) > 0:
+            statuses[vid]["dpoi_ready"] = True
+        elif isinstance(data, dict) and data.get("error"):
+            statuses[vid]["dpoi_failed"] = True
+    return {"statuses": statuses}
 
 
 @router.delete("/api/news/{news_id}")
@@ -5628,17 +5718,61 @@ def post_news_url(req: NewsPostRequest, db: Session = Depends(get_db_dependency)
     db.add(news_item)
     db.flush()
 
-    # Pre-fetch YouTube transcript in background so it's cached when user opens reader
+    # Pre-fetch YouTube transcript + takeaways + DOPI in background so they're
+    # cached (and status badges go green in the feed) before the user opens the reader.
     if url and _yt_id:
         import threading
-        def _prefetch_yt_transcript(yt_vid_id):
+        def _prefetch_yt_all(yt_vid_id):
             try:
-                logger.info(f"Background transcript pre-fetch started for {yt_vid_id}")
-                youtube_transcript(video_id=yt_vid_id)
-                logger.info(f"Background transcript pre-fetch completed for {yt_vid_id}")
+                logger.info(f"Background YT prefetch started for {yt_vid_id}")
+                # 1. Transcript — may fail (YouTube blocks server-side scraping sometimes)
+                transcript_ok = False
+                try:
+                    youtube_transcript(video_id=yt_vid_id)
+                    transcript_ok = True
+                except Exception as _te:
+                    logger.warning(f"Transcript prefetch failed for {yt_vid_id}: {_te}")
+
+                # 2. Takeaways + DOPI — try transcript-based first, fall back to
+                # video-direct Gemini if transcript is not available.
+                def _gen_takeaways():
+                    try:
+                        result = None
+                        if transcript_ok:
+                            try:
+                                result = _auto_generate_takeaways(yt_vid_id)
+                            except Exception as _e:
+                                logger.warning(f"Takeaways (transcript) failed for {yt_vid_id}: {_e}")
+                        if not result:
+                            try:
+                                _auto_generate_takeaways_from_video(yt_vid_id)
+                            except Exception as _e:
+                                logger.warning(f"Takeaways (video-direct) failed for {yt_vid_id}: {_e}")
+                    except Exception as _e:
+                        logger.warning(f"Takeaways prefetch crashed for {yt_vid_id}: {_e}")
+
+                def _gen_dpoi():
+                    try:
+                        result = None
+                        if transcript_ok:
+                            try:
+                                result = _auto_generate_dopi(yt_vid_id)
+                            except Exception as _e:
+                                logger.warning(f"DOPI (transcript) failed for {yt_vid_id}: {_e}")
+                        if not result:
+                            try:
+                                _auto_generate_dopi_from_video(yt_vid_id)
+                            except Exception as _e:
+                                logger.warning(f"DOPI (video-direct) failed for {yt_vid_id}: {_e}")
+                    except Exception as _e:
+                        logger.warning(f"DOPI prefetch crashed for {yt_vid_id}: {_e}")
+
+                threading.Thread(target=_gen_takeaways, daemon=True).start()
+                threading.Thread(target=_gen_dpoi, daemon=True).start()
+                logger.info(f"Background YT prefetch dispatched for {yt_vid_id}")
             except Exception as _e:
-                logger.warning(f"Background transcript pre-fetch failed for {yt_vid_id}: {_e}")
-        threading.Thread(target=_prefetch_yt_transcript, args=(_yt_id,), daemon=True).start()
+                logger.warning(f"Background YT prefetch failed for {yt_vid_id}: {_e}")
+        threading.Thread(target=_prefetch_yt_all, args=(_yt_id,), daemon=True).start()
 
     # Trigger venture generation from this news item in background
     news_id = news_item.id

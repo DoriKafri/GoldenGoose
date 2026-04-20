@@ -1554,6 +1554,111 @@ def list_news(
     return {"total": total, "items": results}
 
 
+@router.post("/api/news/yt-backfill")
+def news_yt_backfill(db: Session = Depends(get_db_dependency), limit: int = Query(200, ge=1, le=1000)):
+    """Kick off background transcript + takeaways + DOPI generation for all existing YT
+    news items that don't yet have caches. Rate-limited: at most a few generations
+    run concurrently so we don't hammer Gemini."""
+    import threading, time as _time
+    from venture_engine.db.models import TranscriptCache, TakeawaysCache, DpoiCache
+    from urllib.parse import urlparse as _up, parse_qs as _pq
+
+    def _vid(u: str):
+        if not u:
+            return None
+        try:
+            p = _up(u)
+            h = (p.hostname or "").replace("www.", "")
+            if h == "youtu.be":
+                return (p.path.lstrip("/").split("/")[0] or None)
+            if h in ("youtube.com", "m.youtube.com", "music.youtube.com"):
+                v = _pq(p.query).get("v", [None])[0]
+                return v if v and len(v) == 11 else None
+        except Exception:
+            return None
+        return None
+
+    # Collect distinct YT video IDs from news items (newest-first, capped by `limit`)
+    rows = db.query(NewsFeedItem.url).order_by(NewsFeedItem.published_at.desc().nullslast()).limit(limit * 3).all()
+    video_ids = []
+    seen = set()
+    for (u,) in rows:
+        v = _vid(u)
+        if v and v not in seen:
+            seen.add(v)
+            video_ids.append(v)
+        if len(video_ids) >= limit:
+            break
+
+    if not video_ids:
+        return {"queued": 0, "total_yt_items": 0, "message": "No YT items found"}
+
+    # Determine what's missing per video
+    have_tr = {r[0] for r in db.query(TranscriptCache.video_id).filter(TranscriptCache.video_id.in_(video_ids)).all()}
+    tk_rows = db.query(TakeawaysCache.video_id, TakeawaysCache.data).filter(TakeawaysCache.video_id.in_(video_ids)).all()
+    have_tk = {vid for vid, data in tk_rows if isinstance(data, list) and len(data) > 0}
+    dp_rows = db.query(DpoiCache.video_id, DpoiCache.data).filter(DpoiCache.video_id.in_(video_ids)).all()
+    have_dp = {vid for vid, data in dp_rows if isinstance(data, list) and len(data) > 0}
+
+    pending = [v for v in video_ids if v not in have_tr or v not in have_tk or v not in have_dp]
+    if not pending:
+        return {"queued": 0, "total_yt_items": len(video_ids), "message": "All YT items already have full caches"}
+
+    # Throttled worker pool — process 2 videos concurrently to avoid Gemini rate limits
+    from threading import Semaphore
+    sem = Semaphore(2)
+
+    def _process(vid):
+        with sem:
+            try:
+                logger.info(f"[yt-backfill] processing {vid}")
+                transcript_ok = vid in have_tr
+                if not transcript_ok:
+                    try:
+                        youtube_transcript(video_id=vid)
+                        transcript_ok = True
+                    except Exception as _e:
+                        logger.warning(f"[yt-backfill] transcript failed for {vid}: {_e}")
+
+                if vid not in have_tk:
+                    result = None
+                    if transcript_ok:
+                        try:
+                            result = _auto_generate_takeaways(vid)
+                        except Exception as _e:
+                            logger.warning(f"[yt-backfill] takeaways(transcript) failed for {vid}: {_e}")
+                    if not result:
+                        try:
+                            _auto_generate_takeaways_from_video(vid)
+                        except Exception as _e:
+                            logger.warning(f"[yt-backfill] takeaways(video) failed for {vid}: {_e}")
+
+                if vid not in have_dp:
+                    result = None
+                    if transcript_ok:
+                        try:
+                            result = _auto_generate_dopi(vid)
+                        except Exception as _e:
+                            logger.warning(f"[yt-backfill] dpoi(transcript) failed for {vid}: {_e}")
+                    if not result:
+                        try:
+                            _auto_generate_dopi_from_video(vid)
+                        except Exception as _e:
+                            logger.warning(f"[yt-backfill] dpoi(video) failed for {vid}: {_e}")
+                logger.info(f"[yt-backfill] done {vid}")
+            except Exception as _e:
+                logger.warning(f"[yt-backfill] crashed on {vid}: {_e}")
+
+    for v in pending:
+        threading.Thread(target=_process, args=(v,), daemon=True).start()
+
+    return {
+        "queued": len(pending),
+        "total_yt_items": len(video_ids),
+        "message": f"Dispatched background generation for {len(pending)} items (concurrency=2). Badges will flip green as each completes.",
+    }
+
+
 @router.get("/api/news/yt-status")
 def news_yt_status(video_ids: str, db: Session = Depends(get_db_dependency)):
     """Lightweight polling endpoint — returns ready/failed flags for a set of YT video IDs."""

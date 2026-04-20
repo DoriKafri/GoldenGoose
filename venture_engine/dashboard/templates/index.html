@@ -3751,6 +3751,32 @@ function renderNewsFeed(items) {
   if (isAdmin && items.some(i => i.url && i.url.includes('news.ycombinator.com/item'))) {
     el.insertAdjacentHTML('beforebegin', '<div id="hnResolveBar" style="margin-bottom:8px;text-align:right;"><button onclick="resolveAllHnUrls()" style="padding:4px 14px;border-radius:var(--radius-pill);background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);color:#d97706;font-size:11px;font-weight:600;cursor:pointer;">Resolve HN URLs to Original Articles</button></div>');
   }
+  // Admin: show backfill button if any YT items are missing caches
+  const ytMissing = items.filter(i => i.yt_status && (
+    !i.yt_status.transcript_ready ||
+    (!i.yt_status.takeaways_ready && !i.yt_status.takeaways_failed) ||
+    (!i.yt_status.dpoi_ready && !i.yt_status.dpoi_failed)
+  )).length;
+  const oldBackfillBar = document.getElementById('ytBackfillBar');
+  if (oldBackfillBar) oldBackfillBar.remove();
+  if (isAdmin && ytMissing > 0) {
+    el.insertAdjacentHTML('beforebegin', `<div id="ytBackfillBar" style="margin-bottom:8px;text-align:right;"><button onclick="ytBackfillAll(this)" style="padding:4px 14px;border-radius:var(--radius-pill);background:rgba(37,99,235,0.08);border:1px solid rgba(37,99,235,0.25);color:#2563eb;font-size:11px;font-weight:600;cursor:pointer;">Generate Transcript/Takeaways/DOPI for ${ytMissing} pending YT item${ytMissing===1?'':'s'}</button></div>`);
+  }
+}
+
+async function ytBackfillAll(btn) {
+  if (btn) { btn.disabled = true; btn.textContent = 'Dispatching…'; }
+  try {
+    const r = await fetch(`${API}/api/news/yt-backfill`, {method:'POST'});
+    const d = await r.json();
+    if (btn) {
+      btn.textContent = `Queued ${d.queued||0} item${(d.queued||0)===1?'':'s'} — badges will flip green as they complete`;
+      btn.disabled = true;
+    }
+    _scheduleYtStatusPoll();
+  } catch(e) {
+    if (btn) { btn.textContent = 'Backfill failed — retry'; btn.disabled = false; }
+  }
 }
 
 function _renderNewsItems(items) {

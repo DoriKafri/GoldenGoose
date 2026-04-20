@@ -189,7 +189,7 @@ TL_BELIEF_TEMPLATES = {
 _gemini_rate_lock = threading.Lock()
 _gemini_daily_count = 0
 _gemini_daily_date = None
-GEMINI_DAILY_LIMIT = 100  # conservative cap (free tier allows 1500)
+GEMINI_DAILY_LIMIT = 800  # Gemini 2.5 Flash Lite free tier allows 1500 RPD; leave headroom for discussion engine
 
 
 def gemini_calls_remaining() -> int:

@@ -4967,7 +4967,7 @@ function _ytPollUntilReady(tabName, url, vid, onSuccess, attempt) {
     // Check for error sentinel — but if transcript is still loading, keep polling:
     // the video-direct fallback will overwrite the sentinel once transcript fails.
     if (d && d.error === 'generation_failed') {
-      if (!_ytTranscriptData && !_ytTranscriptFailed && attempt < 20 && _readerUrl) {
+      if (!_ytTranscriptData && !_ytTranscriptFailed && attempt < 45 && _readerUrl) {
         _ytPollTimers[tabName] = setTimeout(() => _ytPollUntilReady(tabName, url, vid, onSuccess, attempt + 1), 10000);
       } else {
         _ytPollStopAndShowUnavailable(tabName);
@@ -4985,7 +4985,7 @@ function _ytPollUntilReady(tabName, url, vid, onSuccess, attempt) {
       return;
     }
     if (_ytTranscriptFailed) { _ytPollStopAndShowUnavailable(tabName); return; }
-    if (attempt < 20 && _readerUrl) {
+    if (attempt < 45 && _readerUrl) {
       _ytPollTimers[tabName] = setTimeout(() => _ytPollUntilReady(tabName, url, vid, onSuccess, attempt + 1), 10000);
     } else {
       _ytPollStopAndShowUnavailable(tabName);
@@ -4993,7 +4993,7 @@ function _ytPollUntilReady(tabName, url, vid, onSuccess, attempt) {
   }).catch(() => {
     clearTimeout(timer);
     if (_ytTranscriptFailed) { _ytPollStopAndShowUnavailable(tabName); return; }
-    if (attempt < 20 && _readerUrl) {
+    if (attempt < 45 && _readerUrl) {
       _ytPollTimers[tabName] = setTimeout(() => _ytPollUntilReady(tabName, url, vid, onSuccess, attempt + 1), 10000);
     } else {
       _ytPollStopAndShowUnavailable(tabName);

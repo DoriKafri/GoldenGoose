@@ -26,7 +26,7 @@ router = APIRouter()
 # Track active background Gemini generation tasks to avoid duplicates
 # Uses dict with timestamps so stale entries auto-expire after 3 minutes
 _bg_generation_active: dict = {}
-_BG_GENERATION_TIMEOUT = 180  # seconds — auto-expire stuck tasks
+_BG_GENERATION_TIMEOUT = 420  # seconds — allow up to 7 min for long video analysis
 
 
 def _safe_json_or_str(val):
@@ -2712,7 +2712,7 @@ def _gemini_generate_from_youtube(youtube_url: str, prompt: str) -> Optional[str
                     }],
                     "generationConfig": {"temperature": 0.3, "maxOutputTokens": 16384},
                 },
-                timeout=180.0,  # video analysis is slower than text
+                timeout=360.0,  # video analysis: up to 6 min for long videos
             )
             if resp.status_code == 200:
                 data = resp.json()

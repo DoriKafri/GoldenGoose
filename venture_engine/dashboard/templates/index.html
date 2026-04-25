@@ -2415,6 +2415,7 @@ if (location.hash && location.hash.startsWith('#news/read/')) {
       <button class="help-nav-btn" data-section="suggest" onclick="switchHelpSection('suggest')">Suggest</button>
       <button class="help-nav-btn" data-section="settings-help" onclick="switchHelpSection('settings-help')">Settings</button>
       <button class="help-nav-btn" data-section="ai-agents" onclick="switchHelpSection('ai-agents')">AI Agents</button>
+      <button class="help-nav-btn" data-section="pm-team" onclick="switchHelpSection('pm-team')">PM Team</button>
     </nav>
     <div class="help-content" id="helpContent">
 
@@ -2838,6 +2839,78 @@ if (location.hash && location.hash.startsWith('#news/read/')) {
         </p>
       </div>
 
+      <!-- PM Team -->
+      <div class="help-section" data-section="pm-team">
+        <h3>3-Agent PM Team</h3>
+        <p>An always-on product-management cell that owns the app's own backlog. Three AI personas debate every feature, score it on a seven-dimension rubric, run a Karpathy-style auto-research loop until the idea actually improves, then rank the backlog by value &times; ease for a human to approve. Approved features go through a sprint executor that can auto-deploy and roll back if smoke tests fail.</p>
+
+        <h4>The Three Personas</h4>
+        <ul>
+          <li><strong>Marty Cagan</strong> (purple) &mdash; <em>Inspired</em>, <em>Empowered</em>, <em>Transformed</em>. Pushes "outcomes not output" and the four product risks: value, viability, usability, feasibility. Owns the Value &amp; Outcomes and Risk Coverage dimensions.</li>
+          <li><strong>Teresa Torres</strong> (blue) &mdash; <em>Continuous Discovery Habits</em>. Pushes weekly user touches, opportunity solution trees, and assumption testing. Owns the Discovery Evidence and Opportunity Framing dimensions.</li>
+          <li><strong>Shreyas Doshi</strong> (amber) &mdash; LNO framework, anti-goals, decision logs. Pushes leverage-vs-overhead clarity and crisp metrics. Owns the LNO Leverage, Decision Quality, and Metric Crispness dimensions.</li>
+        </ul>
+
+        <h4>The 7-Dimension Rubric</h4>
+        <p>Every feature is scored 0&ndash;10 on seven dims, each owned by a persona:</p>
+        <ul>
+          <li><strong>Value &amp; Outcomes</strong> (Cagan) &mdash; how clearly the feature ties to a real user outcome.</li>
+          <li><strong>Risk Coverage</strong> (Cagan) &mdash; whether the four product risks are addressed.</li>
+          <li><strong>Discovery Evidence</strong> (Torres) &mdash; depth of user evidence behind the bet.</li>
+          <li><strong>Opportunity Framing</strong> (Torres) &mdash; quality of the opportunity-solution-tree fit.</li>
+          <li><strong>LNO Leverage</strong> (Doshi) &mdash; leverage ratio of the work involved.</li>
+          <li><strong>Decision Quality</strong> (Doshi) &mdash; tradeoff narrative and anti-goals are explicit.</li>
+          <li><strong>Metric Crispness</strong> (Doshi) &mdash; is the success metric leading and crisp?</li>
+        </ul>
+        <p>Scores are visualised as a radar chart on every feature card.</p>
+
+        <h4>Karpathy 10-Cycle Auto-Research Loop</h4>
+        <p>Each feature runs up to <strong>10 research cycles</strong>. In each cycle the personas critique the proposal, the weakest dimension is identified, and a refinement is generated. The loop only counts a cycle as "improvement" when the explicit criterion holds:</p>
+        <ul>
+          <li>Weakest dim score uplift <strong>&ge; 1.0</strong> on the next pass, AND</li>
+          <li>No other dim regresses by more than <strong>0.5</strong>.</li>
+        </ul>
+        <p>If those conditions don't hold, the loop stops early; if they do, it continues until cycle 10 or until no further weakest dim is below threshold. Constants live in <code>pm_engine.py</code> as <code>IMPROVEMENT_MIN_UPLIFT</code>, <code>IMPROVEMENT_MAX_OTHER_REGRESSION</code>, and <code>MAX_CYCLES</code>.</p>
+
+        <h4>Daily Value &times; Ease Ranking</h4>
+        <p>Once a feature finishes researching it lands in the backlog with a <strong>value</strong> score and an <strong>ease</strong> score. The daily ranking job multiplies them into a <strong>composite rank</strong> and sorts the backlog descending so the top of the list is the highest-leverage thing to ship next. Re-ranks happen automatically every day and on demand via the "Rank Now" button.</p>
+
+        <h4>Human-in-the-Loop Approval</h4>
+        <p>Nothing ships without explicit human approval. Backlog items in <code>backlog</code> or <code>ranked</code> state surface an <strong>Approve for Dev</strong> button. Clicking it moves the feature to <code>approved</code> and queues it for the next sprint executor pass.</p>
+
+        <h4>Sprint Executor: Auto-Deploy &amp; Rollback</h4>
+        <p>The sprint executor picks approved features, generates the implementation plan, and (when latched) deploys. Two environment variables gate this:</p>
+        <ul>
+          <li><code>PM_AUTO_DEPLOY</code> &mdash; if <code>1</code>, executor pushes the change. If unset/<code>0</code>, the change stops at <code>testing</code> for human review.</li>
+          <li><code>PM_RUN_REAL_TESTS</code> &mdash; if <code>1</code>, real test suite runs as the gate. Otherwise simulated smoke checks run.</li>
+        </ul>
+        <p>If smoke tests fail post-deploy, the executor flips status to <code>rolled_back</code> and reverts. Lifecycle: <code>researching</code> &rarr; <code>backlog</code> &rarr; <code>ranked</code> &rarr; <code>approved</code> &rarr; <code>sprint</code> &rarr; <code>in_dev</code> &rarr; <code>testing</code> &rarr; <code>deployed</code> | <code>rolled_back</code> | <code>rejected</code>.</p>
+
+        <h4>The Five Sub-Tabs</h4>
+        <ul>
+          <li><strong>Backlog</strong> &mdash; the ranked feature list with persona pills, status badges, and radar charts. Click a card for full research history and the approve button.</li>
+          <li><strong>Sprints</strong> &mdash; current and historical sprints with the features each one carries.</li>
+          <li><strong>Meetings</strong> &mdash; daily Zoom-style standup transcripts. Trigger a fresh standup with one click; each meeting captures speaker turns, decisions, and action items.</li>
+          <li><strong>Calendar</strong> &mdash; simulated calendar events for the PM team (standups, IC reviews, customer interviews).</li>
+          <li><strong>Inbox</strong> &mdash; simulated Gmail thread for the team. Star messages, open threads, see the persona who wrote each one.</li>
+        </ul>
+
+        <h4>Slack Channel</h4>
+        <p>The team has a dedicated <strong>#pm-team</strong> Slack channel (in the simulated workspace). Research summaries, ranking updates, sprint state changes, and meeting recaps post here automatically.</p>
+
+        <h4>API Endpoints</h4>
+        <ul>
+          <li><code>GET /api/pm/status</code> &mdash; counts by lifecycle status.</li>
+          <li><code>GET /api/pm/features</code> &mdash; ranked backlog.</li>
+          <li><code>POST /api/pm/features</code> &mdash; create a new feature with <code>{persona, context_hint}</code>; auto-kicks off the research loop.</li>
+          <li><code>POST /api/pm/features/{id}/approve</code> &mdash; human-in-the-loop approval.</li>
+          <li><code>POST /api/pm/run-rank</code> &mdash; force a re-rank.</li>
+          <li><code>POST /api/pm/run-sprint</code> &mdash; trigger the sprint executor.</li>
+          <li><code>POST /api/pm/run-daily</code> &mdash; trigger the full daily PM review (rank + standup).</li>
+          <li><code>POST /api/pm/meetings/standup</code> &mdash; trigger a fresh standup transcript.</li>
+        </ul>
+      </div>
+
       <!-- Settings Help -->
       <div class="help-section" data-section="settings-help">
         <h3>Settings</h3>
@@ -2867,6 +2940,15 @@ let currentPage = 0;
 const PAGE_SIZE = 25;
 let totalVentures = 0;
 let currentTab = 'news';
+// PM Team constants (declared early so readHash()→switchTab('pm-*')→loadPmBacklog()
+// can run on initial page load with hash like #pm-backlog without hitting the TDZ.
+const PM_API = '/api/pm';
+const PM_PERSONA_COLORS = { cagan:'#7c3aed', torres:'#0ea5e9', doshi:'#f59e0b' };
+const PM_STATUS_COLORS = {
+  researching:'#9ca3af', backlog:'#3b82f6', ranked:'#06b6d4',
+  approved:'#10b981', sprint:'#8b5cf6', in_dev:'#f59e0b',
+  testing:'#eab308', deployed:'#22c55e', rolled_back:'#ef4444', rejected:'#6b7280'
+};
 // Disable browser's automatic scroll restoration — we handle it manually
 if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
 // Brain-rot anonymous identities
@@ -12499,14 +12581,10 @@ async function loadActivity() {
 
 // ─────────────────────────────────────────────────────────────────────────
 // PM Team views (Backlog / Sprints / Meetings / Calendar / Gmail)
+// PM_API / PM_PERSONA_COLORS / PM_STATUS_COLORS are declared at the top of
+// this <script> block so readHash() at initial-load time can invoke
+// loadPmBacklog() without a temporal-dead-zone error on #pm-backlog deep links.
 // ─────────────────────────────────────────────────────────────────────────
-const PM_API = '/api/pm';
-const PM_PERSONA_COLORS = { cagan:'#7c3aed', torres:'#0ea5e9', doshi:'#f59e0b' };
-const PM_STATUS_COLORS = {
-  researching:'#9ca3af', backlog:'#3b82f6', ranked:'#06b6d4',
-  approved:'#10b981', sprint:'#8b5cf6', in_dev:'#f59e0b',
-  testing:'#eab308', deployed:'#22c55e', rolled_back:'#ef4444', rejected:'#6b7280'
-};
 
 function _pmEsc(s) { return String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function _pmFmtDate(s) { if (!s) return ''; try { return new Date(s).toLocaleString(); } catch(_) { return s; } }

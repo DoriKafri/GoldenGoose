@@ -1693,6 +1693,30 @@ def news_yt_status(video_ids: str, db: Session = Depends(get_db_dependency)):
             statuses[vid]["dpoi_ready"] = True
         elif isinstance(data, dict) and data.get("error"):
             statuses[vid]["dpoi_failed"] = True
+
+    # Auto-heal: if takeaways/DOPI succeeded via video-direct but transcript is still
+    # empty (initial transcript-from-video silently failed or never ran), background-
+    # retrigger _auto_generate_transcript_from_video. Dedup via _bg_generation_active.
+    import threading as _threading, time as _time
+    for vid, st in statuses.items():
+        if st["transcript_ready"]:
+            continue
+        if not (st["takeaways_ready"] or st["dpoi_ready"]):
+            continue
+        _bg_key = f"transcript_{vid}"
+        _started = _bg_generation_active.get(_bg_key, 0)
+        if _started and (_time.time() - _started) > _BG_GENERATION_TIMEOUT:
+            _bg_generation_active.pop(_bg_key, None)
+        if _bg_key in _bg_generation_active:
+            continue
+        _bg_generation_active[_bg_key] = _time.time()
+        def _bg_tr(_vid=vid, _key=_bg_key):
+            try:
+                _auto_generate_transcript_from_video(_vid)
+            finally:
+                _bg_generation_active.pop(_key, None)
+        _threading.Thread(target=_bg_tr, daemon=True).start()
+
     return {"statuses": statuses}
 
 

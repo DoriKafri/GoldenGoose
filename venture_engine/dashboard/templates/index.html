@@ -1956,6 +1956,8 @@ html.dark .tl-bubble.release-bubble { background:linear-gradient(135deg,rgba(16,
 .pm-modal-grid-2 { display:grid; grid-template-columns:1fr 260px; gap:16px; margin-bottom:14px; }
 .pm-modal-grid-equal { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:14px; }
 .pm-modal-meta-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.pm-modal-actions { display:flex; justify-content:flex-end; gap:8px; flex-wrap:wrap; }
+.pm-modal-actions button { padding:8px 14px; border-radius:8px; font-size:12px; font-weight:600; cursor:pointer; }
 .pm-cycle-row { border:1px solid var(--border); border-radius:6px; padding:10px; margin-bottom:8px; background:var(--card2); }
 .pm-cycle-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; flex-wrap:wrap; gap:6px; }
 .pm-cycle-diff { margin-top:8px; padding:8px; background:var(--card); border-radius:4px; font-size:11px; }
@@ -1964,6 +1966,22 @@ html.dark .tl-bubble.release-bubble { background:linear-gradient(135deg,rgba(16,
 .pm-cycle-diff-before { color:#ef4444; text-decoration:line-through; opacity:0.7; }
 .pm-cycle-diff-after  { color:#22c55e; }
 .pm-cycle-critique { background:var(--card); border-radius:4px; padding:6px 8px; margin-top:6px; font-size:11px; line-height:1.4; }
+/* Inbox row (desktop = fixed grid; mobile = stacked via media query) */
+.pm-email-row { display:grid; grid-template-columns:140px 200px 1fr 100px; gap:10px; padding:10px 12px; border:1px solid var(--border); border-radius:8px; margin-bottom:6px; cursor:pointer; align-items:center; }
+.pm-email-from { font-size:12px; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.pm-email-type { font-size:11px; color:var(--text2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.pm-email-subject { font-size:13px; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.pm-email-date { font-size:11px; color:var(--text2); text-align:right; white-space:nowrap; }
+.pm-email-row.unread .pm-email-from,
+.pm-email-row.unread .pm-email-subject { font-weight:700; }
+/* Mockup iframe scales down on small screens */
+.pm-mockup-iframe { width:100%; height:340px; border:1px solid var(--border); border-radius:6px; background:#fff; }
+/* Generic overlay + dialog used by pmEmailModal/pmMeetingModal */
+.pm-modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:9999; display:flex; align-items:flex-start; justify-content:center; padding:32px; overflow-y:auto; }
+.pm-modal-dialog { background:var(--bg); border:1px solid var(--border); border-radius:12px; width:100%; padding:20px; color:var(--text); }
+.pm-meeting-event { display:flex; gap:8px; align-items:center; padding:8px 10px; background:var(--card2); border-radius:6px; margin-bottom:4px; flex-wrap:wrap; }
+.pm-meeting-event-time { font-size:11px; color:var(--text2); min-width:60px; }
+.pm-meeting-event-body { flex:1 1 200px; min-width:0; }
 
 @media (max-width:768px) {
   .pm-shell { padding:12px 12px 80px; }
@@ -1978,11 +1996,37 @@ html.dark .tl-bubble.release-bubble { background:linear-gradient(135deg,rgba(16,
   /* Swap the wide table for stacked feature cards on small screens */
   .pm-table-scroll { display:none; }
   .pm-feature-cards { display:flex; }
-  /* Modal: full-screen on mobile, single-column grids */
-  .pm-modal-content { width:100vw; max-width:100vw; height:100vh; max-height:100vh; border-radius:0; border:0; padding:14px; }
+  /* Feature cards: 2x2 stats grid + full-width buttons */
+  .pm-fcard-stats { grid-template-columns:repeat(2,1fr); }
+  .pm-fcard-actions button { min-width:0; flex:1 1 calc(50% - 3px); }
+  /* Modal: full-screen on mobile, single-column grids. Use 100% (not 100vw)
+     to avoid horizontal scrollbars caused by reserved scrollbar width. */
+  .pm-modal-content { width:100%; max-width:100%; height:100vh; max-height:100vh; border-radius:0; border:0; padding:14px; }
   .pm-modal-grid-2,
   .pm-modal-grid-equal { grid-template-columns:1fr; gap:10px; }
   .pm-modal-meta-grid { grid-template-columns:1fr; }
+  .pm-modal-actions button { flex:1 1 calc(50% - 4px); }
+  .pm-mockup-iframe { height:240px; }
+  /* Inbox row: stack into 3 lines (from + date | type | subject) */
+  .pm-email-row { grid-template-columns:1fr auto; grid-template-areas:"from date" "type type" "subject subject"; gap:4px 10px; padding:10px; }
+  .pm-email-from   { grid-area:from; }
+  .pm-email-date   { grid-area:date; }
+  .pm-email-type   { grid-area:type; white-space:normal; }
+  .pm-email-subject{ grid-area:subject; white-space:normal; font-size:14px; }
+  /* Generic dialogs (email / meeting popups) */
+  .pm-modal-overlay { padding:8px; }
+  .pm-modal-dialog  { padding:14px; border-radius:10px; max-width:100%; }
+}
+
+@media (max-width:480px) {
+  .pm-shell { padding:10px 10px 80px; }
+  .pm-header h2 { font-size:17px !important; }
+  .pm-toolbar button { flex:1 1 100%; }
+  .pm-summary-card { flex:1 1 calc(50% - 4px); }
+  .pm-fcard-actions button { flex:1 1 100%; }
+  .pm-modal-actions button { flex:1 1 100%; }
+  .pm-mockup-iframe { height:200px; }
+  .pm-meeting-event-time { min-width:48px; }
 }
 </style>
 <script>
@@ -12954,7 +12998,7 @@ function _pmShowFeatureModal(f) {
 
       ${f.mockup_html ? `<div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:14px;">
         <div style="font-size:11px;color:var(--text2);text-transform:uppercase;font-weight:600;margin-bottom:6px;">Mockup (non-functional)</div>
-        <iframe sandbox="allow-same-origin" srcdoc="${_pmEsc(f.mockup_html)}" style="width:100%;height:340px;border:1px solid var(--border);border-radius:6px;background:#fff;"></iframe>
+        <iframe sandbox="allow-same-origin" srcdoc="${_pmEsc(f.mockup_html)}" class="pm-mockup-iframe"></iframe>
       </div>`:''}
 
       <div class="pm-modal-grid-equal">
@@ -12976,11 +13020,11 @@ function _pmShowFeatureModal(f) {
         ${cyclesHtml}
       </div>
 
-      <div style="display:flex;justify-content:flex-end;gap:8px;">
-        ${(f.status==='backlog'||f.status==='ranked')?`<button onclick="pmApproveFeature(${f.id});setTimeout(()=>document.getElementById('pmFeatureModal').remove(),500);" style="padding:8px 14px;background:#10b981;color:#fff;border:0;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600;">✓ Approve for Dev</button>`:''}
-        ${(f.status==='approved'||f.status==='sprint')?`<button onclick="pmExecuteFeature(${f.id})" style="padding:8px 14px;background:var(--accent);color:#fff;border:0;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600;">▶ Execute Now</button>`:''}
-        <button onclick="pmKickResearch(${f.id})" style="padding:8px 14px;background:var(--card2);color:var(--text);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:12px;font-weight:600;">↻ Re-run Research</button>
-        <button onclick="document.getElementById('pmFeatureModal').remove()" style="padding:8px 14px;background:var(--card2);color:var(--text);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:12px;font-weight:600;">Close</button>
+      <div class="pm-modal-actions">
+        ${(f.status==='backlog'||f.status==='ranked')?`<button onclick="pmApproveFeature(${f.id});setTimeout(()=>document.getElementById('pmFeatureModal').remove(),500);" style="background:#10b981;color:#fff;border:0;">✓ Approve for Dev</button>`:''}
+        ${(f.status==='approved'||f.status==='sprint')?`<button onclick="pmExecuteFeature(${f.id})" style="background:var(--accent);color:#fff;border:0;">▶ Execute Now</button>`:''}
+        <button onclick="pmKickResearch(${f.id})" style="background:var(--card2);color:var(--text);border:1px solid var(--border);">↻ Re-run Research</button>
+        <button onclick="document.getElementById('pmFeatureModal').remove()" style="background:var(--card2);color:var(--text);border:1px solid var(--border);">Close</button>
       </div>
     </div>`;
 }
@@ -13011,7 +13055,7 @@ async function loadPmSprints() {
       <div style="font-size:13px;color:var(--text);margin-top:6px;">${_pmEsc(s.goal||'')}</div>
       <div style="font-size:11px;color:var(--text2);margin-top:8px;">Features: ${(s.feature_ids||[]).length}</div>
     </div>`).join('');
-    el.innerHTML = `<div style="padding:16px 24px;max-width:1000px;margin:0 auto;">
+    el.innerHTML = `<div class="pm-shell" style="max-width:1000px;">
       <h2 style="margin:0 0 14px 0;color:var(--text);">PM Sprints</h2>
       ${html||'<div style="color:var(--text3);">No sprints yet. Approve a feature to start one.</div>'}
     </div>`;
@@ -13033,8 +13077,8 @@ async function loadPmMeetings() {
       <div style="font-size:12px;color:var(--text2);margin-top:4px;">${_pmEsc(m.meeting_type||'')} · ${(m.attendees||[]).length} attendees</div>
       <div style="font-size:13px;color:var(--text);margin-top:6px;">${_pmEsc((m.summary||'').slice(0,200))}</div>
     </div>`).join('');
-    el.innerHTML = `<div style="padding:16px 24px;max-width:1000px;margin:0 auto;">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+    el.innerHTML = `<div class="pm-shell" style="max-width:1000px;">
+      <div class="pm-header">
         <h2 style="margin:0;color:var(--text);">PM Team Meetings</h2>
         <button onclick="pmTriggerStandup()" style="padding:8px 14px;background:var(--accent);color:#fff;border:0;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600;">+ Trigger Standup</button>
       </div>
@@ -13063,12 +13107,12 @@ async function pmOpenMeeting(id) {
     const dlg = document.getElementById('pmMeetingModal') || (() => {
       const d = document.createElement('div');
       d.id = 'pmMeetingModal';
-      d.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;display:flex;align-items:flex-start;justify-content:center;padding:32px;overflow-y:auto;';
+      d.className = 'pm-modal-overlay';
       d.onclick = (e) => { if (e.target===d) d.remove(); };
       document.body.appendChild(d);
       return d;
     })();
-    dlg.innerHTML = `<div style="background:var(--bg);border:1px solid var(--border);border-radius:12px;max-width:900px;width:100%;padding:20px;color:var(--text);">
+    dlg.innerHTML = `<div class="pm-modal-dialog" style="max-width:900px;">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
         <div>
           <h2 style="margin:0;font-size:18px;">${_pmEsc(m.title)}</h2>
@@ -13108,9 +13152,9 @@ async function loadPmCalendar() {
     });
     const days = Object.keys(groups).sort();
     const html = days.map(d => {
-      const items = groups[d].map(ev => `<div style="display:flex;gap:8px;align-items:center;padding:8px 10px;background:var(--card2);border-left:3px solid ${ev.color||'#3b82f6'};border-radius:6px;margin-bottom:4px;">
-        <div style="font-size:11px;color:var(--text2);min-width:60px;">${ev.start_at?new Date(ev.start_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}):''}</div>
-        <div style="flex:1;">
+      const items = groups[d].map(ev => `<div class="pm-meeting-event" style="border-left:3px solid ${ev.color||'#3b82f6'};">
+        <div class="pm-meeting-event-time">${ev.start_at?new Date(ev.start_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}):''}</div>
+        <div class="pm-meeting-event-body">
           <div style="font-size:13px;font-weight:600;color:var(--text);">${_pmEsc(ev.title)}</div>
           <div style="font-size:11px;color:var(--text2);">${_pmEsc(ev.event_type||'')} · ${(ev.attendees||[]).length} attendees</div>
         </div>
@@ -13121,7 +13165,7 @@ async function loadPmCalendar() {
         ${items}
       </div>`;
     }).join('');
-    el.innerHTML = `<div style="padding:16px 24px;max-width:900px;margin:0 auto;">
+    el.innerHTML = `<div class="pm-shell" style="max-width:900px;">
       <h2 style="margin:0 0 14px 0;color:var(--text);">PM Team Calendar</h2>
       ${html||'<div style="color:var(--text3);">No events.</div>'}
     </div>`;
@@ -13135,13 +13179,13 @@ async function loadPmGmail() {
     const r = await fetch(`${PM_API}/emails`);
     const data = await r.json();
     const emails = data.emails || [];
-    const list = emails.map(e => `<div onclick="pmOpenEmail(${e.id})" style="display:grid;grid-template-columns:140px 200px 1fr 100px;gap:10px;padding:10px 12px;background:${e.is_read?'var(--card)':'var(--card2)'};border:1px solid var(--border);border-radius:8px;margin-bottom:6px;cursor:pointer;${e.is_read?'':'border-left:3px solid var(--accent);'}">
-      <div style="font-size:12px;font-weight:${e.is_read?'400':'700'};color:var(--text);">${_pmEsc(e.from_name||e.from_email||'')}</div>
-      <div style="font-size:11px;color:var(--text2);">${_pmEsc(e.email_type||'')}</div>
-      <div style="font-size:13px;font-weight:${e.is_read?'400':'700'};color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${e.is_starred?'⭐ ':''}${_pmEsc(e.subject||'')}</div>
-      <div style="font-size:11px;color:var(--text2);text-align:right;">${_pmFmtDay(e.sent_at)}</div>
+    const list = emails.map(e => `<div onclick="pmOpenEmail(${e.id})" class="pm-email-row${e.is_read?'':' unread'}" style="background:${e.is_read?'var(--card)':'var(--card2)'};${e.is_read?'':'border-left:3px solid var(--accent);'}">
+      <div class="pm-email-from">${_pmEsc(e.from_name||e.from_email||'')}</div>
+      <div class="pm-email-type">${_pmEsc(e.email_type||'')}</div>
+      <div class="pm-email-subject">${e.is_starred?'⭐ ':''}${_pmEsc(e.subject||'')}</div>
+      <div class="pm-email-date">${_pmFmtDay(e.sent_at)}</div>
     </div>`).join('');
-    el.innerHTML = `<div style="padding:16px 24px;max-width:1100px;margin:0 auto;">
+    el.innerHTML = `<div class="pm-shell" style="max-width:1100px;">
       <h2 style="margin:0 0 14px 0;color:var(--text);">PM Team Inbox</h2>
       ${list||'<div style="color:var(--text3);">No emails yet.</div>'}
     </div>`;
@@ -13155,12 +13199,12 @@ async function pmOpenEmail(id) {
     const dlg = document.getElementById('pmEmailModal') || (() => {
       const d = document.createElement('div');
       d.id = 'pmEmailModal';
-      d.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;display:flex;align-items:flex-start;justify-content:center;padding:32px;overflow-y:auto;';
+      d.className = 'pm-modal-overlay';
       d.onclick = (ev) => { if (ev.target===d) d.remove(); };
       document.body.appendChild(d);
       return d;
     })();
-    dlg.innerHTML = `<div style="background:var(--bg);border:1px solid var(--border);border-radius:12px;max-width:800px;width:100%;padding:20px;color:var(--text);">
+    dlg.innerHTML = `<div class="pm-modal-dialog" style="max-width:800px;">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
         <div style="flex:1;">
           <h2 style="margin:0;font-size:18px;">${e.is_starred?'⭐ ':''}${_pmEsc(e.subject||'')}</h2>

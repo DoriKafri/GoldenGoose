@@ -12877,11 +12877,23 @@ function _pmRadar(scoresByCycle) {
   const labels = {problem_clarity:'Problem',opportunity_validation:'Opportunity',outcome_metric:'Metric',smallest_test:'Test',lno_leverage:'LNO',counterfactual_cost:'Cost',implementation_realism:'Realism'};
   const cycles = Object.keys(scoresByCycle||{}).sort((a,b)=>parseInt(b)-parseInt(a));
   if (!cycles.length) return '<div style="color:var(--text3);font-size:12px;">No scores yet.</div>';
-  const last = scoresByCycle[cycles[0]] || [];
+  const last = scoresByCycle[cycles[0]] || {};
+  // last shape: { persona: { dim: {score, rationale} } } OR legacy [{dimension,score}]
   const dimAvg = {};
   dims.forEach(d => {
-    const arr = last.filter(s=>s.dimension===d).map(s=>s.score);
-    dimAvg[d] = arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : 0;
+    let scores = [];
+    if (Array.isArray(last)) {
+      scores = last.filter(s=>s.dimension===d).map(s=>s.score);
+    } else if (last && typeof last === 'object') {
+      Object.values(last).forEach(personaDims => {
+        if (personaDims && typeof personaDims === 'object') {
+          const cell = personaDims[d];
+          if (cell && typeof cell === 'object' && typeof cell.score === 'number') scores.push(cell.score);
+          else if (typeof cell === 'number') scores.push(cell);
+        }
+      });
+    }
+    dimAvg[d] = scores.length ? scores.reduce((a,b)=>a+b,0)/scores.length : 0;
   });
   // Render simple SVG radar
   const cx=120, cy=120, r=90;

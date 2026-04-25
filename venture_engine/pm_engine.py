@@ -861,6 +861,83 @@ def generate_feature_idea(db: Session, persona_key: str | None = None,
 
 # ─── Daily backlog ranking (value × ease) ─────────────────────────────────
 
+# Map of which 7-dim sub-scores feed VALUE vs EASE in the offline fallback.
+# (Used only when Gemini quota is exhausted; the LLM path remains preferred.)
+VALUE_DIMS_OFFLINE = ["problem_clarity", "opportunity_validation",
+                      "outcome_metric", "counterfactual_cost"]
+EASE_DIMS_OFFLINE = ["smallest_test", "lno_leverage", "implementation_realism"]
+
+
+def _latest_dim_scores(db: Session, feature: PMFeature) -> dict[str, float]:
+    """Pull the most recent per-dim sub-scores for a feature from PMFeatureScore.
+    Returns {} if nothing stored. Each score is 0..10."""
+    rows = (
+        db.query(PMFeatureScore)
+        .filter(PMFeatureScore.feature_id == feature.id)
+        .order_by(PMFeatureScore.cycle_n.desc())
+        .all()
+    )
+    # First (highest cycle_n) row per dim wins
+    seen: dict[str, float] = {}
+    for r in rows:
+        if r.dim_key in seen:
+            continue
+        try:
+            seen[r.dim_key] = float(r.score)
+        except Exception:
+            pass
+    return seen
+
+
+def _rank_backlog_offline(db: Session, features: list, post_to_slack: bool = True) -> dict:
+    """Deterministic ranking from already-stored 7-dim sub-scores.
+    Used when Gemini quota is exhausted so the daily ranking still produces
+    a sortable backlog. value = avg of value-leaning dims, ease = avg of
+    ease-leaning dims, composite = value * ease / 10."""
+    now = datetime.utcnow()
+    ranked_count = 0
+    for f in features:
+        dims = _latest_dim_scores(db, f)
+        # Fallback: if no per-dim data, use final_score as both axes
+        if not dims:
+            base = float(f.final_score or 5.0)
+            v_avg = e_avg = round(base, 2)
+        else:
+            v_vals = [dims[k] for k in VALUE_DIMS_OFFLINE if k in dims]
+            e_vals = [dims[k] for k in EASE_DIMS_OFFLINE if k in dims]
+            v_avg = round(sum(v_vals) / len(v_vals), 2) if v_vals else float(f.final_score or 5.0)
+            e_avg = round(sum(e_vals) / len(e_vals), 2) if e_vals else float(f.final_score or 5.0)
+        f.value_score = v_avg
+        f.ease_score = e_avg
+        f.composite_rank_score = round(v_avg * e_avg / 10.0, 2)
+        f.last_ranked_at = now
+        f.status = "ranked"
+        ranked_count += 1
+    db.commit()
+
+    if post_to_slack:
+        try:
+            ch = _ensure_pm_channel(db)
+            top = sorted(
+                [f for f in features if f.composite_rank_score is not None],
+                key=lambda x: x.composite_rank_score, reverse=True,
+            )[:5]
+            lines = [f"📊 *Daily backlog ranking (offline mode — Gemini quota exhausted)* — {now.strftime('%Y-%m-%d')}"]
+            for i, f in enumerate(top, 1):
+                lines.append(f"{i}. *{f.title}* — V:{f.value_score} × E:{f.ease_score} = *{f.composite_rank_score}*")
+            db.add(SlackMessage(
+                channel_id=ch.id,
+                author_email="pm-bot@develeap.com",
+                author_name="PM Bot",
+                body="\n".join(lines),
+            ))
+            db.commit()
+        except Exception as e:
+            logger.warning(f"Offline rank slack post failed: {e}")
+
+    return {"ranked": ranked_count, "mode": "offline_deterministic"}
+
+
 def rank_backlog(db: Session, post_to_slack: bool = True) -> dict:
     """Daily review — each persona scores every backlog feature on
     value-to-users (0-10) and ease-of-implementation (0-10). Average across
@@ -871,8 +948,8 @@ def rank_backlog(db: Session, post_to_slack: bool = True) -> dict:
         return {"ranked": 0}
 
     if not _gemini_rate_check():
-        logger.warning("Gemini quota exhausted — skipping backlog ranking.")
-        return {"ranked": 0, "reason": "quota_exhausted"}
+        logger.warning("Gemini quota exhausted — falling back to deterministic 7-dim ranking.")
+        return _rank_backlog_offline(db, features, post_to_slack=post_to_slack)
 
     # Build a compact list for one-shot scoring
     listing = "\n".join(

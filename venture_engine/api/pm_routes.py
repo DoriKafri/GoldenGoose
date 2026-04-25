@@ -516,7 +516,7 @@ def continue_all_research(db: Session = Depends(get_db_dependency)):
     in a background thread so the request returns immediately."""
     candidates = (
         db.query(PMFeature)
-        .filter(PMFeature.status.in_(["backlog", "ranked"]))
+        .filter(PMFeature.status.in_(["backlog", "ranked", "researching"]))
         .filter(
             (PMFeature.research_cycles_completed == None)
             | (PMFeature.research_cycles_completed < MAX_CYCLES)

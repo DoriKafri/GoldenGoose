@@ -158,6 +158,31 @@ def _weekly_ic_review():
     run_weekly_ic_review()
 
 
+def _daily_pm_review():
+    """Job 13: 3-Agent PM Team daily review — feature ideation, research loops,
+    backlog ranking, daily standup, recap emails."""
+    logger.info("=== SCHEDULED: Daily PM team review ===")
+    try:
+        from venture_engine.pm_engine import run_daily_pm_review
+        result = run_daily_pm_review(post_to_slack=True)
+        logger.info(f"PM daily review: {result}")
+    except Exception as e:
+        logger.error(f"PM daily review failed: {e}")
+
+
+def _pm_sprint_executor():
+    """Job 14: Sprint executor — picks up an approved feature and runs it
+    through codegen → test → deploy. Runs every 30 min."""
+    logger.info("=== SCHEDULED: PM sprint executor cycle ===")
+    try:
+        from venture_engine.sprint_executor import run_sprint_cycle
+        result = run_sprint_cycle()
+        if result.get("executed"):
+            logger.info(f"PM sprint cycle: {result}")
+    except Exception as e:
+        logger.error(f"PM sprint executor failed: {e}")
+
+
 def _update_tl_personas():
     """Job 7: Weekly update of thought leader personas with latest public thoughts."""
     logger.info("=== SCHEDULED: TL persona update starting ===")
@@ -364,6 +389,24 @@ def start_scheduler():
         hour=14,
         timezone=SCHEDULER_TZ,
         id="weekly_ic_review",
+        replace_existing=True,
+    )
+    # 3-Agent PM Team — daily review at 9 AM IST (right after office hours start)
+    scheduler.add_job(
+        _daily_pm_review,
+        "cron",
+        hour=9,
+        minute=15,
+        timezone=SCHEDULER_TZ,
+        id="pm_daily_review",
+        replace_existing=True,
+    )
+    # Sprint executor — picks up approved features every 30 min
+    scheduler.add_job(
+        _pm_sprint_executor,
+        "interval",
+        minutes=30,
+        id="pm_sprint_executor",
         replace_existing=True,
     )
     scheduler.start()

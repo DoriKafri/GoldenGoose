@@ -490,3 +490,202 @@ class GraphEdge(Base):
     __table_args__ = (
         UniqueConstraint("source_type", "source_id", "target_type", "target_id", "relation", name="uq_graph_edge"),
     )
+
+
+# ─── 3-Agent PM Team ──────────────────────────────────────────────────────
+# Three product-manager personas (Cagan/Torres/Doshi) iterate on feature
+# proposals through a 10-cycle Karpathy-style research loop, then daily
+# triage & rank the backlog. The human (you) green-lights each feature
+# before development. Sprint executor auto-deploys with rollback.
+
+class PMFeature(Base):
+    """A product feature proposal owned by the 3-agent PM team.
+
+    Lifecycle:
+      researching  → in 10-cycle Karpathy loop, not yet in backlog
+      backlog      → loop converged, awaiting daily ranking
+      ranked       → daily review scored & ranked it
+      approved     → human green-lit it for dev (man-in-the-loop gate)
+      sprint       → moved into current sprint
+      in_dev       → sprint executor working on it
+      testing      → red/green tests running
+      deployed     → green tests passed, pushed live
+      rolled_back  → broke prod, reverted
+      rejected     → loop got stuck, flagged for human review
+    """
+    __tablename__ = "pm_features"
+
+    id = Column(String, primary_key=True, default=new_uuid)
+    title = Column(Text, nullable=False)
+    one_liner = Column(Text, nullable=True)             # 1-sentence pitch
+    user_problem = Column(Text, nullable=True)          # who/when/cost
+    proposed_solution = Column(Text, nullable=True)
+    outcome_metric = Column(Text, nullable=True)        # leading metric + baseline + target
+    smallest_test = Column(Text, nullable=True)         # falsifiable experiment
+    lno_classification = Column(Text, nullable=True)    # "Leverage" | "Neutral" | "Overhead"
+    counterfactual_cost = Column(Text, nullable=True)   # cost of NOT building
+    implementation_notes = Column(Text, nullable=True)  # effort, deps, failure modes
+    mockup_html = Column(Text, nullable=True)           # non-functional HTML/SVG sketch
+    dev_plan = Column(JSON, nullable=True)              # [{step, files, est_minutes}]
+    test_plan = Column(JSON, nullable=True)             # {red: [...], green: [...]}
+    proposed_by_persona = Column(Text, nullable=True)   # cagan | torres | doshi
+    status = Column(Text, default="researching", index=True)
+    research_cycles_completed = Column(Integer, default=0)
+    research_terminated_reason = Column(Text, nullable=True)  # plateau | regress | stuck | max_cycles
+    final_score = Column(Float, nullable=True)          # average across 7 dims, all 3 agents
+    value_score = Column(Float, nullable=True)          # daily-rank: value to users (0-10)
+    ease_score = Column(Float, nullable=True)           # daily-rank: ease of implementation (0-10)
+    composite_rank_score = Column(Float, nullable=True) # value * ease, normalized
+    last_ranked_at = Column(DateTime, nullable=True)
+    approved_at = Column(DateTime, nullable=True)
+    approved_by = Column(Text, nullable=True)           # email of human approver
+    sprint_id = Column(String, ForeignKey("pm_sprints.id"), nullable=True)
+    deployed_at = Column(DateTime, nullable=True)
+    deployed_commit_sha = Column(String(40), nullable=True)
+    rolled_back_at = Column(DateTime, nullable=True)
+    rollback_reason = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    cycles = relationship("PMResearchCycle", back_populates="feature",
+                          order_by="PMResearchCycle.cycle_n",
+                          cascade="all, delete-orphan")
+    scores = relationship("PMFeatureScore", back_populates="feature",
+                          cascade="all, delete-orphan")
+
+
+class PMResearchCycle(Base):
+    """One iteration of the 10-cycle Karpathy-style research loop.
+
+    Per cycle: pick weakest dim → owner persona proposes revision targeting
+    that dim → other two critique → revised version re-scored. Improvement
+    iff weakest dim rose ≥ 1.0 AND no other dim regressed > 0.5.
+    """
+    __tablename__ = "pm_research_cycles"
+
+    id = Column(String, primary_key=True, default=new_uuid)
+    feature_id = Column(String, ForeignKey("pm_features.id"), nullable=False, index=True)
+    cycle_n = Column(Integer, nullable=False)           # 0 (seed) through 10
+    weakest_dim = Column(Text, nullable=True)           # which dim was targeted this cycle
+    owner_persona = Column(Text, nullable=True)         # cagan | torres | doshi
+    revision_summary = Column(Text, nullable=True)      # what changed
+    revision_diff = Column(JSON, nullable=True)         # {field: {before, after}}
+    critiques = Column(JSON, nullable=True)             # [{persona, critique}]
+    score_before = Column(JSON, nullable=True)          # {dim: avg_score} pre-cycle
+    score_after = Column(JSON, nullable=True)           # {dim: avg_score} post-cycle
+    weakest_delta = Column(Float, nullable=True)        # uplift on targeted dim
+    accepted = Column(Boolean, default=False)           # passed improvement criterion
+    rejection_reason = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    feature = relationship("PMFeature", back_populates="cycles")
+
+
+class PMFeatureScore(Base):
+    """One persona's score on one feature on one of the 7 rubric dimensions."""
+    __tablename__ = "pm_feature_scores"
+
+    id = Column(String, primary_key=True, default=new_uuid)
+    feature_id = Column(String, ForeignKey("pm_features.id"), nullable=False, index=True)
+    cycle_n = Column(Integer, default=0)                # which cycle this score was recorded at
+    persona = Column(Text, nullable=False)              # cagan | torres | doshi
+    dimension = Column(Text, nullable=False)            # problem_clarity, opportunity_validation, etc.
+    score = Column(Float, nullable=False)               # 0-10
+    rationale = Column(Text, nullable=True)             # short justification
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    feature = relationship("PMFeature", back_populates="scores")
+
+
+class PMSprint(Base):
+    """A sprint cadence for the PM team (default 1 week)."""
+    __tablename__ = "pm_sprints"
+
+    id = Column(String, primary_key=True, default=new_uuid)
+    name = Column(Text, nullable=False)                 # e.g. "Sprint 12"
+    start_date = Column(Date, default=date.today)
+    end_date = Column(Date, nullable=True)
+    goal = Column(Text, nullable=True)                  # sprint theme
+    status = Column(Text, default="active", index=True) # planning | active | review | closed
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class PMMeeting(Base):
+    """A simulated Zoom-style daily meeting between the 3 PM personas.
+
+    Generated once a day. Has a transcript (speaker-labeled), a summary,
+    and extracted action items.
+    """
+    __tablename__ = "pm_meetings"
+
+    id = Column(String, primary_key=True, default=new_uuid)
+    title = Column(Text, nullable=False)                # "PM Daily Standup — 2026-04-25"
+    meeting_type = Column(Text, default="standup")      # standup | research_review | sprint_planning | sprint_review
+    scheduled_at = Column(DateTime, nullable=False, index=True)
+    duration_minutes = Column(Integer, default=15)
+    attendees = Column(JSON, nullable=True)             # [{name, persona, email}]
+    transcript = Column(JSON, nullable=True)            # [{speaker, persona, body, timestamp}]
+    summary = Column(Text, nullable=True)               # 3-sentence recap
+    feature_ids_discussed = Column(JSON, nullable=True) # [feature_id, ...]
+    zoom_link = Column(Text, nullable=True)             # simulated zoom URL
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    action_items = relationship("PMActionItem", back_populates="meeting",
+                                cascade="all, delete-orphan")
+
+
+class PMActionItem(Base):
+    """An action item extracted from a PMMeeting transcript."""
+    __tablename__ = "pm_action_items"
+
+    id = Column(String, primary_key=True, default=new_uuid)
+    meeting_id = Column(String, ForeignKey("pm_meetings.id"), nullable=False, index=True)
+    feature_id = Column(String, ForeignKey("pm_features.id"), nullable=True)
+    owner_persona = Column(Text, nullable=False)        # cagan | torres | doshi
+    body = Column(Text, nullable=False)
+    status = Column(Text, default="open")               # open | done
+    due_date = Column(Date, nullable=True)
+    completed_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    meeting = relationship("PMMeeting", back_populates="action_items")
+
+
+class PMEmail(Base):
+    """A simulated Gmail-style email from the PM team about meetings or sprint updates."""
+    __tablename__ = "pm_emails"
+
+    id = Column(String, primary_key=True, default=new_uuid)
+    thread_id = Column(String, nullable=True, index=True)  # group emails into threads
+    from_persona = Column(Text, nullable=False)         # cagan | torres | doshi
+    from_email = Column(Text, nullable=False)
+    from_name = Column(Text, nullable=False)
+    to_email = Column(Text, default="dori.kafri@develeap.com")
+    cc_emails = Column(JSON, nullable=True)             # [email, ...]
+    subject = Column(Text, nullable=False)
+    body = Column(Text, nullable=False)                 # markdown / html
+    email_type = Column(Text, default="meeting_recap")  # meeting_recap | sprint_update | feature_proposal | research_summary
+    feature_id = Column(String, ForeignKey("pm_features.id"), nullable=True)
+    meeting_id = Column(String, ForeignKey("pm_meetings.id"), nullable=True)
+    is_read = Column(Boolean, default=False)
+    is_starred = Column(Boolean, default=False)
+    sent_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+
+class PMCalendarEvent(Base):
+    """A simulated shared-calendar event (PM team meetings, sprint ceremonies)."""
+    __tablename__ = "pm_calendar_events"
+
+    id = Column(String, primary_key=True, default=new_uuid)
+    title = Column(Text, nullable=False)
+    description = Column(Text, nullable=True)
+    event_type = Column(Text, default="standup")        # standup | sprint_planning | sprint_review | research_session | demo
+    start_at = Column(DateTime, nullable=False, index=True)
+    end_at = Column(DateTime, nullable=False)
+    attendees = Column(JSON, nullable=True)             # [{name, email}]
+    meeting_id = Column(String, ForeignKey("pm_meetings.id"), nullable=True)
+    sprint_id = Column(String, ForeignKey("pm_sprints.id"), nullable=True)
+    feature_id = Column(String, ForeignKey("pm_features.id"), nullable=True)
+    zoom_link = Column(Text, nullable=True)
+    color = Column(Text, default="#2563eb")             # tailwind blue-600
+    created_at = Column(DateTime, default=datetime.utcnow)

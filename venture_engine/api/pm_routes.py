@@ -1,0 +1,501 @@
+"""
+API routes for the 3-Agent PM Team feature.
+
+All endpoints prefixed /api/pm/.
+"""
+from __future__ import annotations
+
+import threading
+from datetime import datetime, timedelta, date
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Header, Query
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
+from loguru import logger
+
+from venture_engine.db.session import get_db_dependency
+from venture_engine.db.models import (
+    PMFeature, PMResearchCycle, PMFeatureScore, PMSprint,
+    PMMeeting, PMActionItem, PMEmail, PMCalendarEvent,
+)
+from venture_engine.pm_engine import (
+    PERSONAS, PERSONAS_BY_KEY, DIMENSIONS, DIM_BY_KEY,
+    generate_feature_idea, kick_off_research, rank_backlog,
+    run_daily_standup, generate_mockup, generate_dev_and_test_plan,
+    approve_feature_for_sprint, get_or_create_active_sprint,
+    seed_pm_team, run_daily_pm_review,
+)
+from venture_engine.sprint_executor import (
+    execute_feature, run_sprint_cycle, PM_AUTO_DEPLOY, PM_RUN_REAL_TESTS,
+)
+
+pm_router = APIRouter(prefix="/api/pm", tags=["pm-team"])
+
+
+# ─── Schemas ──────────────────────────────────────────────────────────────
+
+class FeatureCreateRequest(BaseModel):
+    persona: Optional[str] = None         # cagan | torres | doshi
+    context_hint: Optional[str] = None    # optional user nudge
+
+
+class FeatureApproveRequest(BaseModel):
+    approver_email: str = "dori.kafri@develeap.com"
+
+
+class FeatureUpdateRequest(BaseModel):
+    title: Optional[str] = None
+    one_liner: Optional[str] = None
+    user_problem: Optional[str] = None
+    proposed_solution: Optional[str] = None
+    outcome_metric: Optional[str] = None
+    smallest_test: Optional[str] = None
+    lno_classification: Optional[str] = None
+    counterfactual_cost: Optional[str] = None
+    implementation_notes: Optional[str] = None
+
+
+# ─── Serializers ──────────────────────────────────────────────────────────
+
+def _feature_to_dict(f: PMFeature, include_plans: bool = False) -> dict:
+    persona = PERSONAS_BY_KEY.get(f.proposed_by_persona) if f.proposed_by_persona else None
+    out = {
+        "id": f.id,
+        "title": f.title,
+        "one_liner": f.one_liner,
+        "user_problem": f.user_problem,
+        "proposed_solution": f.proposed_solution,
+        "outcome_metric": f.outcome_metric,
+        "smallest_test": f.smallest_test,
+        "lno_classification": f.lno_classification,
+        "counterfactual_cost": f.counterfactual_cost,
+        "implementation_notes": f.implementation_notes,
+        "status": f.status,
+        "research_cycles_completed": f.research_cycles_completed,
+        "research_terminated_reason": f.research_terminated_reason,
+        "final_score": f.final_score,
+        "value_score": f.value_score,
+        "ease_score": f.ease_score,
+        "composite_rank_score": f.composite_rank_score,
+        "last_ranked_at": f.last_ranked_at.isoformat() if f.last_ranked_at else None,
+        "approved_at": f.approved_at.isoformat() if f.approved_at else None,
+        "approved_by": f.approved_by,
+        "deployed_at": f.deployed_at.isoformat() if f.deployed_at else None,
+        "deployed_commit_sha": f.deployed_commit_sha,
+        "rolled_back_at": f.rolled_back_at.isoformat() if f.rolled_back_at else None,
+        "rollback_reason": f.rollback_reason,
+        "sprint_id": f.sprint_id,
+        "created_at": f.created_at.isoformat() if f.created_at else None,
+        "updated_at": f.updated_at.isoformat() if f.updated_at else None,
+        "proposed_by_persona": f.proposed_by_persona,
+        "proposed_by_persona_name": persona["name"] if persona else None,
+    }
+    if include_plans:
+        out["mockup_html"] = f.mockup_html
+        out["dev_plan"] = f.dev_plan
+        out["test_plan"] = f.test_plan
+    else:
+        out["has_mockup"] = bool(f.mockup_html)
+        out["has_dev_plan"] = bool(f.dev_plan)
+        out["has_test_plan"] = bool(f.test_plan)
+    return out
+
+
+def _cycle_to_dict(c: PMResearchCycle) -> dict:
+    return {
+        "id": c.id,
+        "cycle_n": c.cycle_n,
+        "weakest_dim": c.weakest_dim,
+        "weakest_dim_label": DIM_BY_KEY.get(c.weakest_dim, {}).get("label") if c.weakest_dim else None,
+        "owner_persona": c.owner_persona,
+        "owner_name": PERSONAS_BY_KEY.get(c.owner_persona, {}).get("name") if c.owner_persona else None,
+        "revision_summary": c.revision_summary,
+        "revision_diff": c.revision_diff,
+        "critiques": c.critiques,
+        "score_before": c.score_before,
+        "score_after": c.score_after,
+        "weakest_delta": c.weakest_delta,
+        "accepted": c.accepted,
+        "rejection_reason": c.rejection_reason,
+        "created_at": c.created_at.isoformat() if c.created_at else None,
+    }
+
+
+def _meeting_to_dict(m: PMMeeting, db: Session, include_full: bool = False) -> dict:
+    action_items = db.query(PMActionItem).filter(PMActionItem.meeting_id == m.id).all()
+    out = {
+        "id": m.id,
+        "title": m.title,
+        "meeting_type": m.meeting_type,
+        "scheduled_at": m.scheduled_at.isoformat() if m.scheduled_at else None,
+        "duration_minutes": m.duration_minutes,
+        "attendees": m.attendees,
+        "summary": m.summary,
+        "feature_ids_discussed": m.feature_ids_discussed,
+        "zoom_link": m.zoom_link,
+        "action_items": [
+            {
+                "id": ai.id,
+                "owner_persona": ai.owner_persona,
+                "owner_name": PERSONAS_BY_KEY.get(ai.owner_persona, {}).get("name", ai.owner_persona),
+                "body": ai.body,
+                "status": ai.status,
+                "due_date": ai.due_date.isoformat() if ai.due_date else None,
+                "feature_id": ai.feature_id,
+            }
+            for ai in action_items
+        ],
+        "action_item_count": len(action_items),
+    }
+    if include_full:
+        out["transcript"] = m.transcript
+    else:
+        out["transcript_turn_count"] = len(m.transcript or [])
+    return out
+
+
+def _email_to_dict(e: PMEmail) -> dict:
+    return {
+        "id": e.id,
+        "thread_id": e.thread_id,
+        "from_persona": e.from_persona,
+        "from_email": e.from_email,
+        "from_name": e.from_name,
+        "to_email": e.to_email,
+        "cc_emails": e.cc_emails,
+        "subject": e.subject,
+        "body": e.body,
+        "email_type": e.email_type,
+        "feature_id": e.feature_id,
+        "meeting_id": e.meeting_id,
+        "is_read": e.is_read,
+        "is_starred": e.is_starred,
+        "sent_at": e.sent_at.isoformat() if e.sent_at else None,
+    }
+
+
+def _calendar_to_dict(c: PMCalendarEvent) -> dict:
+    return {
+        "id": c.id,
+        "title": c.title,
+        "description": c.description,
+        "event_type": c.event_type,
+        "start_at": c.start_at.isoformat() if c.start_at else None,
+        "end_at": c.end_at.isoformat() if c.end_at else None,
+        "attendees": c.attendees,
+        "meeting_id": c.meeting_id,
+        "sprint_id": c.sprint_id,
+        "feature_id": c.feature_id,
+        "zoom_link": c.zoom_link,
+        "color": c.color,
+    }
+
+
+# ─── Endpoints: meta / personas / dimensions ──────────────────────────────
+
+@pm_router.get("/personas")
+def get_personas():
+    return {"personas": [
+        {
+            "key": p["key"], "name": p["name"], "title": p["title"],
+            "email": p["email"], "avatar_initials": p["avatar_initials"],
+            "color": p["color"], "publications": p["publications"],
+            "core_principles": p["core_principles"], "voice": p["voice"],
+            "owns_dims": p["owns_dims"],
+        }
+        for p in PERSONAS
+    ]}
+
+
+@pm_router.get("/dimensions")
+def get_dimensions():
+    return {"dimensions": DIMENSIONS}
+
+
+@pm_router.get("/status")
+def get_status(db: Session = Depends(get_db_dependency)):
+    """Snapshot of the PM team state."""
+    counts = {}
+    for status in ["researching", "backlog", "ranked", "approved", "in_dev", "testing", "deployed", "rolled_back", "rejected"]:
+        counts[status] = db.query(PMFeature).filter(PMFeature.status == status).count()
+    sprint = db.query(PMSprint).filter(PMSprint.status == "active").order_by(PMSprint.start_date.desc()).first()
+    last_meeting = db.query(PMMeeting).order_by(PMMeeting.scheduled_at.desc()).first()
+    return {
+        "feature_counts": counts,
+        "active_sprint": {
+            "id": sprint.id, "name": sprint.name,
+            "start_date": sprint.start_date.isoformat() if sprint and sprint.start_date else None,
+            "end_date": sprint.end_date.isoformat() if sprint and sprint.end_date else None,
+            "goal": sprint.goal,
+        } if sprint else None,
+        "last_meeting_at": last_meeting.scheduled_at.isoformat() if last_meeting else None,
+        "auto_deploy_enabled": PM_AUTO_DEPLOY,
+        "real_tests_enabled": PM_RUN_REAL_TESTS,
+    }
+
+
+# ─── Endpoints: features / backlog ────────────────────────────────────────
+
+@pm_router.get("/features")
+def list_features(
+    status: Optional[str] = None,
+    limit: int = 100,
+    db: Session = Depends(get_db_dependency),
+):
+    q = db.query(PMFeature)
+    if status:
+        if "," in status:
+            q = q.filter(PMFeature.status.in_(status.split(",")))
+        else:
+            q = q.filter(PMFeature.status == status)
+    items = q.order_by(
+        PMFeature.composite_rank_score.desc().nullslast(),
+        PMFeature.created_at.desc(),
+    ).limit(limit).all()
+    return {"features": [_feature_to_dict(f) for f in items], "count": len(items)}
+
+
+@pm_router.get("/features/{feature_id}")
+def get_feature(feature_id: str, db: Session = Depends(get_db_dependency)):
+    f = db.query(PMFeature).filter(PMFeature.id == feature_id).first()
+    if not f:
+        raise HTTPException(404, "Feature not found")
+    cycles = db.query(PMResearchCycle).filter(PMResearchCycle.feature_id == feature_id).order_by(PMResearchCycle.cycle_n).all()
+    scores = db.query(PMFeatureScore).filter(PMFeatureScore.feature_id == feature_id).all()
+
+    # Group scores by cycle and persona for radar display
+    scores_grouped = {}
+    for s in scores:
+        scores_grouped.setdefault(s.cycle_n, {}).setdefault(s.persona, {})[s.dimension] = {
+            "score": s.score, "rationale": s.rationale,
+        }
+
+    return {
+        "feature": _feature_to_dict(f, include_plans=True),
+        "cycles": [_cycle_to_dict(c) for c in cycles],
+        "scores_by_cycle": scores_grouped,
+    }
+
+
+@pm_router.post("/features")
+def create_feature(req: FeatureCreateRequest, db: Session = Depends(get_db_dependency)):
+    f = generate_feature_idea(db, persona_key=req.persona, context_hint=req.context_hint)
+    if not f:
+        raise HTTPException(503, "Idea generation failed (Gemini quota or API error)")
+    # Kick off research loop in the background
+    kick_off_research(f.id)
+    return {"feature": _feature_to_dict(f), "research_started": True}
+
+
+@pm_router.patch("/features/{feature_id}")
+def update_feature(feature_id: str, req: FeatureUpdateRequest, db: Session = Depends(get_db_dependency)):
+    f = db.query(PMFeature).filter(PMFeature.id == feature_id).first()
+    if not f:
+        raise HTTPException(404, "Feature not found")
+    for field, val in req.model_dump(exclude_none=True).items():
+        if hasattr(f, field):
+            setattr(f, field, val)
+    db.commit()
+    return {"feature": _feature_to_dict(f, include_plans=True)}
+
+
+@pm_router.post("/features/{feature_id}/approve")
+def approve_feature(feature_id: str, req: FeatureApproveRequest,
+                    db: Session = Depends(get_db_dependency)):
+    f = approve_feature_for_sprint(db, feature_id, req.approver_email)
+    if not f:
+        raise HTTPException(404, "Feature not found")
+    return {"feature": _feature_to_dict(f, include_plans=True)}
+
+
+@pm_router.post("/features/{feature_id}/research")
+def restart_research(feature_id: str, db: Session = Depends(get_db_dependency)):
+    f = db.query(PMFeature).filter(PMFeature.id == feature_id).first()
+    if not f:
+        raise HTTPException(404, "Feature not found")
+    kick_off_research(feature_id)
+    return {"started": True}
+
+
+@pm_router.post("/features/{feature_id}/mockup")
+def regen_mockup(feature_id: str, db: Session = Depends(get_db_dependency)):
+    html = generate_mockup(feature_id, db)
+    if html is None:
+        raise HTTPException(503, "Mockup generation failed (Gemini quota or feature missing)")
+    return {"mockup_html": html}
+
+
+@pm_router.post("/features/{feature_id}/plans")
+def regen_plans(feature_id: str, db: Session = Depends(get_db_dependency)):
+    plans = generate_dev_and_test_plan(feature_id, db)
+    if not plans:
+        raise HTTPException(503, "Plan generation failed")
+    return plans
+
+
+@pm_router.post("/features/{feature_id}/execute")
+def execute_now(feature_id: str, db: Session = Depends(get_db_dependency)):
+    """Force-trigger sprint executor on this approved feature."""
+    return execute_feature(feature_id, db)
+
+
+@pm_router.delete("/features/{feature_id}")
+def delete_feature(feature_id: str, db: Session = Depends(get_db_dependency)):
+    f = db.query(PMFeature).filter(PMFeature.id == feature_id).first()
+    if not f:
+        raise HTTPException(404, "Feature not found")
+    db.delete(f)
+    db.commit()
+    return {"deleted": True}
+
+
+# ─── Endpoints: sprints ───────────────────────────────────────────────────
+
+@pm_router.get("/sprints")
+def list_sprints(db: Session = Depends(get_db_dependency)):
+    sprints = db.query(PMSprint).order_by(PMSprint.start_date.desc()).limit(20).all()
+    out = []
+    for s in sprints:
+        feats = db.query(PMFeature).filter(PMFeature.sprint_id == s.id).all()
+        out.append({
+            "id": s.id, "name": s.name,
+            "start_date": s.start_date.isoformat() if s.start_date else None,
+            "end_date": s.end_date.isoformat() if s.end_date else None,
+            "goal": s.goal, "status": s.status,
+            "feature_count": len(feats),
+            "features": [
+                {"id": f.id, "title": f.title, "status": f.status,
+                 "deployed_at": f.deployed_at.isoformat() if f.deployed_at else None}
+                for f in feats
+            ],
+        })
+    return {"sprints": out}
+
+
+@pm_router.get("/sprints/active")
+def get_active_sprint(db: Session = Depends(get_db_dependency)):
+    sprint = get_or_create_active_sprint(db)
+    feats = db.query(PMFeature).filter(PMFeature.sprint_id == sprint.id).all()
+    return {
+        "sprint": {
+            "id": sprint.id, "name": sprint.name,
+            "start_date": sprint.start_date.isoformat() if sprint.start_date else None,
+            "end_date": sprint.end_date.isoformat() if sprint.end_date else None,
+            "goal": sprint.goal, "status": sprint.status,
+        },
+        "features": [_feature_to_dict(f) for f in feats],
+    }
+
+
+# ─── Endpoints: meetings ──────────────────────────────────────────────────
+
+@pm_router.get("/meetings")
+def list_meetings(limit: int = 30, db: Session = Depends(get_db_dependency)):
+    meetings = db.query(PMMeeting).order_by(PMMeeting.scheduled_at.desc()).limit(limit).all()
+    return {"meetings": [_meeting_to_dict(m, db) for m in meetings]}
+
+
+@pm_router.get("/meetings/{meeting_id}")
+def get_meeting(meeting_id: str, db: Session = Depends(get_db_dependency)):
+    m = db.query(PMMeeting).filter(PMMeeting.id == meeting_id).first()
+    if not m:
+        raise HTTPException(404, "Meeting not found")
+    return {"meeting": _meeting_to_dict(m, db, include_full=True)}
+
+
+@pm_router.post("/meetings/standup")
+def trigger_standup(db: Session = Depends(get_db_dependency)):
+    meeting = run_daily_standup(db)
+    if not meeting:
+        raise HTTPException(503, "Standup generation failed (Gemini quota?)")
+    return {"meeting": _meeting_to_dict(meeting, db, include_full=True)}
+
+
+# ─── Endpoints: emails (gmail simulation) ─────────────────────────────────
+
+@pm_router.get("/emails")
+def list_emails(limit: int = 50, db: Session = Depends(get_db_dependency)):
+    emails = db.query(PMEmail).order_by(PMEmail.sent_at.desc()).limit(limit).all()
+    return {"emails": [_email_to_dict(e) for e in emails]}
+
+
+@pm_router.get("/emails/{email_id}")
+def get_email(email_id: str, db: Session = Depends(get_db_dependency)):
+    e = db.query(PMEmail).filter(PMEmail.id == email_id).first()
+    if not e:
+        raise HTTPException(404, "Email not found")
+    if not e.is_read:
+        e.is_read = True
+        db.commit()
+    return {"email": _email_to_dict(e)}
+
+
+@pm_router.post("/emails/{email_id}/star")
+def toggle_star(email_id: str, db: Session = Depends(get_db_dependency)):
+    e = db.query(PMEmail).filter(PMEmail.id == email_id).first()
+    if not e:
+        raise HTTPException(404, "Email not found")
+    e.is_starred = not e.is_starred
+    db.commit()
+    return {"is_starred": e.is_starred}
+
+
+# ─── Endpoints: calendar ──────────────────────────────────────────────────
+
+@pm_router.get("/calendar")
+def list_calendar_events(
+    start: Optional[str] = None,
+    end: Optional[str] = None,
+    db: Session = Depends(get_db_dependency),
+):
+    """Calendar events for a range (default: this week ± 1 week)."""
+    now = datetime.utcnow()
+    try:
+        start_dt = datetime.fromisoformat(start) if start else now - timedelta(days=7)
+    except Exception:
+        start_dt = now - timedelta(days=7)
+    try:
+        end_dt = datetime.fromisoformat(end) if end else now + timedelta(days=14)
+    except Exception:
+        end_dt = now + timedelta(days=14)
+    events = (
+        db.query(PMCalendarEvent)
+        .filter(PMCalendarEvent.start_at >= start_dt)
+        .filter(PMCalendarEvent.start_at <= end_dt)
+        .order_by(PMCalendarEvent.start_at)
+        .all()
+    )
+    return {"events": [_calendar_to_dict(e) for e in events],
+            "range": {"start": start_dt.isoformat(), "end": end_dt.isoformat()}}
+
+
+# ─── Endpoints: triggers ──────────────────────────────────────────────────
+
+@pm_router.post("/seed")
+def seed(db: Session = Depends(get_db_dependency)):
+    """Idempotent: create #pm-team channel + active sprint + 2 seed ideas."""
+    return seed_pm_team(db)
+
+
+@pm_router.post("/run-daily")
+def run_daily():
+    """Manually trigger the daily PM review (would normally run on schedule)."""
+    def _runner():
+        try:
+            run_daily_pm_review(post_to_slack=True)
+        except Exception as e:
+            logger.error(f"run-daily failed: {e}")
+    threading.Thread(target=_runner, daemon=True).start()
+    return {"started": True}
+
+
+@pm_router.post("/run-rank")
+def run_rank(db: Session = Depends(get_db_dependency)):
+    return rank_backlog(db)
+
+
+@pm_router.post("/run-sprint")
+def run_sprint():
+    """Manually trigger one sprint executor cycle."""
+    return run_sprint_cycle()

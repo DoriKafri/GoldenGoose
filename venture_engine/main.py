@@ -8,6 +8,7 @@ import sys
 from venture_engine.db.models import Base
 from venture_engine.db.session import engine
 from venture_engine.api.routes import router
+from venture_engine.api.pm_routes import pm_router
 from venture_engine.thought_leaders.registry import seed_thought_leaders
 from venture_engine.db.session import get_db
 
@@ -16,6 +17,7 @@ logger.add(sys.stderr, level="INFO", format="{time:HH:mm:ss} | {level:<7} | {mes
 
 app = FastAPI(title="Develeap Venture Intelligence Engine")
 app.include_router(router)
+app.include_router(pm_router)
 
 
 def _backfill_youtube_thumbnails():
@@ -619,6 +621,7 @@ def on_startup():
     _safe("Backfilling bug proof-of-done", _backfill_bug_proof)
     _safe("Initial IC voting", lambda: __import__('venture_engine.ventures.venture_committee', fromlist=['daily_agent_voting']).daily_agent_voting())
     _safe("Initial IC review", lambda: __import__('venture_engine.ventures.venture_committee', fromlist=['weekly_investment_committee']).weekly_investment_committee())
+    _safe("Seeding PM team", lambda: __import__('venture_engine.pm_engine', fromlist=['seed_pm_team']).seed_pm_team(get_db().__enter__()))
 
     try:
         logger.info("Starting scheduler...")

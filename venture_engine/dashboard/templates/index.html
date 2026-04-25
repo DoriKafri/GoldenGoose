@@ -2040,6 +2040,28 @@ html.tl-fs-pending .lm-timelapse.tl-fullscreen { visibility:visible !important; 
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="2"/><path d="M16.24 7.76a6 6 0 010 8.49"/><path d="M7.76 16.24a6 6 0 010-8.49"/><path d="M19.07 4.93a10 10 0 010 14.14"/><path d="M4.93 19.07a10 10 0 010-14.14"/></svg>
         Live Monitor
       </button>
+      <div class="sidebar-nav-divider"></div>
+      <span class="sidebar-nav-label">PM Team</span>
+      <button class="sidebar-nav-item" data-tab="pm-backlog" onclick="switchTab('pm-backlog')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3 8-8"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+        Backlog
+      </button>
+      <button class="sidebar-nav-item" data-tab="pm-sprints" onclick="switchTab('pm-sprints')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+        Sprints
+      </button>
+      <button class="sidebar-nav-item" data-tab="pm-meetings" onclick="switchTab('pm-meetings')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+        Meetings
+      </button>
+      <button class="sidebar-nav-item" data-tab="pm-calendar" onclick="switchTab('pm-calendar')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        Calendar
+      </button>
+      <button class="sidebar-nav-item" data-tab="pm-gmail" onclick="switchTab('pm-gmail')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+        Inbox
+      </button>
     </div>
 
     <div class="sidebar-section" id="sidebarFilters">
@@ -3026,7 +3048,7 @@ function switchTab(tab, skipHash) {
     b.classList.toggle('active', b.dataset.tab === tab);
   });
   // Show/hide context-sensitive elements
-  const isVentureTab = !['news','threads','bugs','graph','slack','activity','sim-users','leaderboard','release-notes','live','ic'].includes(tab);
+  const isVentureTab = !['news','threads','bugs','graph','slack','activity','sim-users','leaderboard','release-notes','live','ic','pm-backlog','pm-sprints','pm-meetings','pm-calendar','pm-gmail'].includes(tab);
   document.getElementById('suggestTabBtn').style.display = isVentureTab ? '' : 'none';
   document.getElementById('newsPostBar').style.display = (tab === 'news') ? '' : 'none';
   document.getElementById('ventureSearchBar').style.display = isVentureTab ? '' : 'none';
@@ -3056,6 +3078,11 @@ function switchTab(tab, skipHash) {
   else if (tab === 'release-notes') { loadReleaseNotes(); }
   else if (tab === 'live') { loadLiveMonitor(); }
   else if (tab === 'ic') { loadInvestmentCommittee(); }
+  else if (tab === 'pm-backlog') { loadPmBacklog(); }
+  else if (tab === 'pm-sprints') { loadPmSprints(); }
+  else if (tab === 'pm-meetings') { loadPmMeetings(); }
+  else if (tab === 'pm-calendar') { loadPmCalendar(); }
+  else if (tab === 'pm-gmail') { loadPmGmail(); }
   else { loadVentures(); }
 }
 
@@ -3115,7 +3142,7 @@ function readHash() {
     return;
   }
   const ventureId = parts[1];
-  const validTabs = ['news','venture','stealth','flip','customer','missing_piece','training','threads','bugs','graph','slack','activity','sim-users','leaderboard','release-notes','live','ic'];
+  const validTabs = ['news','venture','stealth','flip','customer','missing_piece','training','threads','bugs','graph','slack','activity','sim-users','leaderboard','release-notes','live','ic','pm-backlog','pm-sprints','pm-meetings','pm-calendar','pm-gmail'];
   if (validTabs.includes(tab)) {
     switchTab(tab, true);
     if (ventureId) setTimeout(() => openDetail(ventureId, true), 300);
@@ -3154,7 +3181,7 @@ window.addEventListener('popstate', (e) => {
     return;
   }
   const ventureId = parts[1];
-  const validTabs = ['news','venture','stealth','flip','customer','missing_piece','training','threads','bugs','graph','slack','activity','sim-users','leaderboard','release-notes','live','ic'];
+  const validTabs = ['news','venture','stealth','flip','customer','missing_piece','training','threads','bugs','graph','slack','activity','sim-users','leaderboard','release-notes','live','ic','pm-backlog','pm-sprints','pm-meetings','pm-calendar','pm-gmail'];
   if (validTabs.includes(tab) && tab !== currentTab) switchTab(tab, true);
   if (ventureId) openDetail(ventureId, true);
   else closeDetailPanel(true);
@@ -12468,6 +12495,504 @@ async function loadActivity() {
         ${timelineHtml||'<div style="text-align:center;padding:20px;color:var(--text3);">No activity yet. Activity simulation runs every 30 minutes.</div>'}
       </div>`;
   } catch(e) { el.innerHTML = '<div class="loading">Failed to load activity: '+e.message+'</div>'; }
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// PM Team views (Backlog / Sprints / Meetings / Calendar / Gmail)
+// ─────────────────────────────────────────────────────────────────────────
+const PM_API = '/api/pm';
+const PM_PERSONA_COLORS = { cagan:'#7c3aed', torres:'#0ea5e9', doshi:'#f59e0b' };
+const PM_STATUS_COLORS = {
+  researching:'#9ca3af', backlog:'#3b82f6', ranked:'#06b6d4',
+  approved:'#10b981', sprint:'#8b5cf6', in_dev:'#f59e0b',
+  testing:'#eab308', deployed:'#22c55e', rolled_back:'#ef4444', rejected:'#6b7280'
+};
+
+function _pmEsc(s) { return String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function _pmFmtDate(s) { if (!s) return ''; try { return new Date(s).toLocaleString(); } catch(_) { return s; } }
+function _pmFmtDay(s) { if (!s) return ''; try { return new Date(s).toLocaleDateString(undefined, {month:'short',day:'numeric'}); } catch(_) { return s; } }
+function _pmStatusBadge(status) {
+  const c = PM_STATUS_COLORS[status] || '#6b7280';
+  return `<span style="display:inline-block;padding:2px 8px;border-radius:12px;background:${c}22;color:${c};font-size:11px;font-weight:600;">${_pmEsc(status||'')}</span>`;
+}
+function _pmPersonaPill(p) {
+  const c = PM_PERSONA_COLORS[p] || '#6b7280';
+  const label = ({cagan:'Cagan', torres:'Torres', doshi:'Doshi'}[p]) || p;
+  return `<span style="display:inline-block;padding:2px 8px;border-radius:12px;background:${c}22;color:${c};font-size:11px;font-weight:600;">${_pmEsc(label)}</span>`;
+}
+
+async function loadPmBacklog() {
+  const el = document.getElementById('ventureList');
+  el.innerHTML = '<div class="loading">Loading PM backlog...</div>';
+  try {
+    const [statusR, featR] = await Promise.all([
+      fetch(`${PM_API}/status`).then(r=>r.json()),
+      fetch(`${PM_API}/features`).then(r=>r.json())
+    ]);
+    const features = featR.features || [];
+    const counts = statusR.counts || {};
+    const groupedOrder = ['researching','backlog','ranked','approved','sprint','in_dev','testing','deployed','rolled_back','rejected'];
+
+    const summary = groupedOrder.map(s => `<div style="text-align:center;padding:8px 12px;background:var(--card);border:1px solid var(--border);border-radius:8px;min-width:80px;">
+      <div style="font-size:18px;font-weight:700;color:${PM_STATUS_COLORS[s]||'#6b7280'};">${counts[s]||0}</div>
+      <div style="font-size:10px;color:var(--text2);text-transform:uppercase;">${s.replace(/_/g,' ')}</div>
+    </div>`).join('');
+
+    const rows = features.map(f => {
+      const value = f.value_score!=null ? f.value_score.toFixed(1) : '—';
+      const ease  = f.ease_score!=null ? f.ease_score.toFixed(1) : '—';
+      const final = f.final_score!=null ? f.final_score.toFixed(2) : '—';
+      const composite = f.composite_rank_score!=null ? f.composite_rank_score.toFixed(2) : '—';
+      const canApprove = (f.status === 'backlog' || f.status === 'ranked');
+      const approveBtn = canApprove
+        ? `<button onclick="event.stopPropagation();pmApproveFeature(${f.id})" style="padding:4px 10px;background:#10b981;color:#fff;border:0;border-radius:6px;cursor:pointer;font-size:11px;font-weight:600;">✓ Approve for Dev</button>`
+        : '';
+      const researchBtn = (f.status==='researching'||f.research_cycles_completed===0)
+        ? `<button onclick="event.stopPropagation();pmKickResearch(${f.id})" style="padding:4px 10px;background:var(--accent);color:#fff;border:0;border-radius:6px;cursor:pointer;font-size:11px;font-weight:600;">Run Research</button>`
+        : '';
+      return `<tr style="border-bottom:1px solid var(--border);cursor:pointer;" onclick="pmOpenFeature(${f.id})">
+        <td style="padding:10px 8px;"><div style="font-weight:600;color:var(--text);">${_pmEsc(f.title)}</div><div style="font-size:11px;color:var(--text2);margin-top:2px;">${_pmEsc(f.one_liner||'')}</div></td>
+        <td style="padding:10px 8px;">${_pmPersonaPill(f.proposed_by_persona)}</td>
+        <td style="padding:10px 8px;">${_pmStatusBadge(f.status)}</td>
+        <td style="padding:10px 8px;text-align:center;font-size:12px;">${f.research_cycles_completed||0}/10</td>
+        <td style="padding:10px 8px;text-align:center;font-size:12px;font-weight:600;color:var(--accent);">${final}</td>
+        <td style="padding:10px 8px;text-align:center;font-size:12px;">${value}</td>
+        <td style="padding:10px 8px;text-align:center;font-size:12px;">${ease}</td>
+        <td style="padding:10px 8px;text-align:center;font-size:12px;font-weight:600;">${composite}</td>
+        <td style="padding:10px 8px;text-align:right;">${approveBtn}${researchBtn}</td>
+      </tr>`;
+    }).join('');
+
+    el.innerHTML = `
+      <div style="padding:16px 24px;max-width:1400px;margin:0 auto;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:12px;">
+          <div>
+            <h2 style="margin:0;font-size:22px;color:var(--text);">PM Team Backlog</h2>
+            <div style="font-size:12px;color:var(--text2);margin-top:4px;">3 personas · 10-cycle Karpathy auto-research · human-in-loop approval</div>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <button onclick="pmNewFeatureModal()" style="padding:8px 14px;background:var(--accent);color:#fff;border:0;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600;">+ New Feature</button>
+            <button onclick="pmTriggerDailyReview()" style="padding:8px 14px;background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:12px;font-weight:600;">⚙ Trigger Daily Review</button>
+            <button onclick="pmTriggerRank()" style="padding:8px 14px;background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:12px;font-weight:600;">↻ Re-rank</button>
+            <button onclick="pmTriggerSprint()" style="padding:8px 14px;background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:12px;font-weight:600;">▶ Run Sprint</button>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap;">${summary}</div>
+        <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;">
+          <table style="width:100%;border-collapse:collapse;font-size:12px;">
+            <thead><tr style="background:var(--card2);font-size:11px;text-transform:uppercase;color:var(--text2);">
+              <th style="padding:10px 8px;text-align:left;">Feature</th>
+              <th style="padding:10px 8px;text-align:left;">Proposed by</th>
+              <th style="padding:10px 8px;text-align:left;">Status</th>
+              <th style="padding:10px 8px;text-align:center;">Cycles</th>
+              <th style="padding:10px 8px;text-align:center;">7-dim avg</th>
+              <th style="padding:10px 8px;text-align:center;">Value</th>
+              <th style="padding:10px 8px;text-align:center;">Ease</th>
+              <th style="padding:10px 8px;text-align:center;">Rank</th>
+              <th style="padding:10px 8px;text-align:right;">Action</th>
+            </tr></thead>
+            <tbody>${rows||'<tr><td colspan="9" style="padding:32px;text-align:center;color:var(--text3);">No features yet. Click + New Feature to create one.</td></tr>'}</tbody>
+          </table>
+        </div>
+      </div>`;
+  } catch(e) {
+    el.innerHTML = '<div class="loading">Failed to load PM backlog: '+_pmEsc(e.message)+'</div>';
+  }
+}
+
+async function pmNewFeatureModal() {
+  const title = prompt('Feature title:');
+  if (!title) return;
+  const one_liner = prompt('One-liner (1 sentence):') || '';
+  const proposed_by = prompt('Proposed by (cagan/torres/doshi):', 'cagan') || 'cagan';
+  try {
+    const r = await fetch(`${PM_API}/features`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({title, one_liner, proposed_by_persona: proposed_by, kick_off_research: true})
+    });
+    if (!r.ok) throw new Error('create failed: '+r.status);
+    loadPmBacklog();
+  } catch(e) { alert('Create failed: '+e.message); }
+}
+
+async function pmKickResearch(id) {
+  try {
+    await fetch(`${PM_API}/features/${id}/research`, {method:'POST'});
+    setTimeout(loadPmBacklog, 500);
+  } catch(e) { alert(e.message); }
+}
+
+async function pmApproveFeature(id) {
+  if (!confirm('Approve this feature for the dev sprint? Mockup, dev plan and test plan will be generated.')) return;
+  try {
+    await fetch(`${PM_API}/features/${id}/approve`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({approved_by: 'dori.kafri@develeap.com'})
+    });
+    loadPmBacklog();
+  } catch(e) { alert('Approval failed: '+e.message); }
+}
+
+async function pmTriggerDailyReview() {
+  try { await fetch(`${PM_API}/run-daily`, {method:'POST'}); alert('Daily PM review triggered.'); loadPmBacklog(); }
+  catch(e) { alert(e.message); }
+}
+async function pmTriggerRank() {
+  try { await fetch(`${PM_API}/run-rank`, {method:'POST'}); setTimeout(loadPmBacklog, 800); }
+  catch(e) { alert(e.message); }
+}
+async function pmTriggerSprint() {
+  if (!confirm('Trigger sprint executor? This will pick the top approved feature and attempt code-gen + (if PM_AUTO_DEPLOY=1) deploy.')) return;
+  try { await fetch(`${PM_API}/run-sprint`, {method:'POST'}); alert('Sprint executor triggered.'); setTimeout(loadPmBacklog, 800); }
+  catch(e) { alert(e.message); }
+}
+
+async function pmOpenFeature(id) {
+  try {
+    const r = await fetch(`${PM_API}/features/${id}`);
+    const f = await r.json();
+    _pmShowFeatureModal(f);
+  } catch(e) { alert('Could not load feature: '+e.message); }
+}
+
+function _pmRadar(scoresByCycle) {
+  // Use the LAST cycle's avg-across-personas for each dimension
+  const dims = ['problem_clarity','opportunity_validation','outcome_metric','smallest_test','lno_leverage','counterfactual_cost','implementation_realism'];
+  const labels = {problem_clarity:'Problem',opportunity_validation:'Opportunity',outcome_metric:'Metric',smallest_test:'Test',lno_leverage:'LNO',counterfactual_cost:'Cost',implementation_realism:'Realism'};
+  const cycles = Object.keys(scoresByCycle||{}).sort((a,b)=>parseInt(b)-parseInt(a));
+  if (!cycles.length) return '<div style="color:var(--text3);font-size:12px;">No scores yet.</div>';
+  const last = scoresByCycle[cycles[0]] || [];
+  const dimAvg = {};
+  dims.forEach(d => {
+    const arr = last.filter(s=>s.dimension===d).map(s=>s.score);
+    dimAvg[d] = arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : 0;
+  });
+  // Render simple SVG radar
+  const cx=120, cy=120, r=90;
+  const n = dims.length;
+  let axes = '', poly = '', labelsHtml = '';
+  for (let i=0;i<n;i++) {
+    const ang = -Math.PI/2 + (i*2*Math.PI/n);
+    const x = cx + r*Math.cos(ang);
+    const y = cy + r*Math.sin(ang);
+    axes += `<line x1="${cx}" y1="${cy}" x2="${x}" y2="${y}" stroke="#444" stroke-width="0.5"/>`;
+    const v = (dimAvg[dims[i]]||0)/10;
+    const px = cx + r*v*Math.cos(ang);
+    const py = cy + r*v*Math.sin(ang);
+    poly += `${px},${py} `;
+    const lx = cx + (r+18)*Math.cos(ang);
+    const ly = cy + (r+18)*Math.sin(ang) + 4;
+    labelsHtml += `<text x="${lx}" y="${ly}" fill="var(--text2)" font-size="10" text-anchor="middle">${labels[dims[i]]} ${dimAvg[dims[i]].toFixed(1)}</text>`;
+  }
+  // Concentric guides
+  let guides = '';
+  for (let g=2;g<=10;g+=2) {
+    let pts = '';
+    for (let i=0;i<n;i++) {
+      const ang = -Math.PI/2 + (i*2*Math.PI/n);
+      const x = cx + (r*g/10)*Math.cos(ang);
+      const y = cy + (r*g/10)*Math.sin(ang);
+      pts += `${x},${y} `;
+    }
+    guides += `<polygon points="${pts}" fill="none" stroke="#333" stroke-width="0.4"/>`;
+  }
+  return `<svg width="240" height="240" viewBox="0 0 240 240">${guides}${axes}<polygon points="${poly}" fill="rgba(124,58,237,0.25)" stroke="#7c3aed" stroke-width="1.5"/>${labelsHtml}</svg>`;
+}
+
+function _pmShowFeatureModal(f) {
+  const dlg = document.getElementById('pmFeatureModal') || (() => {
+    const d = document.createElement('div');
+    d.id = 'pmFeatureModal';
+    d.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;display:flex;align-items:flex-start;justify-content:center;padding:32px;overflow-y:auto;';
+    d.onclick = (e) => { if (e.target===d) d.remove(); };
+    document.body.appendChild(d);
+    return d;
+  })();
+
+  const cycles = (f.cycles||[]).slice().sort((a,b)=>a.cycle_n - b.cycle_n);
+  const cyclesHtml = cycles.length ? cycles.map(c => {
+    const accColor = c.accepted ? '#22c55e' : '#ef4444';
+    return `<div style="border:1px solid var(--border);border-left:3px solid ${accColor};border-radius:6px;padding:10px;margin-bottom:8px;background:var(--card2);">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+        <div><strong>Cycle ${c.cycle_n}</strong> · weakest: <code style="background:#0006;padding:1px 6px;border-radius:4px;font-size:11px;">${_pmEsc(c.weakest_dim||'—')}</code> · owner: ${_pmPersonaPill(c.owner_persona)}</div>
+        <div style="font-size:11px;color:${accColor};font-weight:600;">${c.accepted?'✓ accepted':'✗ rejected'} (Δ ${c.weakest_delta!=null?c.weakest_delta.toFixed(2):'—'})</div>
+      </div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:4px;">${_pmEsc(c.revision_summary||'')}</div>
+      ${c.rejection_reason?`<div style="font-size:11px;color:#ef4444;">Rejected: ${_pmEsc(c.rejection_reason)}</div>`:''}
+    </div>`;
+  }).join('') : '<div style="color:var(--text3);font-size:12px;">No cycles run yet.</div>';
+
+  const devPlan = f.dev_plan || {};
+  const testPlan = f.test_plan || {};
+  const redTests = (testPlan.red_tests||[]).map(t => `<li style="color:#ef4444;">${_pmEsc(t.name||t)} ${t.expected?`<span style="color:var(--text3);">→ ${_pmEsc(t.expected)}</span>`:''}</li>`).join('');
+  const greenTests = (testPlan.green_tests||[]).map(t => `<li style="color:#22c55e;">${_pmEsc(t.name||t)} ${t.expected?`<span style="color:var(--text3);">→ ${_pmEsc(t.expected)}</span>`:''}</li>`).join('');
+
+  const tasks = (devPlan.tasks||[]).map((t,i)=>`<li>${_pmEsc(typeof t==='string'?t:(t.title||t.task||JSON.stringify(t)))}</li>`).join('');
+  const filesEdits = (devPlan.files||devPlan.files_to_edit||[]).map(p=>`<code style="background:#0006;padding:2px 6px;border-radius:4px;font-size:11px;display:inline-block;margin:2px;">${_pmEsc(p)}</code>`).join('');
+
+  dlg.innerHTML = `
+    <div style="background:var(--bg);border:1px solid var(--border);border-radius:12px;max-width:1100px;width:100%;padding:20px;color:var(--text);">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:12px;">
+        <div style="flex:1;">
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:6px;">
+            ${_pmStatusBadge(f.status)}
+            ${_pmPersonaPill(f.proposed_by_persona)}
+            <span style="font-size:11px;color:var(--text2);">cycles: ${f.research_cycles_completed||0}/10${f.research_terminated_reason?` · ${_pmEsc(f.research_terminated_reason)}`:''}</span>
+          </div>
+          <h2 style="margin:0 0 4px 0;font-size:20px;">${_pmEsc(f.title)}</h2>
+          <div style="font-size:13px;color:var(--text2);">${_pmEsc(f.one_liner||'')}</div>
+        </div>
+        <button onclick="document.getElementById('pmFeatureModal').remove()" style="background:transparent;border:0;color:var(--text2);font-size:24px;cursor:pointer;">×</button>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 260px;gap:16px;margin-bottom:14px;">
+        <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px;">
+          <div style="font-size:11px;color:var(--text2);text-transform:uppercase;font-weight:600;margin-bottom:6px;">User problem</div>
+          <div style="font-size:13px;margin-bottom:10px;">${_pmEsc(f.user_problem||'—')}</div>
+          <div style="font-size:11px;color:var(--text2);text-transform:uppercase;font-weight:600;margin-bottom:6px;">Proposed solution</div>
+          <div style="font-size:13px;margin-bottom:10px;">${_pmEsc(f.proposed_solution||'—')}</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+            <div><div style="font-size:11px;color:var(--text2);text-transform:uppercase;font-weight:600;">Outcome metric</div><div style="font-size:12px;">${_pmEsc(f.outcome_metric||'—')}</div></div>
+            <div><div style="font-size:11px;color:var(--text2);text-transform:uppercase;font-weight:600;">Smallest test</div><div style="font-size:12px;">${_pmEsc(f.smallest_test||'—')}</div></div>
+            <div><div style="font-size:11px;color:var(--text2);text-transform:uppercase;font-weight:600;">LNO</div><div style="font-size:12px;">${_pmEsc(f.lno_classification||'—')}</div></div>
+            <div><div style="font-size:11px;color:var(--text2);text-transform:uppercase;font-weight:600;">Counterfactual cost</div><div style="font-size:12px;">${_pmEsc(f.counterfactual_cost||'—')}</div></div>
+          </div>
+        </div>
+        <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px;text-align:center;">
+          <div style="font-size:11px;color:var(--text2);text-transform:uppercase;font-weight:600;margin-bottom:4px;">7-dim Rubric (latest cycle)</div>
+          ${_pmRadar(f.scores_by_cycle)}
+          <div style="font-size:11px;color:var(--text2);margin-top:6px;">final avg: <strong style="color:var(--accent);">${f.final_score!=null?f.final_score.toFixed(2):'—'}</strong></div>
+        </div>
+      </div>
+
+      ${f.mockup_html ? `<div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:14px;">
+        <div style="font-size:11px;color:var(--text2);text-transform:uppercase;font-weight:600;margin-bottom:6px;">Mockup (non-functional)</div>
+        <iframe sandbox="allow-same-origin" srcdoc="${_pmEsc(f.mockup_html)}" style="width:100%;height:340px;border:1px solid var(--border);border-radius:6px;background:#fff;"></iframe>
+      </div>`:''}
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
+        <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px;">
+          <div style="font-size:11px;color:var(--text2);text-transform:uppercase;font-weight:600;margin-bottom:6px;">Dev plan</div>
+          ${tasks?`<ol style="margin:0 0 8px 18px;padding:0;font-size:12px;line-height:1.6;">${tasks}</ol>`:'<div style="color:var(--text3);font-size:12px;">No dev plan yet.</div>'}
+          ${filesEdits?`<div style="margin-top:8px;"><div style="font-size:11px;color:var(--text2);">Files:</div>${filesEdits}</div>`:''}
+        </div>
+        <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px;">
+          <div style="font-size:11px;color:var(--text2);text-transform:uppercase;font-weight:600;margin-bottom:6px;">Test plan</div>
+          ${redTests?`<div style="font-size:11px;color:var(--text2);margin-top:6px;">RED (must fail before fix):</div><ul style="margin:0 0 8px 18px;padding:0;font-size:12px;line-height:1.5;">${redTests}</ul>`:''}
+          ${greenTests?`<div style="font-size:11px;color:var(--text2);margin-top:6px;">GREEN (must pass after fix):</div><ul style="margin:0 0 8px 18px;padding:0;font-size:12px;line-height:1.5;">${greenTests}</ul>`:''}
+          ${(!redTests&&!greenTests)?'<div style="color:var(--text3);font-size:12px;">No test plan yet.</div>':''}
+        </div>
+      </div>
+
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:14px;">
+        <div style="font-size:11px;color:var(--text2);text-transform:uppercase;font-weight:600;margin-bottom:6px;">Karpathy research cycles</div>
+        ${cyclesHtml}
+      </div>
+
+      <div style="display:flex;justify-content:flex-end;gap:8px;">
+        ${(f.status==='backlog'||f.status==='ranked')?`<button onclick="pmApproveFeature(${f.id});setTimeout(()=>document.getElementById('pmFeatureModal').remove(),500);" style="padding:8px 14px;background:#10b981;color:#fff;border:0;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600;">✓ Approve for Dev</button>`:''}
+        ${(f.status==='approved'||f.status==='sprint')?`<button onclick="pmExecuteFeature(${f.id})" style="padding:8px 14px;background:var(--accent);color:#fff;border:0;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600;">▶ Execute Now</button>`:''}
+        <button onclick="pmKickResearch(${f.id})" style="padding:8px 14px;background:var(--card2);color:var(--text);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:12px;font-weight:600;">↻ Re-run Research</button>
+        <button onclick="document.getElementById('pmFeatureModal').remove()" style="padding:8px 14px;background:var(--card2);color:var(--text);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:12px;font-weight:600;">Close</button>
+      </div>
+    </div>`;
+}
+
+async function pmExecuteFeature(id) {
+  if (!confirm('Execute this feature now? Will run codegen + tests. Auto-deploy only if PM_AUTO_DEPLOY=1.')) return;
+  try {
+    await fetch(`${PM_API}/features/${id}/execute`, {method:'POST'});
+    alert('Execution started. Check sprint status in a few minutes.');
+    document.getElementById('pmFeatureModal')?.remove();
+    loadPmBacklog();
+  } catch(e) { alert(e.message); }
+}
+
+async function loadPmSprints() {
+  const el = document.getElementById('ventureList');
+  el.innerHTML = '<div class="loading">Loading sprints...</div>';
+  try {
+    const r = await fetch(`${PM_API}/sprints`);
+    const data = await r.json();
+    const sprints = data.sprints || [];
+    const html = sprints.map(s => `<div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+        <div style="font-size:15px;font-weight:700;color:var(--text);">${_pmEsc(s.name)}</div>
+        ${_pmStatusBadge(s.status)}
+      </div>
+      <div style="font-size:12px;color:var(--text2);">${_pmFmtDay(s.start_date)} → ${_pmFmtDay(s.end_date)}</div>
+      <div style="font-size:13px;color:var(--text);margin-top:6px;">${_pmEsc(s.goal||'')}</div>
+      <div style="font-size:11px;color:var(--text2);margin-top:8px;">Features: ${(s.feature_ids||[]).length}</div>
+    </div>`).join('');
+    el.innerHTML = `<div style="padding:16px 24px;max-width:1000px;margin:0 auto;">
+      <h2 style="margin:0 0 14px 0;color:var(--text);">PM Sprints</h2>
+      ${html||'<div style="color:var(--text3);">No sprints yet. Approve a feature to start one.</div>'}
+    </div>`;
+  } catch(e) { el.innerHTML = '<div class="loading">Failed: '+_pmEsc(e.message)+'</div>'; }
+}
+
+async function loadPmMeetings() {
+  const el = document.getElementById('ventureList');
+  el.innerHTML = '<div class="loading">Loading meetings...</div>';
+  try {
+    const r = await fetch(`${PM_API}/meetings`);
+    const data = await r.json();
+    const meetings = data.meetings || [];
+    const items = meetings.map(m => `<div onclick="pmOpenMeeting(${m.id})" style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:10px;cursor:pointer;">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div style="font-size:14px;font-weight:700;color:var(--text);">${_pmEsc(m.title)}</div>
+        <span style="font-size:11px;color:var(--text2);">${_pmFmtDate(m.scheduled_at)}</span>
+      </div>
+      <div style="font-size:12px;color:var(--text2);margin-top:4px;">${_pmEsc(m.meeting_type||'')} · ${(m.attendees||[]).length} attendees</div>
+      <div style="font-size:13px;color:var(--text);margin-top:6px;">${_pmEsc((m.summary||'').slice(0,200))}</div>
+    </div>`).join('');
+    el.innerHTML = `<div style="padding:16px 24px;max-width:1000px;margin:0 auto;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+        <h2 style="margin:0;color:var(--text);">PM Team Meetings</h2>
+        <button onclick="pmTriggerStandup()" style="padding:8px 14px;background:var(--accent);color:#fff;border:0;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600;">+ Trigger Standup</button>
+      </div>
+      ${items||'<div style="color:var(--text3);">No meetings yet.</div>'}
+    </div>`;
+  } catch(e) { el.innerHTML = '<div class="loading">Failed: '+_pmEsc(e.message)+'</div>'; }
+}
+
+async function pmTriggerStandup() {
+  try { await fetch(`${PM_API}/meetings/standup`, {method:'POST'}); setTimeout(loadPmMeetings, 1500); }
+  catch(e) { alert(e.message); }
+}
+
+async function pmOpenMeeting(id) {
+  try {
+    const r = await fetch(`${PM_API}/meetings/${id}`);
+    const m = await r.json();
+    const transcript = (m.transcript||[]).map(t=>{
+      const c = PM_PERSONA_COLORS[t.persona]||'#6b7280';
+      return `<div style="margin:6px 0;padding:8px 10px;background:var(--card2);border-left:3px solid ${c};border-radius:6px;">
+        <div style="font-size:11px;font-weight:700;color:${c};">${_pmEsc(t.speaker||t.persona||'speaker')}</div>
+        <div style="font-size:13px;color:var(--text);">${_pmEsc(t.text||'')}</div>
+      </div>`;
+    }).join('');
+    const action = (m.action_items||[]).map(a=>`<li>${_pmEsc(a.body||a)} ${a.owner_persona?`— ${_pmPersonaPill(a.owner_persona)}`:''}</li>`).join('');
+    const dlg = document.getElementById('pmMeetingModal') || (() => {
+      const d = document.createElement('div');
+      d.id = 'pmMeetingModal';
+      d.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;display:flex;align-items:flex-start;justify-content:center;padding:32px;overflow-y:auto;';
+      d.onclick = (e) => { if (e.target===d) d.remove(); };
+      document.body.appendChild(d);
+      return d;
+    })();
+    dlg.innerHTML = `<div style="background:var(--bg);border:1px solid var(--border);border-radius:12px;max-width:900px;width:100%;padding:20px;color:var(--text);">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
+        <div>
+          <h2 style="margin:0;font-size:18px;">${_pmEsc(m.title)}</h2>
+          <div style="font-size:12px;color:var(--text2);margin-top:4px;">${_pmFmtDate(m.scheduled_at)} · ${_pmEsc(m.meeting_type||'')} · ${(m.attendees||[]).length} attendees</div>
+        </div>
+        <button onclick="document.getElementById('pmMeetingModal').remove()" style="background:transparent;border:0;color:var(--text2);font-size:24px;cursor:pointer;">×</button>
+      </div>
+      ${m.zoom_link?`<div style="margin-bottom:10px;font-size:12px;"><a href="${_pmEsc(m.zoom_link)}" target="_blank" style="color:var(--accent);">📹 Zoom link</a></div>`:''}
+      ${m.summary?`<div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:12px;font-size:13px;">${_pmEsc(m.summary)}</div>`:''}
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:12px;">
+        <div style="font-size:11px;color:var(--text2);text-transform:uppercase;font-weight:600;margin-bottom:6px;">Transcript</div>
+        ${transcript||'<div style="color:var(--text3);font-size:12px;">No transcript.</div>'}
+      </div>
+      ${action?`<div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px;">
+        <div style="font-size:11px;color:var(--text2);text-transform:uppercase;font-weight:600;margin-bottom:6px;">Action items</div>
+        <ul style="margin:0 0 0 18px;font-size:13px;line-height:1.6;">${action}</ul>
+      </div>`:''}
+    </div>`;
+  } catch(e) { alert(e.message); }
+}
+
+async function loadPmCalendar() {
+  const el = document.getElementById('ventureList');
+  el.innerHTML = '<div class="loading">Loading calendar...</div>';
+  try {
+    const now = new Date();
+    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate()-7).toISOString();
+    const end   = new Date(now.getFullYear(), now.getMonth(), now.getDate()+30).toISOString();
+    const r = await fetch(`${PM_API}/calendar?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`);
+    const data = await r.json();
+    const events = (data.events||[]).slice().sort((a,b)=> new Date(a.start_at) - new Date(b.start_at));
+    // Group by date
+    const groups = {};
+    events.forEach(ev => {
+      const d = ev.start_at ? ev.start_at.slice(0,10) : 'unknown';
+      (groups[d] = groups[d]||[]).push(ev);
+    });
+    const days = Object.keys(groups).sort();
+    const html = days.map(d => {
+      const items = groups[d].map(ev => `<div style="display:flex;gap:8px;align-items:center;padding:8px 10px;background:var(--card2);border-left:3px solid ${ev.color||'#3b82f6'};border-radius:6px;margin-bottom:4px;">
+        <div style="font-size:11px;color:var(--text2);min-width:60px;">${ev.start_at?new Date(ev.start_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}):''}</div>
+        <div style="flex:1;">
+          <div style="font-size:13px;font-weight:600;color:var(--text);">${_pmEsc(ev.title)}</div>
+          <div style="font-size:11px;color:var(--text2);">${_pmEsc(ev.event_type||'')} · ${(ev.attendees||[]).length} attendees</div>
+        </div>
+        ${ev.zoom_link?`<a href="${_pmEsc(ev.zoom_link)}" target="_blank" style="font-size:11px;color:var(--accent);">📹</a>`:''}
+      </div>`).join('');
+      return `<div style="margin-bottom:14px;">
+        <div style="font-size:12px;font-weight:700;color:var(--text);text-transform:uppercase;margin-bottom:6px;">${_pmFmtDay(d)}</div>
+        ${items}
+      </div>`;
+    }).join('');
+    el.innerHTML = `<div style="padding:16px 24px;max-width:900px;margin:0 auto;">
+      <h2 style="margin:0 0 14px 0;color:var(--text);">PM Team Calendar</h2>
+      ${html||'<div style="color:var(--text3);">No events.</div>'}
+    </div>`;
+  } catch(e) { el.innerHTML = '<div class="loading">Failed: '+_pmEsc(e.message)+'</div>'; }
+}
+
+async function loadPmGmail() {
+  const el = document.getElementById('ventureList');
+  el.innerHTML = '<div class="loading">Loading inbox...</div>';
+  try {
+    const r = await fetch(`${PM_API}/emails`);
+    const data = await r.json();
+    const emails = data.emails || [];
+    const list = emails.map(e => `<div onclick="pmOpenEmail(${e.id})" style="display:grid;grid-template-columns:140px 200px 1fr 100px;gap:10px;padding:10px 12px;background:${e.is_read?'var(--card)':'var(--card2)'};border:1px solid var(--border);border-radius:8px;margin-bottom:6px;cursor:pointer;${e.is_read?'':'border-left:3px solid var(--accent);'}">
+      <div style="font-size:12px;font-weight:${e.is_read?'400':'700'};color:var(--text);">${_pmEsc(e.from_name||e.from_email||'')}</div>
+      <div style="font-size:11px;color:var(--text2);">${_pmEsc(e.email_type||'')}</div>
+      <div style="font-size:13px;font-weight:${e.is_read?'400':'700'};color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${e.is_starred?'⭐ ':''}${_pmEsc(e.subject||'')}</div>
+      <div style="font-size:11px;color:var(--text2);text-align:right;">${_pmFmtDay(e.sent_at)}</div>
+    </div>`).join('');
+    el.innerHTML = `<div style="padding:16px 24px;max-width:1100px;margin:0 auto;">
+      <h2 style="margin:0 0 14px 0;color:var(--text);">PM Team Inbox</h2>
+      ${list||'<div style="color:var(--text3);">No emails yet.</div>'}
+    </div>`;
+  } catch(err) { el.innerHTML = '<div class="loading">Failed: '+_pmEsc(err.message)+'</div>'; }
+}
+
+async function pmOpenEmail(id) {
+  try {
+    const r = await fetch(`${PM_API}/emails/${id}`);
+    const e = await r.json();
+    const dlg = document.getElementById('pmEmailModal') || (() => {
+      const d = document.createElement('div');
+      d.id = 'pmEmailModal';
+      d.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;display:flex;align-items:flex-start;justify-content:center;padding:32px;overflow-y:auto;';
+      d.onclick = (ev) => { if (ev.target===d) d.remove(); };
+      document.body.appendChild(d);
+      return d;
+    })();
+    dlg.innerHTML = `<div style="background:var(--bg);border:1px solid var(--border);border-radius:12px;max-width:800px;width:100%;padding:20px;color:var(--text);">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
+        <div style="flex:1;">
+          <h2 style="margin:0;font-size:18px;">${e.is_starred?'⭐ ':''}${_pmEsc(e.subject||'')}</h2>
+          <div style="font-size:12px;color:var(--text2);margin-top:6px;">From: ${_pmEsc(e.from_name||'')} &lt;${_pmEsc(e.from_email||'')}&gt;</div>
+          <div style="font-size:12px;color:var(--text2);">To: ${_pmEsc(e.to_email||'')}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:4px;">${_pmFmtDate(e.sent_at)}</div>
+        </div>
+        <button onclick="pmStarEmail(${e.id})" style="background:transparent;border:0;color:${e.is_starred?'#f59e0b':'var(--text2)'};font-size:18px;cursor:pointer;margin-right:8px;">${e.is_starred?'★':'☆'}</button>
+        <button onclick="document.getElementById('pmEmailModal').remove()" style="background:transparent;border:0;color:var(--text2);font-size:24px;cursor:pointer;">×</button>
+      </div>
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:14px;font-size:13px;line-height:1.6;white-space:pre-wrap;">${_pmEsc(e.body||'')}</div>
+    </div>`;
+  } catch(err) { alert(err.message); }
+}
+
+async function pmStarEmail(id) {
+  try { await fetch(`${PM_API}/emails/${id}/star`, {method:'POST'}); document.getElementById('pmEmailModal')?.remove(); loadPmGmail(); }
+  catch(e) { alert(e.message); }
 }
 
 </script>

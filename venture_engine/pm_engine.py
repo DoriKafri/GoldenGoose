@@ -657,10 +657,12 @@ def run_research_loop(feature_id: str, db: Session, post_to_slack: bool = True) 
     feature.research_cycles_completed = len(history) - 1  # exclude seed
     feature.research_terminated_reason = terminated_reason or "max_cycles"
     feature.final_score = round(sum(current_score.values()) / len(current_score), 2)
-    if terminated_reason == "stuck":
-        feature.status = "rejected"
-    else:
-        feature.status = "backlog"
+    # All terminated loops land in backlog so the human reviewer can see the
+    # feature, its score, and the termination reason. Per the spec comment at
+    # the top of this module: "same dim stuck 3× → emit needs-human-input
+    # flag" — the flag is the `research_terminated_reason='stuck'`, not an
+    # auto-rejection. Only an explicit /reject API call should set 'rejected'.
+    feature.status = "backlog"
     db.commit()
 
     if post_to_slack:

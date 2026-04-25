@@ -499,3 +499,23 @@ def run_rank(db: Session = Depends(get_db_dependency)):
 def run_sprint():
     """Manually trigger one sprint executor cycle."""
     return run_sprint_cycle()
+
+
+@pm_router.post("/restore-stuck")
+def restore_stuck(db: Session = Depends(get_db_dependency)):
+    """Flip every feature whose research loop terminated with reason='stuck'
+    from 'rejected' to 'backlog'. Older runs auto-rejected stuck features;
+    the spec actually wants stuck loops surfaced in backlog with a
+    needs-human-review flag (research_terminated_reason='stuck')."""
+    flipped: list[dict] = []
+    rows = (
+        db.query(PMFeature)
+        .filter(PMFeature.status == "rejected")
+        .filter(PMFeature.research_terminated_reason == "stuck")
+        .all()
+    )
+    for f in rows:
+        f.status = "backlog"
+        flipped.append({"id": f.id, "title": f.title, "final_score": f.final_score})
+    db.commit()
+    return {"restored": len(flipped), "features": flipped}

@@ -481,15 +481,34 @@ def _check_termination(history: list[dict]) -> Optional[str]:
 
     history: list of {cycle_n, score_after, weakest_dim, accepted}
     Returns: termination reason or None.
+
+    NOTE: We deliberately *do not* terminate early on stuck/plateau/regress.
+    The product requirement is that every feature runs the full 10 cycles
+    so the human reviewer has a complete revision history (even cycles that
+    were rejected by the improvement criterion are valuable signal). Each
+    cycle's revision_summary, revision_diff, critiques, score_before,
+    score_after, weakest_delta, accepted, rejection_reason are persisted in
+    PMResearchCycle regardless of acceptance — the rejection itself is the
+    learning, not a reason to stop.
+
+    The stuck/plateau/regress detection metadata is still computed on the
+    feature record (research_terminated_reason) so a UI badge can flag
+    "needs human input" without truncating the loop.
     """
     if len(history) >= MAX_CYCLES:
         return "max_cycles"
+    return None
+
+
+def _termination_signal(history: list[dict]) -> Optional[str]:
+    """Compute the *reason* badge ('stuck' / 'plateau' / 'regress' / None)
+    without terminating the loop. Used purely for the human-input flag on
+    PMFeature.research_terminated_reason."""
     if not history:
         return None
     last = history[-1]
     scores = last["score_after"]
 
-    # Plateau at quality ceiling
     if all(s >= PLATEAU_DIM_THRESHOLD for s in scores.values()):
         if len(history) >= 2:
             prev = history[-2]["score_after"]
@@ -497,17 +516,13 @@ def _check_termination(history: list[dict]) -> Optional[str]:
             if best_delta < PLATEAU_BEST_DELTA:
                 return "plateau"
 
-    # Two consecutive regressions
-    if len(history) >= 2:
+    if len(history) >= 3:
         last_total = sum(history[-1]["score_after"].values())
         prev_total = sum(history[-2]["score_after"].values())
-        if last_total < prev_total:
-            if len(history) >= 3:
-                prev2_total = sum(history[-3]["score_after"].values())
-                if prev_total < prev2_total:
-                    return "regress"
+        prev2_total = sum(history[-3]["score_after"].values())
+        if last_total < prev_total < prev2_total:
+            return "regress"
 
-    # Same dim stuck STUCK_REPEAT_LIMIT times with no improvement
     if len(history) >= STUCK_REPEAT_LIMIT:
         recent = history[-STUCK_REPEAT_LIMIT:]
         if len({h["weakest_dim"] for h in recent}) == 1:
@@ -650,8 +665,11 @@ def run_research_loop(feature_id: str, db: Session, post_to_slack: bool = True) 
                                  critiques=critiques, accepted=accepted, weakest_dim=weakest_dim,
                                  uplift=uplift, owner=owner)
 
-        terminated_reason = _check_termination(history)
-        if terminated_reason:
+        # Record the *signal* (stuck/plateau/regress) for the human-input
+        # flag, but never use it to break out of the loop — the spec requires
+        # all 10 cycles run so the user gets full revision history.
+        terminated_reason = _termination_signal(history) or terminated_reason
+        if _check_termination(history):
             break
 
     feature.research_cycles_completed = len(history) - 1  # exclude seed
@@ -680,6 +698,137 @@ def run_research_loop(feature_id: str, db: Session, post_to_slack: bool = True) 
         "terminated_reason": terminated_reason or "max_cycles",
         "final_score": feature.final_score,
         "final_score_breakdown": current_score,
+    }
+
+
+def continue_research_loop(feature_id: str, db: Session, post_to_slack: bool = True) -> dict:
+    """Resume an already-started research loop from where it left off and
+    run the remaining cycles up to MAX_CYCLES. Use this on features whose
+    loop terminated early (under the old behaviour) — the existing cycle
+    rows are kept and new cycles are appended."""
+    feature = db.query(PMFeature).filter(PMFeature.id == feature_id).first()
+    if not feature:
+        return {"error": "feature not found"}
+
+    existing = (
+        db.query(PMResearchCycle)
+        .filter(PMResearchCycle.feature_id == feature_id)
+        .order_by(PMResearchCycle.cycle_n.asc())
+        .all()
+    )
+    if not existing:
+        return {"error": "no prior cycles — call run_research_loop instead"}
+
+    # Rebuild the history list from stored cycles (so termination-signal
+    # detection has correct context).
+    history: list[dict] = []
+    for c in existing:
+        history.append({
+            "cycle_n": c.cycle_n,
+            "score_after": c.score_after or {},
+            "weakest_dim": c.weakest_dim,
+            "accepted": bool(c.accepted),
+        })
+    last_cycle_n = existing[-1].cycle_n
+    if last_cycle_n >= MAX_CYCLES:
+        return {"already_complete": True, "cycles_run": last_cycle_n}
+
+    current_score = next(
+        (h["score_after"] for h in reversed(history)
+         if h["accepted"] and h["score_after"]),
+        existing[0].score_after or {},
+    )
+    if not current_score:
+        return {"error": "could not reconstruct current_score"}
+
+    accepted_cycles = sum(1 for h in history if h["accepted"])
+    terminated_reason = None
+    feature.status = "researching"
+    db.commit()
+
+    for cycle_n in range(last_cycle_n + 1, MAX_CYCLES + 1):
+        weakest_dim = min(current_score, key=lambda k: current_score[k])
+        owner_key = DIM_BY_KEY[weakest_dim]["owner"]
+        owner = PERSONAS_BY_KEY[owner_key] if owner_key != "cross" else random.choice(PERSONAS)
+
+        before_fields = {
+            "title": feature.title, "one_liner": feature.one_liner,
+            "user_problem": feature.user_problem, "proposed_solution": feature.proposed_solution,
+            "outcome_metric": feature.outcome_metric, "smallest_test": feature.smallest_test,
+            "lno_classification": feature.lno_classification,
+            "counterfactual_cost": feature.counterfactual_cost,
+            "implementation_notes": feature.implementation_notes,
+        }
+
+        revision = _propose_revision(feature, weakest_dim, owner)
+        field_updates = revision["field_updates"]
+        for field, new_val in field_updates.items():
+            if hasattr(feature, field) and new_val:
+                setattr(feature, field, new_val)
+        db.flush()
+        after_fields = {
+            "title": feature.title, "one_liner": feature.one_liner,
+            "user_problem": feature.user_problem, "proposed_solution": feature.proposed_solution,
+            "outcome_metric": feature.outcome_metric, "smallest_test": feature.smallest_test,
+            "lno_classification": feature.lno_classification,
+            "counterfactual_cost": feature.counterfactual_cost,
+            "implementation_notes": feature.implementation_notes,
+        }
+
+        critiques = []
+        for critic in PERSONAS:
+            if critic["key"] == owner["key"]:
+                continue
+            critiques.append({
+                "persona": critic["key"],
+                "name": critic["name"],
+                "critique": _critique_revision(before_fields, after_fields, weakest_dim, critic),
+            })
+
+        new_score = _score_all_personas(feature, db, cycle_n=cycle_n)
+        accepted, uplift, rejection_reason = _is_improvement(current_score, new_score, weakest_dim)
+        diff_record = {
+            field: {"before": before_fields.get(field), "after": after_fields.get(field)}
+            for field in field_updates if before_fields.get(field) != after_fields.get(field)
+        }
+        db.add(PMResearchCycle(
+            feature_id=feature.id, cycle_n=cycle_n, weakest_dim=weakest_dim,
+            owner_persona=owner["key"], revision_summary=revision.get("summary", ""),
+            revision_diff=diff_record, critiques=critiques,
+            score_before=current_score, score_after=new_score,
+            weakest_delta=uplift, accepted=accepted,
+            rejection_reason=rejection_reason if not accepted else None,
+        ))
+        if accepted:
+            current_score = new_score
+            accepted_cycles += 1
+        else:
+            for field, val in before_fields.items():
+                setattr(feature, field, val)
+            db.flush()
+        history.append({
+            "cycle_n": cycle_n, "score_after": current_score,
+            "weakest_dim": weakest_dim, "accepted": accepted,
+        })
+        db.commit()
+
+        if post_to_slack:
+            _post_cycle_to_slack(db, feature, cycle_n=cycle_n, score=current_score,
+                                 revision_summary=revision.get("summary", ""),
+                                 critiques=critiques, accepted=accepted, weakest_dim=weakest_dim,
+                                 uplift=uplift, owner=owner)
+        terminated_reason = _termination_signal(history) or terminated_reason
+
+    feature.research_cycles_completed = len(history) - 1
+    feature.research_terminated_reason = terminated_reason or "max_cycles"
+    feature.final_score = round(sum(current_score.values()) / len(current_score), 2)
+    feature.status = "backlog"
+    db.commit()
+    return {
+        "cycles_run": len(history) - 1,
+        "accepted_cycles": accepted_cycles,
+        "terminated_reason": terminated_reason or "max_cycles",
+        "final_score": feature.final_score,
     }
 
 

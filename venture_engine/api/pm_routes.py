@@ -25,6 +25,7 @@ from venture_engine.pm_engine import (
     run_daily_standup, generate_mockup, generate_dev_and_test_plan,
     approve_feature_for_sprint, get_or_create_active_sprint,
     seed_pm_team, run_daily_pm_review,
+    continue_research_loop, MAX_CYCLES,
 )
 from venture_engine.sprint_executor import (
     execute_feature, run_sprint_cycle, PM_AUTO_DEPLOY, PM_RUN_REAL_TESTS,
@@ -499,6 +500,47 @@ def run_rank(db: Session = Depends(get_db_dependency)):
 def run_sprint():
     """Manually trigger one sprint executor cycle."""
     return run_sprint_cycle()
+
+
+@pm_router.post("/features/{feature_id}/continue-research")
+def continue_research(feature_id: str, db: Session = Depends(get_db_dependency)):
+    """Resume an early-terminated research loop and run the remaining cycles
+    up to MAX_CYCLES, appending new cycle rows."""
+    return continue_research_loop(feature_id, db, post_to_slack=True)
+
+
+@pm_router.post("/continue-all")
+def continue_all_research(db: Session = Depends(get_db_dependency)):
+    """Bulk-resume every backlog feature whose research loop terminated under
+    MAX_CYCLES so they get a complete 10-cycle revision history. Runs each
+    in a background thread so the request returns immediately."""
+    candidates = (
+        db.query(PMFeature)
+        .filter(PMFeature.status.in_(["backlog", "ranked"]))
+        .filter(
+            (PMFeature.research_cycles_completed == None)
+            | (PMFeature.research_cycles_completed < MAX_CYCLES)
+        )
+        .all()
+    )
+    started: list[dict] = []
+    for f in candidates:
+        ids_snapshot = (f.id, f.title)
+
+        def _run(fid=ids_snapshot[0]):
+            from venture_engine.db.session import SessionLocal
+            sess = SessionLocal()
+            try:
+                continue_research_loop(fid, sess, post_to_slack=True)
+            except Exception as e:
+                logger.exception(f"continue_research_loop({fid}) failed: {e}")
+            finally:
+                sess.close()
+
+        threading.Thread(target=_run, daemon=True).start()
+        started.append({"id": f.id, "title": f.title,
+                        "cycles_so_far": f.research_cycles_completed or 0})
+    return {"started": len(started), "features": started}
 
 
 @pm_router.post("/restore-stuck")

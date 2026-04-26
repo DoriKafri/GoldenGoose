@@ -46,7 +46,13 @@ from venture_engine.db.models import (
     PMMeeting, PMActionItem, PMEmail, PMCalendarEvent,
     SlackChannel, SlackMessage,
 )
-from venture_engine.discussion_engine import _call_gemini, _gemini_rate_check, gemini_calls_remaining
+from venture_engine.discussion_engine import (
+    _call_gemini,
+    _gemini_rate_check,
+    gemini_calls_remaining,
+    _call_llm,
+    _llm_available,
+)
 
 # ─── Persona definitions (anchored in real publications) ──────────────────
 
@@ -290,9 +296,9 @@ def _score_one_persona(feature: PMFeature, persona: dict) -> dict:
 
     Returns: {dim_key: {"score": float, "rationale": str}}
     """
-    if not _gemini_rate_check():
-        # Quota exhausted — return neutral 5s
-        return {d["key"]: {"score": 5.0, "rationale": "(Gemini quota exhausted — neutral default)"} for d in DIMENSIONS}
+    if not _llm_available():
+        # No LLM available (Gemini quota exhausted AND no Claude key) — neutral 5s
+        return {d["key"]: {"score": 5.0, "rationale": "(LLM unavailable — neutral default)"} for d in DIMENSIONS}
 
     rubric_text = "\n".join(
         f"{i+1}. {d['key']} ({d['label']}): {d['definition']}"
@@ -311,7 +317,7 @@ def _score_one_persona(feature: PMFeature, persona: dict) -> dict:
         + "with all 7 dim keys present. No prose outside the JSON."
     )
 
-    raw = _call_gemini(prompt, max_tokens=1500, temperature=0.5)
+    raw = _call_llm(prompt, max_tokens=1500, temperature=0.5)
     parsed = _safe_json_extract(raw) or {}
     if not isinstance(parsed, dict):
         parsed = {}
@@ -363,8 +369,8 @@ def _propose_revision(feature: PMFeature, weakest_dim: str, owner_persona: dict)
 
     Returns: {field_updates: {field: new_value}, summary: str}
     """
-    if not _gemini_rate_check():
-        return {"field_updates": {}, "summary": "(Gemini quota exhausted — no revision)"}
+    if not _llm_available():
+        return {"field_updates": {}, "summary": "(LLM unavailable — no revision)"}
 
     dim_def = DIM_BY_KEY[weakest_dim]
     field_map = {
@@ -407,7 +413,7 @@ def _propose_revision(feature: PMFeature, weakest_dim: str, owner_persona: dict)
         + "possible. Reference your frameworks in 'summary'."
     )
 
-    raw = _call_gemini(prompt, max_tokens=1500, temperature=0.6)
+    raw = _call_llm(prompt, max_tokens=1500, temperature=0.6)
     parsed = _safe_json_extract(raw) or {}
     if not isinstance(parsed, dict):
         return {"field_updates": {}, "summary": "(unparseable revision)"}
@@ -425,8 +431,8 @@ def _propose_revision(feature: PMFeature, weakest_dim: str, owner_persona: dict)
 
 def _critique_revision(feature_before: dict, feature_after: dict, weakest_dim: str, critic: dict) -> str:
     """Other persona critiques the proposed revision."""
-    if not _gemini_rate_check():
-        return "(Gemini quota exhausted — no critique)"
+    if not _llm_available():
+        return "(LLM unavailable — no critique)"
 
     diff_lines = []
     for k in feature_after:
@@ -443,7 +449,7 @@ def _critique_revision(feature_before: dict, feature_after: dict, weakest_dim: s
         + f"REVISION DIFF:\n{diff_text}\n\n"
         + "Return plain text — your critique only, no JSON."
     )
-    raw = _call_gemini(prompt, max_tokens=400, temperature=0.7)
+    raw = _call_llm(prompt, max_tokens=400, temperature=0.7)
     return raw[:600] if raw else "(no critique generated)"
 
 

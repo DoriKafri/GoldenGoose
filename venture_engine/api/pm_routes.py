@@ -561,3 +561,279 @@ def restore_stuck(db: Session = Depends(get_db_dependency)):
         flipped.append({"id": f.id, "title": f.title, "final_score": f.final_score})
     db.commit()
     return {"restored": len(flipped), "features": flipped}
+
+
+# ─── Admin: manual cycle injection (used when Gemini quota is exhausted) ──
+# Gated by env var PM_ADMIN_KEY — if unset, every admin endpoint refuses.
+def _require_admin(x_admin_key: Optional[str] = Header(None)):
+    import os as _os
+    expected = _os.environ.get("PM_ADMIN_KEY", "")
+    if not expected:
+        raise HTTPException(503, "Admin endpoints disabled (PM_ADMIN_KEY not set).")
+    if not x_admin_key or x_admin_key != expected:
+        raise HTTPException(401, "Invalid or missing X-Admin-Key header.")
+    return True
+
+
+class InjectCyclePayload(BaseModel):
+    cycle_n: int
+    weakest_dim: str
+    owner_persona: str
+    revision_summary: str
+    revision_diff: Optional[dict] = None       # {field: {"before": "...", "after": "..."}}
+    critiques: list[dict]                      # [{"persona": "torres", "critique": "..."}]
+    score_before: dict                         # {dim: avg_score}
+    score_after: dict                          # {dim: avg_score}
+    weakest_delta: float
+    accepted: bool
+    rejection_reason: Optional[str] = None
+    persona_scores: list[dict]                 # [{"persona","dim","score","rationale"}]
+    field_updates: Optional[dict] = None       # if accepted, apply to the feature row
+
+
+@pm_router.get("/admin/features-list")
+def admin_features_list(
+    _admin: bool = Depends(_require_admin),
+    db: Session = Depends(get_db_dependency),
+):
+    """List every PM feature with summary data. Used by manual-cycle scripts to
+    pick which features to research."""
+    rows = db.query(PMFeature).order_by(PMFeature.created_at.desc()).all()
+    return {
+        "features": [
+            {
+                "id": f.id,
+                "title": f.title,
+                "one_liner": f.one_liner,
+                "status": f.status,
+                "research_cycles_completed": f.research_cycles_completed or 0,
+                "research_terminated_reason": f.research_terminated_reason,
+                "final_score": f.final_score,
+                "proposed_by_persona": f.proposed_by_persona,
+                "created_at": f.created_at.isoformat() if f.created_at else None,
+            }
+            for f in rows
+        ]
+    }
+
+
+@pm_router.get("/admin/features/{feature_id}/raw")
+def admin_feature_raw(
+    feature_id: str,
+    _admin: bool = Depends(_require_admin),
+    db: Session = Depends(get_db_dependency),
+):
+    """Full feature payload + every cycle + every score. Used by manual-cycle
+    scripts to read the current state before generating a new cycle."""
+    f = db.query(PMFeature).filter(PMFeature.id == feature_id).first()
+    if not f:
+        raise HTTPException(404, "Feature not found")
+    cycles = db.query(PMResearchCycle).filter(
+        PMResearchCycle.feature_id == feature_id
+    ).order_by(PMResearchCycle.cycle_n).all()
+    scores = db.query(PMFeatureScore).filter(
+        PMFeatureScore.feature_id == feature_id
+    ).all()
+    feature_fields = [
+        "title", "one_liner", "user_problem", "proposed_solution",
+        "outcome_metric", "smallest_test", "lno_classification",
+        "counterfactual_cost", "implementation_notes",
+    ]
+    return {
+        "feature": {
+            "id": f.id,
+            "status": f.status,
+            "research_cycles_completed": f.research_cycles_completed or 0,
+            "research_terminated_reason": f.research_terminated_reason,
+            "final_score": f.final_score,
+            "proposed_by_persona": f.proposed_by_persona,
+            **{k: getattr(f, k) for k in feature_fields},
+        },
+        "cycles": [
+            {
+                "cycle_n": c.cycle_n,
+                "weakest_dim": c.weakest_dim,
+                "owner_persona": c.owner_persona,
+                "revision_summary": c.revision_summary,
+                "revision_diff": c.revision_diff,
+                "critiques": c.critiques,
+                "score_before": c.score_before,
+                "score_after": c.score_after,
+                "weakest_delta": c.weakest_delta,
+                "accepted": c.accepted,
+                "rejection_reason": c.rejection_reason,
+            }
+            for c in cycles
+        ],
+        "scores": [
+            {
+                "cycle_n": s.cycle_n,
+                "persona": s.persona,
+                "dimension": s.dimension,
+                "score": s.score,
+                "rationale": s.rationale,
+            }
+            for s in scores
+        ],
+    }
+
+
+@pm_router.post("/admin/features/{feature_id}/reset-cycles")
+def admin_reset_cycles(
+    feature_id: str,
+    _admin: bool = Depends(_require_admin),
+    db: Session = Depends(get_db_dependency),
+):
+    """Wipe all PMResearchCycle + PMFeatureScore rows for a feature and reset
+    research_cycles_completed/terminated_reason/final_score so the manual loop
+    can run from scratch."""
+    f = db.query(PMFeature).filter(PMFeature.id == feature_id).first()
+    if not f:
+        raise HTTPException(404, "Feature not found")
+    n_cycles = db.query(PMResearchCycle).filter(
+        PMResearchCycle.feature_id == feature_id
+    ).delete(synchronize_session=False)
+    n_scores = db.query(PMFeatureScore).filter(
+        PMFeatureScore.feature_id == feature_id
+    ).delete(synchronize_session=False)
+    f.research_cycles_completed = 0
+    f.research_terminated_reason = None
+    f.final_score = None
+    if f.status in ("rejected", "ranked", "backlog"):
+        f.status = "researching"
+    db.commit()
+    return {
+        "reset": True,
+        "feature_id": feature_id,
+        "cycles_deleted": n_cycles,
+        "scores_deleted": n_scores,
+    }
+
+
+@pm_router.post("/admin/features/{feature_id}/inject-cycle")
+def admin_inject_cycle(
+    feature_id: str,
+    payload: InjectCyclePayload,
+    _admin: bool = Depends(_require_admin),
+    db: Session = Depends(get_db_dependency),
+):
+    """Persist a manually-generated research cycle (revision + critiques +
+    per-persona scores) as if pm_engine.continue_research_loop had produced it.
+
+    Used when Gemini quota is exhausted and the operator generates the cycle
+    content out-of-band. The payload mirrors the data shape pm_engine already
+    writes to PMResearchCycle / PMFeatureScore."""
+    f = db.query(PMFeature).filter(PMFeature.id == feature_id).first()
+    if not f:
+        raise HTTPException(404, "Feature not found")
+
+    # Sanity: persona keys must match PERSONAS_BY_KEY
+    if payload.owner_persona not in PERSONAS_BY_KEY:
+        raise HTTPException(400, f"Unknown owner_persona '{payload.owner_persona}'")
+    valid_dims = {d["key"] for d in DIMENSIONS}
+    if payload.weakest_dim not in valid_dims:
+        raise HTTPException(400, f"Unknown weakest_dim '{payload.weakest_dim}'")
+
+    # Write the cycle row
+    cycle = PMResearchCycle(
+        feature_id=feature_id,
+        cycle_n=payload.cycle_n,
+        weakest_dim=payload.weakest_dim,
+        owner_persona=payload.owner_persona,
+        revision_summary=payload.revision_summary[:500] if payload.revision_summary else "",
+        revision_diff=payload.revision_diff or {},
+        critiques=payload.critiques or [],
+        score_before=payload.score_before or {},
+        score_after=payload.score_after or {},
+        weakest_delta=float(payload.weakest_delta or 0.0),
+        accepted=bool(payload.accepted),
+        rejection_reason=payload.rejection_reason,
+    )
+    db.add(cycle)
+
+    # Write the per-persona/per-dim scores
+    n_scores = 0
+    for s in (payload.persona_scores or []):
+        if not isinstance(s, dict):
+            continue
+        p = s.get("persona")
+        d = s.get("dim") or s.get("dimension")
+        if p not in PERSONAS_BY_KEY or d not in valid_dims:
+            continue
+        try:
+            score_val = max(0.0, min(10.0, float(s.get("score", 5.0))))
+        except (TypeError, ValueError):
+            continue
+        db.add(PMFeatureScore(
+            feature_id=feature_id,
+            cycle_n=payload.cycle_n,
+            persona=p,
+            dimension=d,
+            score=score_val,
+            rationale=str(s.get("rationale", ""))[:500],
+        ))
+        n_scores += 1
+
+    # Apply field updates if accepted
+    if payload.accepted and payload.field_updates:
+        editable = {
+            "title", "one_liner", "user_problem", "proposed_solution",
+            "outcome_metric", "smallest_test", "lno_classification",
+            "counterfactual_cost", "implementation_notes",
+        }
+        applied = {}
+        for k, v in (payload.field_updates or {}).items():
+            if k not in editable or v is None:
+                continue
+            setattr(f, k, str(v)[:5000])
+            applied[k] = str(v)[:200]
+    else:
+        applied = {}
+
+    # Bump the cycle counter and recompute final_score from score_after
+    f.research_cycles_completed = max(f.research_cycles_completed or 0, payload.cycle_n)
+    if isinstance(payload.score_after, dict) and payload.score_after:
+        try:
+            f.final_score = round(
+                sum(float(v) for v in payload.score_after.values())
+                / max(1, len(payload.score_after)),
+                2,
+            )
+        except (TypeError, ValueError):
+            pass
+
+    db.commit()
+    return {
+        "ok": True,
+        "feature_id": feature_id,
+        "cycle_n": payload.cycle_n,
+        "scores_written": n_scores,
+        "fields_applied": applied,
+        "final_score": f.final_score,
+        "research_cycles_completed": f.research_cycles_completed,
+    }
+
+
+@pm_router.post("/admin/features/{feature_id}/finalize")
+def admin_finalize_research(
+    feature_id: str,
+    terminated_reason: str = Query("converged", description="plateau|regress|stuck|max_cycles|converged"),
+    new_status: str = Query("backlog", description="status to flip the feature to"),
+    _admin: bool = Depends(_require_admin),
+    db: Session = Depends(get_db_dependency),
+):
+    """Mark a feature's research loop as terminated and move it out of
+    'researching' into the requested status (typically 'backlog')."""
+    f = db.query(PMFeature).filter(PMFeature.id == feature_id).first()
+    if not f:
+        raise HTTPException(404, "Feature not found")
+    f.research_terminated_reason = terminated_reason
+    f.status = new_status
+    db.commit()
+    return {
+        "ok": True,
+        "feature_id": feature_id,
+        "status": f.status,
+        "research_terminated_reason": f.research_terminated_reason,
+        "final_score": f.final_score,
+    }

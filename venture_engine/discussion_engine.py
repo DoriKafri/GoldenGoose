@@ -243,6 +243,56 @@ def _call_gemini(prompt: str, max_tokens: int = 1500, temperature: float = 0.8) 
     return ""
 
 
+# ── Claude (Anthropic) fallback for when Gemini quota is exhausted ────────
+def _claude_available() -> bool:
+    """True if Anthropic API key is configured."""
+    try:
+        from venture_engine.config import settings
+        return bool(settings.anthropic_api_key)
+    except Exception:
+        return False
+
+
+def _call_claude(prompt: str, max_tokens: int = 1500, temperature: float = 0.8) -> str:
+    """Call Anthropic Claude as a fallback when Gemini is unavailable.
+    Returns empty string on any failure."""
+    try:
+        from venture_engine.config import settings
+        from anthropic import Anthropic
+        if not settings.anthropic_api_key:
+            return ""
+        client = Anthropic(api_key=settings.anthropic_api_key)
+        resp = client.messages.create(
+            model=settings.claude_model,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        parts = [b.text for b in resp.content if getattr(b, "type", "") == "text"]
+        return ("".join(parts)).strip()
+    except Exception as e:
+        logger.warning(f"Claude fallback call failed: {e}")
+        return ""
+
+
+def _llm_available() -> bool:
+    """True if either Gemini (under daily quota) or Claude is available."""
+    return gemini_calls_remaining() > 0 or _claude_available()
+
+
+def _call_llm(prompt: str, max_tokens: int = 1500, temperature: float = 0.8) -> str:
+    """Try Gemini first; fall back to Claude on quota/429/empty result.
+
+    Use this from caller paths where you want graceful degradation rather than
+    a hard "(Gemini quota exhausted)" stub. `_call_gemini` semantics are unchanged
+    for callers that intentionally want Gemini-only."""
+    if gemini_calls_remaining() > 0:
+        result = _call_gemini(prompt, max_tokens=max_tokens, temperature=temperature)
+        if result:
+            return result
+    return _call_claude(prompt, max_tokens=max_tokens, temperature=temperature)
+
+
 def generate_beliefs_for_tl(name: str, handle: str, domains: list, persona_prompt: str) -> list:
     """Generate core beliefs for a thought leader using Gemini."""
     domain_str = ", ".join(domains[:4]) if domains else "DevOps, AI, Cloud"

@@ -10956,13 +10956,13 @@ async function _tlInit() {
   let _tlAnimScale = 1;
 
   // Timeline zoom state
-  // Default to a one-week window so dense timelines stay legible. The viewport
+  // Default to a two-week window so dense timelines stay legible. The viewport
   // auto-pans with the playhead during replay (see tlFrame). User can override
   // pan by swiping the version-labels strip; auto-pan resumes after a brief
   // idle period.
-  const _TL_ONE_WEEK = 7 * 24 * 60 * 60 * 1000;
+  const _TL_DEFAULT_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
   const _TL_MAX_ZOOM = 20;
-  const _TL_INITIAL_ZOOM = Math.max(1, Math.min(_TL_MAX_ZOOM, T_SPAN / _TL_ONE_WEEK));
+  const _TL_INITIAL_ZOOM = Math.max(1, Math.min(_TL_MAX_ZOOM, T_SPAN / _TL_DEFAULT_WINDOW_MS));
   let _tlZoom = _TL_INITIAL_ZOOM;
   let _tlViewOffset = 0;  // left edge as fraction 0..1 of total span
   let _tlUserPanUntil = 0; // timestamp; while > Date.now(), auto-pan is paused

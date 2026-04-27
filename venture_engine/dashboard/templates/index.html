@@ -10875,16 +10875,22 @@ async function _tlInit() {
           tlVersionLabelsEl.innerHTML = '';
           const CONTAINER_H = 56;
           const LABEL_H = 16;
-          const ROW_TOPS = [CONTAINER_H - LABEL_H - 1, 1]; // low + high (2 rows)
-          const THRESHOLD = 6 / z;            // % gap below which versions cluster
+          // 3 rows for label placement so dense areas can fan out vertically
+          // before the algorithm has to fall back to clustering.
+          const ROW_TOPS = [CONTAINER_H - LABEL_H - 1, 20, 1]; // low=39, mid=20, high=1
+          // Cluster releases that land within ~hours of each other (tight) —
+          // this catches "deploy bursts" but leaves separate-day deploys alone.
+          const CLUSTER_GAP = 1.5 / z;
+          // Two labels closer than this overlap visually — used for row choice.
+          const LABEL_OVERLAP = 7 / z;
           const counterScale = 1 / z;         // undoes the container's scaleX(z)
 
-          // Cluster consecutive releases whose pct gap is below THRESHOLD
+          // Cluster consecutive releases whose pct gap is below CLUSTER_GAP
           const clusters = [];
           let cur = null;
           for (let i = 0; i < releases.length; i++) {
             const pct = pcts[i];
-            if (!cur || pct - cur.endPct > THRESHOLD) {
+            if (!cur || pct - cur.endPct > CLUSTER_GAP) {
               cur = { items: [], pcts: [], endPct: pct };
               clusters.push(cur);
             }
@@ -10893,13 +10899,13 @@ async function _tlInit() {
             cur.endPct = pct;
           }
 
-          const lastEndOnRow = [-999, -999];
+          const lastEndOnRow = [-999, -999, -999];
           clusters.forEach(cluster => {
             const medianPct = cluster.pcts[Math.floor(cluster.pcts.length / 2)];
             // Pick the first row where this cluster doesn't overlap its left neighbor.
             let chosenRow = 0;
             for (let r = 0; r < ROW_TOPS.length; r++) {
-              if (medianPct - lastEndOnRow[r] >= THRESHOLD) { chosenRow = r; break; }
+              if (medianPct - lastEndOnRow[r] >= LABEL_OVERLAP) { chosenRow = r; break; }
               if (r === ROW_TOPS.length - 1) chosenRow = r;
             }
             lastEndOnRow[chosenRow] = medianPct;

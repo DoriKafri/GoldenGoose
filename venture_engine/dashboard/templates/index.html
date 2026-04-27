@@ -10004,7 +10004,7 @@ async function loadLiveMonitor() {
           <div id="tlComments"></div>
         </div>
         <div class="lm-tl-timeline" id="tlTimeline">
-          <div class="lm-tl-version-labels" id="tlVersionLabels" style="position:absolute;top:0;left:0;width:100%;height:56px;transform-origin:0 0;z-index:8;pointer-events:none;"></div>
+          <div class="lm-tl-version-labels" id="tlVersionLabels" style="position:absolute;top:0;left:0;width:100%;height:56px;transform-origin:0 0;z-index:8;pointer-events:auto;cursor:grab;touch-action:pan-y;"></div>
           <div class="lm-tl-viewport" id="tlViewport" style="position:absolute;top:0;left:0;width:100%;height:100%;transform-origin:0 0;">
             <div class="lm-tl-histogram" id="tlHistogram"></div>
             <div class="lm-tl-playhead" id="tlPlayhead"></div>
@@ -10956,9 +10956,16 @@ async function _tlInit() {
   let _tlAnimScale = 1;
 
   // Timeline zoom state
-  let _tlZoom = 1;        // 1 = fit all, higher = zoomed in
-  let _tlViewOffset = 0;  // left edge as fraction 0..1 of total span
+  // Default to a one-week window so dense timelines stay legible. The viewport
+  // auto-pans with the playhead during replay (see tlFrame). User can override
+  // pan by swiping the version-labels strip; auto-pan resumes after a brief
+  // idle period.
+  const _TL_ONE_WEEK = 7 * 24 * 60 * 60 * 1000;
   const _TL_MAX_ZOOM = 20;
+  const _TL_INITIAL_ZOOM = Math.max(1, Math.min(_TL_MAX_ZOOM, T_SPAN / _TL_ONE_WEEK));
+  let _tlZoom = _TL_INITIAL_ZOOM;
+  let _tlViewOffset = 0;  // left edge as fraction 0..1 of total span
+  let _tlUserPanUntil = 0; // timestamp; while > Date.now(), auto-pan is paused
 
   function _tlApplyViewport() {
     const vp = document.getElementById('tlViewport');
@@ -11131,8 +11138,11 @@ async function _tlInit() {
   };
 
   window._tlZoomReset = function() {
-    _tlZoom = 1;
+    // Reset to the default ~1-week window with auto-pan re-enabled, rather
+    // than fit-all-zoomed-out (which makes dense timelines unreadable).
+    _tlZoom = _TL_INITIAL_ZOOM;
     _tlViewOffset = 0;
+    _tlUserPanUntil = 0;
     _tlApplyViewport();
   };
 
@@ -11353,6 +11363,69 @@ async function _tlInit() {
     _tlTimelineEl.addEventListener('mouseleave', function() {
       if (!_tlScrubbing && _tlTooltipEl) _tlTooltipEl.classList.remove('show');
     });
+  }
+
+  // Manual pan on the version-labels strip. Swipe/drag horizontally to pan
+  // the visible window. Auto-pan pauses for 5s after each manual interaction.
+  const _tlLabelsEl = document.getElementById('tlVersionLabels');
+  if (_tlLabelsEl) {
+    const _IDLE_PAN_MS = 5000;
+    function _tlPanByPx(deltaPx) {
+      const w = _tlLabelsEl.clientWidth || 1;
+      // Container is transformed by scaleX(zoom). 1 unit of viewOffset corresponds
+      // to translating by w in unscaled space, or w*zoom on screen. So
+      // Δoffset = -ΔpxScreen / (w * zoom).
+      const dFrac = -deltaPx / (w * _tlZoom);
+      const viewW = 1 / _tlZoom;
+      _tlViewOffset = Math.max(0, Math.min(1 - viewW, _tlViewOffset + dFrac));
+      _tlUserPanUntil = Date.now() + _IDLE_PAN_MS;
+      _tlApplyViewport();
+    }
+    // Eat clicks on the labels strip so they don't bubble up to seek-on-click.
+    _tlLabelsEl.addEventListener('click', function(e) { e.stopPropagation(); });
+    // Mouse drag pan
+    _tlLabelsEl.addEventListener('mousedown', function(e) {
+      if (e.button !== 0) return;
+      if (_tlZoom <= 1) return;     // nothing to pan when fully zoomed out
+      e.preventDefault();
+      e.stopPropagation();          // don't trigger seek-bar scrub
+      _tlLabelsEl.style.cursor = 'grabbing';
+      let lastX = e.clientX;
+      function onMove(e2) {
+        _tlPanByPx(e2.clientX - lastX);
+        lastX = e2.clientX;
+      }
+      function onUp() {
+        _tlLabelsEl.style.cursor = 'grab';
+        _tlUserPanUntil = Date.now() + _IDLE_PAN_MS;
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+      }
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+    // Touch swipe pan
+    _tlLabelsEl.addEventListener('touchstart', function(e) {
+      if (_tlZoom <= 1) return;
+      if (e.touches.length !== 1) return;
+      e.stopPropagation();
+      let lastX = e.touches[0].clientX;
+      function onMove(e2) {
+        if (e2.touches.length !== 1) return;
+        e2.preventDefault();
+        _tlPanByPx(e2.touches[0].clientX - lastX);
+        lastX = e2.touches[0].clientX;
+      }
+      function onEnd() {
+        _tlUserPanUntil = Date.now() + _IDLE_PAN_MS;
+        document.removeEventListener('touchmove', onMove);
+        document.removeEventListener('touchend', onEnd);
+        document.removeEventListener('touchcancel', onEnd);
+      }
+      document.addEventListener('touchmove', onMove, {passive: false});
+      document.addEventListener('touchend', onEnd);
+      document.addEventListener('touchcancel', onEnd);
+    }, {passive: true});
   }
 
   function _tlUpdateCounters(){
@@ -11756,13 +11829,16 @@ async function _tlInit() {
       const scrubScreenPct = (frac01 - _tlViewOffset) * _tlZoom * 100;
       if (_tlScrubberEl) _tlScrubberEl.style.left = scrubScreenPct + '%';
       _tlUpdateReleaseLabel();
-      // Auto-scroll viewport to keep playhead in view when zoomed
-      if (_tlZoom > 1) {
+      // Auto-pan viewport with the playhead so we slide a fixed-width window
+      // (default ~1 week) along the timeline instead of jumping at the right edge.
+      // Playhead sits at ~30% from the left so upcoming content is visible.
+      // Skipped briefly after a user pan/scrub so manual exploration sticks.
+      if (_tlZoom > 1 && Date.now() > _tlUserPanUntil) {
         const frac = (currentTime - T_START) / T_SPAN;
         const viewW = 1 / _tlZoom;
-        if (frac < _tlViewOffset || frac > _tlViewOffset + viewW) {
-          _tlViewOffset = Math.max(0, frac - viewW * 0.3);
-          _tlClampView();
+        const target = Math.max(0, Math.min(1 - viewW, frac - viewW * 0.3));
+        if (Math.abs(target - _tlViewOffset) > 1e-5) {
+          _tlViewOffset = target;
           _tlApplyViewport();
         }
       }

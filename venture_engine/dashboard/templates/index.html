@@ -10864,47 +10864,79 @@ async function _tlInit() {
       // Place individual labels in 3 rows (low/mid/high) with connector lines
       const tlVersionLabelsEl = document.getElementById('tlVersionLabels');
       if (tlVersionLabelsEl) {
-        tlVersionLabelsEl.innerHTML = '';
-        const CONTAINER_H = 56;
-        const LABEL_H = 16;  // approx label height with padding
-        const ROW_TOPS = [CONTAINER_H - LABEL_H - 1, 20, 1]; // low=39, mid=20, high=1
-        const OVERLAP_THRESHOLD = 6; // % distance below which labels would overlap
-        const lastPctOnRow = [-999, -999, -999]; // track last label % on each row
+        let _lastRenderZoom = -1;
+        // Re-cluster + re-render labels every time the zoom changes. At higher
+        // zoom the cluster threshold shrinks so dense clusters break apart and
+        // individual versions become visible. Pan doesn't change clustering.
+        const _renderReleaseLabels = (zoom) => {
+          const z = Math.max(1, zoom || 1);
+          if (z === _lastRenderZoom) return;
+          _lastRenderZoom = z;
+          tlVersionLabelsEl.innerHTML = '';
+          const CONTAINER_H = 56;
+          const LABEL_H = 16;
+          const ROW_TOPS = [CONTAINER_H - LABEL_H - 1, 1]; // low + high (2 rows)
+          const THRESHOLD = 6 / z;            // % gap below which versions cluster
+          const counterScale = 1 / z;         // undoes the container's scaleX(z)
 
-        releases.forEach((ev, i) => {
-          const pct = pcts[i];
-          const text = ev.data.v;
-
-          // Find first row without overlap (low → mid → high)
-          let row = 0;
-          for (let r = 0; r < 3; r++) {
-            if (pct - lastPctOnRow[r] >= OVERLAP_THRESHOLD) {
-              row = r;
-              break;
+          // Cluster consecutive releases whose pct gap is below THRESHOLD
+          const clusters = [];
+          let cur = null;
+          for (let i = 0; i < releases.length; i++) {
+            const pct = pcts[i];
+            if (!cur || pct - cur.endPct > THRESHOLD) {
+              cur = { items: [], pcts: [], endPct: pct };
+              clusters.push(cur);
             }
-            if (r === 2) row = 2; // fallback to highest row
+            cur.items.push(releases[i]);
+            cur.pcts.push(pct);
+            cur.endPct = pct;
           }
-          lastPctOnRow[row] = pct;
-          const top = ROW_TOPS[row];
 
-          // Create label
-          const label = document.createElement('div');
-          label.className = 'tl-release-marker-label';
-          label.textContent = text;
-          label.style.cssText = `position:absolute;top:${top}px;left:${pct}%;transform:translateX(-50%);font-size:9px;font-weight:700;font-family:'JetBrains Mono',monospace;color:#059669;white-space:nowrap;background:rgba(16,185,129,0.15);padding:1px 6px;border-radius:4px;border:1px solid rgba(16,185,129,0.4);line-height:13px;letter-spacing:0.3px;z-index:2;`;
-          tlVersionLabelsEl.appendChild(label);
+          const lastEndOnRow = [-999, -999];
+          clusters.forEach(cluster => {
+            const medianPct = cluster.pcts[Math.floor(cluster.pcts.length / 2)];
+            // Pick the first row where this cluster doesn't overlap its left neighbor.
+            let chosenRow = 0;
+            for (let r = 0; r < ROW_TOPS.length; r++) {
+              if (medianPct - lastEndOnRow[r] >= THRESHOLD) { chosenRow = r; break; }
+              if (r === ROW_TOPS.length - 1) chosenRow = r;
+            }
+            lastEndOnRow[chosenRow] = medianPct;
+            const top = ROW_TOPS[chosenRow];
 
-          // Draw dashed connector line from container bottom up to label
-          {
+            const versions = cluster.items.map(c => c.data.v);
+            const labelText = versions.length === 1
+              ? versions[0]
+              : (versions.length === 2
+                  ? `${versions[0]}, ${versions[1]}`
+                  : `${versions[0]}–${versions[versions.length - 1]} (${versions.length})`);
+            const titleText = versions.length === 1
+              ? versions[0]
+              : `${versions.length} releases: ${versions.join(', ')}`;
+
+            const label = document.createElement('div');
+            label.className = 'tl-release-marker-label';
+            label.textContent = labelText;
+            label.title = titleText;
+            label.style.cssText = `position:absolute;top:${top}px;left:${medianPct}%;transform:translateX(-50%) scaleX(${counterScale});transform-origin:center top;font-size:9px;font-weight:700;font-family:'JetBrains Mono',monospace;color:#059669;white-space:nowrap;background:rgba(16,185,129,0.15);padding:1px 6px;border-radius:4px;border:1px solid rgba(16,185,129,0.4);line-height:13px;letter-spacing:0.3px;z-index:2;cursor:default;`;
+            tlVersionLabelsEl.appendChild(label);
+
+            // One dashed connector from the cluster label down to the histogram —
+            // anchored at the cluster's median pct. Per-release dashed marker
+            // lines on the histogram itself stay (rendered separately above).
             const lineTop = top + LABEL_H;
             const lineH = CONTAINER_H - lineTop;
             if (lineH > 0) {
               const line = document.createElement('div');
-              line.style.cssText = `position:absolute;top:${lineTop}px;left:${pct}%;width:0;height:${lineH}px;border-left:1.5px dashed rgba(16,185,129,0.45);z-index:1;`;
+              line.style.cssText = `position:absolute;top:${lineTop}px;left:${medianPct}%;width:0;height:${lineH}px;border-left:1.5px dashed rgba(16,185,129,0.45);z-index:1;`;
               tlVersionLabelsEl.appendChild(line);
             }
-          }
-        });
+          });
+        };
+        _renderReleaseLabels(1);
+        // Expose so _tlApplyViewport can re-cluster when zoom changes.
+        window._tlRerenderReleaseLabels = _renderReleaseLabels;
       }
     }
 
@@ -10943,9 +10975,16 @@ async function _tlInit() {
     if (vlc) {
       vlc.style.transform = `scaleX(${_tlZoom}) translateX(${-_tlViewOffset * 100}%)`;
       vlc.style.transformOrigin = '0 0';
-      vlc.querySelectorAll('.tl-release-marker-label').forEach(lbl => {
-        lbl.style.transform = `translateX(-50%) scaleX(${counterScale})`;
-      });
+      // Re-cluster labels at the new zoom — denser clusters break apart as you
+      // zoom in. The renderer no-ops if zoom hasn't changed (pan-only is free).
+      if (typeof window._tlRerenderReleaseLabels === 'function') {
+        window._tlRerenderReleaseLabels(_tlZoom);
+      } else {
+        // Pre-clustering fallback (older render path): just counter-scale labels.
+        vlc.querySelectorAll('.tl-release-marker-label').forEach(lbl => {
+          lbl.style.transform = `translateX(-50%) scaleX(${counterScale})`;
+        });
+      }
     }
   }
 
